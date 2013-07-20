@@ -1,0 +1,228 @@
+RUN_WITH_DBUS = ${top_srcdir}/test/run-with-dbus --session --system
+GTESTER = ${TESTS_ENVIRONMENT} ${RUN_WITH_DBUS} gtester
+
+########################################################################
+if ENABLE_TESTS
+TEST_PROGS += gjs-tests
+endif
+
+gjs_tests_CFLAGS =				\
+	-include $(top_srcdir)/test/test.h	\
+	$(AM_CFLAGS)				\
+	-DGJS_COMPILATION			\
+	$(GJSTESTS_CFLAGS)			\
+	$(gjs_directory_defines)		\
+	-I$(top_srcdir)/test
+
+## -rdynamic makes backtraces work
+gjs_tests_LDFLAGS = -rdynamic
+gjs_tests_LDADD =		\
+	libgjs.la		\
+	$(GJSTESTS_LIBS)
+
+gjs_tests_SOURCES =		\
+	test/gjs-tests.c	\
+	test/test.h		\
+	$(gjstest_files_with_tests)
+
+nodist_gjs_tests_SOURCES =	\
+	gjstest.c		\
+	gjstest.h
+
+## make-tests always updates the ".stamp" files, but only modifies the
+## actual gjstest.[hc] if they change. make-tests creates both
+## .h.stamp and .c.stamp but if we listed both, make would run
+## make-tests twice.
+gjstest.h.stamp : scripts/make-tests $(gjstest_files_with_tests)
+	$(TESTS_ENVIRONMENT) $(top_srcdir)/scripts/make-tests . $(gjstest_files_with_tests)
+
+gjstest.h gjstest.c : gjstest.h.stamp
+	@true
+
+if ENABLE_TESTS
+TEST_PROGS += gjs-unit
+endif
+
+gjs_unit_CPPFLAGS =		\
+	$(AM_CPPFLAGS)          \
+	$(gjs_directory_defines)\
+	$(GJS_CFLAGS)
+gjs_unit_LDADD =		\
+	libgjs.la		\
+	$(GJS_LIBS)
+
+## -rdynamic makes backtraces work
+## we -export-dynamic so we can dlopen ourselves and use gobject-introspection
+gjs_unit_LDFLAGS=-export-dynamic -rdynamic
+gjs_unit_SOURCES =	\
+	test/gjs-unit.c
+
+
+BUILT_SOURCES += $(nodist_gjs_tests_SOURCES)
+CLEANFILES +=				\
+	$(nodist_gjs_tests_SOURCES)	\
+	gjstest.c.stamp			\
+	gjstest.h.stamp
+
+EXTRA_DIST +=			\
+	scripts/make-tests
+
+# noinst_ always builds a static library
+if ENABLE_TESTS
+testlib_LTLIBRARIES = libregress.la libgimarshallingtests.la
+testlibdir = $(prefix)/unused
+install-testlibLTLIBRARIES: # prevent it from being installed
+endif
+
+nodist_libregress_la_SOURCES = $(GI_DATADIR)/tests/regress.c $(GI_DATADIR)/tests/regress.h
+libregress_la_CFLAGS = $(GJS_CFLAGS) $(GJS_CAIRO_CFLAGS)
+libregress_la_LDFLAGS = -avoid-version $(GJS_LIBS) $(GJS_CAIRO_LIBS)
+nodist_libgimarshallingtests_la_SOURCES = $(GI_DATADIR)/tests/gimarshallingtests.c $(GI_DATADIR)/tests/gimarshallingtests.h
+libgimarshallingtests_la_CFLAGS = $(GJS_CFLAGS)
+libgimarshallingtests_la_LDFLAGS = -avoid-version $(GJS_LIBS)
+
+# g-i doesn't ship these as shared libraries anymore; we build them here
+Regress-1.0.gir: libregress.la Makefile
+	$(AM_V_GEN) LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(FIREFOX_JS_LIBDIR)" g-ir-scanner --include=cairo-1.0 --include=Gio-2.0 \
+	--namespace=Regress --nsversion=1.0 \
+	--warn-all --warn-error \
+	--library=libregress.la \
+	--libtool="$(top_builddir)/libtool" \
+	--output $@ \
+	$(nodist_libregress_la_SOURCES)
+Regress-1.0.typelib: Regress-1.0.gir Makefile
+	$(AM_V_GEN) g-ir-compiler $< -o $@
+
+CLEANFILES += Regress-1.0.gir Regress-1.0.typelib
+
+GIMarshallingTests-1.0.gir: libgimarshallingtests.la Makefile
+	$(AM_V_GEN) LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(FIREFOX_JS_LIBDIR)" g-ir-scanner --include=Gio-2.0 \
+	--namespace=GIMarshallingTests --nsversion=1.0 --symbol-prefix=gi_marshalling_tests \
+	--warn-all --warn-error \
+	--library=libgimarshallingtests.la \
+	--libtool="$(top_builddir)/libtool" \
+	--output $@ \
+	$(nodist_libgimarshallingtests_la_SOURCES)
+GIMarshallingTests-1.0.typelib: GIMarshallingTests-1.0.gir Makefile
+	$(AM_V_GEN) g-ir-compiler $< -o $@
+
+CLEANFILES += GIMarshallingTests-1.0.gir GIMarshallingTests-1.0.typelib
+
+########################################################################
+TESTS_ENVIRONMENT =							\
+	TOP_SRCDIR=$(top_srcdir)					\
+	DBUS_SESSION_BUS_ADDRESS=''					\
+	XDG_DATA_HOME=test_user_data					\
+	GJS_DEBUG_OUTPUT=test_user_data/logs/gjs.log			\
+	BUILDDIR=.							\
+	GJS_USE_UNINSTALLED_FILES=1					\
+	GJS_TEST_TIMEOUT=420						\
+	GI_TYPELIB_PATH=$(builddir)					\
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$(FIREFOX_JS_LIBDIR)"	\
+	G_FILENAME_ENCODING=latin1	# ensure filenames are not utf8
+
+tests_dependencies = $(gjsnative_LTLIBRARIES) ${TEST_PROGS} Regress-1.0.typelib GIMarshallingTests-1.0.typelib
+
+test: $(tests_dependencies)
+	@test -z "${TEST_PROGS}" || ${GTESTER} --verbose ${TEST_PROGS} ${TEST_PROGS_OPTIONS}
+
+check:	test
+
+gdb-check gdb-test: $(tests_dependencies)
+	failed=; for prog in ${TEST_PROGS}; do \
+	  ${TESTS_ENVIRONMENT} GJS_TEST_TIMEOUT=0 $(RUN_WITH_DBUS) libtool --mode=execute gdb -x \
+	      $(top_srcdir)/test/unittest.gdb --args $$prog; \
+	  done
+
+valgrind-check valgrind-test: $(tests_dependencies)
+	@test -z "${TEST_PROGS}" || { \
+	  failed=; for prog in ${TEST_PROGS}; do \
+	    ${TESTS_ENVIRONMENT} G_SLICE=always-malloc	\
+	    $(RUN_WITH_DBUS) \
+	    $(LIBTOOL) --mode=execute valgrind 		\
+	    --log-file=valgrind.$$prog.log 		\
+	    --error-exitcode=1 				\
+	    --trace-children=yes 			\
+	    --tool=memcheck 				\
+	    --leak-check=full 				\
+	    --suppressions=$(top_srcdir)/test/gjs.supp	\
+	    $$VALGRIND_ARGS				\
+	    $$prog \
+	    && $(GREP) -q 'definitely lost: 0 bytes in 0 blocks' valgrind.$$prog.log \
+	    || failed="$$failed $$prog"; \
+	  done; \
+	  test -z "$$failed" || { \
+	    echo "valgrind failed for:$$failed"; exit 1; \
+	  }; \
+	}
+
+.PHONY: test gdb-check gdb-test valgrind-check valgrind-test
+
+CLEANFILES +=					\
+	$(TEST_PROGS:%=valgrind.%.log)		\
+	uninstalled-test-bus.conf		\
+	uninstalled-system-test-bus.conf
+
+clean-local:
+	-rm -rf test_user_data
+
+EXTRA_DIST +=					\
+	test/js/modules/alwaysThrows.js         \
+	test/js/modules/foobar.js               \
+	test/js/modules/mutualImport/a.js       \
+	test/js/modules/mutualImport/b.js       \
+	test/js/modules/subA/.secret.js         \
+	test/js/modules/subA/.hidden/hidden.js  \
+	test/js/modules/subA/foo                \
+	test/js/modules/subA/subB/__init__.js	\
+	test/js/modules/subA/subB/foobar.js     \
+	test/js/modules/subA/subB/baz.js        \
+	test/js/test0010basic.js		\
+	test/js/test0020importer.js		\
+	test/js/test0030basicBoxed.js		\
+	test/js/test0040mainloop.js		\
+	test/js/testself.js			\
+	test/js/testByteArray.js		\
+	test/js/testCairo.js			\
+	test/js/testClass.js			\
+	test/js/testDBus.js			\
+	test/js/testGDBus.js			\
+	test/js/testEverythingBasic.js		\
+	test/js/testEverythingEncapsulated.js	\
+	test/js/testGIMarshalling.js		\
+	test/js/testImporter.js			\
+	test/js/testJS1_8.js			\
+	test/js/testJSDefault.js		\
+	test/js/testLang.js			\
+	test/js/testLocale.js			\
+	test/js/testMainloop.js			\
+	test/js/testSignals.js			\
+	test/js/testTweener.js			\
+	test/js/testUnicode.js			\
+	test/run-with-dbus			\
+	test/test-bus.conf
+
+########################################################################
+if ENABLE_COVERAGE
+lcov:
+	test -d lcov || mkdir lcov
+	$(LCOV) --compat-libtool --directory . --capture -o lcov/lcov.info
+	$(GENHTML) --legend -o lcov lcov/lcov.info
+
+lcov-clean:
+	find . -name '*.gcda' -delete
+	rm -rf lcov
+
+lcov-realclean: lcov-clean
+	find . -name '*.gcno' -delete
+
+clean-local: lcov-realclean
+
+.PHONY: lcov lcov-clean lcov-realclean
+else
+lcov:
+	@echo >&1 "*** ERROR: 'configure --enable-coverage' required"
+	@exit 1
+
+.PHONY: lcov
+endif
