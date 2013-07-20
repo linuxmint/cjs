@@ -69,10 +69,10 @@ noinst_HEADERS +=		\
 
 ########################################################################
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = gjs-1.0.pc cjs-internals-1.0.pc
+pkgconfig_DATA = cjs-1.0.pc cjs-internals-1.0.pc
 
 EXTRA_DIST += 			\
-	gjs-1.0.pc.in           \
+	cjs-1.0.pc.in           \
 	cjs-internals-1.0.pc.in
 
 ########################################################################

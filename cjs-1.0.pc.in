@@ -8,11 +8,11 @@ datadir=@datadir@
 
 gjs_console=${bindir}/gjs-console
 
-Cflags: -I${includedir}/gjs-1.0
+Cflags: -I${includedir}/cjs-1.0
 Requires: gobject-2.0
 Requires.private: gobject-introspection-1.0 mozjs185
 Libs: -L${libdir} -lgjs
 
-Name: gjs-1.0
+Name: cjs-1.0
 Description: JS bindings for GObjects
 Version: @VERSION@

@@ -6,8 +6,8 @@ includedir=@includedir@
 datarootdir=@datarootdir@
 datadir=@datadir@
 
-Cflags: -I${includedir}/gjs-1.0
-Requires: gjs-1.0 dbus-1
+Cflags: -I${includedir}/cjs-1.0
+Requires: cjs-1.0 dbus-1
 Libs: -L${libdir} -lcjs-dbus
 
 Name: cjs-dbus-1.0

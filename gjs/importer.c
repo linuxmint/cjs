@@ -1113,18 +1113,18 @@ gjs_get_search_path(void)
             g_free(dirs);
         }
 
-        /* $XDG_DATA_DIRS /gjs-1.0 */
+        /* $XDG_DATA_DIRS /cjs-1.0 */
         system_data_dirs = g_get_system_data_dirs();
         for (i = 0; system_data_dirs[i] != NULL; ++i) {
             char *s;
-            s = g_build_filename(system_data_dirs[i], "gjs-1.0", NULL);
+            s = g_build_filename(system_data_dirs[i], "cjs-1.0", NULL);
             g_ptr_array_add(path, s);
         }
 
-        /* ${libdir}/gjs-1.0 */
+        /* ${libdir}/cjs-1.0 */
         g_ptr_array_add(path, g_strdup(GJS_NATIVE_DIR));
 
-        /* ${datadir}/share/gjs-1.0 */
+        /* ${datadir}/share/cjs-1.0 */
         g_ptr_array_add(path, g_strdup(GJS_JS_DIR));
 
         g_ptr_array_add(path, NULL);
