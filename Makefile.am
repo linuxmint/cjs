@@ -69,11 +69,11 @@ noinst_HEADERS +=		\
 
 ########################################################################
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = gjs-1.0.pc gjs-internals-1.0.pc
+pkgconfig_DATA = gjs-1.0.pc cjs-internals-1.0.pc
 
 EXTRA_DIST += 			\
 	gjs-1.0.pc.in           \
-	gjs-internals-1.0.pc.in
+	cjs-internals-1.0.pc.in
 
 ########################################################################
 gjs_directory_defines = 				\
@@ -145,8 +145,8 @@ libcjs_la_SOURCES += \
 
 # Also, these files used to be a separate library
 gdbus_wrapper_source_files = \
-	gjs-dbus/gjs-gdbus-wrapper.c	\
-	gjs-dbus/gjs-gdbus-wrapper.h
+	cjs-dbus/gjs-gdbus-wrapper.c	\
+	cjs-dbus/gjs-gdbus-wrapper.h
 libcjs_la_SOURCES += $(gdbus_wrapper_source_files)
 
 CjsPrivate-1.0.gir: libcjs.la
@@ -184,7 +184,7 @@ tapsetdir   = $(DESTDIR)$(datadir)/systemtap/tapset
 tapset_DATA = $(tapset_in_files:.stp.in=.stp)
 endif
 
-include Makefile-gjs-dbus.am
+include Makefile-cjs-dbus.am
 include Makefile-modules.am
 include Makefile-examples.am
 

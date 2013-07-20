@@ -8,8 +8,8 @@ datadir=@datadir@
 
 Cflags: -I${includedir}/gjs-1.0
 Requires: gjs-1.0 dbus-1
-Libs: -L${libdir} -lgjs-dbus
+Libs: -L${libdir} -lcjs-dbus
 
-Name: gjs-dbus-1.0
+Name: cjs-dbus-1.0
 Description: DBus utility library
 Version: @VERSION@

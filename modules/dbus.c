@@ -30,7 +30,7 @@
 #include <gjs/compat.h>
 
 #include <util/log.h>
-#include <gjs-dbus/dbus.h>
+#include <cjs-dbus/dbus.h>
 
 static gboolean session_bus_weakref_added = FALSE;
 static DBusConnection *session_bus = NULL;

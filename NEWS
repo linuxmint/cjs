@@ -3,7 +3,7 @@ Version 0.3 (03-Jul-2009)
 
 Changes:
     - DBus support
-      At a high level there are three pieces. First, the "gjs-dbus" library is
+      At a high level there are three pieces. First, the "cjs-dbus" library is
       a C support library for DBus.  Second, the modules/dbus*.[ch] implement
       parts of the JavaScript API in C.  Third, the modules/dbus.js file fills
       out the rest of the JavaScript API and implementation.
@@ -62,7 +62,7 @@ Bugs fixed:
     Bug 584560 - Add support for UNIX shebang
     Bug 584850 - Clean up some __BIG definitions.
     Bug 584858 - Fix errors (and leftover debugging) from dbus merge.
-    Bug 584858 - Move gjsdbus to gjs-dbus to match installed location.
+    Bug 584858 - Move gjsdbus to cjs-dbus to match installed location.
     Bug 585386 - Add a flush() method to DBus bus object.
     Bug 585460 - Fix segfault when a non-existing node is introspected.
     Bug 586665 - Fix seg fault when attempting to free callback type.

@@ -23,8 +23,8 @@
 #define __GJS_UTIL_DBUS_PRIVATE_H__
 
 #include <glib.h>
-#include <gjs-dbus/dbus.h>
-#include <gjs-dbus/dbus-proxy.h>
+#include <cjs-dbus/dbus.h>
+#include <cjs-dbus/dbus-proxy.h>
 
 G_BEGIN_DECLS
 

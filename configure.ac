@@ -236,5 +236,5 @@ gjsnativedir="\${libdir}/cjs-1.0"
 AC_SUBST([gjsjsdir])
 AC_SUBST([gjsnativedir])
 
-AC_CONFIG_FILES([Makefile gjs-1.0.pc gjs-dbus-1.0.pc gjs-internals-1.0.pc])
+AC_CONFIG_FILES([Makefile gjs-1.0.pc cjs-dbus-1.0.pc cjs-internals-1.0.pc])
 AC_OUTPUT

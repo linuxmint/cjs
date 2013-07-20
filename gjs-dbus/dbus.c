@@ -11,8 +11,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "gjs-dbus/dbus-private.h"
-#include "gjs-dbus/dbus-proxy.h"
+#include "cjs-dbus/dbus-private.h"
+#include "cjs-dbus/dbus-proxy.h"
 #include "glib.h"
 
 #include "util/log.h"
