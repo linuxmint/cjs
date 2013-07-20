@@ -24,11 +24,11 @@
 #include "gettext-native.h"
 #include "../gi/closure.h"
 #include <util/log.h>
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
 #include <jsapi.h>
 #include <glib/gi18n.h>
-#include <gjs/compat.h>
+#include <cjs/compat.h>
 
 static JSBool
 gjs_textdomain(JSContext *context,

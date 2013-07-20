@@ -31,8 +31,8 @@
 #include "union.h"
 #include "arg.h"
 #include "object.h"
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
 #include "repo.h"
 #include "function.h"
 #include "gtype.h"

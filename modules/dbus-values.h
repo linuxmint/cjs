@@ -23,7 +23,7 @@
 #define __GJS_JS_DBUS_VALUES_H__
 
 #include <dbus/dbus.h>
-#include <gjs/gjs-module.h>
+#include <cjs/gjs-module.h>
 
 G_BEGIN_DECLS
 

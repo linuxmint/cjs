@@ -24,6 +24,6 @@
 #ifndef __GJS_GJS_H__
 #define __GJS_GJS_H__
 
-#include <gjs/context.h>
+#include <cjs/context.h>
 
 #endif /* __GJS_GJS_H__ */

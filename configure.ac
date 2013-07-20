@@ -9,7 +9,7 @@ m4_define(pkg_version, pkg_major_version.pkg_minor_version.pkg_micro_version)
 AC_PREREQ(2.61)
 AC_INIT([cjs], pkg_version, [http://bugzilla.gnome.org/enter_bug.cgi?product=cjs])
 AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip])
-AC_CONFIG_SRCDIR([gjs/console.c])
+AC_CONFIG_SRCDIR([cjs/console.c])
 AC_CONFIG_HEADER([config.h])
 
 GETTEXT_PACKAGE=cjs

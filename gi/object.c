@@ -25,7 +25,7 @@
 
 #include <string.h>
 
-#include <gjs/gi.h>
+#include <cjs/gi.h>
 #include "object.h"
 #include "gtype.h"
 #include "arg.h"
@@ -37,9 +37,9 @@
 #include "closure.h"
 #include "gjs_gi_trace.h"
 
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
-#include <gjs/type-module.h>
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
+#include <cjs/type-module.h>
 
 #include <util/log.h>
 

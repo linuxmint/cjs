@@ -2,7 +2,7 @@ This work was packaged for Debian by:
 
     Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk> on Mon, 12 Oct 2009 18:38:36 -0300
 
-It was downloaded from http://ftp.gnome.org/pub/GNOME/sources/gjs/
+It was downloaded from http://ftp.gnome.org/pub/GNOME/sources/cjs/
 
 Upstream Author:
 
@@ -14,7 +14,7 @@ Copyright:
 
 For the following files:
 
-    gjs/jsapi-util.c
+    cjs/jsapi-util.c
     modules/gettext-native.c
     modules/gettext.js
     modules/jsUnit.js
@@ -58,7 +58,7 @@ and is licensed under the same license as the upstream source.
 For the following files, the information bellow applies:
 
        modules/console.c
-       gjs/stack.c
+       cjs/stack.c
 
 License:
     Version: MPL 1.1/GPL 2.0/LGPL 2.1

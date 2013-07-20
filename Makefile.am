@@ -28,18 +28,18 @@ gjs_module_includedir = $(includedir)/cjs-1.0
 
 ########################################################################
 nobase_gjs_public_include_HEADERS =	\
-	gjs/context.h		\
-	gjs/gjs.h
+	cjs/context.h		\
+	cjs/gjs.h
 
 nobase_gjs_module_include_HEADERS =	\
-	gjs/gjs-module.h	\
-	gjs/compat.h		\
-	gjs/byteArray.h		\
-	gjs/importer.h		\
-	gjs/jsapi-util.h	\
-	gjs/type-module.h	\
-	gjs/mem.h		\
-	gjs/native.h	\
+	cjs/gjs-module.h	\
+	cjs/compat.h		\
+	cjs/byteArray.h		\
+	cjs/importer.h		\
+	cjs/jsapi-util.h	\
+	cjs/type-module.h	\
+	cjs/mem.h		\
+	cjs/native.h	\
 	gi/ns.h	        \
 	gi/object.h	\
 	gi/foreign.h	\
@@ -58,9 +58,9 @@ nobase_gjs_module_include_HEADERS =	\
 	gi/gerror.h
 
 noinst_HEADERS +=		\
-	gjs/jsapi-private.h	\
-	gjs/profiler.h		\
-	gjs/unit-test-utils.h	\
+	cjs/jsapi-private.h	\
+	cjs/profiler.h		\
+	cjs/unit-test-utils.h	\
 	util/crash.h		\
 	util/error.h		\
 	util/glib.h		\
@@ -101,22 +101,22 @@ libcjs_la_LIBADD = 		\
 	$(GJS_LIBS)
 
 libcjs_la_SOURCES =		\
-	gjs/byteArray.c		\
-	gjs/context.c		\
-	gjs/importer.c		\
-	gjs/gi.h		\
-	gjs/gi.c		\
-	gjs/jsapi-private.cpp	\
-	gjs/jsapi-util.c	\
-	gjs/jsapi-util-array.c	\
-	gjs/jsapi-util-error.c	\
-	gjs/jsapi-util-string.c	\
-	gjs/mem.c		\
-	gjs/native.c		\
-	gjs/profiler.c		\
-	gjs/stack.c		\
-	gjs/type-module.c	\
-	gjs/unit-test-utils.c	\
+	cjs/byteArray.c		\
+	cjs/context.c		\
+	cjs/importer.c		\
+	cjs/gi.h		\
+	cjs/gi.c		\
+	cjs/jsapi-private.cpp	\
+	cjs/jsapi-util.c	\
+	cjs/jsapi-util-array.c	\
+	cjs/jsapi-util-error.c	\
+	cjs/jsapi-util-string.c	\
+	cjs/mem.c		\
+	cjs/native.c		\
+	cjs/profiler.c		\
+	cjs/stack.c		\
+	cjs/type-module.c	\
+	cjs/unit-test-utils.c	\
 	util/error.c		\
 	util/glib.c		\
 	util/crash.c		\
@@ -168,17 +168,17 @@ endif
 EXTRA_DIST += gi/gjs_gi_probes.d
 
 cjstest_files_with_tests += 	\
-	gjs/context.c		\
-	gjs/jsapi-util-array.c	\
-	gjs/jsapi-util-error.c	\
-	gjs/jsapi-util-string.c	\
-	gjs/stack.c				\
+	cjs/context.c		\
+	cjs/jsapi-util-array.c	\
+	cjs/jsapi-util-error.c	\
+	cjs/jsapi-util-string.c	\
+	cjs/stack.c				\
 	util/glib.c
 
-tapset_in_files = gjs/gjs.stp.in
+tapset_in_files = cjs/gjs.stp.in
 EXTRA_DIST += $(tapset_in_files)
 if ENABLE_SYSTEMTAP
-gjs/gjs.stp: gjs/gjs.stp.in Makefile
+cjs/gjs.stp: cjs/gjs.stp.in Makefile
 	sed -e s,@EXPANDED_LIBDIR@,$(libdir), < $< > $@.tmp && mv $@.tmp $@
 tapsetdir   = $(DESTDIR)$(datadir)/systemtap/tapset
 tapset_DATA = $(tapset_in_files:.stp.in=.stp)
@@ -202,7 +202,7 @@ cjs_console_LDADD =		\
 	$(GOBJECT_LIBS)		\
 	libcjs.la
 cjs_console_LDFLAGS = -rdynamic
-cjs_console_SOURCES = gjs/console.c
+cjs_console_SOURCES = cjs/console.c
 
 install-exec-hook:
 	(cd $(DESTDIR)$(bindir) && ln -sf cjs-console$(EXEEXT) cjs$(EXEEXT))

@@ -21,7 +21,7 @@
  * IN THE SOFTWARE.
  */
 
-#include <gjs/gjs-module.h>
+#include <cjs/gjs-module.h>
 #include "unit-test-utils.h"
 
 static void

@@ -95,7 +95,7 @@ Test.prototype = {
         this._propReadWrite = PROP_READ_WRITE_INITIAL_VALUE;
 
 	this._impl = Gio.DBusExportedObject.wrapJSObject(TestIface, this);
-	this._impl.export(Gio.DBus.session, '/org/gnome/gjs/Test');
+	this._impl.export(Gio.DBus.session, '/org/gnome/cjs/Test');
     },
 
     frobateStuff: function(args) {
@@ -233,7 +233,7 @@ function testInitStuff() {
     var theError;
     proxy = new ProxyClass(Gio.DBus.session,
 			   'org.gnome.gjs.Test',
-			   '/org/gnome/gjs/Test',
+			   '/org/gnome/cjs/Test',
 			   function (obj, error) {
 			       theError = error;
 			       proxy = obj;

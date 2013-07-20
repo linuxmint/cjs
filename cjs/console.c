@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <locale.h>
 
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 
 static char **include_path = NULL;
 static char *command = NULL;

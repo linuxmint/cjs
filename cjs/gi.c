@@ -27,8 +27,8 @@
 
 #include <string.h>
 
-#include "gjs/native.h"
-#include "gjs/compat.h"
+#include "cjs/native.h"
+#include "cjs/compat.h"
 #include "gi/repo.h"
 
 JSBool

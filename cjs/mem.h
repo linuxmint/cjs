@@ -25,7 +25,7 @@
 #define __GJS_MEM_H__
 
 #if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
-#error "Only <gjs/gjs-module.h> can be included directly."
+#error "Only <cjs/gjs-module.h> can be included directly."
 #endif
 
 #include <glib.h>

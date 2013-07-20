@@ -24,10 +24,10 @@
 #ifndef __GJS_GJS_MODULE_H__
 #define __GJS_GJS_MODULE_H__
 
-#include <gjs/gjs.h>
-#include <gjs/native.h>
-#include <gjs/mem.h>
-#include <gjs/importer.h>
-#include <gjs/jsapi-util.h>
+#include <cjs/gjs.h>
+#include <cjs/native.h>
+#include <cjs/mem.h>
+#include <cjs/importer.h>
+#include <cjs/jsapi-util.h>
 
 #endif /* __GJS_GJS_umodule_H__ */

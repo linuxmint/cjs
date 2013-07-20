@@ -24,8 +24,8 @@
 #include <config.h>
 
 #include <string.h>
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
 #include <girepository.h>
 
 #include "arg.h"

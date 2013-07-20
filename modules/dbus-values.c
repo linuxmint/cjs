@@ -23,8 +23,8 @@
 
 #include "dbus-values.h"
 
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
 
 #include <cjs-dbus/dbus.h>
 #include <util/log.h>
