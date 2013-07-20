@@ -9,10 +9,10 @@ include /usr/share/gnome-pkg-tools/1/rules/gnome-get-source.mk
 
 # Use recursive variables since this variable must not be expanded until 
 # files have been installed.
-LIBMOZJS = $(shell objdump -p debian/tmp/usr/lib/libgjs.so | awk '$$1=="NEEDED" && $$2~/^libmozjs/ { print $$2 }' | sed s/\\.so\\./-/ )
-DEB_DH_MAKESHLIBS_ARGS_libgjs0c = -Xusr/lib/gjs-1.0/ -V'libgjs0c (>= $(DEB_UPSTREAM_VERSION)), libgjs0-$(LIBMOZJS)' -- -c4
+LIBMOZJS = $(shell objdump -p debian/tmp/usr/lib/libcjs.so | awk '$$1=="NEEDED" && $$2~/^libmozjs/ { print $$2 }' | sed s/\\.so\\./-/ )
+DEB_DH_MAKESHLIBS_ARGS_libcjs0c = -Xusr/lib/cjs-1.0/ -V'libgjs0c (>= $(DEB_UPSTREAM_VERSION)), libgjs0-$(LIBMOZJS)' -- -c4
 
 DEB_MAKE_CHECK_TARGET := check || true
 
-install/libgjs0c::
-	echo gjs:Provides=libgjs0-$(LIBMOZJS) >> debian/$(cdbs_curpkg).substvars
+install/libcjs0c::
+	echo cjs:Provides=libcjs0-$(LIBMOZJS) >> debian/$(cdbs_curpkg).substvars

@@ -1,9 +1,7 @@
-Source: gjs
+Source: cjs
 Section: interpreters
 Priority: optional
-Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-XSBC-Original-Maintainer: Debian GNOME Maintainers <pkg-gnome-maintainers@lists.alioth.debian.org>
-Uploaders: @GNOME_TEAM@
+Maintainer: Linux Mint <root@linuxmint.com>
 Build-Depends: debhelper (>= 8),
                cdbs,
                gnome-pkg-tools,
@@ -19,11 +17,8 @@ Build-Depends: debhelper (>= 8),
                uuid-runtime,
                libcairo2-dev
 Standards-Version: 3.9.3
-Vcs-Svn: svn://anonscm.debian.org/svn/pkg-gnome/desktop/unstable/gjs
-Vcs-Browser: http://anonscm.debian.org/viewvc/pkg-gnome/desktop/unstable/gjs
-Homepage: http://live.gnome.org/Gjs
 
-Package: gjs
+Package: cjs
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends}
@@ -34,14 +29,14 @@ Description: Mozilla-based javascript bindings for the GNOME platform
  .
  This package contains the interactive console application.
 
-Package: libgjs0c
+Package: libcjs0c
 Architecture: any
 Section: libs
 Depends: ${shlibs:Depends},
          ${misc:Depends}
-Conflicts: libgjs0, libgjs0a
-Replaces: libgjs0, libgjs0a
-Provides: ${gjs:Provides}
+Conflicts: libcjs0, libcjs0a
+Replaces: libcjs0, libcjs0a
+Provides: ${cjs:Provides}
 Description: Mozilla-based javascript bindings for the GNOME platform
  Makes it possible for applications to use all of GNOME's platform
  libraries using the Javascript language. It's mainly based on the
@@ -49,11 +44,11 @@ Description: Mozilla-based javascript bindings for the GNOME platform
  .
  This is the shared library applications link to.
 
-Package: libgjs-dev
+Package: libcjs-dev
 Architecture: any
 Section: libdevel
 Depends: ${misc:Depends},
-         libgjs0c (= ${binary:Version}),
+         libcjs0c (= ${binary:Version}),
          libgirepository1.0-dev,
          libmozjs185-dev,
          libdbus-1-dev

@@ -1,0 +1,4 @@
+usr/lib/cjs-1.0/*.so
+usr/lib/libcjs*.so.*
+usr/lib/cjs/girepository-1.0/*.typelib
+usr/share/cjs-1.0

@@ -23,8 +23,8 @@ gjsoverridedir = $(gjsjsdir)/overrides
 gjstweenerdir = $(gjsjsdir)/tweener
 gjsnativedir = @gjsnativedir@
 
-gjs_public_includedir = $(includedir)/gjs-1.0
-gjs_module_includedir = $(includedir)/gjs-1.0
+gjs_public_includedir = $(includedir)/cjs-1.0
+gjs_module_includedir = $(includedir)/cjs-1.0
 
 ########################################################################
 nobase_gjs_public_include_HEADERS =	\
