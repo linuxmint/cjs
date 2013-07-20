@@ -21,7 +21,7 @@
 
 var GLib = imports.gi.GLib;
 var GObject = imports.gi.GObject;
-var GjsPrivate = imports.gi.GjsPrivate;
+var GjsPrivate = imports.gi.CjsPrivate;
 var Lang = imports.lang;
 var Signals = imports.signals;
 var Gio;
