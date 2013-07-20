@@ -25,7 +25,7 @@ JS_NATIVE_MODULE_CFLAGS =	\
 	-DGJS_COMPILATION	\
         $(GJS_CFLAGS)
 JS_NATIVE_MODULE_LIBADD =	\
-        libgjs.la		\
+        libcjs.la		\
         $(GJS_LIBS)
 JS_NATIVE_MODULE_LDFLAGS =	\
         -module -avoid-version -no-undefined -rdynamic
@@ -33,7 +33,7 @@ JS_NATIVE_MODULE_LDFLAGS =	\
 langNative_la_CFLAGS = 				\
 	$(JS_NATIVE_MODULE_CFLAGS)
 langNative_la_LIBADD = \
-	libgjs.la				\
+	libcjs.la				\
 	$(JS_NATIVE_MODULE_LIBADD)
 langNative_la_LDFLAGS = 			\
 	$(JS_NATIVE_MODULE_LDFLAGS)
@@ -45,7 +45,7 @@ langNative_la_SOURCES =				\
 mainloop_la_CFLAGS = 				\
 	$(JS_NATIVE_MODULE_CFLAGS)
 mainloop_la_LIBADD = \
-	libgjs.la				\
+	libcjs.la				\
 	$(JS_NATIVE_MODULE_LIBADD)
 mainloop_la_LDFLAGS = 				\
 	$(JS_NATIVE_MODULE_LDFLAGS)
@@ -57,7 +57,7 @@ mainloop_la_SOURCES =		\
 gettextNative_la_CFLAGS = 				\
 	$(JS_NATIVE_MODULE_CFLAGS)
 gettextNative_la_LIBADD = \
-	libgjs.la				\
+	libcjs.la				\
 	$(JS_NATIVE_MODULE_LIBADD)
 gettextNative_la_LDFLAGS = 				\
 	$(JS_NATIVE_MODULE_LDFLAGS)
@@ -71,7 +71,7 @@ cairoNative_la_CFLAGS =                         \
         $(GJS_CAIRO_CFLAGS)                     \
         $(GJS_CFLAGS)
 cairoNative_la_LIBADD =                         \
-        libgjs.la                            \
+        libcjs.la                            \
         $(JS_NATIVE_MODULE_LIBADD)              \
         $(GJS_CAIRO_LIBS)                       \
         $(GJS_LIBS)
@@ -121,7 +121,7 @@ console_la_SOURCES =		\
 debugger_la_CFLAGS = 				\
 	$(JS_NATIVE_MODULE_CFLAGS)
 debugger_la_LIBADD = \
-	libgjs.la				\
+	libcjs.la				\
 	$(JS_NATIVE_MODULE_LIBADD)
 debugger_la_LDFLAGS = 				\
 	$(JS_NATIVE_MODULE_LDFLAGS)
@@ -141,8 +141,8 @@ dbusNative_la_CFLAGS = 					\
 	$(JS_NATIVE_MODULE_CFLAGS) 		\
 	$(GJS_DBUS_CFLAGS)
 dbusNative_la_LIBADD = \
-	libgjs.la				\
-	libgjs-dbus.la				\
+	libcjs.la				\
+	libcjs-dbus.la				\
 	$(JS_NATIVE_MODULE_LIBADD) 		\
 	$(GJS_DBUS_LIBS)
 dbusNative_la_LDFLAGS = 				\
@@ -151,7 +151,7 @@ dbusNative_la_LDFLAGS = 				\
 formatNative_la_CFLAGS = \
 	$(JS_NATIVE_MODULE_CFLAGS)
 formatNative_la_LIBADD = \
-	libgjs.la \
+	libcjs.la \
 	$(JS_NATIVE_MODULE_LIBADD)
 formatNative_la_LDFLAGS = \
 	$(JS_NATIVE_MODULE_LDFLAGS)

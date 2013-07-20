@@ -1,30 +1,30 @@
 
-lib_LTLIBRARIES += libgjs-dbus.la
+lib_LTLIBRARIES += libcjs-dbus.la
 
-gjs_dbusheaderdir=$(gjs_module_includedir)/gjs-dbus
-gjs_dbusheader_HEADERS =	\
+cjs_dbusheaderdir=$(gjs_module_includedir)/gjs-dbus
+cjs_dbusheader_HEADERS =	\
 	gjs-dbus/dbus.h		\
 	gjs-dbus/dbus-proxy.h
 
-libgjs_dbus_la_SOURCES =	\
+libcjs_dbus_la_SOURCES =	\
 	gjs-dbus/dbus-private.h \
 	gjs-dbus/dbus.c		\
 	gjs-dbus/dbus-signals.c	\
 	gjs-dbus/dbus-proxy.c
 
-libgjs_dbus_la_CPPFLAGS =		\
+libcjs_dbus_la_CPPFLAGS =		\
 	$(AM_CPPFLAGS)			\
-	-DG_LOG_DOMAIN=\"GjsDBus\"
-libgjs_dbus_la_CFLAGS = 		\
+	-DG_LOG_DOMAIN=\"CjsDBus\"
+libcjs_dbus_la_CFLAGS = 		\
 	$(AM_CFLAGS)			\
 	$(GJS_DBUS_CFLAGS)
-libgjs_dbus_la_LDFLAGS =		\
+libcjs_dbus_la_LDFLAGS =		\
 	-no-undefined
-libgjs_dbus_la_LIBADD = 		\
-	libgjs.la			\
+libcjs_dbus_la_LIBADD = 		\
+	libcjs.la			\
 	$(GJS_DBUS_LIBS)
 
 pkgconfig_DATA += gjs-dbus-1.0.pc
 
 EXTRA_DIST += 			\
-	gjs-dbus-1.0.pc.in
+	cjs-dbus-1.0.pc.in

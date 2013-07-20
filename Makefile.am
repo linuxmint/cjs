@@ -12,7 +12,7 @@ gjsnative_LTLIBRARIES =
 BUILT_SOURCES =
 CLEANFILES =
 EXTRA_DIST =
-gjstest_files_with_tests =
+cjstest_files_with_tests =
 TEST_PROGS =
 check_PROGRAMS = $(TEST_PROGS)
 INTROSPECTION_GIRS =
@@ -83,24 +83,24 @@ gjs_directory_defines = 				\
 	-DPKGLIBDIR=\"$(pkglibdir)\"
 
 ########################################################################
-lib_LTLIBRARIES += libgjs.la
+lib_LTLIBRARIES += libcjs.la
 
-libgjs_la_CPPFLAGS =		\
+libcjs_la_CPPFLAGS =		\
 	$(AM_CPPFLAGS)		\
 	$(GJS_CFLAGS)	\
 	$(gjs_directory_defines)\
 	-I$(top_srcdir)/gi	\
 	-DGJS_COMPILATION
-libgjs_la_CFLAGS = 		\
+libcjs_la_CFLAGS = 		\
 	$(AM_CFLAGS)
-libgjs_la_LDFLAGS = 		\
+libcjs_la_LDFLAGS = 		\
 	-export-symbols-regex "^[^_]" -version-info 0:0:0	\
 	-no-undefined \
 	-rdynamic
-libgjs_la_LIBADD = 		\
+libcjs_la_LIBADD = 		\
 	$(GJS_LIBS)
 
-libgjs_la_SOURCES =		\
+libcjs_la_SOURCES =		\
 	gjs/byteArray.c		\
 	gjs/context.c		\
 	gjs/importer.c		\
@@ -124,7 +124,7 @@ libgjs_la_SOURCES =		\
 	util/misc.c
 
 # For historical reasons, some files live in gi/
-libgjs_la_SOURCES += \
+libcjs_la_SOURCES += \
 	gi/gjs_gi_trace.h \
 	gi/arg.c	\
 	gi/boxed.c	\
@@ -147,15 +147,15 @@ libgjs_la_SOURCES += \
 gdbus_wrapper_source_files = \
 	gjs-dbus/gjs-gdbus-wrapper.c	\
 	gjs-dbus/gjs-gdbus-wrapper.h
-libgjs_la_SOURCES += $(gdbus_wrapper_source_files)
+libcjs_la_SOURCES += $(gdbus_wrapper_source_files)
 
-GjsPrivate-1.0.gir: libgjs.la
-GjsPrivate_1_0_gir_LIBS = libgjs.la
-GjsPrivate_1_0_gir_INCLUDES = GObject-2.0 Gio-2.0
-GjsPrivate_1_0_gir_FILES = $(gdbus_wrapper_source_files)
-GjsPrivate_1_0_gir_SCANNERFLAGS = --identifier-prefix=Gjs --symbol-prefix=gjs_ --warn-all
+CjsPrivate-1.0.gir: libcjs.la
+CjsPrivate_1_0_gir_LIBS = libcjs.la
+CjsPrivate_1_0_gir_INCLUDES = GObject-2.0 Gio-2.0
+CjsPrivate_1_0_gir_FILES = $(gdbus_wrapper_source_files)
+CjsPrivate_1_0_gir_SCANNERFLAGS = --identifier-prefix=Gjs --symbol-prefix=gjs_ --warn-all
 
-INTROSPECTION_GIRS += GjsPrivate-1.0.gir
+INTROSPECTION_GIRS += CjsPrivate-1.0.gir
 
 if ENABLE_DTRACE
 gjs_gi_probes.h: gi/gjs_gi_probes.d
@@ -163,11 +163,11 @@ gjs_gi_probes.h: gi/gjs_gi_probes.d
 gjs_gi_probes.o: gi/gjs_gi_probes.d
 	$(DTRACE) -G -s $< -o $@
 BUILT_SOURCES += gjs_gi_probes.h gjs_gi_probes.o
-libgjs_la_LIBADD += gjs_gi_probes.o
+libcjs_la_LIBADD += gjs_gi_probes.o
 endif
 EXTRA_DIST += gi/gjs_gi_probes.d
 
-gjstest_files_with_tests += 	\
+cjstest_files_with_tests += 	\
 	gjs/context.c		\
 	gjs/jsapi-util-array.c	\
 	gjs/jsapi-util-error.c	\
@@ -192,20 +192,20 @@ typelibdir = $(pkglibdir)/girepository-1.0
 typelib_DATA = $(INTROSPECTION_GIRS:.gir=.typelib)
 
 ########################################################################
-bin_PROGRAMS += gjs-console
+bin_PROGRAMS += cjs-console
 
-gjs_console_CFLAGS = 		\
+cjs_console_CFLAGS = 		\
 	$(AM_CFLAGS)		\
         $(GOBJECT_CFLAGS)
-gjs_console_LDADD =		\
+cjs_console_LDADD =		\
 	$(JS_LIBS)		\
 	$(GOBJECT_LIBS)		\
-	libgjs.la
-gjs_console_LDFLAGS = -rdynamic
-gjs_console_SOURCES = gjs/console.c
+	libcjs.la
+cjs_console_LDFLAGS = -rdynamic
+cjs_console_SOURCES = gjs/console.c
 
 install-exec-hook:
-	(cd $(DESTDIR)$(bindir) && ln -sf gjs-console$(EXEEXT) gjs$(EXEEXT))
+	(cd $(DESTDIR)$(bindir) && ln -sf cjs-console$(EXEEXT) cjs$(EXEEXT))
 
 include Makefile-test.am
 
@@ -222,7 +222,7 @@ EXTRA_DIST += autogen.sh COPYING.LGPL
 #  $ make prepare-minor-release
 
 # Customize to taste
-TAG_PREFIX=GJS_
+TAG_PREFIX=CJS_
 COMPRESSION=.bz2
 
 

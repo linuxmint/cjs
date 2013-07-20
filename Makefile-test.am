@@ -17,7 +17,7 @@ gjs_tests_CFLAGS =				\
 ## -rdynamic makes backtraces work
 gjs_tests_LDFLAGS = -rdynamic
 gjs_tests_LDADD =		\
-	libgjs.la		\
+	libcjs.la		\
 	$(GJSTESTS_LIBS)
 
 gjs_tests_SOURCES =		\
@@ -48,7 +48,7 @@ gjs_unit_CPPFLAGS =		\
 	$(gjs_directory_defines)\
 	$(GJS_CFLAGS)
 gjs_unit_LDADD =		\
-	libgjs.la		\
+	libcjs.la		\
 	$(GJS_LIBS)
 
 ## -rdynamic makes backtraces work

@@ -12,7 +12,7 @@ AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip])
 AC_CONFIG_SRCDIR([gjs/console.c])
 AC_CONFIG_HEADER([config.h])
 
-GETTEXT_PACKAGE=gjs
+GETTEXT_PACKAGE=cjs
 AC_SUBST([GETTEXT_PACKAGE])
 AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE], ["$GETTEXT_PACKAGE"], [The name of the gettext domain])
 
