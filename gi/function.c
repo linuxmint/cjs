@@ -599,6 +599,7 @@ gjs_invoke_c_function(JSContext      *context,
     gboolean is_method;
     GITypeInfo return_info;
     GITypeTag return_tag;
+    GIInfoType info_type;
     jsval *return_values = NULL;
     guint8 next_rval = 0; /* index into return_values */
     GSList *iter;
@@ -616,8 +617,32 @@ gjs_invoke_c_function(JSContext      *context,
         completed_trampolines = NULL;
     }
 
-    is_method = g_callable_info_is_method(function->info);
-    can_throw_gerror = g_callable_info_can_throw_gerror(function->info);
+  info_type = g_base_info_get_type((GIBaseInfo *)function->info);
+
+    switch (info_type) {
+    case GI_INFO_TYPE_FUNCTION:
+        {
+            GIFunctionInfoFlags flags;
+            flags = g_function_info_get_flags((GIFunctionInfo *)function->info);
+            is_method = (flags & GI_FUNCTION_IS_METHOD) != 0;
+            can_throw_gerror = (flags & GI_FUNCTION_THROWS) != 0;
+        }
+        break;
+    case GI_INFO_TYPE_VFUNC:
+        {
+            GIVFuncInfoFlags flags;
+            flags = g_vfunc_info_get_flags ((GIVFuncInfo *)function->info);
+            can_throw_gerror = (flags & GI_VFUNC_THROWS) != 0;
+        }
+        is_method = TRUE;
+      break;
+    case GI_INFO_TYPE_CALLBACK:
+        is_method = TRUE;
+        can_throw_gerror = FALSE;
+        break;
+    default:
+        g_assert_not_reached();
+    }
 
     c_argc = function->invoker.cif.nargs;
     gi_argc = g_callable_info_get_n_args( (GICallableInfo*) function->info);
