@@ -1,5 +1,5 @@
-cjs (1.34.0) UNRELEASED; urgency=low
+cjs (1.9.1) petra; urgency=low
 
-  * Initial Commits - based on 1.34.0-0ubuntu1 quantal
+  * Based on 1.34.0-0ubuntu1 quantal
 
- -- Michael Webster <mtwebster@mint14-vb>  Sat, 20 Jul 2013 11:17:28 -0400
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 30 Sep 2013 13:31:38 +0100
