@@ -4,7 +4,7 @@
 srcdir=`dirname $0`
 test -z "$srcdir" && srcdir=.
 
-PKG_NAME="gjs"
+PKG_NAME="cjs"
 REQUIRED_AUTOCONF_VERSION=2.53
 REQUIRED_AUTOMAKE_VERSION=1.7.2
 
