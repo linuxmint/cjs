@@ -174,7 +174,12 @@ closure_invalidated(gpointer  data,
      * If we're invalidated due to the source being removed, then
      * removing it here will be a no-op.
      */
-  //  g_source_remove(GPOINTER_TO_UINT(data));
+    GSource *source;
+    guint id = GPOINTER_TO_UINT (data);
+
+    source = g_main_context_find_source_by_id (NULL, id);
+    if (source)
+        g_source_remove(id);
 }
 
 static JSBool
