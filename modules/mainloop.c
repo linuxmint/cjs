@@ -178,8 +178,9 @@ closure_invalidated(gpointer  data,
     guint id = GPOINTER_TO_UINT (data);
 
     source = g_main_context_find_source_by_id (NULL, id);
-    if (source)
+    if (source) {
         g_source_remove(id);
+    }
 }
 
 static JSBool
@@ -331,7 +332,12 @@ gjs_source_remove(JSContext *context,
                         "sourceId", &source_id))
       return JS_FALSE;
 
-    success = g_source_remove(source_id);
+    GSource *source;
+
+    source = g_main_context_find_source_by_id (NULL, source_id);
+    if (source) {
+        success = g_source_remove(source_id);
+    }
 
     JS_SET_RVAL(context, vp, BOOLEAN_TO_JSVAL(success));
 
