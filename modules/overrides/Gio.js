@@ -346,15 +346,7 @@ function _wrapJSObject(interfaceInfo, jsObj) {
 }
 
 function key_exists (obj, key) {
-    let list = obj.list_keys();
-    let found = false;
-    for (let i = 0; i < list.length; i++) {
-        if (key == list[i]) {
-            found = true;
-            break;
-        }
-    }
-    return found;
+    return obj.list_keys().indexOf(key) != -1;
 }
 
 function check_key_and_get (obj, method, key) {
