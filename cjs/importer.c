@@ -262,6 +262,17 @@ import_native_file(JSContext  *context,
     return retval;
 }
 
+static gboolean
+is_extension_module (const gchar *path)
+{
+    if (g_strstr_len (path, -1, "applets") ||
+        g_strstr_len (path, -1, "desklets") ||
+        g_strstr_len (path, -1, "extensions"))
+        return TRUE;
+
+    return FALSE;
+}
+
 static JSObject *
 load_module_init(JSContext  *context,
                  JSObject   *in_object,
@@ -273,7 +284,8 @@ load_module_init(JSContext  *context,
     JSObject *module_obj;
 
     /* First we check if js module has already been loaded  */
-    if (gjs_object_has_property(context, in_object, MODULE_INIT_PROPERTY)) {
+    if (!is_extension_module (full_path) &&
+         gjs_object_has_property(context, in_object, MODULE_INIT_PROPERTY)) {
         jsval module_obj_val;
 
         if (gjs_object_get_property(context,
