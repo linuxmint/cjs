@@ -22,8 +22,8 @@ Package: cjs
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends}
-Description: Mozilla-based javascript bindings for the GNOME platform
- Makes it possible for applications to use all of GNOME's platform
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
  libraries using the Javascript language. It's mainly based on the
  Mozilla javascript engine and the GObject introsepection framework.
  .
@@ -37,8 +37,8 @@ Depends: ${shlibs:Depends},
 Conflicts: libcjs0, libcjs0a
 Replaces: libcjs0, libcjs0a
 Provides: ${cjs:Provides}
-Description: Mozilla-based javascript bindings for the GNOME platform
- Makes it possible for applications to use all of GNOME's platform
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
  libraries using the Javascript language. It's mainly based on the
  Mozilla javascript engine and the GObject introspection framework.
  .
@@ -52,8 +52,8 @@ Depends: ${misc:Depends},
          libgirepository1.0-dev,
          libmozjs185-dev,
          libdbus-1-dev
-Description: Mozilla-based javascript bindings for the GNOME platform
- Makes it possible for applications to use all of GNOME's platform
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
  libraries using the Javascript language. It's mainly based on the
  Mozilla javascript engine and the GObject introspection framework.
  .
