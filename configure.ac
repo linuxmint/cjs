@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 m4_define(pkg_major_version, 2)
-m4_define(pkg_minor_version, 0)
+m4_define(pkg_minor_version, 2)
 m4_define(pkg_micro_version, 0)
 m4_define(pkg_version, pkg_major_version.pkg_minor_version.pkg_micro_version)
 
