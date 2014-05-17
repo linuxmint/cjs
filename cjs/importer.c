@@ -480,8 +480,9 @@ static JSBool
 do_import(JSContext  *context,
           JSObject   *obj,
           Importer   *priv,
-          const char *name)
+          const char *initial_name)
 {
+    char *name = NULL;
     char *filename;
     char *native_filename;
     char *full_path;
@@ -493,6 +494,12 @@ do_import(JSContext  *context,
     jsuint i;
     JSBool result;
     GPtrArray *directories;
+
+    if (strcmp (initial_name, "GMenu") == 0) {
+        name = g_strdup ("CMenu");
+    } else {
+        name = g_strdup (initial_name);
+    }
 
     if (strcmp(name, MODULE_INIT_PROPERTY) == 0) {
         return JS_FALSE;
@@ -698,6 +705,8 @@ do_import(JSContext  *context,
          */
         gjs_throw(context, "No JS module '%s' found in search path", name);
     }
+
+    g_free(name);
 
     return result;
 }
