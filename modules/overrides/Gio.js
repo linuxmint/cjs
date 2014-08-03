@@ -127,7 +127,6 @@ function _makeProxyMethod(method, sync) {
 }
 
 function _convertToNativeSignal(proxy, sender_name, signal_name, parameters) {
-    log("signanl");
     Signals._emit.call(proxy, signal_name, sender_name, parameters.deep_unpack());
 }
 
@@ -159,7 +158,6 @@ function _addDBusConvenience() {
     let info = this.g_interface_info;
     if (!info)
         return;
-
     if (info.signals.length > 0)
         this.connect('g-signal', _convertToNativeSignal);
 
