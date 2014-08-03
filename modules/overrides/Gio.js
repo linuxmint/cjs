@@ -79,12 +79,16 @@ function _proxyInvoker(methodName, sync, inSignature, arg_array) {
     var inVariant = GLib.Variant.new('(' + inSignature.join('') + ')', arg_array);
 
     var asyncCallback = function (proxy, result) {
+        var outVariant = null, succeeded = false;
         try {
-            var outVariant = proxy.call_finish(result);
-            replyFunc(outVariant.deep_unpack(), null);
+            outVariant = proxy.call_finish(result);
+            succeeded = true;
         } catch (e) {
             replyFunc(null, e);
         }
+
+        if (succeeded)
+            replyFunc(outVariant.deep_unpack(), null);
     };
 
     if (sync) {
@@ -123,6 +127,7 @@ function _makeProxyMethod(method, sync) {
 }
 
 function _convertToNativeSignal(proxy, sender_name, signal_name, parameters) {
+    log("signanl");
     Signals._emit.call(proxy, signal_name, sender_name, parameters.deep_unpack());
 }
 
@@ -188,11 +193,17 @@ function _makeProxyWrapper(interfaceXml) {
             cancellable = null;
         if (asyncCallback)
             obj.init_async(GLib.PRIORITY_DEFAULT, cancellable, function(initable, result) {
+                let caughtErrorWhenInitting = null;
                 try {
                     initable.init_finish(result);
-                    asyncCallback(initable, null);
                 } catch(e) {
-                    asyncCallback(null, e);
+                    caughtErrorWhenInitting = e;
+                }
+
+                if (caughtErrorWhenInitting === null) {
+                    asyncCallback(initable, null);
+                } else {
+                    asyncCallback(null, caughtErrorWhenInitting);
                 }
             });
         else
