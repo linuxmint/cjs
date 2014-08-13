@@ -297,6 +297,17 @@ import_file(JSContext  *context,
     return ret;
 }
 
+static gboolean
+is_extension_module (const gchar *path)
+{
+    if (g_strstr_len (path, -1, "applets") ||
+        g_strstr_len (path, -1, "desklets") ||
+        g_strstr_len (path, -1, "extensions"))
+        return TRUE;
+
+    return FALSE;
+}
+
 static JSObject *
 load_module_init(JSContext  *context,
                  JSObject   *in_object,
@@ -309,7 +320,8 @@ load_module_init(JSContext  *context,
 
     /* First we check if js module has already been loaded  */
     module_init_name = gjs_context_get_const_string(context, GJS_STRING_MODULE_INIT);
-    if (JS_HasPropertyById(context, in_object, module_init_name, &found) && found) {
+    if (!is_extension_module (full_path) &&
+        JS_HasPropertyById(context, in_object, module_init_name, &found) && found) {
         jsval module_obj_val;
 
         if (JS_GetPropertyById(context,
