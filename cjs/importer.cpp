@@ -633,7 +633,6 @@ do_import(JSContext  *context,
     g_free(full_path);
     g_free(filename);
     g_free(dirname);
-    g_free(name);
 
     if (!result &&
         !JS_IsExceptionPending(context)) {
@@ -642,6 +641,8 @@ do_import(JSContext  *context,
          */
         gjs_throw(context, "No JS module '%s' found in search path", name);
     }
+
+    g_free(name);
 
     return result;
 }
