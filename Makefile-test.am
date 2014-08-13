@@ -32,7 +32,7 @@ EXTRA_DIST += $(mock_js_resources_files) $(srcdir)/test/mock-js-resources.gresou
 ## -rdynamic makes backtraces work
 gjs_tests_LDFLAGS = -rdynamic
 gjs_tests_LDADD =		\
-	libgjs.la		\
+	libcjs.la		\
 	$(GJSTESTS_LIBS)
 
 gjs_tests_SOURCES =		\
@@ -50,7 +50,7 @@ TESTS_ENVIRONMENT =							\
 	TOP_SRCDIR=$(abs_top_srcdir)					\
 	DBUS_SESSION_BUS_ADDRESS=''					\
 	XDG_DATA_HOME=test_user_data					\
-	GJS_DEBUG_OUTPUT=test_user_data/logs/gjs.log			\
+	GJS_DEBUG_OUTPUT=test_user_data/logs/cjs.log			\
 	BUILDDIR=.							\
 	GJS_USE_UNINSTALLED_FILES=1					\
 	GJS_TEST_TIMEOUT=420						\

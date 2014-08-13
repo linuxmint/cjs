@@ -26,8 +26,8 @@
 #include <stdlib.h>
 #include <locale.h>
 
-#include <gjs/gjs.h>
-#include <gjs/coverage.h>
+#include <cjs/gjs.h>
+#include <cjs/coverage.h>
 
 static char **include_path = NULL;
 static char **coverage_paths = NULL;

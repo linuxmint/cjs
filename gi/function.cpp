@@ -30,8 +30,8 @@
 #include "boxed.h"
 #include "union.h"
 #include "gerror.h"
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
 
 #include <util/log.h>
 

@@ -33,9 +33,9 @@
 #include "param.h"
 #include "value.h"
 #include "gerror.h"
-#include "gjs/byteArray.h"
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
+#include "cjs/byteArray.h"
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
 
 #include <util/log.h>
 

@@ -51,8 +51,8 @@
 
 #include <glib.h>
 #include <glib/gprintf.h>
-#include <gjs/gjs-module.h>
-#include <gjs/compat.h>
+#include <cjs/gjs-module.h>
+#include <cjs/compat.h>
 
 #include "console.h"
 

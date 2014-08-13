@@ -26,9 +26,9 @@
 #include <util/log.h>
 #include <util/glib.h>
 
-#include <gjs/gjs-module.h>
-#include <gjs/importer.h>
-#include <gjs/compat.h>
+#include <cjs/gjs-module.h>
+#include <cjs/importer.h>
+#include <cjs/compat.h>
 
 #include <gio/gio.h>
 

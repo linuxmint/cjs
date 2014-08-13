@@ -26,8 +26,8 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <girepository.h>
-#include <gjs/gjs-module.h>
-#include <gjs/coverage.h>
+#include <cjs/gjs-module.h>
+#include <cjs/coverage.h>
 #include <locale.h>
 
 #include <string.h>

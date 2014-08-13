@@ -27,7 +27,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <gjs/gjs-module.h>
+#include <cjs/gjs-module.h>
 #include <gi/object.h>
 #include "system.h"
 

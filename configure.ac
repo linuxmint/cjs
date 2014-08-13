@@ -1,21 +1,21 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-m4_define(pkg_major_version, 1)
-m4_define(pkg_minor_version, 40)
-m4_define(pkg_micro_version, 0)
+m4_define(pkg_major_version, 2)
+m4_define(pkg_minor_version, 3)
+m4_define(pkg_micro_version, 1)
 m4_define(pkg_version, pkg_major_version.pkg_minor_version.pkg_micro_version)
 m4_define(pkg_int_version, (pkg_major_version * 100 + pkg_minor_version) * 100 + pkg_micro_version)
 
 AC_PREREQ(2.61)
-AC_INIT([gjs], pkg_version, [http://bugzilla.gnome.org/enter_bug.cgi?product=gjs])
+AC_INIT([cjs], pkg_version, [https://github.com/linuxmint/cjs])
 AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
-AC_CONFIG_SRCDIR([gjs/console.cpp])
+AC_CONFIG_SRCDIR([cjs/console.cpp])
 AC_CONFIG_HEADER([config.h])
 
 AC_DEFINE([GJS_VERSION], pkg_int_version, [The gjs version as an integer])
 
-GETTEXT_PACKAGE=gjs
+GETTEXT_PACKAGE=cjs
 AC_SUBST([GETTEXT_PACKAGE])
 AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE], ["$GETTEXT_PACKAGE"], [The name of the gettext domain])
 
@@ -220,13 +220,13 @@ fi
 
 AC_SUBST(EXTRA_LINK_FLAGS)
 
-gjsjsdir="\${datadir}/gjs-1.0"
+gjsjsdir="\${datadir}/cjs-1.0"
 AC_SUBST([gjsjsdir])
 
 dnl automake 1.11/1.12 defines this but does not substitute it
 AC_SUBST([pkglibexecdir], ["${libexecdir}/${PACKAGE}"])
 
-AC_CONFIG_FILES([Makefile gjs-1.0.pc gjs-internals-1.0.pc])
+AC_CONFIG_FILES([Makefile cjs-1.0.pc cjs-internals-1.0.pc])
 AC_OUTPUT
 
 AC_MSG_RESULT([

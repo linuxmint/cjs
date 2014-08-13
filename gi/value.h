@@ -25,7 +25,7 @@
 #define __GJS_VALUE_H__
 
 #include <glib-object.h>
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 

@@ -30,8 +30,8 @@
 
 #include <glib.h>
 #include <gio/gio.h>
-#include <gjs/gjs.h>
-#include <gjs/coverage.h>
+#include <cjs/gjs.h>
+#include <cjs/coverage.h>
 
 typedef struct _GjsCoverageFixture {
     GjsContext    *context;

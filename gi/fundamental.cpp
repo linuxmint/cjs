@@ -26,7 +26,7 @@
 
 #include <string.h>
 
-#include <gjs/gi.h>
+#include <cjs/gi.h>
 
 #include "fundamental.h"
 #include "arg.h"
@@ -37,7 +37,7 @@
 #include "gtype.h"
 #include "proxyutils.h"
 
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 
 #include <util/log.h>
 

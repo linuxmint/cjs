@@ -28,8 +28,8 @@
 #error "Only <gjs/gjs-module.h> can be included directly."
 #endif
 
-#include <gjs/compat.h>
-#include <gjs/runtime.h>
+#include <cjs/compat.h>
+#include <cjs/runtime.h>
 #include <glib-object.h>
 #include <gi/gtype.h>
 

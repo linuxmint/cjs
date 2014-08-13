@@ -21,20 +21,35 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_GI_H__
-#define __GJS_GI_H__
+#ifndef __GJS_NATIVE_H__
+#define __GJS_NATIVE_H__
+
+#if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
+#error "Only <gjs/gjs-module.h> can be included directly."
+#endif
 
 #include <glib.h>
-#include <girepository.h>
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-JSBool        gjs_define_gi_stuff     (JSContext      *context,
-                                       JSObject      **module_out);
-JSBool        gjs_define_private_gi_stuff   (JSContext     *context,
-                                             JSObject     **module_out);
+typedef JSBool (* GjsDefineModuleFunc) (JSContext  *context,
+                                        JSObject  **module_out);
+
+/* called on context init */
+void   gjs_register_native_module (const char            *module_id,
+                                   GjsDefineModuleFunc  func);
+
+/* called by importer.c to to check for already loaded modules */
+gboolean gjs_is_registered_native_module(JSContext  *context,
+                                         JSObject   *parent,
+                                         const char *name);
+
+/* called by importer.c to load a statically linked native module */
+JSBool gjs_import_native_module (JSContext  *context,
+                                 const char *name,
+                                 JSObject   **module_out);
 
 G_END_DECLS
 
-#endif  /* __GJS_GI_H__ */
+#endif  /* __GJS_NATIVE_H__ */

@@ -25,7 +25,7 @@
 #define __GJS_OVERRIDE_H__
 
 #include <girepository.h>
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 #include "arg.h"
 
 typedef JSBool (*GjsArgOverrideToGArgumentFunc) (JSContext      *context,

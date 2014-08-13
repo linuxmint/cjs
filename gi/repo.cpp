@@ -37,7 +37,7 @@
 #include "interface.h"
 #include "gerror.h"
 
-#include <gjs/compat.h>
+#include <cjs/compat.h>
 
 #include <util/log.h>
 #include <util/misc.h>

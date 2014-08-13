@@ -41,7 +41,7 @@ _Pragma("GCC diagnostic pop")
 #endif
 #include <glib.h>
 
-#include <gjs/jsapi-util.h>
+#include <cjs/jsapi-util.h>
 
 G_BEGIN_DECLS
 

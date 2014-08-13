@@ -1,6 +1,6 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
- * Copyright (c) 2010  Red Hat, Inc.
+ * Copyright (c) 2010 litl, LLC
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -21,14 +21,20 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_GJS_MODULE_H__
-#define __GJS_GJS_MODULE_H__
+/* This file wraps C++ stuff from the spidermonkey private API so we
+ * can use it from our other C files. This file should be included by
+ * jsapi-util.c only. "Public" API from this jsapi-private.c should be
+ * declared in jsapi-util.h
+ */
 
-#include <gjs/gjs.h>
-#include <gjs/native.h>
-#include <gjs/mem.h>
-#include <gjs/importer.h>
-#include <gjs/runtime.h>
-#include <gjs/jsapi-util.h>
+#ifndef __GJS_JSAPI_PRIVATE_H__
+#define __GJS_JSAPI_PRIVATE_H__
 
-#endif /* __GJS_GJS_umodule_H__ */
+#include <glib-object.h>
+#include "cjs/jsapi-util.h"
+
+G_BEGIN_DECLS
+
+G_END_DECLS
+
+#endif  /* __GJS_JSAPI_PRIVATE_H__ */

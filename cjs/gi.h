@@ -21,19 +21,20 @@
  * IN THE SOFTWARE.
  */
 
-#include "gi.h"
+#ifndef __GJS_GI_H__
+#define __GJS_GI_H__
 
-#include <util/misc.h>
+#include <glib.h>
+#include <girepository.h>
+#include "cjs/jsapi-util.h"
 
-#include <string.h>
+G_BEGIN_DECLS
 
-#include "gjs/native.h"
-#include "gjs/compat.h"
-#include "gi/repo.h"
+JSBool        gjs_define_gi_stuff     (JSContext      *context,
+                                       JSObject      **module_out);
+JSBool        gjs_define_private_gi_stuff   (JSContext     *context,
+                                             JSObject     **module_out);
 
-JSBool
-gjs_define_gi_stuff(JSContext      *context,
-                    JSObject      **module_out)
-{
-    return gjs_define_repo(context, module_out, "gi");
-}
+G_END_DECLS
+
+#endif  /* __GJS_GI_H__ */

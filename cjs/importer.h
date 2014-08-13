@@ -21,61 +21,30 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_MEM_H__
-#define __GJS_MEM_H__
+#ifndef __GJS_IMPORTER_H__
+#define __GJS_IMPORTER_H__
 
 #if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
 #error "Only <gjs/gjs-module.h> can be included directly."
 #endif
 
 #include <glib.h>
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-typedef struct {
-    unsigned int value;
-    const char *name;
-} GjsMemCounter;
+JSBool    gjs_create_root_importer (JSContext   *context,
+                                    const char **initial_search_path,
+                                    gboolean     add_standard_search_path);
+JSBool    gjs_define_root_importer (JSContext   *context,
+                                    JSObject    *in_object);
+JSObject* gjs_define_importer      (JSContext   *context,
+                                    JSObject    *in_object,
+                                    const char  *importer_name,
+                                    const char **initial_search_path,
+                                    gboolean     add_standard_search_path);
 
-#define GJS_DECLARE_COUNTER(name) \
-    extern GjsMemCounter gjs_counter_ ## name ;
-
-GJS_DECLARE_COUNTER(everything)
-
-GJS_DECLARE_COUNTER(boxed)
-GJS_DECLARE_COUNTER(gerror)
-GJS_DECLARE_COUNTER(closure)
-GJS_DECLARE_COUNTER(database)
-GJS_DECLARE_COUNTER(function)
-GJS_DECLARE_COUNTER(fundamental)
-GJS_DECLARE_COUNTER(importer)
-GJS_DECLARE_COUNTER(ns)
-GJS_DECLARE_COUNTER(object)
-GJS_DECLARE_COUNTER(param)
-GJS_DECLARE_COUNTER(repo)
-GJS_DECLARE_COUNTER(resultset)
-GJS_DECLARE_COUNTER(weakhash)
-GJS_DECLARE_COUNTER(interface)
-
-#define GJS_INC_COUNTER(name)                \
-    do {                                        \
-        gjs_counter_everything.value += 1;   \
-        gjs_counter_ ## name .value += 1;    \
-    } while (0)
-
-#define GJS_DEC_COUNTER(name)                \
-    do {                                        \
-        gjs_counter_everything.value -= 1;   \
-        gjs_counter_ ## name .value -= 1;    \
-    } while (0)
-
-#define GJS_GET_COUNTER(name) \
-    (gjs_counter_ ## name .value)
-
-void gjs_memory_report(const char *where,
-                       gboolean    die_if_leaks);
 
 G_END_DECLS
 
-#endif  /* __GJS_MEM_H__ */
+#endif  /* __GJS_IMPORTER_H__ */
