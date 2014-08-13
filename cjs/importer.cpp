@@ -415,8 +415,9 @@ static JSBool
 do_import(JSContext  *context,
           JSObject   *obj,
           Importer   *priv,
-          const char *name)
+          const char *initial_name)
 {
+    char *name = NULL;
     char *filename;
     char *full_path;
     char *dirname = NULL;
@@ -430,6 +431,12 @@ do_import(JSContext  *context,
     jsid search_path_name;
     GFile *gfile;
     gboolean exists;
+
+    if (strcmp (initial_name, "GMenu") == 0) {
+        name = g_strdup ("CMenu");
+    } else {
+        name = g_strdup (initial_name);
+    }
 
     search_path_name = gjs_context_get_const_string(context, GJS_STRING_SEARCH_PATH);
     if (!gjs_object_require_property(context, obj, "importer", search_path_name, &search_path_val)) {
@@ -614,6 +621,7 @@ do_import(JSContext  *context,
     g_free(full_path);
     g_free(filename);
     g_free(dirname);
+    g_free(name);
 
     if (!result &&
         !JS_IsExceptionPending(context)) {
