@@ -274,7 +274,7 @@ function testFrobateStuff() {
 function testThrowException() {
     let loop = GLib.MainLoop.new(null, false);
 
-    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                              'JS ERROR: Exception in method call: alwaysThrowException: *');
 
     let theResult, theExcp;

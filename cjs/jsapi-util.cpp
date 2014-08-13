@@ -1176,6 +1176,7 @@ _linux_get_self_process_size (gulong *vm_size,
 }
 
 static gulong linux_rss_trigger;
+static gint64 last_gc_time;
 #endif
 
 /**
@@ -1193,6 +1194,13 @@ gjs_maybe_gc (JSContext *context)
         /* We initiate a GC if VM or RSS has grown by this much */
         gulong vmsize;
         gulong rss_size;
+        gint64 now;
+
+        /* We rate limit GCs to at most one per 5 frames.
+           One frame is 16666 microseconds (1000000/60)*/
+        now = g_get_monotonic_time();
+        if (now - last_gc_time < 5 * 16666)
+            return;
 
         _linux_get_self_process_size (&vmsize, &rss_size);
 
@@ -1209,6 +1217,7 @@ gjs_maybe_gc (JSContext *context)
         if (rss_size > linux_rss_trigger) {
             linux_rss_trigger = (gulong) MIN(G_MAXULONG, rss_size * 1.25);
             JS_GC(JS_GetRuntime(context));
+            last_gc_time = now;
         } else if (rss_size < (0.75 * linux_rss_trigger)) {
             /* If we've shrunk by 75%, lower the trigger */
             linux_rss_trigger = (rss_size * 1.25);

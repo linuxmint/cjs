@@ -1,0 +1,10 @@
+#!/bin/sh
+# autopkgtest check: Run the installed-tests to verify glib works correctly
+# (C) 2013 Canonical Ltd.
+# Author: Iain Lane <iain.lane@canonical.com>
+
+set -e
+
+export XDG_RUNTIME_DIR=$ADTTMP
+
+dbus-launch xvfb-run -a gnome-desktop-testing-runner gjs 

@@ -1,0 +1,27 @@
+#!/bin/sh
+# autopkgtest check: Build and run a program against glib, to verify that the
+# headers and pkg-config file are installed correctly
+# (C) 2012 Canonical Ltd.
+# Author: Martin Pitt <martin.pitt@ubuntu.com>
+
+set -e
+
+WORKDIR=$(mktemp -d)
+trap "rm -rf $WORKDIR" 0 INT QUIT ABRT PIPE TERM
+cd $WORKDIR
+cat <<EOF > gjstest.c
+#include <gjs/gjs.h>
+
+int main()
+{
+    GjsContext* context;
+    context = gjs_context_new();
+    return 0;
+}
+EOF
+
+gcc -o gjstest gjstest.c `pkg-config --cflags --libs gjs-1.0`
+echo "build: OK"
+[ -x gjstest ]
+./gjstest
+echo "run: OK"

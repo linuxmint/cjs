@@ -33,7 +33,7 @@
  */
 
 const GLib = imports.gi.GLib;
-const GjsPrivate = imports.gi.GjsPrivate;
+const GjsPrivate = imports.gi.CjsPrivate;
 
 function textdomain(domain) {
     return GjsPrivate.textdomain(domain);
