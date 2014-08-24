@@ -160,7 +160,7 @@ fi
 
 # Execute wrapped script
 echo "Running with dbus: $WRAPPED_SCRIPT $@ with stderr to $STDERR_LOGFILE" >&2
-$WRAPPED_SCRIPT "$@" 2>>"$STDERR_LOGFILE" || die "script \"$WRAPPED_SCRIPT\" failed"
+$WRAPPED_SCRIPT "$@" 2>>"$STDERR_LOGFILE" || "****************  script \"$WRAPPED_SCRIPT\" failed"
 
 if ! test -z "$DBUS_SESSION_BUS_PID" ; then
     kill -TERM $DBUS_SESSION_BUS_PID || die "Message bus vanished! should not have happened" && echo "Killed daemon $DBUS_SESSION_BUS_PID" >&2
