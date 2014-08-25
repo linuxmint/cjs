@@ -163,11 +163,11 @@ echo "Running with dbus: $WRAPPED_SCRIPT $@ with stderr to $STDERR_LOGFILE" >&2
 $WRAPPED_SCRIPT "$@" 2>>"$STDERR_LOGFILE" || "****************  script \"$WRAPPED_SCRIPT\" failed"
 
 if ! test -z "$DBUS_SESSION_BUS_PID" ; then
-    kill -TERM $DBUS_SESSION_BUS_PID || die "Message bus vanished! should not have happened" && echo "Killed daemon $DBUS_SESSION_BUS_PID" >&2
+    kill -TERM $DBUS_SESSION_BUS_PID || "Message bus vanished! should not have happened" && echo "Killed daemon $DBUS_SESSION_BUS_PID" >&2
 fi
 
 if ! test -z "$DBUS_SYSTEM_BUS_PID" ; then
-    kill -TERM $DBUS_SYSTEM_BUS_PID || die "Message bus vanished! should not have happened" && echo "Killed daemon $DBUS_SYSTEM_BUS_PID" >&2
+    kill -TERM $DBUS_SYSTEM_BUS_PID || "Message bus vanished! should not have happened" && echo "Killed daemon $DBUS_SYSTEM_BUS_PID" >&2
 fi
 
 sleep 2
