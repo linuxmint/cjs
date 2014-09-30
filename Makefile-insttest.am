@@ -3,7 +3,7 @@ EXTRA_DIST += \
 	installed-tests/script.test.in \
 	$(NULL)
 
-installedtestmetadir = $(datadir)/installed-tests/gjs
+installedtestmetadir = $(datadir)/installed-tests/cjs
 installedtestmeta_DATA = 
 if BUILDOPT_INSTALL_TESTS
 installedtestmeta_DATA += jsunit.test
