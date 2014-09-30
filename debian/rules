@@ -7,9 +7,6 @@ include /usr/share/cdbs/1/rules/autoreconf.mk
 include /usr/share/gnome-pkg-tools/1/rules/uploaders.mk
 include /usr/share/gnome-pkg-tools/1/rules/gnome-get-source.mk
 
-# configure flags
-DEB_CONFIGURE_EXTRA_FLAGS := --enable-installed-tests
-
 # Use recursive variables since this variable must not be expanded until 
 # files have been installed.
 LIBMOZJS = $(shell objdump -p debian/tmp/usr/lib/libcjs.so | awk '$$1=="NEEDED" && $$2~/^libmozjs/ { print $$2 }' | sed s/\\.so\\./-/ )
