@@ -41,8 +41,8 @@ Section: libs
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          gir1.2-gtk-3.0
-Conflicts: libcjs0c
-Replaces: libcjs0c
+Conflicts: libcjs0, libcjs0a, libcjs0c
+Replaces: libcjs0, libcjs0a, libcjs0c
 Provides: ${cjs:Provides}
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon's platform

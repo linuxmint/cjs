@@ -1,2 +1,0 @@
-# we use mozilla libraries, that are in a private library path
-gjs: binary-or-shlib-defines-rpath
