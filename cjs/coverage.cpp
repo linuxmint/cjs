@@ -838,8 +838,22 @@ print_statistics_for_file(GjsCoverage   *coverage,
     GArray *functions = get_functions_for(coverage, &filename_jsval);
     GArray *branches = get_branches_for(coverage, &filename_jsval);
 
-    if (!lines || !functions || !branches)
+    if (!lines || !functions || !branches) {
+        if (lines) {
+            g_array_unref(lines);
+        }
+        if (functions) {
+            g_array_unref(functions);
+        }
+        if (branches) {
+            g_array_unref(branches);
+        }
+
+        g_free(diverged_paths);
+        g_free(destination_filename);
+        g_free(absolute_output_directory);
         return;
+    }
 
     copy_source_file_to_coverage_output(filename, destination_filename);
 

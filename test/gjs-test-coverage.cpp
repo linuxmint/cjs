@@ -863,7 +863,7 @@ hit_count_is_more_than_for_function(const char *line,
     /* Advance past "FNDA:" */
     line += 5;
 
-    if (sscanf(line, "%i,%as", &hit_count, &detected_function) != 2)
+    if (sscanf(line, "%u,%as", &hit_count, &detected_function) != 2)
         g_error("sscanf: %s", strerror(errno));
 
     const gboolean function_name_match = g_strcmp0(data->function, detected_function) == 0;

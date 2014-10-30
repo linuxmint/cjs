@@ -452,11 +452,13 @@ do_import(JSContext  *context,
 
     search_path_name = gjs_context_get_const_string(context, GJS_STRING_SEARCH_PATH);
     if (!gjs_object_require_property(context, obj, "importer", search_path_name, &search_path_val)) {
+        g_free(name);
         return JS_FALSE;
     }
 
     if (!JSVAL_IS_OBJECT(search_path_val)) {
         gjs_throw(context, "searchPath property on importer is not an object");
+        g_free(name);
         return JS_FALSE;
     }
 
@@ -464,11 +466,13 @@ do_import(JSContext  *context,
 
     if (!JS_IsArrayObject(context, search_path)) {
         gjs_throw(context, "searchPath property on importer is not an array");
+        g_free(name);
         return JS_FALSE;
     }
 
     if (!JS_GetArrayLength(context, search_path, &search_path_len)) {
         gjs_throw(context, "searchPath array has no length");
+        g_free(name);
         return JS_FALSE;
     }
 
