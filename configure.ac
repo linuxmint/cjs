@@ -9,7 +9,7 @@ m4_define(pkg_int_version, (pkg_major_version * 100 + pkg_minor_version) * 100 +
 
 AC_PREREQ(2.61)
 AC_INIT([cjs], pkg_version, [https://github.com/linuxmint/cjs])
-AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
+AM_INIT_AUTOMAKE([dist-xz no-dist-gzip subdir-objects])
 AC_CONFIG_SRCDIR([cjs/console.cpp])
 AC_CONFIG_HEADER([config.h])
 
