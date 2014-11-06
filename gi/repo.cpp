@@ -149,7 +149,7 @@ resolve_namespace_object(JSContext  *context,
               "Defined namespace '%s' %p in GIRepository %p", ns_name, gi_namespace, repo_obj);
 
     ret = JS_TRUE;
-    gjs_schedule_gc_if_needed(context)
+    gjs_schedule_gc_if_needed(context);
 
  out:
     if (gi_namespace)
