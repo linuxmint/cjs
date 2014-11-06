@@ -35,6 +35,9 @@
 
 G_BEGIN_DECLS
 
+void gjs_schedule_gc_if_needed (JSContext *context);
+void gjs_gc_if_needed (JSContext *context);
+
 G_END_DECLS
 
 #endif  /* __GJS_JSAPI_PRIVATE_H__ */
