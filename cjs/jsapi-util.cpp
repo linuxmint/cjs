@@ -1184,14 +1184,13 @@ static gint64 last_gc_time;
 #endif
 
 /**
- * gjs_maybe_gc:
+ * gjs_gc_if_needed:
  *
- * Low level version of gjs_context_maybe_gc().
+ * Split of the low level version of gjs_context_maybe_gc().
  */
 void
-gjs_maybe_gc (JSContext *context)
+gjs_gc_if_needed (JSContext *context)
 {
-    JS_MaybeGC(context);
 
 #ifdef __linux__
     {
@@ -1228,6 +1227,18 @@ gjs_maybe_gc (JSContext *context)
         }
     }
 #endif
+}
+
+/**
+ * gjs_maybe_gc:
+ *
+ * Low level version of gjs_context_maybe_gc().
+ */
+void
+gjs_maybe_gc (JSContext *context)
+{
+    JS_MaybeGC(context);
+    gjs_gc_if_needed(context);
 }
 
 void
