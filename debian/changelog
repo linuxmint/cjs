@@ -1,3 +1,10 @@
+cjs (2.4.1) rebecca; urgency=medium
+
+  * Lowered gobject-introspection requirement to 1.38.0
+  * Imports: fixed GMenu-to-CMenu proxy for legacy applets.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Sun, 23 Nov 2014 12:01:41 +0100
+
 cjs (2.4.0) rebecca; urgency=medium
 
   * 2.4.0
