@@ -416,7 +416,7 @@ gjs_log_object_props(JSContext      *context,
     while (!JSID_IS_VOID(prop_id)) {
         jsval propval;
         char *debugstr;
-        char *name;
+        char *name=NULL;
 
         if (!JS_GetPropertyById(context, obj, prop_id, &propval))
             goto next;
