@@ -1267,6 +1267,11 @@ object_instance_init (JSContext                  *context,
     gtype = priv->gtype;
     g_assert(gtype != G_TYPE_NONE);
 
+    if (G_TYPE_IS_ABSTRACT(gtype)) {
+        gjs_throw(context, "Cannot instantiate abstract class %s", g_type_name(gtype));
+        return false;
+    }
+
     if (!object_instance_props_to_g_parameters(context, object, args,
                                                gtype, params)) {
         return false;
