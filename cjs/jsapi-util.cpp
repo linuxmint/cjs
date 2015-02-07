@@ -31,6 +31,7 @@
 
 #include "jsapi-util.h"
 #include "compat.h"
+#include "context-private.h"
 #include "jsapi-private.h"
 #include <gi/boxed.h>
 
@@ -739,6 +740,9 @@ gjs_call_function_value(JSContext      *context,
     result = JS_CallFunctionValue(context, obj, fval,
                                   argc, argv, rval);
 
+    if (result)
+        gjs_schedule_gc_if_needed(context);
+
     JS_EndRequest(context);
     return result;
 }
@@ -1180,14 +1184,13 @@ static gint64 last_gc_time;
 #endif
 
 /**
- * gjs_maybe_gc:
+ * gjs_gc_if_needed:
  *
- * Low level version of gjs_context_maybe_gc().
+ * Split of the low level version of gjs_context_maybe_gc().
  */
 void
-gjs_maybe_gc (JSContext *context)
+gjs_gc_if_needed (JSContext *context)
 {
-    JS_MaybeGC(context);
 
 #ifdef __linux__
     {
@@ -1224,6 +1227,33 @@ gjs_maybe_gc (JSContext *context)
         }
     }
 #endif
+}
+
+/**
+ * gjs_maybe_gc:
+ *
+ * Low level version of gjs_context_maybe_gc().
+ */
+void
+gjs_maybe_gc (JSContext *context)
+{
+    JS_MaybeGC(context);
+    gjs_gc_if_needed(context);
+}
+
+void
+gjs_schedule_gc_if_needed (JSContext *context)
+{
+    GjsContext *gjs_context;
+
+    /* We call JS_MaybeGC immediately, but defer a check for a full
+     * GC cycle to an idle handler.
+     */
+    JS_MaybeGC(context);
+
+    gjs_context = (GjsContext *) JS_GetContextPrivate(context);
+    if (gjs_context)
+        _gjs_context_schedule_gc_if_needed(gjs_context);
 }
 
 /**
@@ -1317,6 +1347,8 @@ gjs_eval_with_scope(JSContext    *context,
 
     if (!JS::Evaluate(context, rootedObj, options, script, script_len, &retval))
         return JS_FALSE;
+
+    gjs_schedule_gc_if_needed(context);
 
     if (JS_IsExceptionPending(context)) {
         g_warning("EvaluateScript returned JS_TRUE but exception was pending; "
