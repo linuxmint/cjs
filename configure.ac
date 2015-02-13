@@ -67,12 +67,12 @@ fi
 AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
 
 # Checks for libraries.
-m4_define(glib_required_version, 2.36.0)
+m4_define(glib_required_version, 2.37.3)
 
 AC_CHECK_HEADERS([malloc.h])
 AC_CHECK_FUNCS(mallinfo)
 
-GOBJECT_INTROSPECTION_REQUIRE([1.38.0])
+GOBJECT_INTROSPECTION_REQUIRE([1.33.10])
 
 common_packages="gmodule-2.0 gthread-2.0 gio-2.0 >= glib_required_version mozjs-24"
 gjs_packages="gobject-introspection-1.0 libffi $common_packages"
