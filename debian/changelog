@@ -1,3 +1,9 @@
+cjs (2.4.2) rebecca; urgency=medium
+
+  * Improved garbage collection and release of memory
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 31 Mar 2015 09:43:22 +0200
+
 cjs (2.4.1) rebecca; urgency=medium
 
   * Lowered gobject-introspection requirement to 1.38.0
