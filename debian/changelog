@@ -1,3 +1,9 @@
+cjs (2.5.0) unstable; urgency=medium
+
+  * bump for development
+
+ -- Michael Webster <miketwebster@gmail.com>  Sat, 11 Apr 2015 09:02:17 -0400
+
 cjs (2.4.1) rebecca; urgency=medium
 
   * Lowered gobject-introspection requirement to 1.38.0
