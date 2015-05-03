@@ -184,7 +184,7 @@ gjs_console_interact(JSContext *context,
         buffer = g_string_new("");
         do {
             if (!gjs_console_readline(context, &temp_buf, file,
-                                      startline == lineno ? "gjs> " : ".... ")) {
+                                      startline == lineno ? "cjs> " : ".... ")) {
                 eof = JS_TRUE;
                 break;
             }
