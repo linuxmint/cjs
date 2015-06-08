@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # Automakes a release preparation for a post-release project
 # * Create a git tag
 # * Bump version in configure.ac and commit it
