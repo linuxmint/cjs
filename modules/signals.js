@@ -74,6 +74,22 @@ function _disconnect(id) {
     throw new Error("No signal connection " + id + " found");
 }
 
+function _signalHandlerIsConnected(id) {
+    if (! '_signalConnections' in this)
+        return false;
+
+    for (let connection of this._signalConnections) {
+        if (connection.id == id) {
+            if (connection.disconnected)
+                return false;
+            else
+                return true;
+        }
+    }
+
+    return false;
+}
+
 function _disconnectAll() {
     if ('_signalConnections' in this) {
         while (this._signalConnections.length > 0) {
@@ -141,6 +157,7 @@ function addSignalMethods(proto) {
     proto.connect = _connect;
     proto.disconnect = _disconnect;
     proto.emit = _emit;
+    proto.signalHandlerIsConnected = _signalHandlerIsConnected;
     // this one is not in GObject, but useful
     proto.disconnectAll = _disconnectAll;
 }
