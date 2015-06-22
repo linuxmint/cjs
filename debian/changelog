@@ -1,3 +1,10 @@
+cjs (2.6.2) rafaela; urgency=medium
+
+  [ Dexter Chua ]
+  * signals.js: add signalHandlerIsConnected method
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 22 Jun 2015 22:45:02 +0200
+
 cjs (2.6.1) rafaela; urgency=medium
 
   [ Dexter Chua ]
