@@ -911,6 +911,37 @@ importer_new_resolve(JSContext *context,
 
 GJS_NATIVE_CONSTRUCTOR_DEFINE_ABSTRACT(importer)
 
+static JSBool
+gjs_importer_add_subimporter(JSContext *context,
+                             unsigned   argc,
+                             jsval     *vp)
+{
+    if (argc != 2) {
+        gjs_throw(context, "Must pass two arguments to addSubImporter()");
+        return JS_FALSE;
+    }
+
+    JSObject *importer;
+    jsval *argv = JS_ARGV(context, vp);
+    char *name;
+    char *path;
+    char *search_path[2] = { 0, 0 };
+
+    JS_BeginRequest(context);
+
+    importer = JS_THIS_OBJECT(context, vp);
+
+    gjs_string_to_utf8(context, argv[0], &name);
+    gjs_string_to_utf8(context, argv[1], &path);
+
+    search_path[0] = path;
+    gjs_define_importer(context, importer, name, (const char **)search_path, FALSE);
+
+    JS_EndRequest(context);
+    JS_SET_RVAL(context, vp, JSVAL_VOID);
+    return JS_TRUE;
+}
+
 static void
 importer_finalize(JSFreeOp *fop,
                   JSObject *obj)
@@ -952,6 +983,11 @@ JSPropertySpec gjs_importer_proto_props[] = {
 };
 
 JSFunctionSpec gjs_importer_proto_funcs[] = {
+    { NULL }
+};
+
+JSFunctionSpec gjs_global_importer_funcs[] = {
+    { "addSubImporter", JSOP_WRAPPER(gjs_importer_add_subimporter), 0, 0 },
     { NULL }
 };
 
@@ -1131,13 +1167,14 @@ gjs_create_root_importer(JSContext   *context,
                          const char **initial_search_path,
                          gboolean     add_standard_search_path)
 {
-    jsval importer;
+    JSObject *importer;
+    jsval v;
 
     JS_BeginRequest(context);
 
-    importer = gjs_get_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS);
+    v = gjs_get_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS);
 
-    if (G_UNLIKELY (!JSVAL_IS_VOID(importer))) {
+    if (G_UNLIKELY (!JSVAL_IS_VOID(v))) {
         gjs_debug(GJS_DEBUG_IMPORTER,
                   "Someone else already created root importer, ignoring second request");
 
@@ -1145,11 +1182,12 @@ gjs_create_root_importer(JSContext   *context,
         return JS_TRUE;
     }
 
-    importer = OBJECT_TO_JSVAL(gjs_create_importer(context, "imports",
+    importer = gjs_create_importer(context, "imports",
                                                    initial_search_path,
                                                    add_standard_search_path,
-                                                   TRUE, NULL));
-    gjs_set_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS, importer);
+                                                   TRUE, NULL);
+    JS_DefineFunctions(context, importer, &gjs_global_importer_funcs[0]);
+    gjs_set_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS, OBJECT_TO_JSVAL(importer));
 
     JS_EndRequest(context);
     return JS_TRUE;
