@@ -850,6 +850,75 @@ importer_resolve(JSContext        *context,
 
 GJS_NATIVE_CONSTRUCTOR_DEFINE_ABSTRACT(importer)
 
+static bool
+gjs_importer_add_subimporter(JSContext *context,
+                             unsigned   argc,
+                             JS::Value *vp)
+{
+    if (argc != 2) {
+        gjs_throw(context, "Must pass two arguments to addSubImporter()");
+        return false;
+    }
+
+    GJS_GET_THIS(context, argc, vp, argv, importer);
+
+    bool success = false;
+
+    JSExceptionState *exc_state;
+
+    char *name;
+    char *path;
+    char *search_path[2] = { 0, 0 };
+
+    JS_BeginRequest(context);
+
+    /* JS::ToString might throw, in which case we will only log that the value
+     * could not be converted to string */
+    exc_state = JS_SaveExceptionState(context);
+    JS::RootedString name_str(context, JS::ToString(context, argv[0]));
+    if (name_str != NULL)
+        argv[0].setString(name_str);
+    JS_RestoreExceptionState(context, exc_state);
+
+    if (name_str == NULL) {
+        g_message("addSubImporter: <cannot convert name value to string>");
+        JS_EndRequest(context);
+        return false;
+    }
+
+    exc_state = JS_SaveExceptionState(context);
+    JS::RootedString path_str(context, JS::ToString(context, argv[1]));
+    if (path_str != NULL)
+        argv[1].setString(path_str);
+    JS_RestoreExceptionState(context, exc_state);
+
+    if (path_str == NULL) {
+        g_message("addSubImporter: <cannot convert path value to string>");
+        JS_EndRequest(context);
+        return false;
+    }
+
+    if (!gjs_string_to_utf8(context, JS::StringValue(name_str), &name))
+        goto out;
+
+    if (!gjs_string_to_utf8(context, JS::StringValue(path_str), &path))
+        goto out;
+
+    search_path[0] = path;
+
+    gjs_define_importer(context, importer, name, (const char **)search_path, FALSE);
+
+    JS_EndRequest(context);
+    argv.rval().setUndefined();
+    success = true;
+
+    out:
+
+    g_free (name);
+    g_free (path);
+    return success;
+}
+
 static void
 importer_finalize(js::FreeOp *fop,
                   JSObject   *obj)
@@ -913,6 +982,11 @@ JSFunctionSpec gjs_importer_proto_funcs[] = {
 };
 
 GJS_DEFINE_PROTO_FUNCS(importer)
+
+JSFunctionSpec gjs_global_importer_funcs[] = {
+    JS_FS("addSubImporter", gjs_importer_add_subimporter, 0, 0),
+    JS_FS_END
+};
 
 static JSObject*
 importer_new(JSContext *context,
@@ -1074,13 +1148,14 @@ gjs_create_root_importer(JSContext   *context,
                          const char **initial_search_path,
                          bool         add_standard_search_path)
 {
-    JS::Value importer;
+    JS::Value importer_val;
+    JSObject *importer;
 
     JS_BeginRequest(context);
 
-    importer = gjs_get_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS);
+    importer_val = gjs_get_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS);
 
-    if (G_UNLIKELY (!importer.isUndefined())) {
+    if (G_UNLIKELY (!importer_val.isUndefined())) {
         gjs_debug(GJS_DEBUG_IMPORTER,
                   "Someone else already created root importer, ignoring second request");
 
@@ -1088,11 +1163,17 @@ gjs_create_root_importer(JSContext   *context,
         return true;
     }
 
-    importer = JS::ObjectValue(*gjs_create_importer(context, "imports",
-                                                    initial_search_path,
-                                                    add_standard_search_path,
-                                                    true, JS::NullPtr()));
-    gjs_set_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS, importer);
+    importer = gjs_create_importer(context, "imports",
+                                   initial_search_path,
+                                   add_standard_search_path,
+                                   true, JS::NullPtr());
+
+    JS::RootedObject global(context, importer);
+
+    importer_val = JS::ObjectValue (*importer);
+
+    JS_DefineFunctions(context, global, &gjs_global_importer_funcs[0]);
+    gjs_set_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS, importer_val);
 
     JS_EndRequest(context);
     return true;
