@@ -1,3 +1,10 @@
+cjs (2.8.0) rosa; urgency=medium
+
+  [ pixunil ]
+  * importer.cpp: Add a method to the global imports object addSubImporter(name, path)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Fri, 16 Oct 2015 13:56:06 +0100
+
 cjs (2.6.2) rafaela; urgency=medium
 
   [ Dexter Chua ]
