@@ -103,6 +103,8 @@ resolve_namespace_object(JSContext  *context,
 
     if (g_strcmp0 (ns_name, "GMenu") == 0) {
         check_name = g_strdup ("CMenu");
+    } else if (g_strcmp0 (ns_name, "Gvc") == 0) {
+        check_name = g_strdup ("Cvc");
     } else {
         check_name = g_strdup (ns_name);
     }
