@@ -1,3 +1,10 @@
+cjs (3.0.1) sarah; urgency=medium
+
+  [ Michael Webster ]
+  * repo.cpp: Add Gvc->Cvc mapping for backward compatibility of sound xlets.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 10 May 2016 16:26:22 +0100
+
 cjs (3.0.0) sarah; urgency=medium
 
   * 3.0
