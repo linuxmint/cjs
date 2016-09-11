@@ -405,4 +405,14 @@ function _init() {
     this.Object.prototype.disconnect = function(id) {
         return GObject.signal_handler_disconnect(this, id);
     };
+
+    this.Object.prototype.handler_block = function(id) {
+        return GObject.signal_handler_block(this, id);
+    };
+
+    this.Object.prototype.handler_unblock = function(id) {
+        return GObject.signal_handler_unblock(this, id);
+    };
 }
+
+
