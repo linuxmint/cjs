@@ -92,6 +92,7 @@ libcjs_la_CFLAGS = 		\
 	$(AM_CFLAGS)
 libcjs_la_LDFLAGS = 		\
 	$(EXTRA_LINK_FLAGS)	\
+	$(WARN_LDFLAGS)         \
 	-export-symbols-regex "^[^_]" -version-info 0:0:0	\
 	-no-undefined \
 	-rdynamic
@@ -217,7 +218,7 @@ cjs_console_LDADD =		\
 	$(JS_LIBS)		\
 	$(GOBJECT_LIBS)		\
 	libcjs.la
-cjs_console_LDFLAGS = -rdynamic
+cjs_console_LDFLAGS = $(WARN_LDFLAGS) -rdynamic
 cjs_console_SOURCES = cjs/console.cpp
 
 install-exec-hook:
