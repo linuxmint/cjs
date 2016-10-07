@@ -10,7 +10,9 @@ m4_define(pkg_int_version, (pkg_major_version * 100 + pkg_minor_version) * 100 +
 AC_PREREQ(2.61)
 AC_INIT([cjs], pkg_version, [https://github.com/linuxmint/cjs])
 AC_CONFIG_MACRO_DIR([m4])
-AX_IS_RELEASE([always])
+
+m4_ifdef([AX_IS_RELEASE], [AX_IS_RELEASE([always])])
+
 AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
 AC_CONFIG_SRCDIR([cjs/console.cpp])
 AC_CONFIG_HEADER([config.h])
@@ -43,7 +45,8 @@ dnl DOLT
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 
-AX_COMPILER_FLAGS([WARN_CFLAGS],[WARN_LDFLAGS])
+m4_ifdef([AX_COMPILER_FLAGS],
+         [AX_COMPILER_FLAGS([WARN_CFLAGS],[WARN_LDFLAGS])])
 
 # coverage
 AC_ARG_ENABLE([coverage],
