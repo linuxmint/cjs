@@ -40,7 +40,6 @@
 #include <cjs/compat.h>
 #include <cjs/jsapi-private.h>
 
-#include <util/log.h>
 #include <util/misc.h>
 
 #include <girepository.h>
@@ -203,7 +202,8 @@ repo_new_resolve(JSContext *context,
         goto out;
 
     priv = priv_from_js(context, *obj);
-    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook obj %p priv %p", name, obj, priv);
+    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook obj %p priv %p",
+                     name, (void *)obj, priv);
 
     if (priv == NULL) /* we are the prototype, or have the wrong class */
         goto out;
