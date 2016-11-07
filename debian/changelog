@@ -1,3 +1,29 @@
+cjs (3.2.0) serena; urgency=medium
+
+  [ Maximiliano Curia ]
+  * Migrate away from gnome-common deprecated vars and macros
+
+  [ Michael Webster ]
+  * modules/GObject.js: Add access to handler_block and handler_unblock.
+
+  [ Clement Lefebvre ]
+  * Fixed build
+
+  [ Maximiliano Curia ]
+  * Make AX_ macros optional
+  * Drop glib-gettextize, gtkdocize and intltoolize
+
+  [ leigh123linux ]
+  * build: Require C++11
+
+  [ Michael Webster ]
+  * Fix build when extra debugging is enabled (util/log.h)
+
+  [ Clement Lefebvre ]
+  * pkg: Add missing autoconf-archive in debian/control.in
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 07 Nov 2016 10:28:25 +0000
+
 cjs (3.0.1) sarah; urgency=medium
 
   [ Michael Webster ]
