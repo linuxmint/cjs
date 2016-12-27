@@ -964,8 +964,12 @@ gjs_context_eval_file_in_compartment(GjsContext *context,
                               &script,
                               &script_len,
                               NULL,
-                              error))
+                              error)) {
+        g_object_unref(file);
         return FALSE;
+    }
+
+    g_object_unref(file);
 
     jsval return_value;
 
@@ -978,6 +982,7 @@ gjs_context_eval_file_in_compartment(GjsContext *context,
                              script, script_len, filename,
                              &return_value)) {
         gjs_log_exception(js_context);
+        g_free(script);
         g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED, "Failed to evaluate %s", filename);
         return FALSE;
     }
