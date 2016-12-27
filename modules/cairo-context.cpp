@@ -1017,7 +1017,7 @@ context_to_g_argument(JSContext      *context,
     if (!cr)
         return JS_FALSE;
     if (transfer == GI_TRANSFER_EVERYTHING)
-        cairo_destroy(cr);
+        cairo_reference(cr);
 
     arg->v_pointer = cr;
     return JS_TRUE;
