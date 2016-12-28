@@ -150,7 +150,8 @@ main(int argc, char **argv)
     if (coverage && code == 0)
         gjs_coverage_write_statistics(coverage,
                                       coverage_output_path);
- 
+    if (coverage)
+        g_object_unref(coverage);
     g_object_unref(js_context);
     g_free(script);
     exit(code);
