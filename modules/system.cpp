@@ -27,11 +27,11 @@
 #include <sys/types.h>
 #include <time.h>
 
-#include <gjs/context.h>
+#include <cjs/context.h>
 
 #include "gi/object.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util-args.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util-args.h"
 #include "system.h"
 
 /* Note that this cannot be relied on to test whether two objects are the same!

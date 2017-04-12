@@ -23,7 +23,7 @@
 
 #include <config.h>
 
-#include "gjs/native.h"
+#include "cjs/native.h"
 #include "modules.h"
 
 #ifdef ENABLE_CAIRO

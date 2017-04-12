@@ -23,9 +23,9 @@
 #include <config.h>
 
 #include "gi/foreign.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-wrapper.h"
 #include <cairo.h>
 #include <cairo-gobject.h>
 #include "cairo-private.h"

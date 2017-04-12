@@ -22,9 +22,9 @@
 
 #include <config.h>
 
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-wrapper.h"
 #include <cairo.h>
 #include "cairo-private.h"
 

@@ -34,7 +34,7 @@
 #include "object.h"
 #include "gtype.h"
 #include "interface.h"
-#include "gjs/jsapi-util-args.h"
+#include "cjs/jsapi-util-args.h"
 #include "arg.h"
 #include "repo.h"
 #include "gtype.h"
@@ -45,11 +45,11 @@
 #include "value.h"
 #include "closure.h"
 #include "gjs_gi_trace.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-util-root.h"
-#include "gjs/jsapi-wrapper.h"
-#include "gjs/context-private.h"
-#include "gjs/mem.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util-root.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/context-private.h"
+#include "cjs/mem.h"
 
 #include <util/log.h>
 #include <util/hash-x32.h>

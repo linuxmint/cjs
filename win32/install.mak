@@ -14,5 +14,5 @@ install: all
 	@copy /b $(CFG)\$(PLAT)\gjs-console.pdb $(PREFIX)\bin
 	@for %h in ($(LIBGJS_HEADERS)) do @copy ..\%h $(PREFIX)\include\gjs-1.0\%h
 	@rem Copy the generated introspection files, if built
-	@if exist $(CFG)\$(PLAT)\GjsPrivate-1.0.gir copy $(CFG)\$(PLAT)\GjsPrivate-1.0.gir $(PREFIX)\share\gir-1.0
-	@if exist $(CFG)\$(PLAT)\GjsPrivate-1.0.typelib copy /b $(CFG)\$(PLAT)\GjsPrivate-1.0.typelib $(PREFIX)\lib\girepository-1.0
+	@if exist $(CFG)\$(PLAT)\CjsPrivate-1.0.gir copy $(CFG)\$(PLAT)\CjsPrivate-1.0.gir $(PREFIX)\share\gir-1.0
+	@if exist $(CFG)\$(PLAT)\CjsPrivate-1.0.typelib copy /b $(CFG)\$(PLAT)\CjsPrivate-1.0.typelib $(PREFIX)\lib\girepository-1.0

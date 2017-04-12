@@ -28,7 +28,7 @@
 #include <glib.h>
 #include <girepository.h>
 
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 

@@ -28,9 +28,9 @@
 #include <util/log.h>
 
 #include "closure.h"
-#include "gjs/jsapi-util-root.h"
-#include "gjs/jsapi-wrapper.h"
-#include "gjs/mem.h"
+#include "cjs/jsapi-util-root.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/mem.h"
 
 struct Closure {
     JSRuntime *runtime;

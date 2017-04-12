@@ -31,10 +31,10 @@
 #include <glib.h>
 #include <gio/gio.h>
 #include <gio/gunixoutputstream.h>
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 
-#include "gjs/coverage.h"
-#include "gjs/coverage-internal.h"
+#include "cjs/coverage.h"
+#include "cjs/coverage-internal.h"
 
 #include "gjs-test-utils.h"
 
@@ -342,7 +342,7 @@ test_covered_file_is_duplicated_into_output_if_resource(gpointer      fixture_da
 {
     GjsCoverageFixture *fixture = (GjsCoverageFixture *) fixture_data;
 
-    const char *mock_resource_filename = "resource:///org/gnome/gjs/mock/test/gjs-test-coverage/loadedJSFromResource.js";
+    const char *mock_resource_filename = "resource:///org/cinnamon/cjs/mock/test/gjs-test-coverage/loadedJSFromResource.js";
     const char *coverage_scripts[] = {
         mock_resource_filename,
         NULL
@@ -371,7 +371,7 @@ test_covered_file_is_duplicated_into_output_if_resource(gpointer      fixture_da
 
     GFile *expected_temporary_js_script =
         g_file_resolve_relative_path(fixture->lcov_output_dir,
-                                     "org/gnome/gjs/mock/test/gjs-test-coverage/loadedJSFromResource.js");
+                                     "org/cinnamon/cjs/mock/test/gjs-test-coverage/loadedJSFromResource.js");
 
     g_assert_true(g_file_query_exists(expected_temporary_js_script, NULL));
     g_object_unref(expected_temporary_js_script);
@@ -1879,7 +1879,7 @@ test_coverage_cache_invalidation_resource(gpointer      fixture_data,
 {
     GjsCoverageFixture *fixture = (GjsCoverageFixture *) fixture_data;
 
-    GFile *mock_resource = g_file_new_for_uri("resource:///org/gnome/gjs/mock/cache/resource.js");
+    GFile *mock_resource = g_file_new_for_uri("resource:///org/cinnamon/cjs/mock/cache/resource.js");
 
     /* Load the resource archive and register it */
     GResource *first_resource = load_resource_from_builddir("mock-cache-invalidation-before.gresource");
@@ -1931,7 +1931,7 @@ test_coverage_cache_invalidation_resource(gpointer      fixture_data,
 
     GFile *output_script =
         g_file_resolve_relative_path(fixture->lcov_output_dir,
-                                     "org/gnome/gjs/mock/cache/resource.js");
+                                     "org/cinnamon/cjs/mock/cache/resource.js");
     char *script_output_path = g_file_get_path(output_script);
     g_object_unref(output_script);
 
@@ -2259,7 +2259,7 @@ void gjs_test_add_tests_for_coverage()
         {
             "simple_executable_lines",
             "let i = 0;\n",
-            "resource://org/gnome/gjs/mock/test/gjs-test-coverage/cache_notation/simple_executable_lines.js",
+            "resource://org/cinnamon/cjs/mock/test/gjs-test-coverage/cache_notation/simple_executable_lines.js",
             "1",
             "",
             ""
@@ -2272,7 +2272,7 @@ void gjs_test_add_tests_for_coverage()
             "} else {\n"
             "    i = 2;\n"
             "}\n",
-            "resource://org/gnome/gjs/mock/test/gjs-test-coverage/cache_notation/simple_branch.js",
+            "resource://org/cinnamon/cjs/mock/test/gjs-test-coverage/cache_notation/simple_branch.js",
             "1,2,3,5",
             "\"point\":2,\"exits\":[3,5]",
             ""
@@ -2281,7 +2281,7 @@ void gjs_test_add_tests_for_coverage()
             "simple_function",
             "function f() {\n"
             "}\n",
-            "resource://org/gnome/gjs/mock/test/gjs-test-coverage/cache_notation/simple_function.js",
+            "resource://org/cinnamon/cjs/mock/test/gjs-test-coverage/cache_notation/simple_function.js",
             "1,2",
             "",
             "\"key\":\"f:1:0\",\"line\":1"

@@ -289,7 +289,7 @@ gjs_define_promise_object(JSContext       *cx,
      * GResource and evaluate it */
 
     GError *error = NULL;
-    GBytes *lie_bytes = g_resources_lookup_data("/org/gnome/gjs/modules/_lie.js",
+    GBytes *lie_bytes = g_resources_lookup_data("/org/cinnamon/cjs/modules/_lie.js",
                                                 G_RESOURCE_LOOKUP_FLAGS_NONE,
                                                 &error);
     if (lie_bytes == NULL) {
@@ -360,7 +360,7 @@ gjs_context_class_init(GjsContextClass *klass)
                                     pspec);
     g_param_spec_unref(pspec);
 
-    /* For GjsPrivate */
+    /* For CjsPrivate */
     {
 #ifdef G_OS_WIN32
         extern HMODULE gjs_dll;

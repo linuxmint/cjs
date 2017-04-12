@@ -27,7 +27,7 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 
-#include <gjs/macros.h>
+#include <cjs/macros.h>
 
 G_BEGIN_DECLS
 

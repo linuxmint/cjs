@@ -6,7 +6,7 @@ NATIVE_MODULES += libcairoNative.la
 endif
 
 noinst_LTLIBRARIES += $(NATIVE_MODULES)
-libgjs_la_LIBADD += $(NATIVE_MODULES)
+libcjs_la_LIBADD += $(NATIVE_MODULES)
 
 JS_NATIVE_MODULE_CPPFLAGS =	\
 	$(AM_CPPFLAGS)		\

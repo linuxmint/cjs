@@ -24,7 +24,7 @@
 #ifndef __GJS_PROXYUTILS_H__
 #define __GJS_PROXYUTILS_H__
 
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 

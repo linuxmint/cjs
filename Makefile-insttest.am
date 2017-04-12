@@ -5,7 +5,7 @@ EXTRA_DIST += \
 	$(NULL)
 
 gjsinsttestdir = $(pkglibexecdir)/installed-tests
-installedtestmetadir = $(datadir)/installed-tests/gjs
+installedtestmetadir = $(datadir)/installed-tests/cjs
 jstestsdir = $(gjsinsttestdir)/js
 jsscripttestsdir = $(gjsinsttestdir)/scripts
 

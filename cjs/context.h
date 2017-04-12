@@ -31,7 +31,7 @@
 #include <stdbool.h>
 #include <glib-object.h>
 
-#include <gjs/macros.h>
+#include <cjs/macros.h>
 
 G_BEGIN_DECLS
 

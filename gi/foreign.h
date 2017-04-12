@@ -26,7 +26,7 @@
 
 #include <stdbool.h>
 #include <girepository.h>
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 #include "arg.h"
 
 typedef bool (*GjsArgOverrideToGArgumentFunc) (JSContext      *context,

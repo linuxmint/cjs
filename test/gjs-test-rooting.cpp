@@ -1,5 +1,5 @@
-#include "gjs/jsapi-util.h"
-#include "gjs/jsapi-util-root.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-util-root.h"
 #include "gjs-test-utils.h"
 
 static GMutex gc_lock;

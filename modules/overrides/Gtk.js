@@ -22,7 +22,7 @@
 const Lang = imports.lang;
 const GObject = imports.gi.GObject;
 
-var GjsPrivate = imports.gi.GjsPrivate;
+var CjsPrivate = imports.gi.CjsPrivate;
 
 let Gtk;
 
@@ -97,9 +97,9 @@ function _init() {
     Gtk = this;
 
     Gtk.Widget.prototype.__metaclass__ = GtkWidgetClass;
-    if (GjsPrivate.gtk_container_child_set_property) {
+    if (CjsPrivate.gtk_container_child_set_property) {
         Gtk.Container.prototype.child_set_property = function(child, property, value) {
-            GjsPrivate.gtk_container_child_set_property(this, child, property, value);
+            CjsPrivate.gtk_container_child_set_property(this, child, property, value);
         };
     }
 

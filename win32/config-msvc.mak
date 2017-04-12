@@ -111,7 +111,7 @@ TEST_PROGRAMS =
 # Enable Introspection
 !if "$(INTROSPECTION)" == "1"
 CHECK_PACKAGE = $(GJS_INTROSPECTION_CHECK_PACKAGE)
-EXTRA_TARGETS = $(CFG)\$(PLAT)\GjsPrivate-1.0.gir $(CFG)\$(PLAT)\GjsPrivate-1.0.typelib
+EXTRA_TARGETS = $(CFG)\$(PLAT)\CjsPrivate-1.0.gir $(CFG)\$(PLAT)\CjsPrivate-1.0.typelib
 !else
 EXTRA_TARGETS =
 !endif

@@ -33,11 +33,11 @@
 #include "closure.h"
 #include "gtype.h"
 #include "param.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-private.h"
-#include "gjs/jsapi-wrapper.h"
-#include "gjs/mem.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-private.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/mem.h"
 
 #include <util/log.h>
 

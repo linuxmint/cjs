@@ -1,8 +1,8 @@
 gjs_public_headers =		\
-	gjs/context.h		\
-	gjs/coverage.h		\
-	gjs/gjs.h		\
-	gjs/macros.h		\
+	cjs/context.h		\
+	cjs/coverage.h		\
+	cjs/gjs.h		\
+	cjs/macros.h		\
 	util/error.h		\
 	$(NULL)
 
@@ -48,34 +48,34 @@ gjs_srcs =				\
 	gi/union.h			\
 	gi/value.cpp			\
 	gi/value.h			\
-	gjs/byteArray.cpp		\
-	gjs/byteArray.h			\
-	gjs/context.cpp			\
-	gjs/context-private.h		\
-	gjs/coverage-internal.h		\
-	gjs/coverage.cpp 		\
-	gjs/importer.cpp		\
-	gjs/importer.h			\
-	gjs/jsapi-class.h		\
-	gjs/jsapi-constructor-proxy.cpp	\
-	gjs/jsapi-constructor-proxy.h	\
-	gjs/jsapi-dynamic-class.cpp	\
-	gjs/jsapi-private.cpp		\
-	gjs/jsapi-private.h		\
-	gjs/jsapi-util.cpp		\
-	gjs/jsapi-util.h		\
-	gjs/jsapi-util-args.h		\
-	gjs/jsapi-util-error.cpp	\
-	gjs/jsapi-util-root.h		\
-	gjs/jsapi-util-string.cpp	\
-	gjs/jsapi-wrapper.h		\
-	gjs/mem.h			\
-	gjs/mem.cpp			\
-	gjs/native.cpp			\
-	gjs/native.h			\
-	gjs/runtime.cpp			\
-	gjs/runtime.h			\
-	gjs/stack.cpp			\
+	cjs/byteArray.cpp		\
+	cjs/byteArray.h			\
+	cjs/context.cpp			\
+	cjs/context-private.h		\
+	cjs/coverage-internal.h		\
+	cjs/coverage.cpp 		\
+	cjs/importer.cpp		\
+	cjs/importer.h			\
+	cjs/jsapi-class.h		\
+	cjs/jsapi-constructor-proxy.cpp	\
+	cjs/jsapi-constructor-proxy.h	\
+	cjs/jsapi-dynamic-class.cpp	\
+	cjs/jsapi-private.cpp		\
+	cjs/jsapi-private.h		\
+	cjs/jsapi-util.cpp		\
+	cjs/jsapi-util.h		\
+	cjs/jsapi-util-args.h		\
+	cjs/jsapi-util-error.cpp	\
+	cjs/jsapi-util-root.h		\
+	cjs/jsapi-util-string.cpp	\
+	cjs/jsapi-wrapper.h		\
+	cjs/mem.h			\
+	cjs/mem.cpp			\
+	cjs/native.cpp			\
+	cjs/native.h			\
+	cjs/runtime.cpp			\
+	cjs/runtime.h			\
+	cjs/stack.cpp			\
 	modules/modules.cpp		\
 	modules/modules.h		\
 	util/error.cpp			\
@@ -103,5 +103,5 @@ gjs_gtk_private_srcs =			\
 	$(NULL)
 
 gjs_console_srcs =	\
-	gjs/console.cpp	\
+	cjs/console.cpp	\
 	$(NULL)

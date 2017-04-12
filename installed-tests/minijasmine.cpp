@@ -30,8 +30,8 @@
 #include <glib/gstdio.h>
 #include <gio/gio.h>
 
-#include "gjs/gjs.h"
-#include "gjs/mem.h"
+#include "cjs/gjs.h"
+#include "cjs/mem.h"
 
 G_GNUC_NORETURN
 static void

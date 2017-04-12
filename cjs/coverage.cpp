@@ -21,7 +21,7 @@
 #include <sys/stat.h>
 #include <gio/gio.h>
 
-#include <gjs/context.h>
+#include <cjs/context.h>
 
 #include "coverage.h"
 #include "coverage-internal.h"
@@ -1586,7 +1586,7 @@ gjs_wrap_root_importer_in_compartment(JSContext *context,
 static bool
 bootstrap_coverage(GjsCoverage *coverage)
 {
-    static const char  *coverage_script = "resource:///org/gnome/gjs/modules/coverage.js";
+    static const char  *coverage_script = "resource:///org/cinnamon/cjs/modules/coverage.js";
     GjsCoveragePrivate *priv = (GjsCoveragePrivate *) gjs_coverage_get_instance_private(coverage);
     GBytes             *cache_bytes = NULL;
     GError             *error = NULL;

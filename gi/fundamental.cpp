@@ -33,11 +33,11 @@
 #include "gtype.h"
 #include "proxyutils.h"
 #include "repo.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-wrapper.h"
-#include "gjs/mem.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/mem.h"
 
-#include <gjs/context.h>
+#include <cjs/context.h>
 #include <util/log.h>
 #include <girepository.h>
 

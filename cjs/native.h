@@ -21,32 +21,32 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_IMPORTER_H__
-#define __GJS_IMPORTER_H__
+#ifndef __GJS_NATIVE_H__
+#define __GJS_NATIVE_H__
 
 #include <stdbool.h>
 #include <glib.h>
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-bool      gjs_create_root_importer (JSContext   *context,
-                                    const char **initial_search_path,
-                                    bool         add_standard_search_path);
+typedef bool (* GjsDefineModuleFunc) (JSContext              *context,
+                                      JS::MutableHandleObject module_out);
 
-bool gjs_define_root_importer(JSContext       *cx,
-                              JS::HandleObject in_object);
+/* called on context init */
+void   gjs_register_native_module (const char            *module_id,
+                                   GjsDefineModuleFunc  func);
 
-bool      gjs_define_root_importer_object(JSContext        *context,
-                                          JS::HandleObject  in_object,
-                                          JS::HandleObject  root_importer);
+/* called by importer.c to to check for already loaded modules */
+bool     gjs_is_registered_native_module(JSContext  *context,
+                                         JSObject   *parent,
+                                         const char *name);
 
-JSObject *gjs_define_importer(JSContext       *context,
-                              JS::HandleObject in_object,
-                              const char      *importer_name,
-                              const char     **initial_search_path,
-                              bool             add_standard_search_path);
+/* called by importer.c to load a statically linked native module */
+bool gjs_import_native_module (JSContext              *context,
+                               const char             *name,
+                               JS::MutableHandleObject module_out);
 
 G_END_DECLS
 
-#endif  /* __GJS_IMPORTER_H__ */
+#endif  /* __GJS_NATIVE_H__ */

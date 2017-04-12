@@ -28,7 +28,7 @@
 
 #include <gio/gio.h>
 
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 
 static char **include_path = NULL;
 static char **coverage_prefixes = NULL;

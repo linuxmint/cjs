@@ -1,17 +1,17 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-m4_define(pkg_major_version, 1)
-m4_define(pkg_minor_version, 49)
+m4_define(pkg_major_version, 3)
+m4_define(pkg_minor_version, 3)
 m4_define(pkg_micro_version, 0)
 m4_define(pkg_version, pkg_major_version.pkg_minor_version.pkg_micro_version)
 m4_define(pkg_int_version, (pkg_major_version * 100 + pkg_minor_version) * 100 + pkg_micro_version)
 
 AC_PREREQ([2.64])
-AC_INIT([gjs],[pkg_version],[http://bugzilla.gnome.org/enter_bug.cgi?product=gjs],[gjs],[https://wiki.gnome.org/Projects/Gjs])
+AC_INIT([cjs],[pkg_version],[https://github.com/linuxmint/cjs/issues/new],[cjs],[https://github.com/linuxmint/cjs])
 AM_INIT_AUTOMAKE([1.11.1 subdir-objects dist-xz no-dist-gzip tar-ustar -Wno-portability])
 AX_IS_RELEASE([git-directory])
-AC_CONFIG_SRCDIR([gjs/console.cpp])
+AC_CONFIG_SRCDIR([cjs/console.cpp])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
 AC_REQUIRE_AUX_FILE([tap-driver.sh])
@@ -19,7 +19,7 @@ AC_REQUIRE_AUX_FILE([tap-driver.sh])
 AC_SUBST(GJS_VERSION, m4_eval(pkg_int_version))
 AC_DEFINE([GJS_VERSION], pkg_int_version, [The gjs version as an integer])
 
-AC_SUBST([GETTEXT_PACKAGE], [gjs])
+AC_SUBST([GETTEXT_PACKAGE], [cjs])
 AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE], ["$GETTEXT_PACKAGE"], [The name of the gettext domain])
 
 AM_MAINTAINER_MODE([enable])
@@ -53,7 +53,7 @@ AX_CHECK_LINK_FLAG([-lgcov],, [
 ])
 
 # Checks for libraries.
-m4_define(glib_required_version, 2.50.0)
+m4_define(glib_required_version, 2.48.2)
 
 GOBJECT_INTROSPECTION_REQUIRE([1.41.4])
 
@@ -62,7 +62,7 @@ gjs_base_packages="$GOBJECT_REQUIREMENT gio-2.0"
 common_packages="gthread-2.0 gio-2.0 >= glib_required_version mozjs-38"
 gjs_packages="gobject-introspection-1.0 libffi $common_packages"
 gjs_cairo_packages="cairo cairo-gobject $common_packages"
-gjs_gtk_packages="gtk+-3.0 >= 3.20"
+gjs_gtk_packages="gtk+-3.0 >= 3.18.9"
 # gjs-tests links against everything
 gjstests_packages="gio-unix-2.0 $gjs_packages"
 
@@ -219,12 +219,12 @@ AM_CONDITIONAL([DBUS_TESTS], [test "x$with_dbus_tests" != "xno"])
 
 AX_APPEND_COMPILE_FLAGS(['--param inline-unit-growth=50'])
 
-AC_SUBST([gjsjsdir], [\${datadir}/gjs-1.0])
+AC_SUBST([gjsjsdir], [\${datadir}/cjs-1.0])
 
 dnl automake 1.11/1.12 defines this but does not substitute it
 AC_SUBST([pkglibexecdir], ["${libexecdir}/${PACKAGE}"])
 
-AC_CONFIG_FILES([Makefile gjs-1.0.pc win32/config.h.win32])
+AC_CONFIG_FILES([Makefile cjs-1.0.pc win32/config.h.win32])
 dnl Symlink the files from gobject-introspection's test libraries into the tree;
 dnl Automake plans to drop support for compiling them in-place.
 AC_CONFIG_LINKS([
@@ -239,9 +239,9 @@ AC_CONFIG_LINKS([
 AC_OUTPUT
 
 # Warn about conditions that affect runtime
-PKG_CHECK_EXISTS([gobject-introspection-1.0 >= 1.52.1], [], [
+PKG_CHECK_EXISTS([gobject-introspection-1.0 >= 1.46.0], [], [
     AC_MSG_WARN([You do not have a new enough version of
-gobject-introspection to run the tests. You can still build GJS, but some
+gobject-introspection to run the tests. You can still build CJS, but some
 tests will fail.])])
 
 TEST_MSG=

@@ -1,0 +1,128 @@
+cjs (3.3.0) UNRELEASED; urgency=medium
+
+  * Rebase to upstream gjs 1.48.0 (a7bcfb9f3e00ca9849bf44a).
+
+ -- Michael Webster <miketwebster@gmail.com>  Fri, 14 Apr 2017 08:30:32 -0400
+
+cjs (3.2.0) serena; urgency=medium
+
+  [ Maximiliano Curia ]
+  * Migrate away from gnome-common deprecated vars and macros
+
+  [ Michael Webster ]
+  * modules/GObject.js: Add access to handler_block and handler_unblock.
+
+  [ Clement Lefebvre ]
+  * Fixed build
+
+  [ Maximiliano Curia ]
+  * Make AX_ macros optional
+  * Drop glib-gettextize, gtkdocize and intltoolize
+
+  [ leigh123linux ]
+  * build: Require C++11
+
+  [ Michael Webster ]
+  * Fix build when extra debugging is enabled (util/log.h)
+
+  [ Clement Lefebvre ]
+  * pkg: Add missing autoconf-archive in debian/control.in
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 07 Nov 2016 10:28:25 +0000
+
+cjs (3.0.1) sarah; urgency=medium
+
+  [ Michael Webster ]
+  * repo.cpp: Add Gvc->Cvc mapping for backward compatibility of sound xlets.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 10 May 2016 16:26:22 +0100
+
+cjs (3.0.0) sarah; urgency=medium
+
+  * 3.0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Sat, 23 Apr 2016 10:50:03 +0100
+
+cjs (2.8.0) rosa; urgency=medium
+
+  [ pixunil ]
+  * importer.cpp: Add a method to the global imports object addSubImporter(name, path)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Fri, 16 Oct 2015 13:56:06 +0100
+
+cjs (2.6.2) rafaela; urgency=medium
+
+  [ Dexter Chua ]
+  * signals.js: add signalHandlerIsConnected method
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 22 Jun 2015 22:45:02 +0200
+
+cjs (2.6.1) rafaela; urgency=medium
+
+  [ Dexter Chua ]
+  * Use python2 instead of python
+
+ -- Clement Lefebvre <root@linuxmint.com>  Sun, 14 Jun 2015 12:44:28 +0200
+
+cjs (2.6.0) rafaela; urgency=medium
+
+  * 2.6.0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 19 May 2015 17:01:22 +0200
+
+cjs (2.5.0) unstable; urgency=medium
+
+  * bump for development
+
+ -- Michael Webster <miketwebster@gmail.com>  Sat, 11 Apr 2015 09:02:17 -0400
+
+cjs (2.4.1) rebecca; urgency=medium
+
+  * Lowered gobject-introspection requirement to 1.38.0
+  * Imports: fixed GMenu-to-CMenu proxy for legacy applets.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Sun, 23 Nov 2014 12:01:41 +0100
+
+cjs (2.4.0) rebecca; urgency=medium
+
+  * 2.4.0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 30 Oct 2014 15:29:36 +0100
+
+cjs (2.3.1) unstable; urgency=medium
+
+  * Rebase to upstream version:
+    - gjs 1.40.1 (gjs (1.40.1-0ubuntu0.2) trusty)
+
+ -- Michael Webster <miketwebster@gmail.com>  Tue, 12 Aug 2014 21:58:00 -0400
+
+cjs (2.3.0) unstable; urgency=medium
+
+  * 2.3.0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Fri, 27 Jun 2014 14:28:58 +0100
+
+cjs (2.2.1) qiana; urgency=medium
+
+  * 2.2.1
+
+ -- Clement Lefebvre <root@linuxmint.com>  Wed, 21 May 2014 11:30:18 +0100
+
+cjs (2.2.0) qiana; urgency=medium
+
+  * 2.2.0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Sat, 12 Apr 2014 10:33:49 +0100
+
+cjs (2.0.0) petra; urgency=low
+
+  * 2.0.0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Wed, 02 Oct 2013 13:43:45 +0100
+
+cjs (1.9.1) petra; urgency=low
+
+  * Based on 1.34.0-0ubuntu1 quantal
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 30 Sep 2013 13:31:38 +0100
+

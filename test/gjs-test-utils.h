@@ -20,8 +20,8 @@
 #ifndef GJS_TEST_UTILS_H
 #define GJS_TEST_UTILS_H
 
-#include "gjs/context.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-wrapper.h"
 
 typedef struct _GjsUnitTestFixture GjsUnitTestFixture;
 struct _GjsUnitTestFixture {

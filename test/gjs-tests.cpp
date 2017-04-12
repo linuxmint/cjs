@@ -29,9 +29,9 @@
 #include <glib-object.h>
 #include <util/glib.h>
 
-#include <gjs/context.h>
-#include "gjs/jsapi-util.h"
-#include "gjs/jsapi-wrapper.h"
+#include <cjs/context.h>
+#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-wrapper.h"
 #include "gjs-test-utils.h"
 #include "util/error.h"
 

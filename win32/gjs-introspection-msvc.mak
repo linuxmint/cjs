@@ -4,7 +4,7 @@
 $(CFG)\$(PLAT)\gjs_private_list:
 	@for %f in ($(LIBGJS_PRIVATE_SOURCES)) do @echo ../%f >> $@
 
-$(CFG)\$(PLAT)\GjsPrivate-1.0.gir: $(CFG)\$(PLAT)\gjs.lib $(CFG)\$(PLAT)\gjs_private_list
+$(CFG)\$(PLAT)\CjsPrivate-1.0.gir: $(CFG)\$(PLAT)\gjs.lib $(CFG)\$(PLAT)\gjs_private_list
 	@set LIB=.\$(CFG)\$(PLAT);$(PREFIX)\lib;$(LIB)
 	@set PATH=.\$(CFG)\$(PLAT);$(PREFIX)\bin;$(PATH)
 	@-echo Generating $@...
@@ -13,7 +13,7 @@ $(CFG)\$(PLAT)\GjsPrivate-1.0.gir: $(CFG)\$(PLAT)\gjs.lib $(CFG)\$(PLAT)\gjs_pri
 	--identifier-prefix=Gjs				\
 	--symbol-prefix=gjs_				\
 	--warn-all					\
-	--namespace=GjsPrivate			\
+	--namespace=CjsPrivate			\
 	--nsversion=1.0					\
 	$(INTROSPECTION_INCLUDE_PACKAGES)		\
 	--library=gjs					\
@@ -26,7 +26,7 @@ $(CFG)\$(PLAT)\GjsPrivate-1.0.gir: $(CFG)\$(PLAT)\gjs.lib $(CFG)\$(PLAT)\gjs_pri
 	--filelist=$(CFG)\$(PLAT)\gjs_private_list	\
 	-o $@
 
-$(CFG)\$(PLAT)\GjsPrivate-1.0.typelib: $(CFG)\$(PLAT)\GjsPrivate-1.0.gir
+$(CFG)\$(PLAT)\CjsPrivate-1.0.typelib: $(CFG)\$(PLAT)\CjsPrivate-1.0.gir
 	@copy $*.gir $(@B).gir
 	$(PREFIX)\bin\g-ir-compiler			\
 	--includedir=$(CFG)\$(PLAT) --debug --verbose	\

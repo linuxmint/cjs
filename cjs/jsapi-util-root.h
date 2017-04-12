@@ -27,8 +27,8 @@
 #include <glib.h>
 #include <glib-object.h>
 
-#include "gjs/context.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-wrapper.h"
 #include "util/log.h"
 
 /* jsapi-util-root.h - Utilities for dealing with the lifetime and ownership of

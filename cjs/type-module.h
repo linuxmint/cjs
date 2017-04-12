@@ -1,6 +1,6 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
- * Copyright (c) 2008  litl, LLC
+ * Copyright (c) 2012 Giovanni Campagna <scampa.giovanni@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -21,12 +21,23 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_GJS_H__
-#define __GJS_GJS_H__
+#ifndef GJS_TYPE_MODULE_H
+#define GJS_TYPE_MODULE_H
 
-#include <gjs/macros.h>
-#include <gjs/context.h>
-#include <gjs/coverage.h>
-#include <util/error.h>
+#include <glib-object.h>
 
-#endif /* __GJS_GJS_H__ */
+typedef struct _GjsTypeModule GjsTypeModule;
+typedef struct _GjsTypeModuleClass GjsTypeModuleClass;
+
+#define GJS_TYPE_TYPE_MODULE              (gjs_type_module_get_type ())
+#define GJS_TYPE_MODULE(module)           (G_TYPE_CHECK_INSTANCE_CAST ((module), GJS_TYPE_TYPE_MODULE, GjsTypeModule))
+#define GJS_TYPE_MODULE_CLASS(klass)      (G_TYPE_CHECK_CLASS_CAST ((klass), GJS_TYPE_TYPE_MODULE, GjsTypeModuleClass))
+#define GJS_IS_TYPE_MODULE(module)        (G_TYPE_CHECK_INSTANCE_TYPE ((module), GJS_TYPE_TYPE_MODULE))
+#define GJS_IS_TYPE_MODULE_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GJS_TYPE_TYPE_MODULE))
+#define GJS_TYPE_MODULE_GET_CLASS(module) (G_TYPE_INSTANCE_GET_CLASS ((module), GJS_TYPE_TYPE_MODULE, GjsTypeModuleClass))
+
+GType gjs_type_module_get_type (void) G_GNUC_CONST;
+
+GjsTypeModule *gjs_type_module_get (void);
+
+#endif

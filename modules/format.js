@@ -1,6 +1,6 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
 
-const GjsPrivate = imports.gi.GjsPrivate;
+const CjsPrivate = imports.gi.CjsPrivate;
 
 function vprintf(str, args) {
     let i = 0;
@@ -46,7 +46,7 @@ function vprintf(str, args) {
         case 'd':
             let intV = parseInt(getArg());
             if (hasAlternativeIntFlag)
-                s = GjsPrivate.format_int_alternative_output(intV);
+                s = CjsPrivate.format_int_alternative_output(intV);
             else
                 s = intV.toString();
             break;

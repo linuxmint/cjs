@@ -53,9 +53,9 @@
 #include <glib/gprintf.h>
 
 #include "console.h"
-#include "gjs/context.h"
-#include "gjs/jsapi-private.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-private.h"
+#include "cjs/jsapi-wrapper.h"
 
 static void
 gjs_console_error_reporter(JSContext *cx, const char *message, JSErrorReport *report)
@@ -185,7 +185,7 @@ gjs_console_interact(JSContext *context,
         buffer = g_string_new("");
         do {
             if (!gjs_console_readline(context, &temp_buf, file,
-                                      startline == lineno ? "gjs> " : ".... ")) {
+                                      startline == lineno ? "cjs> " : ".... ")) {
                 eof = true;
                 break;
             }

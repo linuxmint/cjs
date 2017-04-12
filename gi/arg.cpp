@@ -34,8 +34,8 @@
 #include "param.h"
 #include "value.h"
 #include "gerror.h"
-#include "gjs/byteArray.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/byteArray.h"
+#include "cjs/jsapi-wrapper.h"
 #include <util/log.h>
 
 bool

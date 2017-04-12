@@ -36,7 +36,7 @@
 #include "union.h"
 #include "gtype.h"
 #include "gerror.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/jsapi-wrapper.h"
 
 #include <girepository.h>
 

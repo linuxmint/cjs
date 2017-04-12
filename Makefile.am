@@ -18,7 +18,7 @@ INTROSPECTION_GIRS =
 ## ACLOCAL_AMFLAGS can be removed for Automake 1.13
 ACLOCAL_AMFLAGS = -I m4
 AM_CXXFLAGS = $(WARN_CXXFLAGS) $(CODE_COVERAGE_CFLAGS)
-AM_CPPFLAGS = -DG_LOG_DOMAIN=\"Gjs\" $(CODE_COVERAGE_CPPFLAGS)
+AM_CPPFLAGS = -DG_LOG_DOMAIN=\"Cjs\" $(CODE_COVERAGE_CPPFLAGS)
 AM_LDFLAGS = $(WARN_LDFLAGS) $(CODE_COVERAGE_LDFLAGS)
 MAINTAINERCLEANFILES =					\
 	$(GITIGNORE_MAINTAINERCLEANFILES_TOPLEVEL)	\
@@ -31,7 +31,7 @@ GITIGNOREFILES = INSTALL m4
 gjsjsdir = @gjsjsdir@
 gjsoverridedir = $(gjsjsdir)/overrides
 
-gjs_public_includedir = $(includedir)/gjs-1.0
+gjs_public_includedir = $(includedir)/cjs-1.0
 
 ########################################################################
 include gjs-srcs.mk
@@ -39,9 +39,9 @@ include gjs-srcs.mk
 nobase_gjs_public_include_HEADERS = $(gjs_public_headers)
 
 ########################################################################
-pkgconfig_DATA = gjs-1.0.pc
+pkgconfig_DATA = cjs-1.0.pc
 
-EXTRA_DIST += gjs-1.0.pc.in
+EXTRA_DIST += cjs-1.0.pc.in
 
 ########################################################################
 gjs_directory_defines = 				\
@@ -51,30 +51,30 @@ gjs_directory_defines = 				\
 	-DPKGLIBDIR=\"$(pkglibdir)\"
 
 ########################################################################
-lib_LTLIBRARIES += libgjs.la
+lib_LTLIBRARIES += libcjs.la
 
-libgjs_la_CPPFLAGS =		\
+libcjs_la_CPPFLAGS =		\
 	$(AM_CPPFLAGS)		\
 	$(GJS_CFLAGS)	\
 	$(gjs_directory_defines)\
 	-I$(top_srcdir)/gi	\
 	-DGJS_COMPILATION
-libgjs_la_LDFLAGS = 		\
+libcjs_la_LDFLAGS = 		\
 	-export-symbols-regex "^[^_]" -version-info 0:0:0	\
 	-no-undefined \
 	$(NULL)
-libgjs_la_LIBADD = 		\
+libcjs_la_LIBADD = 		\
 	$(GJS_LIBS)
 
 if ENABLE_GTK
-libgjs_la_CPPFLAGS += $(GJS_GTK_CFLAGS)
-libgjs_la_LIBADD += $(GJS_GTK_LIBS)
+libcjs_la_CPPFLAGS += $(GJS_GTK_CFLAGS)
+libcjs_la_LIBADD += $(GJS_GTK_LIBS)
 endif
 
 # Please see gjs-srcs.mk for brief expanations
 # of the layout of the sources due to historical
 # reasons
-libgjs_la_SOURCES = $(gjs_srcs)
+libcjs_la_SOURCES = $(gjs_srcs)
 
 # Also, these files used to be a separate library
 libgjs_private_source_files = $(gjs_private_srcs)
@@ -83,14 +83,14 @@ if ENABLE_GTK
 libgjs_private_source_files += $(gjs_gtk_private_srcs)
 endif
 
-libgjs_la_SOURCES += $(libgjs_private_source_files)
+libcjs_la_SOURCES += $(libgjs_private_source_files)
 
-GjsPrivate-1.0.gir: libgjs.la
-GjsPrivate_1_0_gir_LIBS = libgjs.la
-GjsPrivate_1_0_gir_INCLUDES = GObject-2.0 Gio-2.0
-GjsPrivate_1_0_gir_CFLAGS = -I$(top_srcdir)
-GjsPrivate_1_0_gir_FILES = $(libgjs_private_source_files)
-GjsPrivate_1_0_gir_SCANNERFLAGS =	\
+CjsPrivate-1.0.gir: libcjs.la
+CjsPrivate_1_0_gir_LIBS = libcjs.la
+CjsPrivate_1_0_gir_INCLUDES = GObject-2.0 Gio-2.0
+CjsPrivate_1_0_gir_CFLAGS = -I$(top_srcdir)
+CjsPrivate_1_0_gir_FILES = $(libgjs_private_source_files)
+CjsPrivate_1_0_gir_SCANNERFLAGS =	\
 	--identifier-prefix=Gjs		\
 	--symbol-prefix=gjs_		\
 	--warn-all			\
@@ -98,10 +98,10 @@ GjsPrivate_1_0_gir_SCANNERFLAGS =	\
 	$(NULL)
 
 if ENABLE_GTK
-GjsPrivate_1_0_gir_INCLUDES += Gtk-3.0
+CjsPrivate_1_0_gir_INCLUDES += Gtk-3.0
 endif
 
-INTROSPECTION_GIRS += GjsPrivate-1.0.gir
+INTROSPECTION_GIRS += CjsPrivate-1.0.gir
 
 if ENABLE_DTRACE
 gjs_gi_probes.h: gi/gjs_gi_probes.d
@@ -109,14 +109,14 @@ gjs_gi_probes.h: gi/gjs_gi_probes.d
 gjs_gi_probes.o: gi/gjs_gi_probes.d
 	$(DTRACE) -G -s $< -o $@
 BUILT_SOURCES += gjs_gi_probes.h gjs_gi_probes.o
-libgjs_la_LIBADD += gjs_gi_probes.o
+libcjs_la_LIBADD += gjs_gi_probes.o
 endif
 EXTRA_DIST += gi/gjs_gi_probes.d
 
-tapset_in_files = gjs/gjs.stp.in
+tapset_in_files = cjs/cjs.stp.in
 EXTRA_DIST += $(tapset_in_files)
 if ENABLE_SYSTEMTAP
-gjs/gjs.stp: gjs/gjs.stp.in Makefile
+cjs/cjs.stp: cjs/cjs.stp.in Makefile
 	$(AM_V_GEN)$(MKDIR_P) $(@D) && \
 	$(SED) -e s,@EXPANDED_LIBDIR@,$(libdir), < $< > $@.tmp && mv $@.tmp $@
 tapsetdir   = $(datadir)/systemtap/tapset
@@ -132,20 +132,20 @@ typelib_DATA = $(INTROSPECTION_GIRS:.gir=.typelib)
 CLEANFILES += $(INTROSPECTION_GIRS) $(typelib_DATA)
 
 ########################################################################
-bin_PROGRAMS += gjs-console
+bin_PROGRAMS += cjs-console
 
-gjs_console_CPPFLAGS = 		\
+cjs_console_CPPFLAGS = 		\
 	$(AM_CPPFLAGS)		\
 	$(GJS_CONSOLE_CFLAGS)	\
 	$(NULL)
-gjs_console_LDADD =		\
+cjs_console_LDADD =		\
 	$(GJS_CONSOLE_LIBS)	\
-	libgjs.la
-gjs_console_LDFLAGS = -rdynamic
-gjs_console_SOURCES = $(gjs_console_srcs)
+	libcjs.la
+cjs_console_LDFLAGS = -rdynamic
+cjs_console_SOURCES = $(gjs_console_srcs)
 
 install-exec-hook:
-	(cd $(DESTDIR)$(bindir) && $(LN_S) -f gjs-console$(EXEEXT) gjs$(EXEEXT))
+	(cd $(DESTDIR)$(bindir) && $(LN_S) -f cjs-console$(EXEEXT) cjs$(EXEEXT))
 
 include Makefile-test.am
 include Makefile-insttest.am

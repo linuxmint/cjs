@@ -91,7 +91,7 @@ gjs_tests_CPPFLAGS =				\
 	-I$(top_srcdir)/test
 
 gjs_tests_LDADD =		\
-	libgjs.la		\
+	libcjs.la		\
 	$(GJSTESTS_LIBS)
 
 gjs_tests_SOURCES =					\
@@ -123,7 +123,7 @@ minijasmine_CPPFLAGS =				\
 	-DPKGLIBDIR=\"$(pkglibdir)\"		\
 	$(NULL)
 
-minijasmine_LDADD = $(GJS_LIBS) libgjs.la
+minijasmine_LDADD = $(GJS_LIBS) libcjs.la
 
 ### TEST GIRS ##########################################################
 

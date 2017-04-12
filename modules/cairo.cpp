@@ -22,8 +22,8 @@
 
 #include <config.h>
 
-#include "gjs/jsapi-util.h"
-#include "gjs/jsapi-wrapper.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-wrapper.h"
 #include "cairo-private.h"
 
 #ifdef CAIRO_HAS_XLIB_SURFACE

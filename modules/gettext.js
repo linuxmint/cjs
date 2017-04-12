@@ -33,19 +33,19 @@
  */
 
 const GLib = imports.gi.GLib;
-const GjsPrivate = imports.gi.GjsPrivate;
+const CjsPrivate = imports.gi.CjsPrivate;
 
-const LocaleCategory = GjsPrivate.LocaleCategory;
+const LocaleCategory = CjsPrivate.LocaleCategory;
 
 function setlocale(category, locale) {
-    return GjsPrivate.setlocale(category, locale);
+    return CjsPrivate.setlocale(category, locale);
 }
 
 function textdomain(domain) {
-    return GjsPrivate.textdomain(domain);
+    return CjsPrivate.textdomain(domain);
 }
 function bindtextdomain(domain, location) {
-    return GjsPrivate.bindtextdomain(domain, location);
+    return CjsPrivate.bindtextdomain(domain, location);
 }
 
 function gettext(msgid) {

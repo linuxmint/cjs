@@ -36,10 +36,10 @@
 #include "fundamental.h"
 #include "interface.h"
 #include "gerror.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-wrapper.h"
-#include "gjs/jsapi-private.h"
-#include "gjs/mem.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/jsapi-private.h"
+#include "cjs/mem.h"
 
 #include <util/misc.h>
 

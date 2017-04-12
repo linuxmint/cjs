@@ -960,7 +960,7 @@ gjs_get_search_path(void)
             g_free(dirs);
         }
 
-        g_ptr_array_add(path, g_strdup("resource:///org/gnome/gjs/modules/"));
+        g_ptr_array_add(path, g_strdup("resource:///org/cinnamon/cjs/modules/"));
 
         /* $XDG_DATA_DIRS /gjs-1.0 */
         system_data_dirs = g_get_system_data_dirs();

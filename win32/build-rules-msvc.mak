@@ -119,8 +119,8 @@ $(CFG)\$(PLAT)\gjs-console.exe: $(CFG)\$(PLAT)\gjs.lib $(CFG)\$(PLAT)\gjs-consol
 	@-if exist $@.manifest mt /manifest $@.manifest /outputresource:$@;1
 
 clean:
-	@-if exist $(CFG)\$(PLAT)\GjsPrivate-1.0.typelib del /f /q $(CFG)\$(PLAT)\GjsPrivate-1.0.typelib
-	@-if exist $(CFG)\$(PLAT)\GjsPrivate-1.0.gir del /f /q $(CFG)\$(PLAT)\GjsPrivate-1.0.gir
+	@-if exist $(CFG)\$(PLAT)\CjsPrivate-1.0.typelib del /f /q $(CFG)\$(PLAT)\CjsPrivate-1.0.typelib
+	@-if exist $(CFG)\$(PLAT)\CjsPrivate-1.0.gir del /f /q $(CFG)\$(PLAT)\CjsPrivate-1.0.gir
 	@-if exist $(CFG)\$(PLAT)\gjs_private_list del /f /q $(CFG)\$(PLAT)\gjs_private_list
 	@-del /f /q $(CFG)\$(PLAT)\*.pdb
 	@-if exist $(CFG)\$(PLAT)\gjs-console.exe.manifest del /f /q $(CFG)\$(PLAT)\gjs-console.exe.manifest

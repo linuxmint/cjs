@@ -31,9 +31,9 @@
 #include "repo.h"
 #include "gtype.h"
 #include "function.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-wrapper.h"
-#include "gjs/mem.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/mem.h"
 
 #include <util/log.h>
 
