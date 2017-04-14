@@ -1,6 +1,6 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
- * Copyright (c) 2014 Colin Walters <walters@verbum.org>
+ * Copyright (c) 2008  litl, LLC
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -21,18 +21,30 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_CONTEXT_PRIVATE_H__
-#define __GJS_CONTEXT_PRIVATE_H__
+#ifndef __GJS_IMPORTER_H__
+#define __GJS_IMPORTER_H__
 
-#include "context.h"
-#include "compat.h"
+#if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
+#error "Only <gjs/gjs-module.h> can be included directly."
+#endif
+
+#include <glib.h>
+#include "gjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-gboolean     _gjs_context_destroying                  (GjsContext *js_context);
+JSBool    gjs_create_root_importer (JSContext   *context,
+                                    const char **initial_search_path,
+                                    gboolean     add_standard_search_path);
+JSBool    gjs_define_root_importer (JSContext   *context,
+                                    JSObject    *in_object);
+JSObject* gjs_define_importer      (JSContext   *context,
+                                    JSObject    *in_object,
+                                    const char  *importer_name,
+                                    const char **initial_search_path,
+                                    gboolean     add_standard_search_path);
 
-void _gjs_context_schedule_gc_if_needed (GjsContext *js_context);
 
 G_END_DECLS
 
-#endif  /* __GJS_CONTEXT_PRIVATE_H__ */
+#endif  /* __GJS_IMPORTER_H__ */

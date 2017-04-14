@@ -31,7 +31,6 @@
 
 #include "jsapi-util.h"
 #include "compat.h"
-#include "context-private.h"
 #include "jsapi-private.h"
 #include <gi/boxed.h>
 
@@ -417,7 +416,7 @@ gjs_log_object_props(JSContext      *context,
     while (!JSID_IS_VOID(prop_id)) {
         jsval propval;
         char *debugstr;
-        char *name = NULL;
+        char *name;
 
         if (!JS_GetPropertyById(context, obj, prop_id, &propval))
             goto next;
@@ -739,9 +738,6 @@ gjs_call_function_value(JSContext      *context,
 
     result = JS_CallFunctionValue(context, obj, fval,
                                   argc, argv, rval);
-
-    if (result)
-        gjs_schedule_gc_if_needed(context);
 
     JS_EndRequest(context);
     return result;
@@ -1180,30 +1176,23 @@ _linux_get_self_process_size (gulong *vm_size,
 }
 
 static gulong linux_rss_trigger;
-static gint64 last_gc_time;
 #endif
 
 /**
- * gjs_gc_if_needed:
+ * gjs_maybe_gc:
  *
- * Split of the low level version of gjs_context_maybe_gc().
+ * Low level version of gjs_context_maybe_gc().
  */
 void
-gjs_gc_if_needed (JSContext *context)
+gjs_maybe_gc (JSContext *context)
 {
+    JS_MaybeGC(context);
 
 #ifdef __linux__
     {
         /* We initiate a GC if VM or RSS has grown by this much */
         gulong vmsize;
         gulong rss_size;
-        gint64 now;
-
-        /* We rate limit GCs to at most one per 5 frames.
-           One frame is 16666 microseconds (1000000/60)*/
-        now = g_get_monotonic_time();
-        if (now - last_gc_time < 5 * 16666)
-            return;
 
         _linux_get_self_process_size (&vmsize, &rss_size);
 
@@ -1220,7 +1209,6 @@ gjs_gc_if_needed (JSContext *context)
         if (rss_size > linux_rss_trigger) {
             linux_rss_trigger = (gulong) MIN(G_MAXULONG, rss_size * 1.25);
             JS_GC(JS_GetRuntime(context));
-            last_gc_time = now;
         } else if (rss_size < (0.75 * linux_rss_trigger)) {
             /* If we've shrunk by 75%, lower the trigger */
             linux_rss_trigger = (rss_size * 1.25);
@@ -1229,31 +1217,34 @@ gjs_gc_if_needed (JSContext *context)
 #endif
 }
 
-/**
- * gjs_maybe_gc:
- *
- * Low level version of gjs_context_maybe_gc().
- */
 void
-gjs_maybe_gc (JSContext *context)
+gjs_enter_gc(void)
 {
-    JS_MaybeGC(context);
-    gjs_gc_if_needed(context);
+    g_mutex_lock(&gc_lock);
 }
 
 void
-gjs_schedule_gc_if_needed (JSContext *context)
+gjs_leave_gc(void)
 {
-    GjsContext *gjs_context;
+    g_mutex_unlock(&gc_lock);
+}
 
-    /* We call JS_MaybeGC immediately, but defer a check for a full
-     * GC cycle to an idle handler.
-     */
-    JS_MaybeGC(context);
+gboolean
+gjs_try_block_gc(void)
+{
+    return g_mutex_trylock(&gc_lock);
+}
 
-    gjs_context = (GjsContext *) JS_GetContextPrivate(context);
-    if (gjs_context)
-        _gjs_context_schedule_gc_if_needed(gjs_context);
+void
+gjs_block_gc(void)
+{
+    g_mutex_lock(&gc_lock);
+}
+
+void
+gjs_unblock_gc(void)
+{
+    g_mutex_unlock(&gc_lock);
 }
 
 /**
@@ -1347,8 +1338,6 @@ gjs_eval_with_scope(JSContext    *context,
 
     if (!JS::Evaluate(context, rootedObj, options, script, script_len, &retval))
         return JS_FALSE;
-
-    gjs_schedule_gc_if_needed(context);
 
     if (JS_IsExceptionPending(context)) {
         g_warning("EvaluateScript returned JS_TRUE but exception was pending; "

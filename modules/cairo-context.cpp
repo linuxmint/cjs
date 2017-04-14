@@ -22,8 +22,8 @@
 
 #include <config.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 #include <gi/foreign.h>
 
 #include <cairo.h>
@@ -1017,7 +1017,7 @@ context_to_g_argument(JSContext      *context,
     if (!cr)
         return JS_FALSE;
     if (transfer == GI_TRANSFER_EVERYTHING)
-        cairo_reference(cr);
+        cairo_destroy(cr);
 
     arg->v_pointer = cr;
     return JS_TRUE;

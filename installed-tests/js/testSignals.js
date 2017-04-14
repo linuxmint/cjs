@@ -121,14 +121,14 @@ function testExceptionInCallback() {
                 });
 
     // exception in callback does not effect other callbacks
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                              'JS ERROR: Exception in callback for signal: *');
     foo.emit('bar');
     JSUnit.assertEquals(1, foo.bar1Called);
     JSUnit.assertEquals(1, foo.bar2Called);
 
     // exception in callback does not disconnect the callback
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                              'JS ERROR: Exception in callback for signal: *');
     foo.emit('bar');
     JSUnit.assertEquals(2, foo.bar1Called);

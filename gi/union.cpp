@@ -31,8 +31,8 @@
 #include "union.h"
 #include "arg.h"
 #include "object.h"
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 #include "repo.h"
 #include "proxyutils.h"
 #include "function.h"
@@ -79,8 +79,7 @@ union_new_resolve(JSContext *context,
         return JS_TRUE; /* not resolved, but no error */
 
     priv = priv_from_js(context, *obj);
-    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook obj %p priv %p",
-                     name, (void *)obj, priv);
+    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook obj %p priv %p", name, *obj, priv);
 
     if (priv == NULL) {
         ret = JS_FALSE; /* wrong class */

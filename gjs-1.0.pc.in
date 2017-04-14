@@ -6,13 +6,13 @@ includedir=@includedir@
 datarootdir=@datarootdir@
 datadir=@datadir@
 
-gjs_console=${bindir}/cjs-console
+gjs_console=${bindir}/gjs-console
 
-Cflags: -I${includedir}/cjs-1.0
+Cflags: -I${includedir}/gjs-1.0
 Requires: gobject-2.0
 Requires.private: gobject-introspection-1.0 mozjs-24
-Libs: -L${libdir} -lcjs
+Libs: -L${libdir} -lgjs
 
-Name: cjs-1.0
+Name: gjs-1.0
 Description: JS bindings for GObjects
 Version: @VERSION@

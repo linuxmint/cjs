@@ -24,7 +24,7 @@
 #include <config.h>
 #include <glib.h>
 #include <glib-object.h>
-#include <cjs/gjs-module.h>
+#include <gjs/gjs-module.h>
 #include <util/glib.h>
 #include <util/crash.h>
 

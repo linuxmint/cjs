@@ -1,6 +1,6 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
- * Copyright (c) 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
+ * Copyright (c) 2014 Colin Walters <walters@verbum.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -21,11 +21,15 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_RUNTIME_H__
-#define __GJS_RUNTIME_H__
+#ifndef __GJS_CONTEXT_PRIVATE_H__
+#define __GJS_CONTEXT_PRIVATE_H__
 
-JSRuntime * gjs_runtime_for_current_thread (void);
+#include "context.h"
 
-JSBool      gjs_runtime_is_sweeping        (JSRuntime *runtime);
+G_BEGIN_DECLS
 
-#endif /* __GJS_RUNTIME_H__ */
+gboolean     _gjs_context_destroying                  (GjsContext *js_context);
+
+G_END_DECLS
+
+#endif  /* __GJS_CONTEXT_PRIVATE_H__ */

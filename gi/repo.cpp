@@ -37,9 +37,9 @@
 #include "interface.h"
 #include "gerror.h"
 
-#include <cjs/compat.h>
-#include <cjs/jsapi-private.h>
+#include <gjs/compat.h>
 
+#include <util/log.h>
 #include <util/misc.h>
 
 #include <girepository.h>
@@ -98,15 +98,6 @@ resolve_namespace_object(JSContext  *context,
     jsval result;
     JSObject *gi_namespace = NULL;
     JSBool ret = JS_FALSE;
-    char *check_name = NULL;
-
-    if (g_strcmp0 (ns_name, "GMenu") == 0) {
-        check_name = g_strdup ("CMenu");
-    } else if (g_strcmp0 (ns_name, "Gvc") == 0) {
-        check_name = g_strdup ("Cvc");
-    } else {
-        check_name = g_strdup (ns_name);
-    }
 
     JS_BeginRequest(context);
 
@@ -116,11 +107,11 @@ resolve_namespace_object(JSContext  *context,
     repo = g_irepository_get_default();
 
     error = NULL;
-    g_irepository_require(repo, check_name, version, (GIRepositoryLoadFlags) 0, &error);
+    g_irepository_require(repo, ns_name, version, (GIRepositoryLoadFlags) 0, &error);
     if (error != NULL) {
         gjs_throw(context,
                   "Requiring %s, version %s: %s",
-                  check_name, version?version:"none", error->message);
+                  ns_name, version?version:"none", error->message);
 
         g_error_free(error);
         g_free(version);
@@ -133,7 +124,7 @@ resolve_namespace_object(JSContext  *context,
      * with the given namespace name, pointing to that namespace
      * in the repo.
      */
-    gi_namespace = gjs_create_ns(context, check_name);
+    gi_namespace = gjs_create_ns(context, ns_name);
     JS_AddObjectRoot(context, &gi_namespace);
 
     /* Define the property early, to avoid reentrancy issues if
@@ -157,13 +148,11 @@ resolve_namespace_object(JSContext  *context,
               "Defined namespace '%s' %p in GIRepository %p", ns_name, gi_namespace, repo_obj);
 
     ret = JS_TRUE;
-    gjs_schedule_gc_if_needed(context);
 
  out:
     if (gi_namespace)
         JS_RemoveObjectRoot(context, &gi_namespace);
     JS_EndRequest(context);
-    g_free (check_name);
     return ret;
 }
 
@@ -202,8 +191,7 @@ repo_new_resolve(JSContext *context,
         goto out;
 
     priv = priv_from_js(context, *obj);
-    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook obj %p priv %p",
-                     name, (void *)obj, priv);
+    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook obj %p priv %p", name, obj, priv);
 
     if (priv == NULL) /* we are the prototype, or have the wrong class */
         goto out;

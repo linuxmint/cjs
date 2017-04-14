@@ -28,8 +28,7 @@
 
 #include <girepository.h>
 
-#include <cjs/gjs-module.h>
-#include <util/log.h>
+#include <gjs/gjs-module.h>
 
 G_BEGIN_DECLS
 

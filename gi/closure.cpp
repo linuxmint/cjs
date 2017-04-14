@@ -29,8 +29,8 @@
 
 #include "closure.h"
 #include "keep-alive.h"
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 
 typedef struct {
     GClosure base;

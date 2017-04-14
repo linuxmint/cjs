@@ -15,28 +15,28 @@ TEST_PROGS =
 check_PROGRAMS = $(TEST_PROGS)
 INTROSPECTION_GIRS =
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
-AM_CFLAGS = $(WARN_CFLAGS) -DG_LOG_DOMAIN=\"Cjs\"
-AM_CPPFLAGS = $(WARN_CXXFLAGS) -DG_LOG_DOMAIN=\"Cjs\"
+AM_CFLAGS = $(WARN_CFLAGS) -DG_LOG_DOMAIN=\"Gjs\"
+AM_CPPFLAGS = $(WARN_CXXFLAGS) -DG_LOG_DOMAIN=\"Gjs\"
 
-gjs_public_includedir = $(includedir)/cjs-1.0
-gjs_module_includedir = $(includedir)/cjs-1.0
+gjs_public_includedir = $(includedir)/gjs-1.0
+gjs_module_includedir = $(includedir)/gjs-1.0
 
 ########################################################################
 nobase_gjs_public_include_HEADERS =	\
-	cjs/context.h		\
-	cjs/gjs.h
+	gjs/context.h		\
+	gjs/gjs.h
 
 nobase_gjs_module_include_HEADERS =	\
-	cjs/gjs-module.h	\
-	cjs/compat.h		\
-	cjs/coverage.h \
-	cjs/byteArray.h		\
-	cjs/importer.h		\
-	cjs/jsapi-util.h	\
-	cjs/runtime.h		\
-	cjs/type-module.h	\
-	cjs/mem.h		\
-	cjs/native.h	\
+	gjs/gjs-module.h	\
+	gjs/compat.h		\
+	gjs/coverage.h \
+	gjs/byteArray.h		\
+	gjs/importer.h		\
+	gjs/jsapi-util.h	\
+	gjs/runtime.h		\
+	gjs/type-module.h	\
+	gjs/mem.h		\
+	gjs/native.h	\
 	gi/ns.h	        \
 	gi/object.h	\
 	gi/foreign.h	\
@@ -56,8 +56,8 @@ nobase_gjs_module_include_HEADERS =	\
 	gi/gerror.h
 
 noinst_HEADERS +=		\
-	cjs/jsapi-private.h	\
-	cjs/context-private.h	\
+	gjs/jsapi-private.h	\
+	gjs/context-private.h	\
 	gi/proxyutils.h		\
 	util/crash.h		\
 	util/hash-x32.h		\
@@ -68,11 +68,11 @@ noinst_HEADERS +=		\
 
 ########################################################################
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = cjs-1.0.pc cjs-internals-1.0.pc
+pkgconfig_DATA = gjs-1.0.pc gjs-internals-1.0.pc
 
 EXTRA_DIST += 			\
-	cjs-1.0.pc.in           \
-	cjs-internals-1.0.pc.in
+	gjs-1.0.pc.in           \
+	gjs-internals-1.0.pc.in
 
 ########################################################################
 gjs_directory_defines = 				\
@@ -80,48 +80,47 @@ gjs_directory_defines = 				\
 	-DPKGLIBDIR=\"$(pkglibdir)\"
 
 ########################################################################
-lib_LTLIBRARIES += libcjs.la
+lib_LTLIBRARIES += libgjs.la
 
-libcjs_la_CPPFLAGS =		\
+libgjs_la_CPPFLAGS =		\
 	$(AM_CPPFLAGS)		\
 	$(GJS_CFLAGS)	\
 	$(gjs_directory_defines)\
 	-I$(top_srcdir)/gi	\
 	-DGJS_COMPILATION
-libcjs_la_CFLAGS = 		\
+libgjs_la_CFLAGS = 		\
 	$(AM_CFLAGS)
-libcjs_la_LDFLAGS = 		\
+libgjs_la_LDFLAGS = 		\
 	$(EXTRA_LINK_FLAGS)	\
-	$(WARN_LDFLAGS)         \
 	-export-symbols-regex "^[^_]" -version-info 0:0:0	\
 	-no-undefined \
 	-rdynamic
-libcjs_la_LIBADD = 		\
+libgjs_la_LIBADD = 		\
 	$(GJS_LIBS)
 
 if ENABLE_GTK
-libcjs_la_CPPFLAGS += $(GJS_GTK_CFLAGS)
-libcjs_la_LIBADD += $(GJS_GTK_LIBS)
+libgjs_la_CPPFLAGS += $(GJS_GTK_CFLAGS)
+libgjs_la_LIBADD += $(GJS_GTK_LIBS)
 endif
 
-libcjs_la_SOURCES =		\
-	cjs/byteArray.cpp		\
-	cjs/context.cpp		\
-	cjs/importer.cpp		\
-	cjs/gi.h		\
-	cjs/gi.cpp		\
-	cjs/coverage.cpp \
-	cjs/jsapi-private.cpp	\
-	cjs/jsapi-util.cpp	\
-	cjs/jsapi-dynamic-class.cpp \
-	cjs/jsapi-util-array.cpp	\
-	cjs/jsapi-util-error.cpp	\
-	cjs/jsapi-util-string.cpp	\
-	cjs/mem.cpp		\
-	cjs/native.cpp		\
-	cjs/runtime.cpp		\
-	cjs/stack.cpp		\
-	cjs/type-module.cpp	\
+libgjs_la_SOURCES =		\
+	gjs/byteArray.cpp		\
+	gjs/context.cpp		\
+	gjs/importer.cpp		\
+	gjs/gi.h		\
+	gjs/gi.cpp		\
+	gjs/coverage.cpp \
+	gjs/jsapi-private.cpp	\
+	gjs/jsapi-util.cpp	\
+	gjs/jsapi-dynamic-class.cpp \
+	gjs/jsapi-util-array.cpp	\
+	gjs/jsapi-util-error.cpp	\
+	gjs/jsapi-util-string.cpp	\
+	gjs/mem.cpp		\
+	gjs/native.cpp		\
+	gjs/runtime.cpp		\
+	gjs/stack.cpp		\
+	gjs/type-module.cpp	\
 	modules/modules.cpp	\
 	modules/modules.h	\
 	util/error.cpp		\
@@ -132,7 +131,7 @@ libcjs_la_SOURCES =		\
 	util/misc.cpp
 
 # For historical reasons, some files live in gi/
-libcjs_la_SOURCES += \
+libgjs_la_SOURCES += \
 	gi/gjs_gi_trace.h \
 	gi/arg.cpp	\
 	gi/boxed.cpp	\
@@ -154,7 +153,7 @@ libcjs_la_SOURCES += \
 	gi/gerror.cpp
 
 # Also, these files used to be a separate library
-libcjs_private_source_files = \
+libgjs_private_source_files = \
 	libgjs-private/gjs-gdbus-wrapper.cpp	\
 	libgjs-private/gjs-gdbus-wrapper.h	\
 	libgjs-private/gjs-util.cpp		\
@@ -162,24 +161,24 @@ libcjs_private_source_files = \
 	libgjs-private/gjs-gtk-util.h
 
 if ENABLE_GTK
-libcjs_private_source_files += 			\
+libgjs_private_source_files += 			\
 	libgjs-private/gjs-gtk-util.c		\
 	$(NULL)
 endif
 
-libcjs_la_SOURCES += $(libcjs_private_source_files)
+libgjs_la_SOURCES += $(libgjs_private_source_files)
 
-CjsPrivate-1.0.gir: libcjs.la
-CjsPrivate_1_0_gir_LIBS = libcjs.la
-CjsPrivate_1_0_gir_INCLUDES = GObject-2.0 Gio-2.0
-CjsPrivate_1_0_gir_FILES = $(libcjs_private_source_files)
-CjsPrivate_1_0_gir_SCANNERFLAGS = --identifier-prefix=Gjs --symbol-prefix=gjs_ --warn-all
+GjsPrivate-1.0.gir: libgjs.la
+GjsPrivate_1_0_gir_LIBS = libgjs.la
+GjsPrivate_1_0_gir_INCLUDES = GObject-2.0 Gio-2.0
+GjsPrivate_1_0_gir_FILES = $(libgjs_private_source_files)
+GjsPrivate_1_0_gir_SCANNERFLAGS = --identifier-prefix=Gjs --symbol-prefix=gjs_ --warn-all
 
 if ENABLE_GTK
-CjsPrivate_1_0_gir_INCLUDES += Gtk-3.0
+GjsPrivate_1_0_gir_INCLUDES += Gtk-3.0
 endif
 
-INTROSPECTION_GIRS += CjsPrivate-1.0.gir
+INTROSPECTION_GIRS += GjsPrivate-1.0.gir
 
 if ENABLE_DTRACE
 gjs_gi_probes.h: gi/gjs_gi_probes.d
@@ -187,14 +186,14 @@ gjs_gi_probes.h: gi/gjs_gi_probes.d
 gjs_gi_probes.o: gi/gjs_gi_probes.d
 	$(DTRACE) -G -s $< -o $@
 BUILT_SOURCES += gjs_gi_probes.h gjs_gi_probes.o
-libcjs_la_LIBADD += gjs_gi_probes.o
+libgjs_la_LIBADD += gjs_gi_probes.o
 endif
 EXTRA_DIST += gi/gjs_gi_probes.d
 
-tapset_in_files = cjs/cjs.stp.in
+tapset_in_files = gjs/gjs.stp.in
 EXTRA_DIST += $(tapset_in_files)
 if ENABLE_SYSTEMTAP
-cjs/cjs.stp: cjs/cjs.stp.in Makefile
+gjs/gjs.stp: gjs/gjs.stp.in Makefile
 	sed -e s,@EXPANDED_LIBDIR@,$(libdir), < $< > $@.tmp && mv $@.tmp $@
 tapsetdir   = $(DESTDIR)$(datadir)/systemtap/tapset
 tapset_DATA = $(tapset_in_files:.stp.in=.stp)
@@ -209,20 +208,20 @@ typelib_DATA = $(INTROSPECTION_GIRS:.gir=.typelib)
 CLEANFILES += $(INTROSPECTION_GIRS) $(typelib_DATA)
 
 ########################################################################
-bin_PROGRAMS += cjs-console
+bin_PROGRAMS += gjs-console
 
-cjs_console_CPPFLAGS = 		\
+gjs_console_CPPFLAGS = 		\
 	$(AM_CPPFLAGS)		\
         $(GOBJECT_CFLAGS)
-cjs_console_LDADD =		\
+gjs_console_LDADD =		\
 	$(JS_LIBS)		\
 	$(GOBJECT_LIBS)		\
-	libcjs.la
-cjs_console_LDFLAGS = $(WARN_LDFLAGS) -rdynamic
-cjs_console_SOURCES = cjs/console.cpp
+	libgjs.la
+gjs_console_LDFLAGS = -rdynamic
+gjs_console_SOURCES = gjs/console.cpp
 
 install-exec-hook:
-	(cd $(DESTDIR)$(bindir) && ln -sf cjs-console$(EXEEXT) cjs$(EXEEXT))
+	(cd $(DESTDIR)$(bindir) && ln -sf gjs-console$(EXEEXT) gjs$(EXEEXT))
 
 include Makefile-test.am
 include Makefile-insttest.am
@@ -240,7 +239,7 @@ EXTRA_DIST += autogen.sh COPYING.LGPL
 #  $ make prepare-minor-release
 
 # Customize to taste
-TAG_PREFIX=CJS_
+TAG_PREFIX=GJS_
 COMPRESSION=.bz2
 
 

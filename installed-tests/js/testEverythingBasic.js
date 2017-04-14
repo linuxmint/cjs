@@ -211,7 +211,7 @@ function testCallback() {
     JSUnit.assertEquals('Callback', Everything.test_callback(callback), 42);
 
     JSUnit.assertEquals('CallbackNull', Everything.test_callback(null), 0);
-    JSUnit.assertRaises('CallbackUndefined', function () { Everything.test_callback(undefined); });
+    JSUnit.assertRaises('CallbackUndefined', function () { Everything.test_callback(undefined) });
 }
 
 function testArrayCallback() {
@@ -228,7 +228,7 @@ function testArrayCallback() {
         arrayEqual(["one", "two", "three"], strings);
 
         return 7;
-    };
+    }
     JSUnit.assertEquals(Everything.test_array_callback(callback), 14);
     JSUnit.assertRaises(function () { Everything.test_array_callback(null) });
 }
@@ -251,10 +251,10 @@ function testCallbackDestroyNotify() {
 }
 
 function testCallbackAsync() {
-    let test = function() {
+    let test = function(userData) {
                    return 44;
                };
-    Everything.test_callback_async(test);
+    Everything.test_callback_async(test, 44);
     let i = Everything.test_callback_thaw_async();
     JSUnit.assertEquals('testCallbackAsyncFinish', 44, i);
 }
@@ -577,7 +577,7 @@ function testGError() {
 }
 
 function testGErrorMessages() {
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                              'JS ERROR: Gio.IOErrorEnum: *');
     try {
 	let file = Gio.file_new_for_path("\\/,.^!@&$_don't exist");
@@ -586,7 +586,7 @@ function testGErrorMessages() {
 	logError(e);
     }
 
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: Gio.IOErrorEnum: a message\ntestGErrorMessages@*');
     try {
 	throw new Gio.IOErrorEnum({ message: 'a message', code: 0 });
@@ -594,22 +594,22 @@ function testGErrorMessages() {
 	logError(e);
     }
 
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: Gio.IOErrorEnum: a message\ntestGErrorMessages@*');
     logError(new Gio.IOErrorEnum({ message: 'a message', code: 0 }));
 
     // No stack for GLib.Error constructor
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: Gio.IOErrorEnum: a message');
     logError(new GLib.Error(Gio.IOErrorEnum, 0, 'a message'));
 
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: GLib.Error my-error: a message');
     logError(new GLib.Error(GLib.quark_from_string('my-error'), 0, 'a message'));
 
     // Now with prefix
 
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                              'JS ERROR: prefix: Gio.IOErrorEnum: *');
     try {
 	let file = Gio.file_new_for_path("\\/,.^!@&$_don't exist");
@@ -618,7 +618,7 @@ function testGErrorMessages() {
 	logError(e, 'prefix');
     }
 
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: prefix: Gio.IOErrorEnum: a message\ntestGErrorMessages@*');
     try {
 	throw new Gio.IOErrorEnum({ message: 'a message', code: 0 });
@@ -626,16 +626,16 @@ function testGErrorMessages() {
 	logError(e, 'prefix');
     }
 
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: prefix: Gio.IOErrorEnum: a message\ntestGErrorMessages@*');
     logError(new Gio.IOErrorEnum({ message: 'a message', code: 0 }), 'prefix');
 
     // No stack for GLib.Error constructor
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: prefix: Gio.IOErrorEnum: a message');
     logError(new GLib.Error(Gio.IOErrorEnum, 0, 'a message'), 'prefix');
 
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
 			     'JS ERROR: prefix: GLib.Error my-error: a message');
     logError(new GLib.Error(GLib.quark_from_string('my-error'), 0, 'a message'), 'prefix');
 }
@@ -669,13 +669,13 @@ function testWrongClassGBoxed() {
     // simpleBoxed.equals expects a Everything.TestSimpleBoxedA
     JSUnit.assertRaises(function() {
         simpleBoxed.equals(new Gio.SimpleAction);
-    });
+    })
     JSUnit.assertRaises(function() {
         simpleBoxed.equals(new Everything.TestObj);
-    });
+    })
     JSUnit.assertRaises(function() {
         simpleBoxed.equals(new GLib.KeyFile);
-    });
+    })
     JSUnit.assertTrue(simpleBoxed.equals(simpleBoxed));
 
     JSUnit.assertRaises(function() {
@@ -683,7 +683,7 @@ function testWrongClassGBoxed() {
     });
     JSUnit.assertRaises(function() {
         Everything.TestSimpleBoxedA.prototype.copy.call(new GLib.KeyFile);
-    });
+    })
     Everything.TestSimpleBoxedA.prototype.copy.call(simpleBoxed);
 }
 

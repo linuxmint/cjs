@@ -25,8 +25,8 @@
 
 #include <string.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 #include "boxed.h"
 #include "enumeration.h"
 #include "repo.h"
@@ -493,8 +493,8 @@ gjs_error_from_gerror(JSContext             *context,
     }
 
     gjs_debug_marshal(GJS_DEBUG_GBOXED,
-                      "Wrapping struct %s with JSObject",
-                      g_base_info_get_name((GIBaseInfo *)info));
+                      "Wrapping struct %s %p with JSObject",
+                      g_base_info_get_name((GIBaseInfo *)info), gboxed);
 
     proto = gjs_lookup_generic_prototype(context, info);
     proto_priv = priv_from_js(context, proto);

@@ -51,9 +51,8 @@
 
 #include <glib.h>
 #include <glib/gprintf.h>
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
-#include <cjs/jsapi-private.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 
 #include "console.h"
 
@@ -184,7 +183,7 @@ gjs_console_interact(JSContext *context,
         buffer = g_string_new("");
         do {
             if (!gjs_console_readline(context, &temp_buf, file,
-                                      startline == lineno ? "cjs> " : ".... ")) {
+                                      startline == lineno ? "gjs> " : ".... ")) {
                 eof = JS_TRUE;
                 break;
             }
@@ -198,8 +197,6 @@ gjs_console_interact(JSContext *context,
                .setFileAndLine("typein", startline);
         js::RootedObject rootedObj(context, object);
         JS::Evaluate(context, rootedObj, options, buffer->str, buffer->len,  &result);
-
-        gjs_schedule_gc_if_needed(context);
 
         if (JS_GetPendingException(context, &result)) {
             str = JS_ValueToString(context, result);

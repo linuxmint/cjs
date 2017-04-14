@@ -22,8 +22,8 @@
 
 #include <config.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 #include <cairo.h>
 #include "cairo-private.h"
 

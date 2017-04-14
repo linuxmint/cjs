@@ -33,9 +33,9 @@
 #include "param.h"
 #include "value.h"
 #include "gerror.h"
-#include "cjs/byteArray.h"
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "gjs/byteArray.h"
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 
 #include <util/log.h>
 
@@ -1700,6 +1700,12 @@ gjs_value_to_g_argument(JSContext      *context,
         gpointer data;
         gsize length;
         GIArrayType array_type = g_type_info_get_array_type(type_info);
+        GITypeTag element_type;
+        GITypeInfo *param_info;
+
+        param_info = g_type_info_get_param_type(type_info, 0);
+        element_type = g_type_info_get_tag(param_info);
+        g_base_info_unref(param_info);
 
         /* First, let's handle the case where we're passed an instance
          * of our own byteArray class.
@@ -2584,10 +2590,6 @@ gjs_value_from_g_argument (JSContext  *context,
             }
 
             gtype = g_registered_type_info_get_g_type((GIRegisteredTypeInfo*)interface_info);
-            if (G_TYPE_IS_INSTANTIATABLE(gtype) ||
-                G_TYPE_IS_INTERFACE(gtype))
-                gtype = G_TYPE_FROM_INSTANCE(arg->v_pointer);
-
             gjs_debug_marshal(GJS_DEBUG_GFUNCTION,
                               "gtype of INTERFACE is %s", g_type_name(gtype));
 
@@ -2894,10 +2896,6 @@ gjs_g_arg_release_internal(JSContext  *context,
                 goto out;
 
             gtype = g_registered_type_info_get_g_type((GIRegisteredTypeInfo*)interface_info);
-            if (G_TYPE_IS_INSTANTIATABLE(gtype) ||
-                G_TYPE_IS_INTERFACE(gtype))
-                gtype = G_TYPE_FROM_INSTANCE(arg->v_pointer);
-
             gjs_debug_marshal(GJS_DEBUG_GFUNCTION,
                               "gtype of INTERFACE is %s", g_type_name(gtype));
 
@@ -3031,8 +3029,6 @@ gjs_g_arg_release_internal(JSContext  *context,
             case GI_TYPE_TAG_INT8:
             case GI_TYPE_TAG_INT16:
             case GI_TYPE_TAG_INT32:
-            case GI_TYPE_TAG_FLOAT:
-            case GI_TYPE_TAG_DOUBLE:
             case GI_TYPE_TAG_GTYPE:
                 g_free (arg->v_pointer);
                 break;
@@ -3105,8 +3101,6 @@ gjs_g_arg_release_internal(JSContext  *context,
             case GI_TYPE_TAG_INT16:
             case GI_TYPE_TAG_INT32:
             case GI_TYPE_TAG_INT64:
-            case GI_TYPE_TAG_FLOAT:
-            case GI_TYPE_TAG_DOUBLE:
             case GI_TYPE_TAG_GTYPE:
                 g_array_free((GArray*) arg->v_pointer, TRUE);
                 break;

@@ -30,9 +30,8 @@
 #include "boxed.h"
 #include "union.h"
 #include "gerror.h"
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
-#include <cjs/jsapi-private.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 
 #include <util/log.h>
 
@@ -168,7 +167,6 @@ gjs_callback_closure(ffi_cif *cif,
                      void *data)
 {
     JSContext *context;
-    JSRuntime *runtime;
     JSObject *global;
     GjsCallbackTrampoline *trampoline;
     int i, n_args, n_jsargs, n_outargs;
@@ -183,22 +181,6 @@ gjs_callback_closure(ffi_cif *cif,
     gjs_callback_trampoline_ref(trampoline);
 
     context = trampoline->context;
-    runtime = JS_GetRuntime(context);
-    if (G_UNLIKELY (gjs_runtime_is_sweeping(runtime))) {
-        g_critical("Attempting to call back into JSAPI during the sweeping phase of GC. "
-                   "This is most likely caused by not destroying a Clutter actor or Gtk+ "
-                   "widget with ::destroy signals connected, but can also be caused by "
-                   "using the destroy() or dispose() vfuncs. Because it would crash the "
-                   "application, it has been blocked and the JS callback not invoked.");
-        /* A gjs_dumpstack() would be nice here, but we can't,
-           because that works by creating a new Error object and
-           reading the stack property, which is the worst possible
-           idea during a GC session.
-        */
-        gjs_callback_trampoline_unref(trampoline);
-        return;
-    }
-
     JS_BeginRequest(context);
     global = JS_GetGlobalObject(context);
     JSAutoCompartment ac(context, global);
@@ -396,8 +378,6 @@ out:
     }
 
     gjs_callback_trampoline_unref(trampoline);
-    gjs_schedule_gc_if_needed(context);
-
     JS_EndRequest(context);
 }
 
@@ -1243,10 +1223,9 @@ function_call(JSContext *context,
     jsval retval;
 
     priv = priv_from_js(context, callee);
-    gjs_debug_marshal(GJS_DEBUG_GFUNCTION,
-                      "Call callee %p priv %p this obj %p %s", callee, priv,
-                      object,
-                      JS_GetTypeName(context, JS_TypeOfValue(context, OBJECT_TO_JSVAL(object))));
+    gjs_debug_marshal(GJS_DEBUG_GFUNCTION, "Call callee %p priv %p this obj %p %s", callee, priv,
+                      obj, JS_GetTypeName(context,
+                                          JS_TypeOfValue(context, OBJECT_TO_JSVAL(object))));
 
     if (priv == NULL)
         return JS_TRUE; /* we are the prototype, or have the wrong class */

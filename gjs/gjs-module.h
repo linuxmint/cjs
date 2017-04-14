@@ -1,6 +1,6 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
- * Copyright (c) 2008  litl, LLC
+ * Copyright (c) 2010  Red Hat, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -21,9 +21,14 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_GJS_H__
-#define __GJS_GJS_H__
+#ifndef __GJS_GJS_MODULE_H__
+#define __GJS_GJS_MODULE_H__
 
-#include <cjs/context.h>
+#include <gjs/gjs.h>
+#include <gjs/native.h>
+#include <gjs/mem.h>
+#include <gjs/importer.h>
+#include <gjs/runtime.h>
+#include <gjs/jsapi-util.h>
 
-#endif /* __GJS_GJS_H__ */
+#endif /* __GJS_GJS_umodule_H__ */

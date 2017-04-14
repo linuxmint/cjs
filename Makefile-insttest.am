@@ -3,7 +3,7 @@ EXTRA_DIST += \
 	installed-tests/script.test.in \
 	$(NULL)
 
-installedtestmetadir = $(datadir)/installed-tests/cjs
+installedtestmetadir = $(datadir)/installed-tests/gjs
 installedtestmeta_DATA = 
 if BUILDOPT_INSTALL_TESTS
 installedtestmeta_DATA += jsunit.test
@@ -24,7 +24,7 @@ TEST_INTROSPECTION_GIRS =
 
 jsunit_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS) -DPKGLIBDIR=\"$(pkglibdir)\" -DINSTTESTDIR=\"$(gjsinsttestdir)\" 
 jsunit_CFLAGS = $(AM_CFLAGS) $(GJS_CFLAGS) -I$(top_srcdir)
-jsunit_LDADD = $(GJS_LIBS) libcjs.la
+jsunit_LDADD = $(GJS_LIBS) libgjs.la
 jsunit_LDFLAGS = -rpath $(pkglibdir)
 jsunit_SOURCES = installed-tests/gjs-unit.cpp
 

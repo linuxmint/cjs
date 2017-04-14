@@ -32,7 +32,7 @@ EXTRA_DIST += $(mock_js_resources_files) $(srcdir)/test/mock-js-resources.gresou
 ## -rdynamic makes backtraces work
 gjs_tests_LDFLAGS = -rdynamic
 gjs_tests_LDADD =		\
-	libcjs.la		\
+	libgjs.la		\
 	$(GJSTESTS_LIBS)
 
 gjs_tests_SOURCES =		\
@@ -42,7 +42,7 @@ gjs_tests_SOURCES =		\
 	mock-js-resources.c
 
 check-local: gjs-tests
-	@test -z "${TEST_PROGS}" || ${GTESTER} -k --verbose ${TEST_PROGS} ${TEST_PROGS_OPTIONS}
+	@test -z "${TEST_PROGS}" || ${GTESTER} --verbose ${TEST_PROGS} ${TEST_PROGS_OPTIONS}
 
 # GJS_PATH is empty here since we want to force the use of our own
 # resources
@@ -50,7 +50,7 @@ TESTS_ENVIRONMENT =							\
 	TOP_SRCDIR=$(abs_top_srcdir)					\
 	DBUS_SESSION_BUS_ADDRESS=''					\
 	XDG_DATA_HOME=test_user_data					\
-    GJS_DEBUG_OUTPUT=test_user_data/logs/cjs.log   \
+	GJS_DEBUG_OUTPUT=test_user_data/logs/gjs.log			\
 	BUILDDIR=.							\
 	GJS_USE_UNINSTALLED_FILES=1					\
 	GJS_TEST_TIMEOUT=420						\

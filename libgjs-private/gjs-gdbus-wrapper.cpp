@@ -19,7 +19,7 @@ enum {
     SIGNAL_LAST,
 };
 
-static guint signals[SIGNAL_LAST] = { 0 };
+static guint signals[SIGNAL_LAST];
 
 struct _GjsDBusImplementationPrivate {
     GDBusInterfaceVTable  vtable;

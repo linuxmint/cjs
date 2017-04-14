@@ -1,25 +1,21 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-m4_define(pkg_major_version, 3)
-m4_define(pkg_minor_version, 2)
+m4_define(pkg_major_version, 1)
+m4_define(pkg_minor_version, 40)
 m4_define(pkg_micro_version, 0)
 m4_define(pkg_version, pkg_major_version.pkg_minor_version.pkg_micro_version)
 m4_define(pkg_int_version, (pkg_major_version * 100 + pkg_minor_version) * 100 + pkg_micro_version)
 
 AC_PREREQ(2.61)
-AC_INIT([cjs], pkg_version, [https://github.com/linuxmint/cjs])
-AC_CONFIG_MACRO_DIR([m4])
-
-m4_ifdef([AX_IS_RELEASE], [AX_IS_RELEASE([always])])
-
+AC_INIT([gjs], pkg_version, [http://bugzilla.gnome.org/enter_bug.cgi?product=gjs])
 AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
-AC_CONFIG_SRCDIR([cjs/console.cpp])
+AC_CONFIG_SRCDIR([gjs/console.cpp])
 AC_CONFIG_HEADER([config.h])
 
 AC_DEFINE([GJS_VERSION], pkg_int_version, [The gjs version as an integer])
 
-GETTEXT_PACKAGE=cjs
+GETTEXT_PACKAGE=gjs
 AC_SUBST([GETTEXT_PACKAGE])
 AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE], ["$GETTEXT_PACKAGE"], [The name of the gettext domain])
 
@@ -32,7 +28,6 @@ PKG_PROG_PKG_CONFIG
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_CXX
-AX_CXX_COMPILE_STDCXX_11
 AC_ISC_POSIX
 AC_HEADER_STDC
 
@@ -45,8 +40,8 @@ dnl DOLT
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 
-m4_ifdef([AX_COMPILER_FLAGS],
-         [AX_COMPILER_FLAGS([WARN_CFLAGS],[WARN_LDFLAGS])])
+GNOME_CXX_WARNINGS([maximum])
+GNOME_MAINTAINER_MODE_DEFINES
 
 # coverage
 AC_ARG_ENABLE([coverage],
@@ -72,12 +67,12 @@ fi
 AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
 
 # Checks for libraries.
-m4_define(glib_required_version, 2.37.3)
+m4_define(glib_required_version, 2.36.0)
 
 AC_CHECK_HEADERS([malloc.h])
 AC_CHECK_FUNCS(mallinfo)
 
-GOBJECT_INTROSPECTION_REQUIRE([1.33.10])
+GOBJECT_INTROSPECTION_REQUIRE([1.39.3])
 
 common_packages="gmodule-2.0 gthread-2.0 gio-2.0 >= glib_required_version mozjs-24"
 gjs_packages="gobject-introspection-1.0 libffi $common_packages"
@@ -225,13 +220,13 @@ fi
 
 AC_SUBST(EXTRA_LINK_FLAGS)
 
-gjsjsdir="\${datadir}/cjs-1.0"
+gjsjsdir="\${datadir}/gjs-1.0"
 AC_SUBST([gjsjsdir])
 
 dnl automake 1.11/1.12 defines this but does not substitute it
 AC_SUBST([pkglibexecdir], ["${libexecdir}/${PACKAGE}"])
 
-AC_CONFIG_FILES([Makefile cjs-1.0.pc cjs-internals-1.0.pc])
+AC_CONFIG_FILES([Makefile gjs-1.0.pc gjs-internals-1.0.pc])
 AC_OUTPUT
 
 AC_MSG_RESULT([

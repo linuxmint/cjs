@@ -26,7 +26,7 @@
 
 #include <string.h>
 
-#include <cjs/gi.h>
+#include <gjs/gi.h>
 
 #include "fundamental.h"
 #include "arg.h"
@@ -37,7 +37,7 @@
 #include "gtype.h"
 #include "proxyutils.h"
 
-#include <cjs/gjs.h>
+#include <gjs/gjs.h>
 
 #include <util/log.h>
 
@@ -160,8 +160,8 @@ init_fundamental_instance(JSContext *context,
     JS_SetPrivate(object, priv);
 
     gjs_debug_lifecycle(GJS_DEBUG_GFUNDAMENTAL,
-                        "fundamental instance constructor, obj %p priv %p",
-                        object, priv);
+                        "fundamental instance constructor, obj %p priv %p proto %p ",
+                        object, priv, JS_GetPrototype (object));
 
     proto_priv = proto_priv_from_js(context, object);
     g_assert(proto_priv != NULL);
@@ -348,9 +348,7 @@ fundamental_instance_new_resolve(JSContext  *context,
         return JS_TRUE; /* not resolved, but no error */
 
     priv = priv_from_js(context, *obj);
-    gjs_debug_jsprop(GJS_DEBUG_GFUNDAMENTAL,
-                     "Resolve prop '%s' hook obj %p priv %p",
-                     name, (void *)obj, priv);
+    gjs_debug_jsprop(GJS_DEBUG_GFUNDAMENTAL, "Resolve prop '%s' hook obj %p priv %p", name, *obj, priv);
 
     if (priv == NULL)
         goto out; /* wrong class */

@@ -309,11 +309,6 @@ function _updateTweenByIndex(i) {
                 if (tweening.rounded)
                     nv = Math.round(nv);
 
-                if (tweening.min !== undefined && nv < tweening.min)
-                    nv = tweening.min;
-                if (tweening.max !== undefined && nv > tweening.max)
-                    nv = tweening.max;
-
                 if (property.isSpecialProperty) {
                     // It's a special property, tunnel via the special property method
                     _specialPropertyList[name].setValue(scope, nv, _specialPropertyList[name].parameters, tweening.properties[name].extra);
@@ -381,8 +376,6 @@ const restrictedWords = {
     onOverwrite: true,
     onError: true,
     rounded: true,
-    min: true,
-    max: true,
     onStartParams: true,
     onUpdateParams: true,
     onCompleteParams: true,
@@ -573,8 +566,6 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
         tween.onOverwriteScope         =       obj.onOverwriteScope;
         tween.onErrorScope             =       obj.onErrorScope;
         tween.rounded                  =       obj.rounded;
-        tween.min                      =       obj.min;
-        tween.max                      =       obj.max;
         tween.skipUpdates              =       obj.skipUpdates;
         tween.isCaller                 =       isCaller;
 
@@ -635,10 +626,8 @@ function removeTweensByTime(scope, properties, timeStart, timeComplete) {
 
             for (name in _tweenList[i].properties) {
                 if (properties[name]) {
-                    if (!removedLocally) {
-                        _callOnFunction(_tweenList[i].onOverwrite, "onOverwrite", _tweenList[i].onOverwriteScope,
-                                        _tweenList[i].scope, _tweenList[i].onOverwriteParams);
-                    }
+                    _callOnFunction(_tweenList[i].onOverwrite, "onOverwrite", _tweenList[i].onOverwriteScope,
+                                    _tweenList[i].scope, _tweenList[i].onOverwriteParams);
 
                     _tweenList[i].properties[name] = undefined;
                     delete _tweenList[i].properties[name];

@@ -26,8 +26,8 @@
 #include <glib.h>
 #include "byteArray.h"
 #include "../gi/boxed.h"
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include <gjs/gjs-module.h>
+#include <gjs/compat.h>
 #include <girepository.h>
 #include <util/log.h>
 

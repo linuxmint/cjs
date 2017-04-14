@@ -21,61 +21,35 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_MEM_H__
-#define __GJS_MEM_H__
+#ifndef __GJS_NATIVE_H__
+#define __GJS_NATIVE_H__
 
 #if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
 #error "Only <gjs/gjs-module.h> can be included directly."
 #endif
 
 #include <glib.h>
-#include "cjs/jsapi-util.h"
+#include "gjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-typedef struct {
-    unsigned int value;
-    const char *name;
-} GjsMemCounter;
+typedef JSBool (* GjsDefineModuleFunc) (JSContext  *context,
+                                        JSObject  **module_out);
 
-#define GJS_DECLARE_COUNTER(name) \
-    extern GjsMemCounter gjs_counter_ ## name ;
+/* called on context init */
+void   gjs_register_native_module (const char            *module_id,
+                                   GjsDefineModuleFunc  func);
 
-GJS_DECLARE_COUNTER(everything)
+/* called by importer.c to to check for already loaded modules */
+gboolean gjs_is_registered_native_module(JSContext  *context,
+                                         JSObject   *parent,
+                                         const char *name);
 
-GJS_DECLARE_COUNTER(boxed)
-GJS_DECLARE_COUNTER(gerror)
-GJS_DECLARE_COUNTER(closure)
-GJS_DECLARE_COUNTER(database)
-GJS_DECLARE_COUNTER(function)
-GJS_DECLARE_COUNTER(fundamental)
-GJS_DECLARE_COUNTER(importer)
-GJS_DECLARE_COUNTER(ns)
-GJS_DECLARE_COUNTER(object)
-GJS_DECLARE_COUNTER(param)
-GJS_DECLARE_COUNTER(repo)
-GJS_DECLARE_COUNTER(resultset)
-GJS_DECLARE_COUNTER(weakhash)
-GJS_DECLARE_COUNTER(interface)
-
-#define GJS_INC_COUNTER(name)                \
-    do {                                        \
-        gjs_counter_everything.value += 1;   \
-        gjs_counter_ ## name .value += 1;    \
-    } while (0)
-
-#define GJS_DEC_COUNTER(name)                \
-    do {                                        \
-        gjs_counter_everything.value -= 1;   \
-        gjs_counter_ ## name .value -= 1;    \
-    } while (0)
-
-#define GJS_GET_COUNTER(name) \
-    (gjs_counter_ ## name .value)
-
-void gjs_memory_report(const char *where,
-                       gboolean    die_if_leaks);
+/* called by importer.c to load a statically linked native module */
+JSBool gjs_import_native_module (JSContext  *context,
+                                 const char *name,
+                                 JSObject   **module_out);
 
 G_END_DECLS
 
-#endif  /* __GJS_MEM_H__ */
+#endif  /* __GJS_NATIVE_H__ */

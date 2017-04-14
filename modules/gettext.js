@@ -33,7 +33,7 @@
  */
 
 const GLib = imports.gi.GLib;
-const GjsPrivate = imports.gi.CjsPrivate;
+const GjsPrivate = imports.gi.GjsPrivate;
 
 function textdomain(domain) {
     return GjsPrivate.textdomain(domain);
@@ -88,6 +88,6 @@ var domain = function(domainName) {
         pgettext: function(context, msgid) {
             return GLib.dpgettext2(domainName, context, msgid);
         }
-    };
+    }
 };
 

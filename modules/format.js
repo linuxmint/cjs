@@ -1,6 +1,6 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
 
-const GjsPrivate = imports.gi.CjsPrivate;
+const GjsPrivate = imports.gi.GjsPrivate;
 
 function vprintf(str, args) {
     let i = 0;

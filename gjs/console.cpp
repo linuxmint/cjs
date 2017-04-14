@@ -26,8 +26,8 @@
 #include <stdlib.h>
 #include <locale.h>
 
-#include <cjs/gjs.h>
-#include <cjs/coverage.h>
+#include <gjs/gjs.h>
+#include <gjs/coverage.h>
 
 static char **include_path = NULL;
 static char **coverage_paths = NULL;
@@ -150,8 +150,7 @@ main(int argc, char **argv)
     if (coverage && code == 0)
         gjs_coverage_write_statistics(coverage,
                                       coverage_output_path);
-    if (coverage)
-        g_object_unref(coverage);
+ 
     g_object_unref(js_context);
     g_free(script);
     exit(code);
