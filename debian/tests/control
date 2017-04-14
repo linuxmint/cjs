@@ -1,5 +1,0 @@
-Tests: build
-Depends: libgjs-dev, build-essential
-
-Tests: installed-tests
-Depends: gjs-tests, dbus-x11, xvfb, gnome-desktop-testing
