@@ -22,7 +22,8 @@ if [ "$#" = 0 -a "x$NOCONFIGURE" = "x" ]; then
     echo "" >&2
 fi
 
-aclocal --install || exit 1
+mkdir -p m4
+
 autoreconf --verbose --force --install || exit 1
 
 cd "$olddir"
