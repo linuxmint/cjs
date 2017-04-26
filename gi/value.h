@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,20 +24,23 @@
 #ifndef __GJS_VALUE_H__
 #define __GJS_VALUE_H__
 
+#include <stdbool.h>
 #include <glib-object.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-JSBool     gjs_value_to_g_value         (JSContext    *context,
-                                         jsval         value,
-                                         GValue       *gvalue);
-JSBool     gjs_value_to_g_value_no_copy (JSContext    *context,
-                                         jsval         value,
-                                         GValue       *gvalue);
-JSBool     gjs_value_from_g_value       (JSContext    *context,
-                                         jsval        *value_p,
-                                         const GValue *gvalue);
+bool       gjs_value_to_g_value         (JSContext      *context,
+                                         JS::HandleValue value,
+                                         GValue         *gvalue);
+bool       gjs_value_to_g_value_no_copy (JSContext      *context,
+                                         JS::HandleValue value,
+                                         GValue         *gvalue);
+
+bool gjs_value_from_g_value(JSContext             *context,
+                            JS::MutableHandleValue value_p,
+                            const GValue          *gvalue);
+
 GClosure*  gjs_closure_new_marshaled    (JSContext    *context,
                                          JSObject     *callable,
                                          const char   *description);

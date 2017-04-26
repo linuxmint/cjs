@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,17 +24,14 @@
 #ifndef __GJS_MEM_H__
 #define __GJS_MEM_H__
 
-#if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
-#error "Only <gjs/gjs-module.h> can be included directly."
-#endif
-
+#include <stdbool.h>
 #include <glib.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
 typedef struct {
-    unsigned int value;
+    volatile int value;
     const char *name;
 } GjsMemCounter;
 
@@ -57,24 +54,25 @@ GJS_DECLARE_COUNTER(repo)
 GJS_DECLARE_COUNTER(resultset)
 GJS_DECLARE_COUNTER(weakhash)
 GJS_DECLARE_COUNTER(interface)
+GJS_DECLARE_COUNTER(constructor_proxy)
 
 #define GJS_INC_COUNTER(name)                \
     do {                                        \
-        gjs_counter_everything.value += 1;   \
-        gjs_counter_ ## name .value += 1;    \
+        g_atomic_int_add(&gjs_counter_everything.value, 1); \
+        g_atomic_int_add(&gjs_counter_ ## name .value, 1); \
     } while (0)
 
 #define GJS_DEC_COUNTER(name)                \
     do {                                        \
-        gjs_counter_everything.value -= 1;   \
-        gjs_counter_ ## name .value -= 1;    \
+        g_atomic_int_add(&gjs_counter_everything.value, -1); \
+        g_atomic_int_add(&gjs_counter_ ## name .value, -1); \
     } while (0)
 
 #define GJS_GET_COUNTER(name) \
-    (gjs_counter_ ## name .value)
+    g_atomic_int_get(&gjs_counter_ ## name .value)
 
 void gjs_memory_report(const char *where,
-                       gboolean    die_if_leaks);
+                       bool        die_if_leaks);
 
 G_END_DECLS
 

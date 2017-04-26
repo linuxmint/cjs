@@ -19,7 +19,7 @@ enum {
     SIGNAL_LAST,
 };
 
-static guint signals[SIGNAL_LAST] = { 0 };
+static guint signals[SIGNAL_LAST];
 
 struct _GjsDBusImplementationPrivate {
     GDBusInterfaceVTable  vtable;
@@ -45,6 +45,7 @@ gjs_dbus_implementation_method_call(GDBusConnection       *connection,
     GjsDBusImplementation *self = GJS_DBUS_IMPLEMENTATION (user_data);
 
     g_signal_emit(self, signals[SIGNAL_HANDLE_METHOD], 0, method_name, parameters, invocation);
+    g_object_unref (invocation);
 }
 
 static GVariant *
@@ -83,7 +84,7 @@ gjs_dbus_implementation_property_set(GDBusConnection       *connection,
 
     g_signal_emit(self, signals[SIGNAL_HANDLE_PROPERTY_SET], 0, property_name, value);
 
-    return TRUE;
+    return true;
 }
 
 static void
@@ -268,7 +269,7 @@ idle_cb (gpointer data) {
     GDBusInterfaceSkeleton *skeleton = G_DBUS_INTERFACE_SKELETON (data);
 
     g_dbus_interface_skeleton_flush(skeleton);
-    return FALSE;
+    return G_SOURCE_REMOVE;
 }
 
 /**

@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
  *
@@ -24,8 +24,11 @@
 #ifndef __GJS_RUNTIME_H__
 #define __GJS_RUNTIME_H__
 
-JSRuntime * gjs_runtime_for_current_thread (void);
+#include <stdbool.h>
 
-JSBool      gjs_runtime_is_sweeping        (JSRuntime *runtime);
+JSRuntime *gjs_runtime_ref(void);
+void gjs_runtime_unref(void);
+
+bool        gjs_runtime_is_sweeping        (JSRuntime *runtime);
 
 #endif /* __GJS_RUNTIME_H__ */

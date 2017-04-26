@@ -1,3 +1,9 @@
+cjs (3.3.0) UNRELEASED; urgency=medium
+
+  * Rebase to upstream gjs 1.48.0 (a7bcfb9f3e00ca9849bf44a).
+
+ -- Michael Webster <miketwebster@gmail.com>  Fri, 14 Apr 2017 08:30:32 -0400
+
 cjs (3.2.0) serena; urgency=medium
 
   [ Maximiliano Curia ]

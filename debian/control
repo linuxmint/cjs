@@ -6,24 +6,23 @@ Source: cjs
 Section: interpreters
 Priority: optional
 Maintainer: Linux Mint <root@linuxmint.com>
-Build-Depends: debhelper (>= 8),
-               cdbs,
+Build-Depends: debhelper (>= 10),
+               dpkg-dev (>= 1.17.14),
                gnome-common,
                gnome-pkg-tools,
-               autotools-dev,
-               dh-autoreconf,
-               autoconf-archive,
                pkg-config,
-               libglib2.0-dev (>= 2.37.3),
-               libgirepository1.0-dev (>= 1.33.10),
-               libgtk-3-dev,
-               gobject-introspection (>= 1.33.10),
-               libmozjs-24-dev,
+               libglib2.0-dev (>= 2.42.0),
+               libgirepository1.0-dev (>= 1.46.0),
+               gobject-introspection (>= 1.46.0),
+               libmozjs-38-dev,
                libreadline-dev,
-               dbus-x11,
-               uuid-runtime,
-               libcairo2-dev
-Standards-Version: 3.9.5
+               libgtk-3-dev,
+               libcairo2-dev,
+               dbus <!nocheck>,
+               dbus-x11 <!nocheck>,
+               at-spi2-core <!nocheck>,
+               xvfb <!nocheck>
+Standards-Version: 3.9.8
 
 Package: cjs
 Architecture: any
@@ -31,24 +30,24 @@ Depends: ${shlibs:Depends},
          ${misc:Depends}
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon's platform
- libraries using the Javascript language. It's mainly based on the
- Mozilla javascript engine and the GObject introsepection framework.
+ libraries using the JavaScript language. It's mainly based on the
+ Mozilla JavaScript engine and the GObject introspection framework.
  .
  This package contains the interactive console application.
 
-Package: libcjs0e
+Package: libcjs0f
 Architecture: any
 Section: libs
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         gir1.2-gtk-3.0
-Conflicts: libcjs0, libcjs0a, libcjs0c
-Replaces: libcjs0, libcjs0a, libcjs0c
+         ${gir:Depends}
+Conflicts: libcjs0, libcjs0a, libcjs0c, libcjs0e
+Replaces: libcjs0, libcjs0a, libcjs0c, libcjs0e
 Provides: ${cjs:Provides}
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon's platform
- libraries using the Javascript language. It's mainly based on the
- Mozilla javascript engine and the GObject introspection framework.
+ libraries using the JavaScript language. It's mainly based on the
+ Mozilla JavaScript engine and the GObject introspection framework.
  .
  This is the shared library applications link to.
 
@@ -56,13 +55,15 @@ Package: libcjs-dev
 Architecture: any
 Section: libdevel
 Depends: ${misc:Depends},
-         libcjs0e (= ${binary:Version}),
-         libgirepository1.0-dev (>= 1.33.10),
-         libmozjs-24-dev
+         cjs,
+         libcjs0f (= ${binary:Version}),
+         libgirepository1.0-dev (>= 1.41.4),
+         libgtk-3-dev,
+         libmozjs-38-dev
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon's platform
- libraries using the Javascript language. It's mainly based on the
- Mozilla javascript engine and the GObject introspection framework.
+ libraries using the JavaScript language. It's mainly based on the
+ Mozilla JavaScript engine and the GObject introspection framework.
  .
  This package contains the development files applications need to
  build against.

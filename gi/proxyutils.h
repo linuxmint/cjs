@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -25,17 +25,16 @@
 #define __GJS_PROXYUTILS_H__
 
 #include "cjs/jsapi-util.h"
-#include <cjs/gi.h>
 
 G_BEGIN_DECLS
 
-JSBool _gjs_proxy_to_string_func(JSContext  *context,
-                                 JSObject   *this_obj,
-                                 const char *objtype,
-                                 GIBaseInfo *info,
-                                 GType       gtype,
-                                 gpointer    native_address,
-                                 jsval      *ret);
+bool _gjs_proxy_to_string_func(JSContext             *context,
+                               JSObject              *this_obj,
+                               const char            *objtype,
+                               GIBaseInfo            *info,
+                               GType                  gtype,
+                               gpointer               native_address,
+                               JS::MutableHandleValue ret);
 
 G_END_DECLS
 

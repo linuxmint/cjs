@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,26 +24,28 @@
 #ifndef __GJS_IMPORTER_H__
 #define __GJS_IMPORTER_H__
 
-#if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
-#error "Only <gjs/gjs-module.h> can be included directly."
-#endif
-
+#include <stdbool.h>
 #include <glib.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-JSBool    gjs_create_root_importer (JSContext   *context,
+bool      gjs_create_root_importer (JSContext   *context,
                                     const char **initial_search_path,
-                                    gboolean     add_standard_search_path);
-JSBool    gjs_define_root_importer (JSContext   *context,
-                                    JSObject    *in_object);
-JSObject* gjs_define_importer      (JSContext   *context,
-                                    JSObject    *in_object,
-                                    const char  *importer_name,
-                                    const char **initial_search_path,
-                                    gboolean     add_standard_search_path);
+                                    bool         add_standard_search_path);
 
+bool gjs_define_root_importer(JSContext       *cx,
+                              JS::HandleObject in_object);
+
+bool      gjs_define_root_importer_object(JSContext        *context,
+                                          JS::HandleObject  in_object,
+                                          JS::HandleObject  root_importer);
+
+JSObject *gjs_define_importer(JSContext       *context,
+                              JS::HandleObject in_object,
+                              const char      *importer_name,
+                              const char     **initial_search_path,
+                              bool             add_standard_search_path);
 
 G_END_DECLS
 

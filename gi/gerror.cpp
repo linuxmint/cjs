@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -25,10 +25,11 @@
 
 #include <string.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
 #include "boxed.h"
 #include "enumeration.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/mem.h"
 #include "repo.h"
 #include "gerror.h"
 
@@ -42,16 +43,9 @@ typedef struct {
     GError *gerror; /* NULL if we are the prototype and not an instance */
 } Error;
 
-enum {
-    PROP_0,
-    PROP_DOMAIN,
-    PROP_CODE,
-    PROP_MESSAGE
-};
-
 extern struct JSClass gjs_error_class;
 
-static void define_error_properties(JSContext *, JSObject *);
+static void define_error_properties(JSContext *, JS::HandleObject);
 
 GJS_DEFINE_PRIV_FROM_JS(Error, gjs_error_class)
 
@@ -60,15 +54,13 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(error)
     GJS_NATIVE_CONSTRUCTOR_VARIABLES(error)
     Error *priv;
     Error *proto_priv;
-    JSObject *proto;
-    jsid message_name, code_name;
-    jsval v_message, v_code;
     gchar *message;
+    int32_t code;
 
     /* Check early to avoid allocating memory for nothing */
-    if (argc != 1 || !JSVAL_IS_OBJECT(argv[0])) {
+    if (argc != 1 || !argv[0].isObject()) {
         gjs_throw(context, "Invalid parameters passed to GError constructor, expected one object");
-        return JS_FALSE;
+        return false;
     }
 
     GJS_NATIVE_CONSTRUCTOR_PRELUDE(error);
@@ -82,10 +74,12 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(error)
 
     gjs_debug_lifecycle(GJS_DEBUG_GERROR,
                         "GError constructor, obj %p priv %p",
-                        object, priv);
+                        object.get(), priv);
 
+    JS::RootedObject proto(context);
     JS_GetPrototype(context, object, &proto);
-    gjs_debug_lifecycle(GJS_DEBUG_GERROR, "GError instance __proto__ is %p", proto);
+    gjs_debug_lifecycle(GJS_DEBUG_GERROR, "GError instance __proto__ is %p",
+                        proto.get());
 
     /* If we're the prototype, then post-construct we'll fill in priv->info.
      * If we are not the prototype, though, then we'll get ->info from the
@@ -95,35 +89,34 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(error)
     if (proto_priv == NULL) {
         gjs_debug(GJS_DEBUG_GERROR,
                   "Bad prototype set on GError? Must match JSClass of object. JS error should have been reported.");
-        return JS_FALSE;
+        return false;
     }
 
     priv->info = proto_priv->info;
     g_base_info_ref( (GIBaseInfo*) priv->info);
     priv->domain = proto_priv->domain;
 
-    message_name = gjs_context_get_const_string(context, GJS_STRING_MESSAGE);
-    code_name = gjs_context_get_const_string(context, GJS_STRING_CODE);
-    if (!gjs_object_require_property(context, JSVAL_TO_OBJECT(argv[0]),
-                                     "GError constructor", message_name, &v_message))
-        return JS_FALSE;
-    if (!gjs_object_require_property(context, JSVAL_TO_OBJECT(argv[0]),
-                                     "GError constructor", code_name, &v_code))
-        return JS_FALSE;
-    if (!gjs_string_to_utf8 (context, v_message, &message))
-        return JS_FALSE;
+    JS::RootedObject params_obj(context, &argv[0].toObject());
+    if (!gjs_object_require_property(context, params_obj,
+                                     "GError constructor",
+                                     GJS_STRING_MESSAGE, &message))
+        return false;
 
-    priv->gerror = g_error_new_literal(priv->domain, JSVAL_TO_INT(v_code),
-                                       message);
+    if (!gjs_object_require_property(context, params_obj,
+                                     "GError constructor",
+                                     GJS_STRING_CODE, &code))
+        return false;
 
-    g_free (message);
+    priv->gerror = g_error_new_literal(priv->domain, code, message);
+
+    JS_free(context, message);
 
     /* We assume this error will be thrown in the same line as the constructor */
     define_error_properties(context, object);
 
     GJS_NATIVE_CONSTRUCTOR_FINISH(boxed);
 
-    return JS_TRUE;
+    return true;
 }
 
 static void
@@ -149,84 +142,73 @@ error_finalize(JSFreeOp *fop,
     g_slice_free(Error, priv);
 }
 
-static JSBool
-error_get_domain(JSContext *context, JSObject **obj, jsid *id, jsval *vp)
+static bool
+error_get_domain(JSContext *context,
+                 unsigned   argc,
+                 JS::Value *vp)
 {
-    Error *priv;
-
-    priv = priv_from_js(context, *obj);
+    GJS_GET_PRIV(context, argc, vp, args, obj, Error, priv);
 
     if (priv == NULL)
-        return JS_FALSE;
+        return false;
 
-    *vp = INT_TO_JSVAL(priv->domain);
-    return JS_TRUE;
+    args.rval().setInt32(priv->domain);
+    return true;
 }
 
-static JSBool
-error_get_message(JSContext *context, JSObject **obj, jsid *id, jsval *vp)
+static bool
+error_get_message(JSContext *context,
+                  unsigned   argc,
+                  JS::Value *vp)
 {
-    Error *priv;
-
-    priv = priv_from_js(context, *obj);
+    GJS_GET_PRIV(context, argc, vp, args, obj, Error, priv);
 
     if (priv == NULL)
-        return JS_FALSE;
+        return false;
 
     if (priv->gerror == NULL) {
         /* Object is prototype, not instance */
         gjs_throw(context, "Can't get a field from a GError prototype");
-        return JS_FALSE;
+        return false;
     }
 
-    return gjs_string_from_utf8(context, priv->gerror->message, -1, vp);
+    return gjs_string_from_utf8(context, priv->gerror->message, -1, args.rval());
 }
 
-static JSBool
-error_get_code(JSContext *context, JSObject **obj, jsid *id, jsval *vp)
+static bool
+error_get_code(JSContext *context,
+               unsigned   argc,
+               JS::Value *vp)
 {
-    Error *priv;
-
-    priv = priv_from_js(context, *obj);
+    GJS_GET_PRIV(context, argc, vp, args, obj, Error, priv);
 
     if (priv == NULL)
-        return JS_FALSE;
+        return false;
 
     if (priv->gerror == NULL) {
         /* Object is prototype, not instance */
         gjs_throw(context, "Can't get a field from a GError prototype");
-        return JS_FALSE;
+        return false;
     }
 
-    *vp = INT_TO_JSVAL(priv->gerror->code);
-    return JS_TRUE;
+    args.rval().setInt32(priv->gerror->code);
+    return true;
 }
 
-static JSBool
-error_to_string(JSContext *context, unsigned argc, jsval *vp)
+static bool
+error_to_string(JSContext *context,
+                unsigned   argc,
+                JS::Value *vp)
 {
-    jsval v_self;
-    JSObject *self;
-    Error *priv;
-    jsval v_out;
+    GJS_GET_PRIV(context, argc, vp, rec, self, Error, priv);
     gchar *descr;
-    JSBool retval;
-
-    v_self = JS_THIS(context, vp);
-    if (!JSVAL_IS_OBJECT(v_self)) {
-        /* Lie a bit here... */
-        gjs_throw(context, "GLib.Error.prototype.toString() called on a non object");
-        return JS_FALSE;
-    }
-
-    self = JSVAL_TO_OBJECT(v_self);
-    priv = priv_from_js(context, self);
+    bool retval;
 
     if (priv == NULL)
-        return JS_FALSE;
+        return false;
 
-    v_out = JSVAL_VOID;
-    retval = JS_FALSE;
+    rec.rval().setUndefined();
+    retval = false;
 
     /* We follow the same pattern as standard JS errors, at the expense of
        hiding some useful information */
@@ -236,7 +218,7 @@ error_to_string(JSContext *context, unsigned argc, jsval *vp)
                                 g_base_info_get_namespace(priv->info),
                                 g_base_info_get_name(priv->info));
 
-        if (!gjs_string_from_utf8(context, descr, -1, &v_out))
+        if (!gjs_string_from_utf8(context, descr, -1, rec.rval()))
             goto out;
     } else {
         descr = g_strdup_printf("%s.%s: %s",
@@ -244,56 +226,42 @@ error_to_string(JSContext *context, unsigned argc, jsval *vp)
                                 g_base_info_get_name(priv->info),
                                 priv->gerror->message);
 
-        if (!gjs_string_from_utf8(context, descr, -1, &v_out))
+        if (!gjs_string_from_utf8(context, descr, -1, rec.rval()))
             goto out;
     }
 
-    JS_SET_RVAL(context, vp, v_out);
-    retval = JS_TRUE;
+    retval = true;
 
  out:
     g_free(descr);
     return retval;
 }
 
-static JSBool
-error_constructor_value_of(JSContext *context, unsigned argc, jsval *vp)
+static bool
+error_constructor_value_of(JSContext *context,
+                           unsigned   argc,
+                           JS::Value *vp)
 {
-    jsval v_self, v_prototype;
+    GJS_GET_THIS(context, argc, vp, rec, self);
     Error *priv;
-    jsval v_out;
-    jsid prototype_name;
+    JS::RootedObject prototype(context);
 
-    v_self = JS_THIS(context, vp);
-    if (!JSVAL_IS_OBJECT(v_self)) {
-        /* Lie a bit here... */
-        gjs_throw(context, "GLib.Error.valueOf() called on a non object");
-        return JS_FALSE;
-    }
-
-    prototype_name = gjs_context_get_const_string(context, GJS_STRING_PROTOTYPE);
-    if (!gjs_object_require_property(context,
-                                     JSVAL_TO_OBJECT(v_self),
-                                     "constructor",
-                                     prototype_name,
-                                     &v_prototype))
-        return JS_FALSE;
-
-    if (!JSVAL_IS_OBJECT(v_prototype)) {
+    if (!gjs_object_require_property(context, self, "constructor",
+                                     GJS_STRING_PROTOTYPE, &prototype)) {
+        /* This error message will be more informative */
+        JS_ClearPendingException(context);
         gjs_throw(context, "GLib.Error.valueOf() called on something that is not"
                   " a constructor");
-        return JS_FALSE;
+        return false;
     }
 
-    priv = priv_from_js(context, JSVAL_TO_OBJECT(v_prototype));
+    priv = priv_from_js(context, prototype);
 
     if (priv == NULL)
-        return JS_FALSE;
+        return false;
 
-    v_out = INT_TO_JSVAL(priv->domain);
-
-    JS_SET_RVAL(context, vp, v_out);
-    return TRUE;
+    rec.rval().setInt32(priv->domain);
+    return true;
 }
 
 
@@ -304,60 +272,45 @@ error_constructor_value_of(JSContext *context, unsigned argc, jsval *vp)
 struct JSClass gjs_error_class = {
     "GLib_Error",
     JSCLASS_HAS_PRIVATE |
-    JSCLASS_NEW_RESOLVE,
-    JS_PropertyStub,
-    JS_DeletePropertyStub,
-    JS_PropertyStub,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    error_finalize,
-    NULL,
-    NULL,
-    NULL, NULL, NULL
+    JSCLASS_BACKGROUND_FINALIZE |
+    JSCLASS_IMPLEMENTS_BARRIERS,
+    NULL,  /* addProperty */
+    NULL,  /* deleteProperty */
+    NULL,  /* getProperty */
+    NULL,  /* setProperty */
+    NULL,  /* enumerate */
+    NULL,  /* resolve */
+    NULL,  /* convert */
+    error_finalize
 };
 
 /* We need to shadow all fields of GError, to prevent calling the getter from GBoxed
    (which would trash memory accessing the instance private data) */
 JSPropertySpec gjs_error_proto_props[] = {
-    { "domain", PROP_DOMAIN,
-      GJS_MODULE_PROP_FLAGS | JSPROP_READONLY,
-      JSOP_WRAPPER((JSPropertyOp)error_get_domain),
-      JSOP_WRAPPER(JS_StrictPropertyStub)
-    },
-    { "code", PROP_CODE,
-      GJS_MODULE_PROP_FLAGS | JSPROP_READONLY,
-      JSOP_WRAPPER((JSPropertyOp)error_get_code),
-      JSOP_WRAPPER(JS_StrictPropertyStub)
-    },
-    { "message", PROP_MESSAGE,
-      GJS_MODULE_PROP_FLAGS | JSPROP_READONLY,
-      JSOP_WRAPPER((JSPropertyOp)error_get_message),
-      JSOP_WRAPPER(JS_StrictPropertyStub)
-    },
-    { NULL }
+    JS_PSG("domain", error_get_domain, GJS_MODULE_PROP_FLAGS),
+    JS_PSG("code", error_get_code, GJS_MODULE_PROP_FLAGS),
+    JS_PSG("message", error_get_message, GJS_MODULE_PROP_FLAGS),
+    JS_PS_END
 };
 
 JSFunctionSpec gjs_error_proto_funcs[] = {
-    { "toString", JSOP_WRAPPER((JSNative)error_to_string), 0, GJS_MODULE_PROP_FLAGS },
+    JS_FS("toString", error_to_string, 0, GJS_MODULE_PROP_FLAGS),
     JS_FS_END
 };
 
 static JSFunctionSpec gjs_error_constructor_funcs[] = {
-    { "valueOf", JSOP_WRAPPER((JSNative)error_constructor_value_of), 0, GJS_MODULE_PROP_FLAGS },
+    JS_FS("valueOf", error_constructor_value_of, 0, GJS_MODULE_PROP_FLAGS),
     JS_FS_END
 };
 
 void
-gjs_define_error_class(JSContext    *context,
-                       JSObject     *in_object,
-                       GIEnumInfo   *info)
+gjs_define_error_class(JSContext       *context,
+                       JS::HandleObject in_object,
+                       GIEnumInfo      *info)
 {
     const char *constructor_name;
     GIBoxedInfo *glib_error_info;
-    JSObject *prototype, *parent_proto;
-    JSObject *constructor;
+    JS::RootedObject prototype(context), constructor(context);
     Error *priv;
 
     /* See the comment in gjs_define_boxed_class() for an
@@ -369,7 +322,8 @@ gjs_define_error_class(JSContext    *context,
 
     g_irepository_require(NULL, "GLib", "2.0", (GIRepositoryLoadFlags) 0, NULL);
     glib_error_info = (GIBoxedInfo*) g_irepository_find_by_name(NULL, "GLib", "Error");
-    parent_proto = gjs_lookup_generic_prototype(context, glib_error_info);
+    JS::RootedObject parent_proto(context,
+        gjs_lookup_generic_prototype(context, glib_error_info));
     g_base_info_unref((GIBaseInfo*)glib_error_info);
 
     if (!gjs_init_class_dynamic(context, in_object,
@@ -401,7 +355,8 @@ gjs_define_error_class(JSContext    *context,
     JS_SetPrivate(prototype, priv);
 
     gjs_debug(GJS_DEBUG_GBOXED, "Defined class %s prototype is %p class %p in object %p",
-              constructor_name, prototype, JS_GetClass(prototype), in_object);
+              constructor_name, prototype.get(), JS_GetClass(prototype),
+              in_object.get());
 
     gjs_define_enum_values(context, constructor, priv->info);
     gjs_define_enum_static_methods(context, constructor, priv->info);
@@ -437,39 +392,32 @@ find_error_domain_info(GQuark domain)
    fileName, lineNumber and stack
 */
 static void
-define_error_properties(JSContext *context,
-                        JSObject  *obj)
+define_error_properties(JSContext       *context,
+                        JS::HandleObject obj)
 {
-    jsid stack_name, filename_name, linenumber_name;
-    jsval stack, fileName, lineNumber;
+    JS::RootedValue stack(context), fileName(context), lineNumber(context);
 
-    if (!gjs_context_get_frame_info (context,
-                                     &stack,
-                                     &fileName,
-                                     &lineNumber))
+    if (!gjs_context_get_frame_info(context,
+                                    mozilla::Some<JS::MutableHandleValue>(&stack),
+                                    mozilla::Some<JS::MutableHandleValue>(&fileName),
+                                    mozilla::Some<JS::MutableHandleValue>(&lineNumber)))
         return;
 
-    stack_name = gjs_context_get_const_string(context, GJS_STRING_STACK);
-    filename_name = gjs_context_get_const_string(context, GJS_STRING_FILENAME);
-    linenumber_name = gjs_context_get_const_string(context, GJS_STRING_LINE_NUMBER);
+    gjs_object_define_property(context, obj, GJS_STRING_STACK, stack,
+                               JSPROP_ENUMERATE);
 
-    JS_DefinePropertyById(context, obj, stack_name, stack,
-                          NULL, NULL, JSPROP_ENUMERATE);
+    gjs_object_define_property(context, obj, GJS_STRING_FILENAME,
+                               fileName, JSPROP_ENUMERATE);
 
-    JS_DefinePropertyById(context, obj, filename_name, fileName,
-                          NULL, NULL, JSPROP_ENUMERATE);
-
-    JS_DefinePropertyById(context, obj, linenumber_name, lineNumber,
-                          NULL, NULL, JSPROP_ENUMERATE);
+    gjs_object_define_property(context, obj, GJS_STRING_LINE_NUMBER,
+                               lineNumber, JSPROP_ENUMERATE);
 }
 
 JSObject*
 gjs_error_from_gerror(JSContext             *context,
                       GError                *gerror,
-                      gboolean               add_stack)
+                      bool                   add_stack)
 {
-    JSObject *obj;
-    JSObject *proto;
     Error *priv;
     Error *proto_priv;
     GIEnumInfo *info;
@@ -496,12 +444,11 @@ gjs_error_from_gerror(JSContext             *context,
                       "Wrapping struct %s with JSObject",
                       g_base_info_get_name((GIBaseInfo *)info));
 
-    proto = gjs_lookup_generic_prototype(context, info);
+    JS::RootedObject proto(context, gjs_lookup_generic_prototype(context, info));
     proto_priv = priv_from_js(context, proto);
 
-    obj = JS_NewObjectWithGivenProto(context,
-                                     JS_GetClass(proto), proto,
-                                     gjs_get_import_global (context));
+    JS::RootedObject obj(context,
+        JS_NewObjectWithGivenProto(context, JS_GetClass(proto), proto));
 
     GJS_INC_COUNTER(gerror);
     priv = g_slice_new0(Error);
@@ -518,8 +465,8 @@ gjs_error_from_gerror(JSContext             *context,
 }
 
 GError*
-gjs_gerror_from_error(JSContext    *context,
-                      JSObject     *obj)
+gjs_gerror_from_error(JSContext       *context,
+                      JS::HandleObject obj)
 {
     Error *priv;
 
@@ -529,7 +476,7 @@ gjs_gerror_from_error(JSContext    *context,
     /* If this is a plain GBoxed (i.e. a GError without metadata),
        delegate marshalling.
     */
-    if (gjs_typecheck_boxed (context, obj, NULL, G_TYPE_ERROR, JS_FALSE))
+    if (gjs_typecheck_boxed (context, obj, NULL, G_TYPE_ERROR, false))
         return (GError*) gjs_c_struct_from_boxed (context, obj);
 
     priv = priv_from_js(context, obj);
@@ -548,13 +495,13 @@ gjs_gerror_from_error(JSContext    *context,
     return priv->gerror;
 }
 
-JSBool
-gjs_typecheck_gerror (JSContext *context,
-                      JSObject  *obj,
-                      JSBool     throw_error)
+bool
+gjs_typecheck_gerror (JSContext       *context,
+                      JS::HandleObject obj,
+                      bool             throw_error)
 {
-    if (gjs_typecheck_boxed (context, obj, NULL, G_TYPE_ERROR, JS_FALSE))
-        return TRUE;
+    if (gjs_typecheck_boxed (context, obj, NULL, G_TYPE_ERROR, false))
+        return true;
 
     return do_base_typecheck(context, obj, throw_error);
 }

@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -30,11 +30,8 @@
 
 G_BEGIN_DECLS
 
-JSBool        gjs_define_console_stuff     (JSContext      *context,
-                                            JSObject      **module_out);
-JSBool        gjs_console_interact         (JSContext      *context,
-                                            unsigned        argc,
-                                            jsval          *vp);
+bool gjs_define_console_stuff(JSContext              *context,
+                              JS::MutableHandleObject module);
 
 G_END_DECLS
 

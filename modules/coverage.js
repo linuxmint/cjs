@@ -28,13 +28,13 @@ function getSubNodesForNode(node) {
     /* These statements have a single body */
     case 'LabelledStatement':
     case 'WithStatement':
-    case 'LetStatement':
-    case 'ForInStatement':
-    case 'ForOfStatement':
     case 'FunctionDeclaration':
     case 'FunctionExpression':
-    case 'ArrowExpression':
     case 'CatchClause':
+        subNodes.push(node.body);
+        break;
+    case 'LetStatement':
+        Array.prototype.push.apply(subNodes, node.head);
         subNodes.push(node.body);
         break;
     case 'WhileStatement':
@@ -52,11 +52,21 @@ function getSubNodesForNode(node) {
 
         subNodes.push(node.body);
         break;
+    case 'ForInStatement':
+        if (node.each)
+            subNodes.push(node.left);
+
+        subNodes.push(node.right, node.body);
+        break;
+    case 'ForOfStatement':
+        subNodes.push(node.left, node.right, node.body);
+        break;
     case 'BlockStatement':
         Array.prototype.push.apply(subNodes, node.body);
         break;
     case 'ThrowStatement':
     case 'ReturnStatement':
+    case 'YieldExpression':
         if (node.argument !== null)
             subNodes.push(node.argument);
         break;
@@ -64,12 +74,44 @@ function getSubNodesForNode(node) {
         subNodes.push(node.expression);
         break;
     case 'AssignmentExpression':
+    case 'BinaryExpression':
+    case 'LogicalExpression':
         subNodes.push(node.left, node.right);
+        break;
+    case 'ConditionalExpression':
+        subNodes.push(node.test, node.consequent, node.alternate);
         break;
     case 'ObjectExpression':
         node.properties.forEach(function(prop) {
             subNodes.push(prop.value);
         });
+        break;
+    case 'ArrayExpression':
+        node.elements.forEach(function(elem) {
+            if (elem !== null)
+                subNodes.push(elem);
+        });
+        break;
+    case 'ArrowExpression':
+        Array.prototype.push.apply(subNodes, node.defaults);
+        subNodes.push(node.body);
+        break;
+    case 'SequenceExpression':
+        Array.prototype.push.apply(subNodes, node.expressions);
+        break;
+    case 'UnaryExpression':
+    case 'UpdateExpression':
+        subNodes.push(node.argument);
+        break;
+    case 'ComprehensionExpression':
+    case 'GeneratorExpression':
+        subNodes.push(node.body);
+        Array.prototype.push.apply(subNodes, node.blocks);
+        if (node.filter !== null)
+            subNodes.push(node.filter);
+        break;
+    case 'ComprehensionBlock':
+        subNodes.push(node.right);
         break;
     /* It is very possible that there might be something
      * interesting in the function arguments, so we need to
@@ -99,16 +141,18 @@ function getSubNodesForNode(node) {
                 subNodes.push(expression);
             });
         }
-
         break;
-    /* Variable declarations might be initialized to
-     * some expression, so traverse the tree and see if
-     * we can get into the expression */
     case 'VariableDeclaration':
-        node.declarations.forEach(function (declarator) {
-            if (declarator.init !== null)
-                subNodes.push(declarator.init);
-        });
+        Array.prototype.push.apply(subNodes, node.declarations);
+        break;
+    case 'VariableDeclarator':
+        if (node.init !== null)
+            subNodes.push(node.init);
+        break;
+    case 'MemberExpression':
+        subNodes.push(node.object);
+        if (node.computed)
+            subNodes.push(node.property);
 
         break;
     }
@@ -134,6 +178,14 @@ function collectForSubNodes(subNodes, collector) {
     }
 
     return result;
+}
+
+function _getFunctionKeyFromReflectedFunction(node) {
+    let name = node.id !== null ? node.id.name : '(anonymous)';
+    let line = node.loc.start.line;
+    let n_params = node.params.length;
+
+    return [name, line, n_params].join(':');
 }
 
 /* Unfortunately, the Reflect API doesn't give us enough information to
@@ -167,22 +219,10 @@ function functionsForNode(node) {
     switch (node.type) {
     case 'FunctionDeclaration':
     case 'FunctionExpression':
-        if (node.id !== null) {
-            functionNames.push({ name: node.id.name,
-                                 line: node.loc.start.line,
-                                 n_params: node.params.length });
-        }
-        /* If the function wasn't found, we just push a name
-         * that looks like 'function:lineno' to signify that
-         * this was an anonymous function. If the coverage tool
-         * enters a function with no name (but a line number)
-         * then it can probably use this information to
-         * figure out which function it was */
-        else {
-            functionNames.push({ name: null,
-                                 line: node.loc.start.line,
-                                 n_params: node.params.length });
-        }
+    case 'ArrowExpression':
+        functionNames.push({ key: _getFunctionKeyFromReflectedFunction(node),
+                             line: node.loc.start.line,
+                             n_params: node.params.length });
     }
 
     return functionNames;
@@ -371,12 +411,14 @@ function _expressionLinesToCounters(expressionLines, nLines) {
     expressionLines.sort(function(left, right) { return left - right; });
 
     let expressionLinesIndex = 0;
-    let counters = new Array(nLines);
+    let counters = new Array(nLines + 1);
 
     if (expressionLines.length === 0)
         return counters;
 
     for (let i = 1; i < counters.length; i++) {
+        if (!expressionLines.hasOwnProperty(expressionLinesIndex))
+            continue;
         if (expressionLines[expressionLinesIndex] == i) {
             counters[i] = 0;
             expressionLinesIndex++;
@@ -399,7 +441,7 @@ function _branchesToBranchCounters(branches, nLines) {
     });
 
     let branchIndex = 0;
-    let counters = new Array(nLines);
+    let counters = new Array(nLines + 1);
 
     if (branches.length === 0)
         return counters;
@@ -437,35 +479,93 @@ function _branchesToBranchCounters(branches, nLines) {
     return counters;
 }
 
-function _getFunctionKeyFromReflectedFunction(func) {
-    let name = func.name !== null ? func.name : '(anonymous)';
-    let line = func.line;
-    let n_params = func.n_params;
-
-    return name + ':' + line + ':' + n_params;
-}
-
-function _functionsToFunctionCounters(functions) {
+function _functionsToFunctionCounters(script, functions) {
     let functionCounters = {};
 
     functions.forEach(function(func) {
-        let functionKey = _getFunctionKeyFromReflectedFunction(func);
-        functionCounters[functionKey] = {
-            hitCount: 0
-        };
+        let [name, line, args] = func.key.split(':');
+
+        if (functionCounters[name] === undefined) {
+            functionCounters[name] = {};
+        }
+
+        if (functionCounters[name][line] === undefined) {
+            functionCounters[name][line] = {};
+        }
+
+        if (functionCounters[name][line][args] === undefined) {
+            functionCounters[name][line][args] = { hitCount: 0 };
+        } else {
+            log(script + ':' + line + ' Function identified as ' +
+                func.key + ' already seen in this file. Function coverage ' +
+                'will be incomplete.');
+        }
     });
 
     return functionCounters;
 }
 
 function _populateKnownFunctions(functions, nLines) {
-    let knownFunctions = new Array(nLines);
+    let knownFunctions = new Array(nLines + 1);
 
     functions.forEach(function(func) {
         knownFunctions[func.line] = true;
     });
 
     return knownFunctions;
+}
+
+function _identifyFunctionCounterInLinePartForDescription(linePart,
+                                                          nArgs) {
+    /* There is only one potential option for this line. We might have been
+     * called with the wrong number of arguments, but it doesn't matter. */
+    if (Object.getOwnPropertyNames(linePart).length === 1)
+        return linePart[Object.getOwnPropertyNames(linePart)[0]];
+
+    /* Have to disambiguate using nArgs and we have an exact match. */
+    if (linePart[nArgs] !== undefined)
+        return linePart[nArgs];
+
+    /* There are multiple options on this line. Pick the one where
+     * we satisfy the number of arguments exactly, or failing that,
+     * go through each and pick the closest. */
+    let allNArgsOptions = Object.keys(linePart).map(function(key) {
+        return parseInt(key);
+    });
+
+    let closest = allNArgsOptions.reduce(function(prev, current, index, array) {
+        let nArgsOption = array[index];
+        if (Math.abs(nArgsOption - nArgs) < Math.abs(current - nArgs)) {
+            return nArgsOption;
+        }
+
+        return current;
+    });
+
+    return linePart[String(closest)];
+}
+
+function _identifyFunctionCounterForDescription(functionCounters,
+                                                name,
+                                                line,
+                                                nArgs) {
+    let candidateCounter = functionCounters[name];
+
+    if (candidateCounter === undefined)
+        return null;
+
+    if (Object.getOwnPropertyNames(candidateCounter).length === 1) {
+        let linePart = candidateCounter[Object.getOwnPropertyNames(candidateCounter)[0]];
+        return _identifyFunctionCounterInLinePartForDescription(linePart, nArgs);
+    }
+
+    let linePart = functionCounters[name][line];
+
+    if (linePart === undefined) {
+        return null;
+    }
+
+    return _identifyFunctionCounterInLinePartForDescription(linePart, nArgs);
 }
 
 /**
@@ -486,25 +586,30 @@ function _incrementFunctionCounters(functionCounters,
                                     name,
                                     line,
                                     nArgs) {
-    let functionKey = name + ':' + line + ':' + nArgs;
-    let functionCountersForKey = functionCounters[functionKey];
+    let functionCountersForKey = _identifyFunctionCounterForDescription(functionCounters,
+                                                                        name,
+                                                                        line,
+                                                                        nArgs);
 
     /* Its possible that the JS Engine might enter a funciton
      * at an executable line which is a little bit past the
      * actual definition. Roll backwards until we reach the
      * last known function definition line which we kept
      * track of earlier to see if we can find this function first */
-    if (functionCountersForKey === undefined) {
+    if (functionCountersForKey === null) {
         do {
             --line;
-            functionKey = name + ':' + line + ':' + nArgs;
-            functionCountersForKey = functionCounters[functionKey];
-        } while(linesWithKnownFunctions[line] !== true)
+            functionCountersForKey = _identifyFunctionCounterForDescription(functionCounters,
+                                                                            name,
+                                                                            line,
+                                                                            nArgs);
+        } while (linesWithKnownFunctions[line] !== true && line > 0);
     }
 
-    if (functionCountersForKey !== undefined) {
+    if (functionCountersForKey !== null) {
         functionCountersForKey.hitCount++;
     } else {
+        let functionKey = [name, line, nArgs].join(':');
         throw new Error("expected Reflect to find function " + functionKey);
     }
 }
@@ -515,12 +620,12 @@ function _incrementFunctionCounters(functionCounters,
  * expressonCounters: An array of either a hit count for a found
  * executable line or undefined for a known non-executable line.
  * line: an executed line
- * reporter: A function a single integer to report back when
- * we executed lines that we didn't expect
+ * @shouldWarn: if true, print a mostly harmless warning about executing a line
+ * that was thought non-executable.
  */
 function _incrementExpressionCounters(expressionCounters,
-                                      offsetLine,
-                                      reporter) {
+                                      script,
+                                      offsetLine, shouldWarn) {
     let expressionCountersLen = expressionCounters.length;
 
     if (offsetLine >= expressionCountersLen)
@@ -530,7 +635,7 @@ function _incrementExpressionCounters(expressionCounters,
      * mean that the reflection machinery is not doing its job, so we should
      * print a debug message about it in case someone is interested.
      *
-     * The reason why we don't have a proper warning is because it
+     * The reason why we don't have a proper log is because it
      * is difficult to determine what the SpiderMonkey program counter
      * will actually pass over, especially function declarations for some
      * reason:
@@ -545,9 +650,9 @@ function _incrementExpressionCounters(expressionCounters,
      * and BlockStatement, neither of which would ordinarily be
      * executed */
     if (expressionCounters[offsetLine] === undefined) {
-        if (reporter !== undefined)
-            reporter(offsetLine);
-
+        if (shouldWarn)
+            log(script + ':' + offsetLine + ' Executed line previously marked ' +
+                'non-executable by Reflect');
         expressionCounters[offsetLine] = 0;
     }
 
@@ -586,13 +691,24 @@ function _BranchTracker(branchCounters) {
 
 function _convertFunctionCountersToArray(functionCounters) {
     let arrayReturn = [];
-    /* functionCounters is an object so convert it to
+    /* functionCounters is an object so explore it to create a
+     * set of function keys and then convert it to
      * an array-of-object using the key as a property
      * of that object */
-    for (let key in functionCounters) {
-        let func = functionCounters[key];
-        arrayReturn.push({ name: key,
-                           hitCount: func.hitCount });
+    for (let name of Object.getOwnPropertyNames(functionCounters)) {
+        let namePart = functionCounters[name];
+
+        for (let line of Object.getOwnPropertyNames(namePart)) {
+            let linePart = functionCounters[name][line];
+
+            for (let nArgs of Object.getOwnPropertyNames(linePart)) {
+                let functionKey = [name, line, nArgs].join(':');
+                arrayReturn.push({ name: functionKey,
+                                   line: Number(line),
+                                   nArgs: nArgs,
+                                   hitCount: linePart[nArgs].hitCount });
+            }
+        }
     }
 
     arrayReturn.sort(function(left, right) {
@@ -606,45 +722,140 @@ function _convertFunctionCountersToArray(functionCounters) {
     return arrayReturn;
 }
 
-function CoverageStatisticsContainer(files) {
-    let pendingFiles = files;
-    let coveredFiles = {};
+/* Looks up filename in cache and fetches statistics
+ * directly from the cache */
+function _fetchCountersFromCache(filename, cache, nLines) {
+    if (!cache)
+        return null;
 
-    function wantsStatisticsFor(filename) {
-        return pendingFiles.indexOf(filename) !== -1;
-    }
+    if (Object.keys(cache).indexOf(filename) !== -1) {
+        let cache_for_file = cache[filename];
 
-    function createStatisticsFor(filename) {
-        let idx = pendingFiles.indexOf(filename);
-        pendingFiles.splice(idx, 1);
+        if (cache_for_file.mtime) {
+             let mtime = getFileModificationTime(filename);
+             if (mtime[0] != cache[filename].mtime[0] ||
+                 mtime[1] != cache[filename].mtime[1])
+                 return null;
+        } else {
+            let checksum = getFileChecksum(filename);
+            if (checksum != cache[filename].checksum)
+                return null;
+        }
 
-        let contents = getFileContents(filename);
-        let reflection = Reflect.parse(contents);
-        let nLines = _getNumberOfLinesForScript(contents);
-
-        let functions = functionsForAST(reflection);
+        let functions = cache_for_file.functions;
 
         return {
-            contents: contents,
-            nLines: nLines,
-            expressionCounters: _expressionLinesToCounters(expressionLinesForAST(reflection), nLines),
-            branchCounters: _branchesToBranchCounters(branchesForAST(reflection), nLines),
-            functionCounters: _functionsToFunctionCounters(functions),
-            linesWithKnownFunctions: _populateKnownFunctions(functions, nLines)
+            expressionCounters: _expressionLinesToCounters(cache_for_file.lines, nLines),
+            branchCounters: _branchesToBranchCounters(cache_for_file.branches, nLines),
+            functionCounters: _functionsToFunctionCounters(filename, functions),
+            linesWithKnownFunctions: _populateKnownFunctions(functions, nLines),
+            nLines: nLines
         };
     }
 
+    return null;
+}
+
+function _fetchCountersFromReflection(filename, contents, nLines) {
+    let reflection = Reflect.parse(contents);
+    let functions = functionsForAST(reflection);
+
+    return {
+        expressionCounters: _expressionLinesToCounters(expressionLinesForAST(reflection), nLines),
+        branchCounters: _branchesToBranchCounters(branchesForAST(reflection), nLines),
+        functionCounters: _functionsToFunctionCounters(filename, functions),
+        linesWithKnownFunctions: _populateKnownFunctions(functions, nLines),
+        nLines: nLines
+    };
+}
+
+function CoverageStatisticsContainer(prefixes, cache) {
+    /* Copy the files array, so that it can be re-used in the tests */
+    let cachedASTs = cache ? JSON.parse(cache) : null;
+    let coveredFiles = {};
+    let cacheMisses = 0;
+
+    function createStatisticsFor(filename) {
+        let contents = getFileContents(filename);
+        let nLines = _getNumberOfLinesForScript(contents);
+
+        let counters = _fetchCountersFromCache(filename, cachedASTs, nLines);
+        if (counters === null) {
+            cacheMisses++;
+            counters = _fetchCountersFromReflection(filename, contents, nLines);
+        }
+
+        if (counters === null)
+            throw new Error('Failed to parse and reflect file ' + filename);
+
+        /* Set contents here as we don't pass it to _fetchCountersFromCache. */
+        counters.contents = contents;
+
+        return counters;
+    }
+
     function ensureStatisticsFor(filename) {
-        if (!coveredFiles[filename] && wantsStatisticsFor(filename))
+        if (!coveredFiles[filename])
             coveredFiles[filename] = createStatisticsFor(filename);
         return coveredFiles[filename];
     }
 
+    this.stringify = function() {
+        let cache_data = {};
+        Object.keys(coveredFiles).forEach(function(filename) {
+            let statisticsForFilename = coveredFiles[filename];
+            let mtime = getFileModificationTime(filename);
+            let cacheDataForFilename = {
+                mtime: mtime,
+                checksum: mtime === null ? getFileChecksum(filename) : null,
+                lines: [],
+                branches: [],
+                functions: _convertFunctionCountersToArray(statisticsForFilename.functionCounters).map(function(func) {
+                    return {
+                        key: func.name,
+                        line: func.line
+                    };
+                })
+            };
+
+            /* We're using a index based loop here since we need access to the
+             * index, since it actually represents the current line number
+             * on the file (see _expressionLinesToCounters). */
+            for (let line_index = 0;
+                 line_index < statisticsForFilename.expressionCounters.length;
+                 ++line_index) {
+                 if (statisticsForFilename.expressionCounters[line_index] !== undefined)
+                     cacheDataForFilename.lines.push(line_index);
+
+                 if (statisticsForFilename.branchCounters[line_index] !== undefined) {
+                     let branchCounters = statisticsForFilename.branchCounters[line_index];
+                     cacheDataForFilename.branches.push({
+                         point: statisticsForFilename.branchCounters[line_index].point,
+                         exits: statisticsForFilename.branchCounters[line_index].exits.map(function(exit) {
+                             return exit.line;
+                         })
+                     });
+                 }
+            }
+            cache_data[filename] = cacheDataForFilename;
+        });
+        return JSON.stringify(cache_data);
+    };
+
+    this.getCoveredFiles = function() {
+        return Object.keys(coveredFiles);
+    };
+
     this.fetchStatistics = function(filename) {
-        let statistics = ensureStatisticsFor(filename);
-        if (statistics === undefined)
-            throw new Error('Not tracking statistics for ' + filename);
-        return statistics;
+        return ensureStatisticsFor(filename);
+    };
+
+    this.staleCache = function() {
+        return cacheMisses > 0;
+    };
+
+    this.deleteStatistics = function(filename) {
+        coveredFiles[filename] = undefined;
     };
 }
 
@@ -653,13 +864,18 @@ function CoverageStatisticsContainer(files) {
  *
  * It isn't poissible to unit test this class because it depends on running
  * Debugger which in turn depends on objects injected in from another compartment */
-function CoverageStatistics(files) {
-    this.container = new CoverageStatisticsContainer(files);
+function CoverageStatistics(prefixes, cache, shouldWarn) {
+    this.container = new CoverageStatisticsContainer(prefixes, cache);
     let fetchStatistics = this.container.fetchStatistics.bind(this.container);
+    let deleteStatistics = this.container.deleteStatistics.bind(this.container);
 
     /* 'debuggee' comes from the invocation from
      * a separate compartment inside of coverage.cpp */
     this.dbg = new Debugger(debuggee);
+
+    this.getCoveredFiles = function() {
+        return this.container.getCoveredFiles();
+    };
 
     this.getNumberOfLinesFor = function(filename) {
         return fetchStatistics(filename).nLines;
@@ -683,9 +899,23 @@ function CoverageStatistics(files) {
 
         try {
             statistics = fetchStatistics(frame.script.url);
+            if (!statistics) {
+                return undefined;
+            }
         } catch (e) {
             /* We don't care about this frame, return */
+            log(e.message + " " + e.stack);
             return undefined;
+        }
+
+        function _logExceptionAndReset(exception, callee, line) {
+            log(exception.fileName + ":" + exception.lineNumber +
+                " (processing " + frame.script.url + ":" + callee + ":" +
+                line + ") - " + exception.message);
+            log("Will not log statistics for this file");
+            frame.onStep = undefined;
+            frame._branchTracker = undefined;
+            deleteStatistics(frame.script.url);
         }
 
         /* Log function calls */
@@ -694,11 +924,18 @@ function CoverageStatistics(files) {
             let line = frame.script.getOffsetLine(frame.offset);
             let nArgs = frame.callee.parameterNames.length;
 
-            _incrementFunctionCounters(statistics.functionCounters,
-                                       statistics.linesWithKnownFunctions,
-                                       name,
-                                       line,
-                                       nArgs);
+            try {
+                _incrementFunctionCounters(statistics.functionCounters,
+                                           statistics.linesWithKnownFunctions,
+                                           name,
+                                           line,
+                                           nArgs);
+            } catch (e) {
+                /* Something bad happened. Log the exception and delete
+                 * statistics for this file */
+                _logExceptionAndReset(e, name, line);
+                return undefined;
+            }
         }
 
         /* Upon entering the frame, the active branch is always inactive */
@@ -710,20 +947,28 @@ function CoverageStatistics(files) {
             let offset = this.offset;
             let offsetLine = this.script.getOffsetLine(offset);
 
-            _incrementExpressionCounters(statistics.expressionCounters,
-                                         offsetLine,
-                                         function(line) {
-                                             warning("executed " +
-                                                     frame.script.url +
-                                                     ":" +
-                                                     offsetLine +
-                                                     " which we thought wasn't executable");
-                                         });
-
-            this._branchTracker.incrementBranchCounters(offsetLine);
+            try {
+                _incrementExpressionCounters(statistics.expressionCounters,
+                                             frame.script.url,
+                                             offsetLine, shouldWarn);
+                this._branchTracker.incrementBranchCounters(offsetLine);
+            } catch (e) {
+                /* Something bad happened. Log the exception and delete
+                 * statistics for this file */
+                _logExceptionAndReset(e, frame.callee, offsetLine);
+            }
         };
 
         return undefined;
     };
-}
 
+    this.deactivate = function() {
+        /* This property is designed to be a one-stop-shop to
+         * disable the debugger for this debugee, without having
+         * to traverse all its scripts or frames */
+        this.dbg.enabled = false;
+    };
+
+    this.staleCache = this.container.staleCache.bind(this.container);
+    this.stringify = this.container.stringify.bind(this.container);
+}

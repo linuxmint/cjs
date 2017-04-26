@@ -1,15 +1,17 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
 
-const GjsPrivate = imports.gi.CjsPrivate;
+const CjsPrivate = imports.gi.CjsPrivate;
 
 function vprintf(str, args) {
     let i = 0;
     let usePos = false;
     return str.replace(/%(?:([1-9][0-9]*)\$)?(I+)?([0-9]+)?(?:\.([0-9]+))?(.)/g, function (str, posGroup, flagsGroup, widthGroup, precisionGroup, genericGroup) {
-        if (precisionGroup != '' && genericGroup != 'f')
+        if (precisionGroup !== '' && precisionGroup !== undefined &&
+            genericGroup != 'f')
             throw new Error("Precision can only be specified for 'f'");
 
-        let hasAlternativeIntFlag = (flagsGroup.indexOf('I') != -1);
+        let hasAlternativeIntFlag = (flagsGroup &&
+            flagsGroup.indexOf('I') != -1);
         if (hasAlternativeIntFlag && genericGroup != 'd')
             throw new Error("Alternative output digits can only be specfied for 'd'");
 
@@ -19,7 +21,7 @@ function vprintf(str, args) {
         if (usePos && pos == 0 || !usePos && pos > 0)
             throw new Error("Numbered and unnumbered conversion specifications cannot be mixed");
 
-        let fillChar = (widthGroup[0] == '0') ? '0' : ' ';
+        let fillChar = (widthGroup && widthGroup[0] == '0') ? '0' : ' ';
         let width = parseInt(widthGroup, 10) || 0;
 
         function fillWidth(s, c, w) {
@@ -44,7 +46,7 @@ function vprintf(str, args) {
         case 'd':
             let intV = parseInt(getArg());
             if (hasAlternativeIntFlag)
-                s = GjsPrivate.format_int_alternative_output(intV);
+                s = CjsPrivate.format_int_alternative_output(intV);
             else
                 s = intV.toString();
             break;
@@ -52,7 +54,7 @@ function vprintf(str, args) {
             s = parseInt(getArg()).toString(16);
             break;
         case 'f':
-            if (precisionGroup == '')
+            if (precisionGroup === '' || precisionGroup === undefined)
                 s = parseFloat(getArg()).toString();
             else
                 s = parseFloat(getArg()).toFixed(parseInt(precisionGroup));
@@ -64,6 +66,11 @@ function vprintf(str, args) {
     });
 }
 
+function printf() {
+    let args = Array.prototype.slice.call(arguments);
+    let fmt = args.shift();
+    print(vprintf(fmt, args));
+}
 
 /*
  * This function is intended to extend the String object and provide

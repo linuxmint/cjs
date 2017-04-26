@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,7 +24,6 @@
 #include <config.h>
 
 #include "mem.h"
-#include "compat.h"
 #include <util/log.h>
 
 #define GJS_DEFINE_COUNTER(name)             \
@@ -49,6 +48,7 @@ GJS_DEFINE_COUNTER(repo)
 GJS_DEFINE_COUNTER(resultset)
 GJS_DEFINE_COUNTER(weakhash)
 GJS_DEFINE_COUNTER(interface)
+GJS_DEFINE_COUNTER(constructor_proxy)
 
 #define GJS_LIST_COUNTER(name) \
     & gjs_counter_ ## name
@@ -67,16 +67,17 @@ static GjsMemCounter* counters[] = {
     GJS_LIST_COUNTER(repo),
     GJS_LIST_COUNTER(resultset),
     GJS_LIST_COUNTER(weakhash),
-    GJS_LIST_COUNTER(interface)
+    GJS_LIST_COUNTER(interface),
+    GJS_LIST_COUNTER(constructor_proxy),
 };
 
 void
 gjs_memory_report(const char *where,
-                  gboolean    die_if_leaks)
+                  bool        die_if_leaks)
 {
     int i;
     int n_counters;
-    guint total_objects;
+    int total_objects;
 
     gjs_debug(GJS_DEBUG_MEMORY,
               "Memory report: %s",

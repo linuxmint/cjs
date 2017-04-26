@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2014 Colin Walters <walters@verbum.org>
  *
@@ -24,14 +24,23 @@
 #ifndef __GJS_CONTEXT_PRIVATE_H__
 #define __GJS_CONTEXT_PRIVATE_H__
 
+#include <inttypes.h>
+
 #include "context.h"
-#include "compat.h"
 
 G_BEGIN_DECLS
 
-gboolean     _gjs_context_destroying                  (GjsContext *js_context);
+bool         _gjs_context_destroying                  (GjsContext *js_context);
 
-void _gjs_context_schedule_gc_if_needed (GjsContext *js_context);
+void         _gjs_context_schedule_gc_if_needed       (GjsContext *js_context);
+
+void _gjs_context_exit(GjsContext *js_context,
+                       uint8_t     exit_code);
+
+bool _gjs_context_get_is_owner_thread(GjsContext *js_context);
+
+bool _gjs_context_should_exit(GjsContext *js_context,
+                              uint8_t    *exit_code_p);
 
 G_END_DECLS
 

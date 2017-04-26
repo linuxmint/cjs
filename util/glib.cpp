@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -21,74 +21,9 @@
  * IN THE SOFTWARE.
  */
 
-#include <string.h>
+#include <glib.h>
 
-#include "glib.h"
-
-#include <config.h>
-
-typedef struct {
-    void *key;
-    void *value;
-} StoreOneData;
-
-static gboolean
-get_first_one_predicate(void  *key,
-                        void  *value,
-                        void  *data)
-{
-    StoreOneData *sod = (StoreOneData *) data;
-
-    sod->key = key;
-    sod->value = value;
-
-    /* found it! */
-    return TRUE;
-}
-
-static gboolean
-remove_or_steal_one(GHashTable *hash,
-                    void      **key_p,
-                    void      **value_p,
-                    gboolean    steal)
-{
-    StoreOneData sod;
-
-    sod.key = NULL;
-    sod.value = NULL;
-    g_hash_table_find(hash, get_first_one_predicate, &sod);
-
-    if (sod.key == NULL)
-        return FALSE;
-
-    if (key_p)
-        *key_p = sod.key;
-    if (value_p)
-        *value_p = sod.value;
-
-    if (steal)
-        g_hash_table_steal(hash, sod.key);
-    else
-        g_hash_table_remove(hash, sod.key);
-
-    return sod.value != NULL;
-}
-
-gboolean
-gjs_g_hash_table_remove_one(GHashTable *hash,
-                            void      **key_p,
-                            void      **value_p)
-{
-    return remove_or_steal_one(hash, key_p, value_p, FALSE);
-}
-
-gboolean
-gjs_g_hash_table_steal_one(GHashTable *hash,
-                           void      **key_p,
-                           void      **value_p)
-{
-    return remove_or_steal_one(hash, key_p, value_p, TRUE);
-}
+#include "util/glib.h"
 
 /** gjs_g_strv_concat:
  *
@@ -124,45 +59,5 @@ gjs_g_strv_concat(char ***strv_array, int len)
 
     g_ptr_array_add(array, NULL);
 
-    return (char**)g_ptr_array_free(array, FALSE);
-}
-
-gchar *
-_gjs_g_utf8_make_valid (const gchar *name)
-{
-  GString *string;
-  const gchar *remainder, *invalid;
-  gint remaining_bytes, valid_bytes;
-
-  g_return_val_if_fail (name != NULL, NULL);
-
-  string = NULL;
-  remainder = name;
-  remaining_bytes = strlen (name);
-
-  while (remaining_bytes != 0)
-    {
-      if (g_utf8_validate (remainder, remaining_bytes, &invalid))
-	break;
-      valid_bytes = invalid - remainder;
-
-      if (string == NULL)
-	string = g_string_sized_new (remaining_bytes);
-
-      g_string_append_len (string, remainder, valid_bytes);
-      /* append U+FFFD REPLACEMENT CHARACTER */
-      g_string_append (string, "\357\277\275");
-
-      remaining_bytes -= valid_bytes + 1;
-      remainder = invalid + 1;
-    }
-
-  if (string == NULL)
-    return g_strdup (name);
-
-  g_string_append (string, remainder);
-
-  g_assert (g_utf8_validate (string->str, -1, NULL));
-
-  return g_string_free (string, FALSE);
+    return (char**)g_ptr_array_free(array, false);
 }

@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2010 litl, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -23,7 +23,7 @@
 #ifndef __CAIRO_MODULE_H__
 #define __CAIRO_MODULE_H__
 
-JSBool           gjs_js_define_cairo_stuff              (JSContext       *context,
-                                                         JSObject       **module_out);
+bool gjs_js_define_cairo_stuff(JSContext              *context,
+                               JS::MutableHandleObject module);
 
 #endif /* __CAIRO_MODULE_H__ */

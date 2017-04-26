@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2010 litl, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,8 +22,9 @@
 
 #include <config.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-wrapper.h"
 #include <cairo.h>
 #include <cairo-gobject.h>
 #include "cairo-private.h"
@@ -35,7 +36,9 @@ typedef struct {
     cairo_pattern_t *pattern;
 } GjsCairoPattern;
 
-GJS_DEFINE_PROTO_ABSTRACT_WITH_GTYPE("CairoPattern", cairo_pattern, CAIRO_GOBJECT_TYPE_PATTERN)
+GJS_DEFINE_PROTO_ABSTRACT_WITH_GTYPE("Pattern", cairo_pattern,
+                                     CAIRO_GOBJECT_TYPE_PATTERN,
+                                     JSCLASS_BACKGROUND_FINALIZE)
 GJS_DEFINE_PRIV_FROM_JS(GjsCairoPattern, gjs_cairo_pattern_class)
 
 static void
@@ -52,41 +55,43 @@ gjs_cairo_pattern_finalize(JSFreeOp *fop,
 
 /* Properties */
 JSPropertySpec gjs_cairo_pattern_proto_props[] = {
-    { NULL }
+    JS_PS_END
 };
 
 /* Methods */
 
-static JSBool
+static bool
 getType_func(JSContext *context,
              unsigned   argc,
-             jsval     *vp)
+             JS::Value *vp)
 {
-    JSObject *obj = JS_THIS_OBJECT(context, vp);
+    GJS_GET_THIS(context, argc, vp, rec, obj);
     cairo_pattern_t *pattern;
     cairo_pattern_type_t type;
 
     if (argc > 1) {
         gjs_throw(context, "Pattern.getType() takes no arguments");
-        return JS_FALSE;
+        return false;
     }
 
     pattern = gjs_cairo_pattern_get_pattern(context, obj);
     type = cairo_pattern_get_type(pattern);
 
     if (!gjs_cairo_check_status(context, cairo_pattern_status(pattern), "pattern"))
-        return JS_FALSE;
+        return false;
 
-    JS_SET_RVAL(context, vp, INT_TO_JSVAL(type));
-    return JS_TRUE;
+    rec.rval().setInt32(type);
+    return true;
 }
 
 JSFunctionSpec gjs_cairo_pattern_proto_funcs[] = {
     // getMatrix
-    { "getType", JSOP_WRAPPER((JSNative)getType_func), 0, 0 },
+    JS_FS("getType", getType_func, 0, 0),
     // setMatrix
-    { NULL }
+    JS_FS_END
 };
+
+JSFunctionSpec gjs_cairo_pattern_static_funcs[] = { JS_FS_END };
 
 /* Public API */
 
@@ -103,7 +108,7 @@ JSFunctionSpec gjs_cairo_pattern_proto_funcs[] = {
  */
 void
 gjs_cairo_pattern_construct(JSContext       *context,
-                            JSObject        *object,
+                            JS::HandleObject object,
                             cairo_pattern_t *pattern)
 {
     GjsCairoPattern *priv;
@@ -167,13 +172,14 @@ gjs_cairo_pattern_from_pattern(JSContext       *context,
             return gjs_cairo_linear_gradient_from_pattern(context, pattern);
         case CAIRO_PATTERN_TYPE_RADIAL:
             return gjs_cairo_radial_gradient_from_pattern(context, pattern);
+        case CAIRO_PATTERN_TYPE_MESH:
+        case CAIRO_PATTERN_TYPE_RASTER_SOURCE:
         default:
-            break;
+            gjs_throw(context,
+                      "failed to create pattern, unsupported pattern type %d",
+                      cairo_pattern_get_type(pattern));
+            return NULL;
     }
-
-    gjs_throw(context, "failed to create pattern, unsupported pattern type %d",
-              cairo_pattern_get_type(pattern));
-    return NULL;
 }
 
 /**

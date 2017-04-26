@@ -6,13 +6,13 @@ includedir=@includedir@
 datarootdir=@datarootdir@
 datadir=@datadir@
 
-gjs_console=${bindir}/cjs-console
+cjs_console=${bindir}/cjs-console
 
 Cflags: -I${includedir}/cjs-1.0
-Requires: gobject-2.0
-Requires.private: gobject-introspection-1.0 mozjs-24
+Requires: @AX_PACKAGE_REQUIRES@
+Requires.private: @AX_PACKAGE_REQUIRES_PRIVATE@
 Libs: -L${libdir} -lcjs
 
 Name: cjs-1.0
-Description: JS bindings for GObjects
+Description: Cinnamon JS bindings for GObjects
 Version: @VERSION@

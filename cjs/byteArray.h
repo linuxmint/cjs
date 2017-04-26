@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2010  litl, LLC
  *
@@ -24,37 +24,32 @@
 #ifndef __GJS_BYTE_ARRAY_H__
 #define __GJS_BYTE_ARRAY_H__
 
-#if !defined (__GJS_GJS_H__) && !defined (GJS_COMPILATION)
-#error "Only <gjs/gjs.h> can be included directly."
-#endif
-
+#include <stdbool.h>
 #include <glib.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-JSBool    gjs_typecheck_bytearray        (JSContext     *context,
-                                          JSObject      *obj,
-                                          JSBool         throw_error);
+bool        gjs_typecheck_bytearray(JSContext       *context,
+                                    JS::HandleObject obj,
+                                    bool             throw_error);
 
-JSBool        gjs_define_byte_array_stuff    (JSContext  *context,
-                                              JSObject  **module_out);
+bool gjs_define_byte_array_stuff(JSContext              *context,
+                                 JS::MutableHandleObject module);
 
 JSObject *    gjs_byte_array_from_byte_array (JSContext  *context,
                                               GByteArray *array);
-JSObject *    gjs_byte_array_from_bytes (JSContext  *context,
-                                         GBytes *bytes);
 
-GByteArray *   gjs_byte_array_get_byte_array (JSContext  *context,
-                                              JSObject   *object);
+GByteArray *gjs_byte_array_get_byte_array(JSContext       *context,
+                                          JS::HandleObject object);
 
-GBytes *      gjs_byte_array_get_bytes (JSContext  *context,
-                                        JSObject   *object);
+GBytes     *gjs_byte_array_get_bytes(JSContext       *context,
+                                     JS::HandleObject object);
 
-void          gjs_byte_array_peek_data (JSContext  *context,
-                                        JSObject   *object,
-                                        guint8    **out_data,
-                                        gsize      *out_len);
+void        gjs_byte_array_peek_data(JSContext       *context,
+                                     JS::HandleObject object,
+                                     guint8         **out_data,
+                                     gsize           *out_len);
 
 G_END_DECLS
 

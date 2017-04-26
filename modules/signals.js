@@ -26,6 +26,8 @@
 // 3) the expectation is that a given object will have a very small number of
 //    connections, but they may be to different signal names
 
+const Lang = imports.lang;
+
 function _connect(name, callback) {
     // be paranoid about callback arg since we'd start to throw from emit()
     // if it was messed up
@@ -153,11 +155,28 @@ function _emit(name /* , arg1, arg2 */) {
     }
 }
 
-function addSignalMethods(proto) {
-    proto.connect = _connect;
-    proto.disconnect = _disconnect;
-    proto.emit = _emit;
-    proto.signalHandlerIsConnected = _signalHandlerIsConnected;
-    // this one is not in GObject, but useful
-    proto.disconnectAll = _disconnectAll;
+function _addSignalMethod(proto, functionName, func) {
+    if (proto[functionName] && proto[functionName] != func) {
+        log("WARNING: addSignalMethods is replacing existing " +
+            proto + " " + functionName + " method");
+    }
+
+    proto[functionName] = func;
 }
+
+function addSignalMethods(proto) {
+    _addSignalMethod(proto, "connect", _connect);
+    _addSignalMethod(proto, "disconnect", _disconnect);
+    _addSignalMethod(proto, "emit", _emit);
+    _addSignalMethod(proto, "signalHandlerIsConnected", _signalHandlerIsConnected)
+    // this one is not in GObject, but useful
+    _addSignalMethod(proto, "disconnectAll", _disconnectAll);
+}
+
+const WithSignals = new Lang.Interface({
+    Name: 'WithSignals',
+    connect: _connect,
+    disconnect: _disconnect,
+    emit: _emit,
+    disconnectAll: _disconnectAll,
+});

@@ -2,122 +2,105 @@
 # Process this file with autoconf to produce a configure script.
 
 m4_define(pkg_major_version, 3)
-m4_define(pkg_minor_version, 2)
+m4_define(pkg_minor_version, 3)
 m4_define(pkg_micro_version, 0)
 m4_define(pkg_version, pkg_major_version.pkg_minor_version.pkg_micro_version)
 m4_define(pkg_int_version, (pkg_major_version * 100 + pkg_minor_version) * 100 + pkg_micro_version)
 
-AC_PREREQ(2.61)
-AC_INIT([cjs], pkg_version, [https://github.com/linuxmint/cjs])
-AC_CONFIG_MACRO_DIR([m4])
-
-m4_ifdef([AX_IS_RELEASE], [AX_IS_RELEASE([always])])
-
-AM_INIT_AUTOMAKE([dist-xz no-dist-gzip])
+AC_PREREQ([2.64])
+AC_INIT([cjs],[pkg_version],[https://github.com/linuxmint/cjs/issues/new],[cjs],[https://github.com/linuxmint/cjs])
+AM_INIT_AUTOMAKE([1.11.1 subdir-objects dist-xz no-dist-gzip tar-ustar -Wno-portability])
+AX_IS_RELEASE([git-directory])
 AC_CONFIG_SRCDIR([cjs/console.cpp])
-AC_CONFIG_HEADER([config.h])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_HEADERS([config.h])
+AC_REQUIRE_AUX_FILE([tap-driver.sh])
 
+AC_SUBST(GJS_VERSION, m4_eval(pkg_int_version))
 AC_DEFINE([GJS_VERSION], pkg_int_version, [The gjs version as an integer])
 
-GETTEXT_PACKAGE=cjs
-AC_SUBST([GETTEXT_PACKAGE])
+AC_SUBST([GETTEXT_PACKAGE], [cjs])
 AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE], ["$GETTEXT_PACKAGE"], [The name of the gettext domain])
 
 AM_MAINTAINER_MODE([enable])
-m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
+AM_SILENT_RULES([yes])
 
 # our first pkg-config invocation is conditional, ensure macros still work
 PKG_PROG_PKG_CONFIG
+PKG_INSTALLDIR
 
-AC_PROG_CC
-AM_PROG_CC_C_O
+AC_LANG([C++])
 AC_PROG_CXX
 AX_CXX_COMPILE_STDCXX_11
-AC_ISC_POSIX
-AC_HEADER_STDC
 
+LT_PREREQ([2.2.0])
 # no stupid static libraries
-AM_DISABLE_STATIC
-# avoid libtool for LTCOMPILE, use it only to link
-AC_PROG_LIBTOOL
-dnl DOLT
+LT_INIT([disable-static])
 
-# Checks for typedefs, structures, and compiler characteristics.
-AC_C_CONST
+# Other programs
+AC_PROG_MKDIR_P
+AC_PROG_LN_S
+AC_PROG_SED
+AC_PROG_AWK
 
-m4_ifdef([AX_COMPILER_FLAGS],
-         [AX_COMPILER_FLAGS([WARN_CFLAGS],[WARN_LDFLAGS])])
+AX_COMPILER_FLAGS
 
-# coverage
-AC_ARG_ENABLE([coverage],
-              [AS_HELP_STRING([--enable-coverage],
-                              [enable code coverage])],
-              , [enable_coverage=no])
-if test x$enable_coverage = xyes; then
-    if test x$GCC != xyes; then
-        AC_MSG_ERROR([GCC is required for --enable-coverage])
-    fi
-
-    AC_PATH_TOOL([LCOV], [lcov])
-    AC_PATH_TOOL([GENHTML], [genhtml])
-
-    if test x$LCOV = x || test x$GENHTML = x; then
-        AC_MSG_ERROR([lcov and genhtml are required for --enable-coverage])
-    fi
-
-    CFLAGS="$CFLAGS -g -O0 --coverage"
-    CXXFLAGS="$CXXFLAGS -g -O0 --coverage"
-    LIBS="$LIBS -lgcov"
-fi
-AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
+AX_CODE_COVERAGE
+dnl Clang does not need to link with -lgcov
+AX_CHECK_LINK_FLAG([-lgcov],, [
+	CODE_COVERAGE_LIBS=
+	CODE_COVERAGE_LDFLAGS=
+])
 
 # Checks for libraries.
-m4_define(glib_required_version, 2.37.3)
+m4_define(glib_required_version, 2.48.2)
 
-AC_CHECK_HEADERS([malloc.h])
-AC_CHECK_FUNCS(mallinfo)
+GOBJECT_INTROSPECTION_REQUIRE([1.41.4])
 
-GOBJECT_INTROSPECTION_REQUIRE([1.33.10])
-
-common_packages="gmodule-2.0 gthread-2.0 gio-2.0 >= glib_required_version mozjs-24"
+GOBJECT_REQUIREMENT="gobject-2.0 >= glib_required_version"
+gjs_base_packages="$GOBJECT_REQUIREMENT gio-2.0"
+common_packages="gthread-2.0 gio-2.0 >= glib_required_version mozjs-38"
 gjs_packages="gobject-introspection-1.0 libffi $common_packages"
 gjs_cairo_packages="cairo cairo-gobject $common_packages"
-gjs_gdbus_packages="gobject-2.0 >= glib_required_version gio-2.0"
-gjs_gtk_packages="gtk+-3.0"
+gjs_gtk_packages="gtk+-3.0 >= 3.18.9"
 # gjs-tests links against everything
-gjstests_packages="$gjstests_packages $gjs_packages"
+gjstests_packages="gio-unix-2.0 $gjs_packages"
 
-PKG_CHECK_MODULES([GOBJECT], [gobject-2.0 >= glib_required_version])
-PKG_CHECK_MODULES([GJS], [$gjs_packages])
-PKG_CHECK_MODULES([GJS_GDBUS], [$gjs_gdbus_packages])
+AX_PKG_CHECK_MODULES([GJS], [$GOBJECT_REQUIREMENT], [$gjs_packages])
+dnl These don't need to be put in the .pc file so use regular PKG_CHECK_MODULES
+PKG_CHECK_MODULES([GJS_GDBUS], [$gjs_base_packages])
+PKG_CHECK_MODULES([GJS_CONSOLE], [$gjs_base_packages])
 PKG_CHECK_MODULES([GJSTESTS], [$gjstests_packages])
 
 # Optional cairo dep (enabled by default)
 AC_ARG_WITH(cairo,
-	    AS_HELP_STRING([--without-cairo], [Use cairo @<:@default=yes@:>@]),
-	    [], [with_cairo=yes])
-AS_IF([test x$with_cairo = xyes], [
-  PKG_CHECK_MODULES([GJS_CAIRO], [$gjs_cairo_packages], have_cairo=yes, have_cairo=no)
-  ])
+  [AS_HELP_STRING([--without-cairo], [Don't build cairo module])])
+AS_IF([test "x$with_cairo" != "xno"],
+  [AX_PKG_CHECK_MODULES([GJS_CAIRO], [], [$gjs_cairo_packages],
+    [have_cairo=yes], [have_cairo=no])],
+  [have_cairo=no])
 AM_CONDITIONAL(ENABLE_CAIRO, test x$have_cairo = xyes)
 AS_IF([test x$have_cairo = xyes], [
   AC_DEFINE([ENABLE_CAIRO],[1],[Define if you want to build with cairo support])
-])
+  AX_PKG_CHECK_MODULES([GJS_CAIRO_XLIB], [], [cairo-xlib], [],
+    [AC_MSG_WARN([Cairo-xlib support not found])])
+], [AS_IF([test "x$with_cairo" = "xyes"],
+  [AC_MSG_ERROR([Cairo requested but not found])])])
 
 # Optional GTK+ dep (enabled by default)
 AC_ARG_WITH(gtk,
-            AS_HELP_STRING([--without-gtk], [Use GTK+ @<:@default=yes@:>@]),
-            [], [with_gtk=yes])
-AS_IF([test x$with_gtk = xyes], [
-  PKG_CHECK_MODULES([GJS_GTK], [$gjs_gtk_packages], have_gtk=yes, have_gtk=no)
-  ], [have_gtk=no])
+  [AS_HELP_STRING([--without-gtk], [Don't build GTK-related code])])
+AS_IF([test "x$with_gtk" != "xno"],
+  [AX_PKG_CHECK_MODULES([GJS_GTK], [], [$gjs_gtk_packages],
+    [have_gtk=yes], [have_gtk=no])],
+  [have_gtk=no])
 AM_CONDITIONAL(ENABLE_GTK, test x$have_gtk = xyes)
 AS_IF([test x$have_gtk = xyes], [
   AC_DEFINE([ENABLE_GTK],[1],[Define if you want to build with GTK+ support])
-])
+], [AS_IF([test "x$with_gtk" = "xyes"],
+  [AC_MSG_ERROR([GTK requested but not found])])])
 
-GI_DATADIR=$($PKG_CONFIG --variable=gidatadir gobject-introspection-1.0)
-AC_SUBST(GI_DATADIR)
+PKG_CHECK_VAR([GI_DATADIR], [gobject-introspection-1.0], [gidatadir])
 
 # readline
 LIBS_no_readline=$LIBS
@@ -143,96 +126,128 @@ done
 if test $gjs_cv_lib_readline = no; then
   AC_MSG_RESULT([none])
   READLINE_LIBS=""
+  ac_cv_header_readline_readline_h=no
 else
   AC_MSG_RESULT([$READLINE_LIBS])
-  AC_DEFINE(HAVE_LIBREADLINE, 1,
-    [Define if you have the readline library (-lreadline).])
+  AC_CHECK_HEADERS([readline/readline.h])
 fi
 
-AC_TRY_CPP([#include <readline/readline.h>],
-have_readline=yes, have_readline=no)
-
-AM_CONDITIONAL([HAVE_READLINE], [test x$have_readline = xyes])
 AC_SUBST([READLINE_LIBS])
-AC_SUBST([HAVE_READLINE])
 
 # End of readline checks: restore LIBS
 LIBS=$LIBS_no_readline
 
-AC_CHECK_FUNCS([backtrace])
+AC_MSG_CHECKING([whether printf() accepts '%Id' for alternative integer output])
+CXXFLAGS_save="$CXXFLAGS"
+CXXFLAGS="-Werror -Wformat -pedantic-errors"
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdio.h>]],
+  [[printf("%Id", (int)0);]])], [
+    AC_MSG_RESULT([yes])
+    AC_DEFINE([HAVE_PRINTF_ALTERNATIVE_INT], [1],
+      [Define to 1 if printf() accepts '%Id' for alternative integer output])
+  ],
+  [AC_MSG_RESULT([no])])
+CXXFLAGS="$CXXFLAGS_save"
 
 AC_ARG_ENABLE(installed_tests,
-              AS_HELP_STRING([--enable-installed-tests],
-                             [Install test programs (default: no)]),,
-              [enable_installed_tests=no])
+  [AS_HELP_STRING([--enable-installed-tests],
+    [Install test programs @<:@default: no@:>@])])
 AM_CONDITIONAL(BUILDOPT_INSTALL_TESTS, test x$enable_installed_tests = xyes)
 
 dnl
 dnl Tracing
 dnl
 
-AC_MSG_CHECKING([whether to include systemtap tracing support])
-AC_ARG_ENABLE([systemtap],
-             [AS_HELP_STRING([--enable-systemtap],
-                              [Enable inclusion of systemtap trace support])],
-              [ENABLE_SYSTEMTAP="${enableval}"], [ENABLE_SYSTEMTAP='no'])
-AC_MSG_RESULT(${ENABLE_SYSTEMTAP})
-
-AC_MSG_CHECKING([whether to include dtrace tracing support])
 AC_ARG_ENABLE([dtrace],
-             [AS_HELP_STRING([--enable-dtrace],
-                              [Enable inclusion of dtrace trace support])],
-              [ENABLE_DTRACE="${enableval}"], [ENABLE_DTRACE='no'])
-AC_MSG_RESULT(${ENABLE_DTRACE})
+  [AS_HELP_STRING([--enable-dtrace],
+    [Include dtrace trace support @<:@default: no@:>@])])
 
-AM_CONDITIONAL([ENABLE_SYSTEMTAP], [test x$ENABLE_SYSTEMTAP = xyes])
-AM_CONDITIONAL([ENABLE_DTRACE], [test x$ENABLE_DTRACE = xyes -o x$ENABLE_SYSTEMTAP = xyes])
+AC_ARG_ENABLE([systemtap],
+  [AS_HELP_STRING([--enable-systemtap],
+    [Include systemtap trace support (implies --enable-dtrace) @<:@default: no@:>@])])
+AS_IF([test "x$enable_systemtap" = "xyes"], [enable_dtrace=yes])
+AM_CONDITIONAL([ENABLE_SYSTEMTAP], [test "x$enable_systemtap" = "xyes"])
 
-if test "x${ENABLE_DTRACE}" = xyes -o "x${ENABLE_SYSTEMTAP}" = xyes; then
-  AC_CHECK_PROGS(DTRACE, dtrace)
-  if test -z "$DTRACE"; then
-    AC_MSG_ERROR([dtrace not found])
-  fi
-  AC_CHECK_HEADER([sys/sdt.h], [SDT_H_FOUND='yes'],
-                  [SDT_H_FOUND='no';
-                   AC_MSG_ERROR([tracing support needs sys/sdt.h header])])
+AS_IF([test "x$enable_dtrace" = "xyes"], [
+  AC_PATH_PROG([DTRACE], [dtrace])
+  AS_IF([test -z "$DTRACE"],
+    [AC_MSG_ERROR([dtrace is required for --enable-dtrace or --enable-systemtap])])
+  AC_CHECK_HEADER([sys/sdt.h],,
+    [AC_MSG_ERROR([sys/sdt.h header is required for --enable-dtrace or --enable-systemtap])])
   AC_DEFINE([HAVE_DTRACE], [1], [Define to 1 if using dtrace probes.])
-fi
-
-# Checks for typedefs, structures, and compiler characteristics.
-AC_C_CONST
+])
+AM_CONDITIONAL([ENABLE_DTRACE], [test "x$enable_dtrace" = "xyes"])
 
 dnl
 dnl Check for -Bsymbolic-functions linker flag used to avoid
 dnl intra-library PLT jumps, if available.
 dnl
-AC_ARG_ENABLE(Bsymbolic,
-              [AS_HELP_STRING([--disable-Bsymbolic],
-                              [avoid linking with -Bsymbolic])],,
-              [SAVED_LDFLAGS="${LDFLAGS}"
-               AC_MSG_CHECKING([for -Bsymbolic-functions linker flag])
-               LDFLAGS=-Wl,-Bsymbolic-functions
-               AC_TRY_LINK([], [int main (void) { return 0; }],
-                           AC_MSG_RESULT(yes)
-                           enable_Bsymbolic=yes,
-                           AC_MSG_RESULT(no)
-                           enable_Bsymbolic=no)
-               LDFLAGS="${SAVED_LDFLAGS}"])
+AC_ARG_ENABLE([Bsymbolic],
+  [AS_HELP_STRING([--disable-Bsymbolic], [avoid linking with -Bsymbolic])])
+AS_IF([test "x$enable_Bsymbolic" != "xno"],
+  [AX_APPEND_LINK_FLAGS([-Bsymbolic-functions])])
 
-if test "x${enable_Bsymbolic}" = "xyes"; then
-  EXTRA_LINK_FLAGS=-Wl,-Bsymbolic-functions
-fi
+dnl If SpiderMonkey was compiled with this configure option, then GJS needs to
+dnl be compiled with it as well, because we inherit from a SpiderMonkey class in
+dnl jsapi-constructor-proxy.cpp. See build/autoconf/compiler-opts.m4 in mozjs31.
+AC_ARG_ENABLE([cpp-rtti],
+  [AS_HELP_STRING([--enable-cpp-rtti],
+    [needs to match SpiderMonkey's config option @<:@default=off@:>@])])
+AS_IF([test "x$enable_cpp_rtti" != "xyes"],
+  [AX_APPEND_COMPILE_FLAGS([-fno-rtti])],
+  [AX_APPEND_COMPILE_FLAGS([-GR-])])
 
-AC_SUBST(EXTRA_LINK_FLAGS)
+AC_ARG_WITH([xvfb-tests],
+  [AS_HELP_STRING([--with-xvfb-tests],
+    [Run all tests under an XVFB server @<:@default=no@:>@])])
+AS_IF([test "x$with_xvfb_tests" = "xyes"], [
+  AC_PATH_PROG([XVFB], [Xvfb])
+  AS_IF([test -z "$XVFB"],
+    [AC_MSG_ERROR([Xvfb is required for --with-xvfb-tests])])
+])
+AM_CONDITIONAL([XVFB_TESTS], [test "x$with_xvfb_tests" = "xyes"])
 
-gjsjsdir="\${datadir}/cjs-1.0"
-AC_SUBST([gjsjsdir])
+AC_ARG_WITH([dbus-tests],
+  [AS_HELP_STRING([--without-dbus-tests],
+    [Don't try to use DBus during make check @<:@default=use@:>@])])
+AS_IF([test "x$with_dbus_tests" != "xno"], [
+  AC_PATH_PROG([DBUS_RUN_SESSION], [dbus-run-session])
+  AS_IF([test -z "$DBUS_RUN_SESSION"],
+    [AC_MSG_ERROR([dbus-run-session is required for --with-dbus-tests])])
+])
+AM_CONDITIONAL([DBUS_TESTS], [test "x$with_dbus_tests" != "xno"])
+
+AX_APPEND_COMPILE_FLAGS(['--param inline-unit-growth=50'])
+
+AC_SUBST([gjsjsdir], [\${datadir}/cjs-1.0])
 
 dnl automake 1.11/1.12 defines this but does not substitute it
 AC_SUBST([pkglibexecdir], ["${libexecdir}/${PACKAGE}"])
 
-AC_CONFIG_FILES([Makefile cjs-1.0.pc cjs-internals-1.0.pc])
+AC_CONFIG_FILES([Makefile cjs-1.0.pc win32/config.h.win32])
+dnl Symlink the files from gobject-introspection's test libraries into the tree;
+dnl Automake plans to drop support for compiling them in-place.
+AC_CONFIG_LINKS([
+  installed-tests/gitestmacros.h:$GI_DATADIR/tests/gitestmacros.h
+  installed-tests/regress.c:$GI_DATADIR/tests/regress.c
+  installed-tests/regress.h:$GI_DATADIR/tests/regress.h
+  installed-tests/warnlib.c:$GI_DATADIR/tests/warnlib.c
+  installed-tests/warnlib.h:$GI_DATADIR/tests/warnlib.h
+  installed-tests/gimarshallingtests.c:$GI_DATADIR/tests/gimarshallingtests.c
+  installed-tests/gimarshallingtests.h:$GI_DATADIR/tests/gimarshallingtests.h
+])
 AC_OUTPUT
+
+# Warn about conditions that affect runtime
+PKG_CHECK_EXISTS([gobject-introspection-1.0 >= 1.46.0], [], [
+    AC_MSG_WARN([You do not have a new enough version of
+gobject-introspection to run the tests. You can still build CJS, but some
+tests will fail.])])
+
+TEST_MSG=
+AM_COND_IF([XVFB_TESTS], [TEST_MSG="xvfb "])
+AM_COND_IF([DBUS_TESTS], [TEST_MSG="${TEST_MSG}dbus"])
+AS_IF([test -z "$TEST_MSG"], [TEST_MSG="nothing special"])
 
 AC_MSG_RESULT([
         $PACKAGE_NAME $VERSION
@@ -242,7 +257,9 @@ AC_MSG_RESULT([
 
 	cairo:			${have_cairo}
 	GTK+:			${have_gtk}
-	readline:		${have_readline}
-	dtrace:			${ENABLE_DTRACE}
-	systemtap:		${ENABLE_SYSTEMTAP}
+	readline:		${ac_cv_header_readline_readline_h}
+	dtrace:			${enable_dtrace:-no}
+	systemtap:		${enable_systemtap:-no}
+	Run tests under:	${TEST_MSG}
+	Code coverage:		${enable_code_coverage}
 ])

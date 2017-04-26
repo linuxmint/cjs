@@ -1,139 +1,45 @@
 EXTRA_DIST += \
-	installed-tests/jsunit.test.in \
-	installed-tests/script.test.in \
+	installed-tests/minijasmine.test.in		\
+	installed-tests/script.test.in			\
+	installed-tests/js/jsunit.gresources.xml	\
 	$(NULL)
 
-installedtestmetadir = $(datadir)/installed-tests/cjs
-installedtestmeta_DATA = 
-if BUILDOPT_INSTALL_TESTS
-installedtestmeta_DATA += jsunit.test
-endif
-
-jsunit.test: installed-tests/jsunit.test.in Makefile
-	sed -e s,@pkglibexecdir\@,$(pkglibexecdir), < $< > $@.tmp && mv $@.tmp $@
-
 gjsinsttestdir = $(pkglibexecdir)/installed-tests
-gjsinsttest_PROGRAMS = 
-if BUILDOPT_INSTALL_TESTS
-gjsinsttest_PROGRAMS += jsunit
-endif
-
-TEST_PROGS += jsunit
-
-TEST_INTROSPECTION_GIRS =
-
-jsunit_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS) -DPKGLIBDIR=\"$(pkglibdir)\" -DINSTTESTDIR=\"$(gjsinsttestdir)\" 
-jsunit_CFLAGS = $(AM_CFLAGS) $(GJS_CFLAGS) -I$(top_srcdir)
-jsunit_LDADD = $(GJS_LIBS) libcjs.la
-jsunit_LDFLAGS = -rpath $(pkglibdir)
-jsunit_SOURCES = installed-tests/gjs-unit.cpp
-
-privlibdir = $(pkglibdir)
-privlib_LTLIBRARIES =
-check_LTLIBRARIES =
-if BUILDOPT_INSTALL_TESTS
-privlib_LTLIBRARIES += libregress.la libwarnlib.la libgimarshallingtests.la
-else
-check_LTLIBRARIES += libregress.la libwarnlib.la libgimarshallingtests.la
-endif
-
-# This rpath /nowhere thing is the libtool upstream recommended way to
-# force generation of shared libraries, which we need in order for the
-# tests to work uninstalled.
-common_test_ldflags = -avoid-version -rpath /nowhere
-common_test_libadd = $(GJS_LIBS)
-
-nodist_libregress_la_SOURCES = $(GI_DATADIR)/tests/regress.c $(GI_DATADIR)/tests/regress.h
-libregress_la_CPPFLAGS = $(AM_CPPFLAGS)
-libregress_la_CFLAGS = $(GJS_CFLAGS)
-libregress_la_LDFLAGS = $(common_test_ldflags)
-libregress_la_LIBADD = $(common_test_libadd)
-libregress_scannerflags_includes = --include=Gio-2.0
-if ENABLE_CAIRO
-libregress_la_CFLAGS += $(GJS_CAIRO_CFLAGS)
-libregress_la_LDFLAGS +=  $(GJS_CAIRO_LIBS)
-libregress_scannerflags_includes += --include=cairo-1.0
-else
-libregress_la_CPPFLAGS += -D_GI_DISABLE_CAIRO
-endif
-nodist_libwarnlib_la_SOURCES = $(GI_DATADIR)/tests/warnlib.c $(GI_DATADIR)/tests/warnlib.h
-libwarnlib_la_CFLAGS = $(GJS_CFLAGS)
-libwarnlib_la_LDFLAGS = $(common_test_ldflags)
-libwarnlib_la_LIBADD = $(common_test_libadd)
-nodist_libgimarshallingtests_la_SOURCES = $(GI_DATADIR)/tests/gimarshallingtests.c $(GI_DATADIR)/tests/gimarshallingtests.h
-libgimarshallingtests_la_CFLAGS = $(GJS_CFLAGS)
-libgimarshallingtests_la_LDFLAGS = $(common_test_ldflags)
-libgimarshallingtests_la_LIBADD = $(common_test_libadd)
-
-Regress-1.0.gir: libregress.la
-Regress_1_0_gir_LIBS = libregress.la
-Regress_1_0_gir_FILES = $(nodist_libregress_la_SOURCES)
-Regress_1_0_gir_SCANNERFLAGS = --warn-all --warn-error $(libregress_scannerflags_includes)
-TEST_INTROSPECTION_GIRS += Regress-1.0.gir
-
-WarnLib-1.0.gir: libwarnlib.la
-WarnLib_1_0_gir_LIBS = libwarnlib.la
-WarnLib_1_0_gir_INCLUDES = Gio-2.0
-WarnLib_1_0_gir_FILES = $(nodist_libwarnlib_la_SOURCES)
-WarnLib_1_0_gir_SCANNERFLAGS = --c-include="warnlib.h" --symbol-prefix=warnlib_
-TEST_INTROSPECTION_GIRS += WarnLib-1.0.gir
-
-GIMarshallingTests-1.0.gir: libgimarshallingtests.la
-GIMarshallingTests_1_0_gir_LIBS = libgimarshallingtests.la
-GIMarshallingTests_1_0_gir_INCLUDES = Gio-2.0
-GIMarshallingTests_1_0_gir_FILES = $(nodist_libgimarshallingtests_la_SOURCES)
-GIMarshallingTests_1_0_gir_SCANNERFLAGS = --symbol-prefix=gi_marshalling_tests --warn-all --warn-error
-TEST_INTROSPECTION_GIRS += GIMarshallingTests-1.0.gir
-
-$(foreach gir,$(TEST_INTROSPECTION_GIRS),$(eval $(call introspection-scanner,$(gir))))
-gjsinsttest_DATA =
-noinst_DATA =
-if BUILDOPT_INSTALL_TESTS
-gjsinsttest_DATA += $(TEST_INTROSPECTION_GIRS:.gir=.typelib)
-else
-noinst_DATA += $(TEST_INTROSPECTION_GIRS:.gir=.typelib)
-endif
-CLEANFILES += $(TEST_INTROSPECTION_GIRS) $(TEST_INTROSPECTION_GIRS:.gir=.typelib)
-
+installedtestmetadir = $(datadir)/installed-tests/cjs
 jstestsdir = $(gjsinsttestdir)/js
-dist_jstests_DATA =
-if BUILDOPT_INSTALL_TESTS
-dist_jstests_DATA += \
-	installed-tests/js/test0010basic.js		\
-	installed-tests/js/test0020importer.js		\
-	installed-tests/js/test0030basicBoxed.js		\
-	installed-tests/js/test0040mainloop.js		\
-	installed-tests/js/testself.js			\
-	installed-tests/js/testByteArray.js		\
-	installed-tests/js/testClass.js			\
-	installed-tests/js/testCoverage.js \
-	installed-tests/js/testGDBus.js			\
-	installed-tests/js/testEverythingBasic.js		\
-	installed-tests/js/testEverythingEncapsulated.js	\
-	installed-tests/js/testFormat.js		\
-	installed-tests/js/testFundamental.js			\
-	installed-tests/js/testGIMarshalling.js		\
-	installed-tests/js/testGObjectClass.js		\
-	installed-tests/js/testJS1_8.js			\
-	installed-tests/js/testLang.js			\
-	installed-tests/js/testLocale.js			\
-	installed-tests/js/testMainloop.js			\
-	installed-tests/js/testMetaClass.js			\
-	installed-tests/js/testParamSpec.js			\
-	installed-tests/js/testReflectObject.js			\
-	installed-tests/js/testSignals.js			\
-	installed-tests/js/testSystem.js			\
-	installed-tests/js/testTweener.js			\
-	installed-tests/js/testUnicode.js
-
-if ENABLE_CAIRO
-dist_jstests_DATA += installed-tests/js/testCairo.js
-endif
-
-%.test: installed-tests/scripts/%.js installed-tests/script.test.in Makefile
-	sed -e s,@pkglibexecdir\@,$(pkglibexecdir), -e s,@name\@,$(notdir $<), < $(srcdir)/installed-tests/script.test.in > $@.tmp && mv $@.tmp $@
-
 jsscripttestsdir = $(gjsinsttestdir)/scripts
-dist_jsscripttests_DATA = installed-tests/scripts/testSystemExit.js
-installedtestmeta_DATA += testSystemExit.test
-endif
+
+gjsinsttest_PROGRAMS = 
+gjsinsttest_DATA =
+installedtestmeta_DATA = 
+jstests_DATA =
+jsscripttests_DATA =
+pkglib_LTLIBRARIES =
+
+if BUILDOPT_INSTALL_TESTS
+
+gjsinsttest_PROGRAMS += minijasmine
+gjsinsttest_DATA += $(TEST_INTROSPECTION_TYPELIBS)
+installedtestmeta_DATA += 		\
+	$(jasmine_tests:.js=.test)	\
+	$(simple_tests:%=%.test)	\
+	$(NULL)
+jstests_DATA += $(jasmine_tests)
+jsscripttests_DATA += $(simple_tests)
+pkglib_LTLIBRARIES += libregress.la libwarnlib.la libgimarshallingtests.la
+
+%.test: %.js installed-tests/minijasmine.test.in Makefile
+	$(AM_V_GEN)$(MKDIR_P) $(@D) && \
+	$(SED) -e s,@pkglibexecdir\@,$(pkglibexecdir),g \
+		-e s,@name\@,$(notdir $<), \
+		< $(srcdir)/installed-tests/minijasmine.test.in > $@.tmp && \
+	mv $@.tmp $@
+
+%.test: % installed-tests/script.test.in Makefile
+	$(AM_V_GEN)$(MKDIR_P) $(@D) && \
+	$(SED) -e s,@pkglibexecdir\@,$(pkglibexecdir), \
+		-e s,@name\@,$(notdir $<), \
+		< $(srcdir)/installed-tests/script.test.in > $@.tmp && \
+	mv $@.tmp $@
+
+endif BUILDOPT_INSTALL_TESTS

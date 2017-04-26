@@ -1,192 +1,263 @@
-// This used to be called "Everything"
-const JSUnit = imports.jsUnit;
-const Everything = imports.gi.Regress;
-const GLib = imports.gi.GLib;
+const Regress = imports.gi.Regress;
 
-function testStruct() {
-    let struct = new Everything.TestStructA();
-    struct.some_int = 42;
-    struct.some_int8 = 43;
-    struct.some_double = 42.5;
-    struct.some_enum = Everything.TestEnum.VALUE3;
-    JSUnit.assertEquals(42, struct.some_int);
-    JSUnit.assertEquals(43, struct.some_int8);
-    JSUnit.assertEquals(42.5, struct.some_double);
-    JSUnit.assertEquals(Everything.TestEnum.VALUE3, struct.some_enum);
-    let b = struct.clone();
-    JSUnit.assertEquals(42, b.some_int);
-    JSUnit.assertEquals(43, b.some_int8);
-    JSUnit.assertEquals(42.5, b.some_double);
-    JSUnit.assertEquals(Everything.TestEnum.VALUE3, b.some_enum);
+describe('Introspected structs', function () {
+    let struct;
 
-    struct = new Everything.TestStructB();
-    struct.some_int8 = 43;
-    struct.nested_a.some_int8 = 66;
-    JSUnit.assertEquals(43, struct.some_int8);
-    JSUnit.assertEquals(66, struct.nested_a.some_int8);
-    b = struct.clone();
-    JSUnit.assertEquals(43, b.some_int8);
-    JSUnit.assertEquals(66, struct.nested_a.some_int8);
-}
+    describe('simple', function () {
+        beforeEach(function () {
+            struct = new Regress.TestStructA();
+            struct.some_int = 42;
+            struct.some_int8 = 43;
+            struct.some_double = 42.5;
+            struct.some_enum = Regress.TestEnum.VALUE3;
+        });
 
-function testStructConstructor()
-{
-    // "Copy" an object from a hash of field values
-    let struct = new Everything.TestStructA({ some_int: 42,
-                                              some_int8: 43,
-                                              some_double: 42.5,
-                                              some_enum: Everything.TestEnum.VALUE3 });
+        it('sets fields correctly', function () {
+            expect(struct.some_int).toEqual(42);
+            expect(struct.some_int8).toEqual(43);
+            expect(struct.some_double).toEqual(42.5);
+            expect(struct.some_enum).toEqual(Regress.TestEnum.VALUE3);
+        });
 
-    JSUnit.assertEquals(42, struct.some_int);
-    JSUnit.assertEquals(43, struct.some_int8);
-    JSUnit.assertEquals(42.5, struct.some_double);
-    JSUnit.assertEquals(Everything.TestEnum.VALUE3, struct.some_enum);
-
-    // Make sure we catch bad field names
-    JSUnit.assertRaises(function() {
-        let t = new Everything.TestStructA({ junk: 42 });
+        it('can clone', function () {
+            let b = struct.clone();
+            expect(b.some_int).toEqual(42);
+            expect(b.some_int8).toEqual(43);
+            expect(b.some_double).toEqual(42.5);
+            expect(b.some_enum).toEqual(Regress.TestEnum.VALUE3);
+        });
     });
 
-    // Copy an object from another object of the same type, shortcuts to memcpy()
-    let copy = new Everything.TestStructA(struct);
+    describe('nested', function () {
+        beforeEach(function () {
+            struct = new Regress.TestStructB();
+            struct.some_int8 = 43;
+            struct.nested_a.some_int8 = 66;
+        });
 
-    JSUnit.assertEquals(42, copy.some_int);
-    JSUnit.assertEquals(43, copy.some_int8);
-    JSUnit.assertEquals(42.5, copy.some_double);
-    JSUnit.assertEquals(Everything.TestEnum.VALUE3, copy.some_enum);
-}
+        it('sets fields correctly', function () {
+            expect(struct.some_int8).toEqual(43);
+            expect(struct.nested_a.some_int8).toEqual(66);
+        });
 
-function testSimpleBoxed() {
-    let simple_boxed = new Everything.TestSimpleBoxedA();
-    simple_boxed.some_int = 42;
-    simple_boxed.some_int8 = 43;
-    simple_boxed.some_double = 42.5;
-    simple_boxed.some_enum = Everything.TestEnum.VALUE3;
-    JSUnit.assertEquals(42, simple_boxed.some_int);
-    JSUnit.assertEquals(43, simple_boxed.some_int8);
-    JSUnit.assertEquals(42.5, simple_boxed.some_double);
-    JSUnit.assertEquals(Everything.TestEnum.VALUE3, simple_boxed.some_enum);
-}
-
-function testBoxedCopyConstructor()
-{
-    // "Copy" an object from a hash of field values
-    let simple_boxed = new Everything.TestSimpleBoxedA({ some_int: 42,
-                                                         some_int8: 43,
-                                                         some_double: 42.5,
-                                                         some_enum: Everything.TestEnum.VALUE3 });
-
-    JSUnit.assertEquals(42, simple_boxed.some_int);
-    JSUnit.assertEquals(43, simple_boxed.some_int8);
-    JSUnit.assertEquals(42.5, simple_boxed.some_double);
-    JSUnit.assertEquals(Everything.TestEnum.VALUE3, simple_boxed.some_enum);
-
-    // Make sure we catch bad field names
-    JSUnit.assertRaises(function() {
-        let t = new Everything.TestSimpleBoxedA({ junk: 42 });
+        it('can clone', function () {
+            let b = struct.clone();
+            expect(b.some_int8).toEqual(43);
+            expect(b.nested_a.some_int8).toEqual(66);
+        });
     });
 
-    // Copy an object from another object of the same type, shortcuts to the boxed copy
-    let copy = new Everything.TestSimpleBoxedA(simple_boxed);
+    describe('constructors', function () {
+        beforeEach(function () {
+            struct = new Regress.TestStructA({
+                some_int: 42,
+                some_int8: 43,
+                some_double: 42.5,
+                some_enum: Regress.TestEnum.VALUE3,
+            });
+        });
 
-    JSUnit.assertTrue(copy instanceof Everything.TestSimpleBoxedA);
-    JSUnit.assertEquals(42, copy.some_int);
-    JSUnit.assertEquals(43, copy.some_int8);
-    JSUnit.assertEquals(42.5, copy.some_double);
-    JSUnit.assertEquals(Everything.TestEnum.VALUE3, copy.some_enum);
- }
+        it('"copies" an object from a hash of field values', function () {
+            expect(struct.some_int).toEqual(42);
+            expect(struct.some_int8).toEqual(43);
+            expect(struct.some_double).toEqual(42.5);
+            expect(struct.some_enum).toEqual(Regress.TestEnum.VALUE3);
+        });
 
-function testNestedSimpleBoxed() {
-    let simple_boxed = new Everything.TestSimpleBoxedB();
+        it('catches bad field names', function () {
+            expect(() => new Regress.TestStructA({ junk: 42 })).toThrow();
+        });
 
-    // Test reading fields and nested fields
-    simple_boxed.some_int8 = 42;
-    simple_boxed.nested_a.some_int = 43;
-    JSUnit.assertEquals(42, simple_boxed.some_int8);
-    JSUnit.assertEquals(43, simple_boxed.nested_a.some_int);
-
-    // Try assigning the nested struct field from an instance
-    simple_boxed.nested_a = new Everything.TestSimpleBoxedA({ some_int: 53 });
-    JSUnit.assertEquals(53, simple_boxed.nested_a.some_int);
-
-    // And directly from a hash of field values
-    simple_boxed.nested_a = { some_int: 63 };
-    JSUnit.assertEquals(63, simple_boxed.nested_a.some_int);
-
-    // Try constructing with a nested hash of field values
-    let simple2 = new Everything.TestSimpleBoxedB({
-        some_int8: 42,
-        nested_a: {
-            some_int: 43,
-            some_int8: 44,
-            some_double: 43.5
-        }
+        it('copies an object from another object of the same type', function () {
+            let copy = new Regress.TestStructA(struct);
+            expect(copy.some_int).toEqual(42);
+            expect(copy.some_int8).toEqual(43);
+            expect(copy.some_double).toEqual(42.5);
+            expect(copy.some_enum).toEqual(Regress.TestEnum.VALUE3);
+        });
     });
-    JSUnit.assertEquals(42, simple2.some_int8);
-    JSUnit.assertEquals(43, simple2.nested_a.some_int);
-    JSUnit.assertEquals(44, simple2.nested_a.some_int8);
-    JSUnit.assertEquals(43.5, simple2.nested_a.some_double);
-}
 
-function testBoxed() {
-    let boxed = new Everything.TestBoxed();
-    boxed.some_int8 = 42;
-    JSUnit.assertEquals(42, boxed.some_int8);
-}
+    it('containing fixed array', function () {
+        let struct = new Regress.TestStructFixedArray();
+        struct.frob();
+        expect(struct.just_int).toEqual(7);
+        expect(struct.array).toEqual([42, 43, 44, 45, 46, 47, 48, 49, 50, 51]);
+    });
+});
 
-function testTestStructFixedArray() {
-    let struct = new Everything.TestStructFixedArray();
-    struct.frob();
-    JSUnit.assertEquals(7, struct.just_int);
-    JSUnit.assertEquals(42, struct.array[0]);
-    JSUnit.assertEquals(43, struct.array[1]);
-    JSUnit.assertEquals(51, struct.array[9]);
-}
+describe('Introspected boxed types', function () {
+    let simple_boxed;
 
-function testComplexConstructor() {
-    let boxed = new Everything.TestBoxedD('abcd', 8);
+    it('sets fields correctly', function () {
+        simple_boxed = new Regress.TestSimpleBoxedA();
+        simple_boxed.some_int = 42;
+        simple_boxed.some_int8 = 43;
+        simple_boxed.some_double = 42.5;
+        simple_boxed.some_enum = Regress.TestEnum.VALUE3;
+        expect(simple_boxed.some_int).toEqual(42);
+        expect(simple_boxed.some_int8).toEqual(43);
+        expect(simple_boxed.some_double).toEqual(42.5);
+        expect(simple_boxed.some_enum).toEqual(Regress.TestEnum.VALUE3);
 
-    JSUnit.assertEquals(12, boxed.get_magic());
-}
+        let boxed = new Regress.TestBoxed();
+        boxed.some_int8 = 42;
+        expect(boxed.some_int8).toEqual(42);
+    });
 
-function testComplexConstructorBackwardCompatibility() {
+    describe('copy constructors', function () {
+        beforeEach(function () {
+            simple_boxed = new Regress.TestSimpleBoxedA({
+                some_int: 42,
+                some_int8: 43,
+                some_double: 42.5,
+                some_enum: Regress.TestEnum.VALUE3,
+            });
+        });
+
+        it('"copies" an object from a hash of field values', function () {
+            expect(simple_boxed.some_int).toEqual(42);
+            expect(simple_boxed.some_int8).toEqual(43);
+            expect(simple_boxed.some_double).toEqual(42.5);
+            expect(simple_boxed.some_enum).toEqual(Regress.TestEnum.VALUE3);
+        });
+
+        it('catches bad field names', function () {
+            expect(() => new Regress.TestSimpleBoxedA({ junk: 42 })).toThrow();
+        });
+
+        it('copies an object from another object of the same type', function () {
+            let copy = new Regress.TestSimpleBoxedA(simple_boxed);
+            expect(copy instanceof Regress.TestSimpleBoxedA).toBeTruthy();
+            expect(copy.some_int).toEqual(42);
+            expect(copy.some_int8).toEqual(43);
+            expect(copy.some_double).toEqual(42.5);
+            expect(copy.some_enum).toEqual(Regress.TestEnum.VALUE3);
+        });
+    });
+
+    describe('nested', function () {
+        beforeEach(function () {
+            simple_boxed = new Regress.TestSimpleBoxedB();
+        });
+
+        it('reads fields and nested fields', function () {
+            simple_boxed.some_int8 = 42;
+            simple_boxed.nested_a.some_int = 43;
+            expect(simple_boxed.some_int8).toEqual(42);
+            expect(simple_boxed.nested_a.some_int).toEqual(43);
+        });
+
+        it('assigns nested struct field from an instance', function () {
+            simple_boxed.nested_a = new Regress.TestSimpleBoxedA({ some_int: 53 });
+            expect(simple_boxed.nested_a.some_int).toEqual(53);
+        });
+
+        it('assigns nested struct field directly from a hash of field values', function () {
+            simple_boxed.nested_a = { some_int: 63 };
+            expect(simple_boxed.nested_a.some_int).toEqual(63);
+        });
+    });
+
+    it('constructs with a nested hash of field values', function () {
+        let simple2 = new Regress.TestSimpleBoxedB({
+            some_int8: 42,
+            nested_a: {
+                some_int: 43,
+                some_int8: 44,
+                some_double: 43.5
+            }
+        });
+        expect(simple2.some_int8).toEqual(42);
+        expect(simple2.nested_a.some_int).toEqual(43);
+        expect(simple2.nested_a.some_int8).toEqual(44);
+        expect(simple2.nested_a.some_double).toEqual(43.5);
+    });
+
+    it('constructs using a custom constructor', function () {
+        let boxed = new Regress.TestBoxedD('abcd', 8);
+        expect(boxed.get_magic()).toEqual(12);
+    });
+
     // RegressTestBoxedB has a constructor that takes multiple
     // arguments, but since it is directly allocatable, we keep
     // the old style of passing an hash of fields.
     // The two real world structs that have this behavior are
     // Clutter.Color and Clutter.ActorBox.
-    let boxed = new Everything.TestBoxedB({ some_int8: 7, some_long: 5 });
+    it('constructs using a custom constructor in backwards compatibility mode', function () {
+        let boxed = new Regress.TestBoxedB({ some_int8: 7, some_long: 5 });
+        expect(boxed.some_int8).toEqual(7);
+        expect(boxed.some_long).toEqual(5);
+    });
+});
 
-    JSUnit.assertEquals(7, boxed.some_int8);
-    JSUnit.assertEquals(5, boxed.some_long);
-}
+describe('Introspected GObject', function () {
+    let obj;
+    beforeEach(function () {
+        obj = new Regress.TestObj({
+            // These properties have backing public fields with different names
+            int: 42,
+            float: 3.1416,
+            double: 2.71828,
+        });
+    });
 
-function testVariantConstructor() {
-    let str_variant = new GLib.Variant('s', 'mystring');
-    JSUnit.assertEquals('mystring', str_variant.get_string()[0]);
-    JSUnit.assertEquals('mystring', str_variant.deep_unpack());
+    it('can access fields with simple types', function () {
+        // Compare the values gotten through the GObject property getters to the
+        // values of the backing fields
+        expect(obj.some_int8).toEqual(obj.int);
+        expect(obj.some_float).toEqual(obj.float);
+        expect(obj.some_double).toEqual(obj.double);
+    });
 
-    let str_variant_old = GLib.Variant.new('s', 'mystring');
-    JSUnit.assertTrue(str_variant.equal(str_variant_old));
+    it('cannot access fields with complex types (GI limitation)', function () {
+        expect(() => obj.parent_instance).toThrow();
+        expect(() => obj.function_ptr).toThrow();
+    });
 
-    let struct_variant = new GLib.Variant('(sogvau)',
-					  [ 'a string',
-					    '/a/object/path',
-					    'asig', //nature
-					    new GLib.Variant('s', 'variant'),
-					    [ 7, 3 ]
-					  ]);
-    JSUnit.assertEquals(5, struct_variant.n_children());
+    it('silently does not set read-only fields', function () {
+        obj.some_int8 = 41;
+        expect(obj.some_int8).toEqual(42);
+        expect(obj.int).toEqual(42);
+    });
 
-    let unpacked = struct_variant.deep_unpack();
-    JSUnit.assertEquals('a string', unpacked[0]);
-    JSUnit.assertEquals('/a/object/path', unpacked[1]);
-    JSUnit.assertEquals('asig', unpacked[2]);
-    JSUnit.assertTrue(unpacked[3] instanceof GLib.Variant);
-    JSUnit.assertEquals('variant', unpacked[3].deep_unpack());
-    JSUnit.assertTrue(unpacked[4] instanceof Array);
-    JSUnit.assertEquals(2, unpacked[4].length);
-}
+    it('throws an error in strict mode when setting a read-only field', function () {
+        'use strict';
+        expect(() => obj.some_int8 = 41).toThrow();
+    });
 
-JSUnit.gjstestRun(this, JSUnit.setUp, JSUnit.tearDown);
+    it('has normal Object methods', function () {
+        obj.ownprop = 'foo';
+        expect(obj.hasOwnProperty('ownprop')).toBeTruthy();
+    });
+});
 
+describe('Introspected function length', function () {
+    let obj;
+    beforeEach(function () {
+        obj = new Regress.TestObj();
+    });
+
+    it('skips over instance parameters of methods', function () {
+        expect(obj.set_bare.length).toEqual(1);
+    });
+
+    it('skips over out and GError parameters', function () {
+        expect(obj.torture_signature_1.length).toEqual(3);
+    });
+
+    it('does not skip over inout parameters', function () {
+        expect(obj.skip_return_val.length).toEqual(5);
+    });
+
+    xit('skips over parameters annotated with skip', function () {
+        expect(obj.skip_param.length).toEqual(4);
+    }).pend('Not implemented yet');
+
+    it('gives number of arguments for static methods', function () {
+        expect(Regress.TestObj.new_from_file.length).toEqual(1);
+    });
+
+    it('skips over destroy-notify and user-data parameters', function () {
+        expect(Regress.TestObj.new_callback.length).toEqual(1);
+    });
+});

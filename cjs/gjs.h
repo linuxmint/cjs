@@ -24,6 +24,9 @@
 #ifndef __GJS_GJS_H__
 #define __GJS_GJS_H__
 
+#include <cjs/macros.h>
 #include <cjs/context.h>
+#include <cjs/coverage.h>
+#include <util/error.h>
 
 #endif /* __GJS_GJS_H__ */

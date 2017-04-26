@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -30,8 +30,10 @@
 #include "object.h"
 #include "repo.h"
 #include "gtype.h"
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "function.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/mem.h"
 
 #include <util/log.h>
 
@@ -43,109 +45,68 @@ extern struct JSClass gjs_param_class;
 
 GJS_DEFINE_PRIV_FROM_JS(Param, gjs_param_class)
 
-static GIFieldInfo *
-find_field_info(GIObjectInfo *info,
-                gchar        *name)
-{
-    int i;
-    GIFieldInfo *field_info;
-
-    /* GParamSpecs aren't very big. We could optimize this so that it isn't
-     * O(N), but for the biggest GParamSpec, N=5, so it doesn't really matter. */
-    for (i = 0; i < g_object_info_get_n_fields((GIObjectInfo*)info); i++) {
-        field_info = g_object_info_get_field((GIObjectInfo*)info, i);
-        if (g_str_equal(name, g_base_info_get_name((GIBaseInfo*)field_info)))
-            return field_info;
-
-        g_base_info_unref((GIBaseInfo*)field_info);
-    }
-
-    return NULL;
-}
-
-/* a hook on getting a property; set value_p to override property's value.
- * Return value is JS_FALSE on OOM/exception.
+/*
+ * The *resolved out parameter, on success, should be false to indicate that id
+ * was not resolved; and true if id was resolved.
  */
-static JSBool
-param_get_prop(JSContext              *context,
-               JS::HandleObject        obj,
-               JS::HandleId            id,
-               JS::MutableHandleValue  value_p)
+static bool
+param_resolve(JSContext       *context,
+              JS::HandleObject obj,
+              JS::HandleId     id,
+              bool            *resolved)
 {
-    JSBool success;
+    GIObjectInfo *info = NULL;
+    GIFunctionInfo *method_info;
     Param *priv;
-    GParamSpec *pspec;
-    char *name;
-    GType gtype;
-    GIObjectInfo *info = NULL, *parent_info = NULL;
-    GIFieldInfo *field_info = NULL;
-    GITypeInfo *type_info = NULL;
-    GIArgument arg;
+    char *name = NULL;
+    bool ret = false;
 
     if (!gjs_get_string_id(context, id, &name))
-        return JS_TRUE; /* not something we affect, but no error */
+        return true; /* not resolved, but no error */
 
     priv = priv_from_js(context, obj);
 
-    if (priv == NULL) {
+    if (priv != NULL) {
+        /* instance, not prototype */
+        *resolved = false;
         g_free(name);
-        return JS_FALSE; /* wrong class */
+        return true;
     }
 
-    success = JS_FALSE;
-    pspec = priv->gparam;
+    info = (GIObjectInfo*)g_irepository_find_by_gtype(g_irepository_get_default(), G_TYPE_PARAM);
+    method_info = g_object_info_find_method(info, name);
 
-    gtype = G_TYPE_FROM_INSTANCE(pspec);
-    info = (GIObjectInfo*)g_irepository_find_by_gtype(g_irepository_get_default(), gtype);
-
-    if (info == NULL) {
-        /* We may have a non-introspectable GParamSpec subclass here. Just return VOID. */
-        value_p.set(JSVAL_VOID);
-        success = JS_TRUE;
+    if (method_info == NULL) {
+        *resolved = false;
+        ret = true;
         goto out;
     }
+#if GJS_VERBOSE_ENABLE_GI_USAGE
+    _gjs_log_info_usage((GIBaseInfo*) method_info);
+#endif
 
-    parent_info = g_object_info_get_parent(info);
+    if (g_function_info_get_flags (method_info) & GI_FUNCTION_IS_METHOD) {
+        gjs_debug(GJS_DEBUG_GOBJECT,
+                  "Defining method %s in prototype for GObject.ParamSpec",
+                  g_base_info_get_name( (GIBaseInfo*) method_info));
 
-    field_info = find_field_info(info, name);
+        if (gjs_define_function(context, obj, G_TYPE_PARAM, method_info) == NULL) {
+            g_base_info_unref( (GIBaseInfo*) method_info);
+            goto out;
+        }
 
-    if (field_info == NULL) {
-        /* Try it on the parent GParamSpec for generic GParamSpec properties. */
-        field_info = find_field_info(parent_info, name);
+        *resolved = true; /* we defined the prop in obj */
     }
 
-    if (field_info == NULL) {
-        value_p.set(JSVAL_VOID);
-        success = JS_TRUE;
-        goto out;
-    }
+    g_base_info_unref( (GIBaseInfo*) method_info);
 
-    type_info = g_field_info_get_type(field_info);
-
-    if (!g_field_info_get_field(field_info, priv->gparam, &arg)) {
-        gjs_throw(context, "Reading field %s.%s is not supported",
-                  g_base_info_get_name(info),
-                  g_base_info_get_name((GIBaseInfo*)field_info));
-        goto out;
-    }
-
-    if (!gjs_value_from_g_argument(context, value_p.address(), type_info, &arg, TRUE))
-        goto out;
-
-    success = JS_TRUE;
-
+    ret = true;
  out:
-    if (field_info != NULL)
-        g_base_info_unref((GIBaseInfo*)field_info);
-    if (type_info != NULL)
-        g_base_info_unref((GIBaseInfo*)type_info);
+    g_free(name); 
     if (info != NULL)
-        g_base_info_unref((GIBaseInfo*)info);
-    if (parent_info != NULL)
-        g_base_info_unref((GIBaseInfo*)parent_info);
-    g_free(name);
+        g_base_info_unref( (GIBaseInfo*)info);
 
-    return success;
+    return ret;
 }
 
 GJS_NATIVE_CONSTRUCTOR_DECLARE(param)
@@ -154,7 +115,7 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(param)
     GJS_NATIVE_CONSTRUCTOR_PRELUDE(param);
     GJS_INC_COUNTER(param);
     GJS_NATIVE_CONSTRUCTOR_FINISH(param);
-    return JS_TRUE;
+    return true;
 }
 
 static void
@@ -178,232 +139,6 @@ param_finalize(JSFreeOp *fop,
     g_slice_free(Param, priv);
 }
 
-static JSBool
-param_new_internal(JSContext *cx,
-                   unsigned   argc,
-                   jsval     *vp)
-{
-    jsval *argv = JS_ARGV(cx, vp);
-    GParamSpec *pspec = NULL;
-    JSBool ret = JS_FALSE;
-    gchar *method_name;
-
-    gchar *prop_name;
-    JSObject *prop_gtype_jsobj;
-    GType prop_gtype;
-    GType prop_type;
-    gchar *nick;
-    gchar *blurb;
-    GParamFlags flags;
-    jsval foo;
-
-    if (!gjs_parse_args(cx, "GObject.ParamSpec._new_internal",
-                        "!sossi", argc, argv,
-                        "prop_name", &prop_name,
-                        "prop_gtype", &prop_gtype_jsobj,
-                        "nick", &nick,
-                        "blurb", &blurb,
-                        "flags", &flags))
-        return JS_FALSE;
-
-    prop_gtype = gjs_gtype_get_actual_gtype(cx, prop_gtype_jsobj);
-    prop_type = G_TYPE_FUNDAMENTAL(prop_gtype);
-
-    method_name = g_strdup_printf("GObject.ParamSpec.%s",
-                                  g_type_name(prop_type));
-
-    argv += 5;
-    argc -= 5;
-
-    switch (prop_type) {
-    case G_TYPE_UCHAR:
-    case G_TYPE_CHAR:
-	{
-	    gchar *minimum, *maximum, *default_value;
-
-            if (!gjs_parse_args(cx, method_name,
-                                "sss", argc, argv,
-                                "minimum", &minimum,
-                                "maximum", &maximum,
-                                "default_value", &default_value))
-                goto out;
-
-            if (prop_type == G_TYPE_CHAR)
-                pspec = g_param_spec_char(prop_name, nick, blurb,
-                                          minimum[0], maximum[0], default_value[0],
-                                          flags);
-            else
-                pspec = g_param_spec_uchar(prop_name, nick, blurb,
-                                           minimum[0], maximum[0], default_value[0],
-                                           flags);
- 
-            g_free(minimum);
-            g_free(maximum);
-            g_free(default_value);
-	}
-	break;
-    case G_TYPE_INT:
-    case G_TYPE_UINT:
-    case G_TYPE_LONG:
-    case G_TYPE_ULONG:
-    case G_TYPE_INT64:
-    case G_TYPE_UINT64:
-        {
-            gint64 minimum, maximum, default_value;
-
-            if (!gjs_parse_args(cx, method_name,
-                                "ttt", argc, argv,
-                                "minimum", &minimum,
-                                "maximum", &maximum,
-                                "default_value", &default_value))
-                goto out;
-
-            switch (prop_type) {
-            case G_TYPE_INT:
-                pspec = g_param_spec_int(prop_name, nick, blurb,
-                                         minimum, maximum, default_value, flags);
-                break;
-            case G_TYPE_UINT:
-                pspec = g_param_spec_uint(prop_name, nick, blurb,
-                                          minimum, maximum, default_value, flags);
-                break;
-            case G_TYPE_LONG:
-                pspec = g_param_spec_long(prop_name, nick, blurb,
-                                          minimum, maximum, default_value, flags);
-                break;
-            case G_TYPE_ULONG:
-                pspec = g_param_spec_ulong(prop_name, nick, blurb,
-                                           minimum, maximum, default_value, flags);
-                break;
-            case G_TYPE_INT64:
-                pspec = g_param_spec_int64(prop_name, nick, blurb,
-                                           minimum, maximum, default_value, flags);
-                break;
-            case G_TYPE_UINT64:
-                pspec = g_param_spec_uint64(prop_name, nick, blurb,
-                                            minimum, maximum, default_value, flags);
-                break;
-            }
-        }
-        break;
-    case G_TYPE_BOOLEAN:
-        {
-            gboolean default_value;
-
-            if (!gjs_parse_args(cx, method_name,
-                                "b", argc, argv,
-                                "default_value", &default_value))
-                goto out;
-
-            default_value = JSVAL_TO_BOOLEAN(argv[0]);
-
-            pspec = g_param_spec_boolean(prop_name, nick, blurb,
-                                         default_value, flags);
-        }
-        break;
-    case G_TYPE_ENUM:
-        {
-            GIEnumInfo *info;
-            gint64 default_value;
-
-            if (!gjs_parse_args(cx, method_name,
-                                "t", argc, argv,
-                                "default_value", &default_value))
-                goto out;
-
-            info = g_irepository_find_by_gtype(g_irepository_get_default(), prop_gtype);
-
-            if (!_gjs_enum_value_is_valid(cx, info, default_value))
-                goto out;
-
-            pspec = g_param_spec_enum(prop_name, nick, blurb,
-                                      prop_gtype, default_value, flags);
-        }
-        break;
-    case G_TYPE_FLAGS:
-        {
-            gint64 default_value;
-
-            if (!gjs_parse_args(cx, method_name,
-                                "t", argc, argv,
-                                "default_value", &default_value))
-                goto out;
-
-            if (!_gjs_flags_value_is_valid(cx, prop_gtype, default_value))
-                goto out;
-
-            pspec = g_param_spec_flags(prop_name, nick, blurb,
-                                       prop_gtype, default_value, flags);
-        }
-        break;
-    case G_TYPE_FLOAT:
-    case G_TYPE_DOUBLE:
-        {
-	    gfloat minimum, maximum, default_value;
-
-            if (!gjs_parse_args(cx, "GObject.ParamSpec.float",
-                                "fff", argc, argv,
-                                "minimum", &minimum,
-                                "maximum", &maximum,
-                                "default_value", &default_value))
-                goto out;
-
-            if (prop_type == G_TYPE_FLOAT)
-                pspec = g_param_spec_float(prop_name, nick, blurb,
-                                           minimum, maximum, default_value, flags);
-            else
-                pspec = g_param_spec_double(prop_name, nick, blurb,
-                                            minimum, maximum, default_value, flags);
-        }
-        break;
-    case G_TYPE_STRING:
-        {
-            gchar *default_value;
-
-            if (!gjs_parse_args(cx, method_name,
-                                "s", argc, argv,
-                                "default_value", &default_value))
-                goto out;
-
-            pspec = g_param_spec_string(prop_name, nick, blurb,
-                                        default_value, flags);
-
-            g_free (default_value);
-        }
-        break;
-    case G_TYPE_PARAM:
-        pspec = g_param_spec_param(prop_name, nick, blurb, prop_gtype, flags);
-        break;
-    case G_TYPE_BOXED:
-        pspec = g_param_spec_boxed(prop_name, nick, blurb, prop_gtype, flags);
-        break;
-    case G_TYPE_POINTER:
-        pspec = g_param_spec_pointer(prop_name, nick, blurb, flags);
-        break;
-    case G_TYPE_OBJECT:
-        pspec = g_param_spec_object(prop_name, nick, blurb, prop_gtype, flags);
-        break;
-    default:
-        gjs_throw(cx,
-                  "Could not create param spec for type '%s'",
-                  g_type_name(prop_gtype));
-        goto out;
-    }
-
-    ret = JS_TRUE;
-
-    foo = OBJECT_TO_JSVAL(gjs_param_from_g_param(cx, pspec));
-
-    JS_SET_RVAL(cx, vp, foo);
- out:
-
-    g_free(method_name);
-    g_free(prop_name);
-    g_free(nick);
-    g_free(blurb);
-
-    return ret;
-}
 
 /* The bizarre thing about this vtable is that it applies to both
  * instances of the object, and to the prototype that instances of the
@@ -411,79 +146,73 @@ param_new_internal(JSContext *cx,
  */
 struct JSClass gjs_param_class = {
     "GObject_ParamSpec",
-    JSCLASS_HAS_PRIVATE,
-    JS_PropertyStub,
-    JS_DeletePropertyStub,
-    param_get_prop,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    param_finalize,
-    NULL,
-    NULL,
-    NULL, NULL, NULL
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_BACKGROUND_FINALIZE |
+    JSCLASS_IMPLEMENTS_BARRIERS,
+    NULL,  /* addProperty */
+    NULL,  /* deleteProperty */
+    NULL,  /* getProperty */
+    NULL,  /* setProperty */
+    NULL,  /* enumerate */
+    param_resolve,
+    NULL,  /* convert */
+    param_finalize
 };
 
 JSPropertySpec gjs_param_proto_props[] = {
-    { NULL }
+    JS_PS_END
 };
 
 JSFunctionSpec gjs_param_proto_funcs[] = {
-    { NULL }
+    JS_FS_END
 };
 
 static JSFunctionSpec gjs_param_constructor_funcs[] = {
-    { "_new_internal", JSOP_WRAPPER((JSNative)param_new_internal), 0, 0 },
-    { NULL }
+    JS_FS_END
 };
 
 static JSObject*
 gjs_lookup_param_prototype(JSContext    *context)
 {
-    JSObject *in_object;
-    JSObject *constructor;
-    jsid gobject_name;
-    jsval value;
-
-    gobject_name = gjs_intern_string_to_id(context, "GObject");
-    in_object = gjs_lookup_namespace_object_by_name(context, gobject_name);
+    JS::RootedId gobject_name(context, gjs_intern_string_to_id(context, "GObject"));
+    JS::RootedObject in_object(context,
+        gjs_lookup_namespace_object_by_name(context, gobject_name));
 
     if (G_UNLIKELY (!in_object))
         return NULL;
 
+    JS::RootedValue value(context);
     if (!JS_GetProperty(context, in_object, "ParamSpec", &value))
         return NULL;
 
-    if (G_UNLIKELY (!JSVAL_IS_OBJECT(value) || JSVAL_IS_NULL(value)))
+    if (G_UNLIKELY (!value.isObject()))
         return NULL;
 
-    constructor = JSVAL_TO_OBJECT(value);
+    JS::RootedObject constructor(context, &value.toObject());
     g_assert(constructor != NULL);
 
-    if (!gjs_object_get_property_const(context, constructor,
-                                       GJS_STRING_PROTOTYPE, &value))
+    if (!gjs_object_get_property(context, constructor,
+                                 GJS_STRING_PROTOTYPE, &value))
         return NULL;
 
-    if (G_UNLIKELY (!JSVAL_IS_OBJECT(value)))
+    if (G_UNLIKELY (!value.isObjectOrNull()))
         return NULL;
 
-    return JSVAL_TO_OBJECT(value);
+    return value.toObjectOrNull();
 }
 
 void
-gjs_define_param_class(JSContext    *context,
-                       JSObject     *in_object)
+gjs_define_param_class(JSContext       *context,
+                       JS::HandleObject in_object)
 {
     const char *constructor_name;
-    JSObject *prototype;
-    jsval value;
-    JSObject *constructor;
+    JS::RootedObject prototype(context), constructor(context);
+    GIObjectInfo *info;
 
     constructor_name = "ParamSpec";
 
     if (!gjs_init_class_dynamic(context, in_object,
-                                NULL,
+                                JS::NullPtr(),
                                 "GObject",
                                 constructor_name,
                                 &gjs_param_class,
@@ -501,12 +230,17 @@ gjs_define_param_class(JSContext    *context,
         g_error("Can't init class %s", constructor_name);
     }
 
-    value = OBJECT_TO_JSVAL(gjs_gtype_create_gtype_wrapper(context, G_TYPE_PARAM));
-    JS_DefineProperty(context, constructor, "$gtype", value,
-                      NULL, NULL, JSPROP_PERMANENT);
+    JS::RootedObject gtype_obj(context,
+        gjs_gtype_create_gtype_wrapper(context, G_TYPE_PARAM));
+    JS_DefineProperty(context, constructor, "$gtype", gtype_obj, JSPROP_PERMANENT);
+
+    info = (GIObjectInfo*)g_irepository_find_by_gtype(g_irepository_get_default(), G_TYPE_PARAM);
+    gjs_object_define_static_methods(context, constructor, G_TYPE_PARAM, info);
+    g_base_info_unref( (GIBaseInfo*) info);
 
     gjs_debug(GJS_DEBUG_GPARAM, "Defined class %s prototype is %p class %p in object %p",
-              constructor_name, prototype, JS_GetClass(prototype), in_object);
+              constructor_name, prototype.get(), JS_GetClass(prototype),
+              in_object.get());
 }
 
 JSObject*
@@ -514,7 +248,6 @@ gjs_param_from_g_param(JSContext    *context,
                        GParamSpec   *gparam)
 {
     JSObject *obj;
-    JSObject *proto;
     Param *priv;
 
     if (gparam == NULL)
@@ -526,11 +259,9 @@ gjs_param_from_g_param(JSContext    *context,
               gparam->name,
               g_type_name(gparam->owner_type));
 
-    proto = gjs_lookup_param_prototype(context);
+    JS::RootedObject proto(context, gjs_lookup_param_prototype(context));
 
-    obj = JS_NewObjectWithGivenProto(context,
-                                     JS_GetClass(proto), proto,
-                                     gjs_get_import_global (context));
+    obj = JS_NewObjectWithGivenProto(context, JS_GetClass(proto), proto);
 
     GJS_INC_COUNTER(param);
     priv = g_slice_new0(Param);
@@ -546,8 +277,8 @@ gjs_param_from_g_param(JSContext    *context,
 }
 
 GParamSpec*
-gjs_g_param_from_param(JSContext    *context,
-                       JSObject     *obj)
+gjs_g_param_from_param(JSContext       *context,
+                       JS::HandleObject obj)
 {
     Param *priv;
 
@@ -559,37 +290,37 @@ gjs_g_param_from_param(JSContext    *context,
     return priv->gparam;
 }
 
-JSBool
-gjs_typecheck_param(JSContext     *context,
-                    JSObject      *object,
-                    GType          expected_type,
-                    JSBool         throw_error)
+bool
+gjs_typecheck_param(JSContext       *context,
+                    JS::HandleObject object,
+                    GType            expected_type,
+                    bool             throw_error)
 {
     Param *priv;
-    JSBool result;
+    bool result;
 
     if (!do_base_typecheck(context, object, throw_error))
-        return JS_FALSE;
+        return false;
 
     priv = priv_from_js(context, object);
 
     if (priv->gparam == NULL) {
         if (throw_error) {
-            gjs_throw_custom(context, "TypeError",
+            gjs_throw_custom(context, "TypeError", NULL,
                              "Object is GObject.ParamSpec.prototype, not an object instance - "
                              "cannot convert to a GObject.ParamSpec instance");
         }
 
-        return JS_FALSE;
+        return false;
     }
 
     if (expected_type != G_TYPE_NONE)
         result = g_type_is_a (G_TYPE_FROM_INSTANCE (priv->gparam), expected_type);
     else
-        result = JS_TRUE;
+        result = true;
 
     if (!result && throw_error) {
-        gjs_throw_custom(context, "TypeError",
+        gjs_throw_custom(context, "TypeError", NULL,
                          "Object is of type %s - cannot convert to %s",
                          g_type_name(G_TYPE_FROM_INSTANCE (priv->gparam)),
                          g_type_name(expected_type));

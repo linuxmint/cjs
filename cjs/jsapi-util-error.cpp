@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,7 +24,7 @@
 #include <config.h>
 
 #include "jsapi-util.h"
-#include "compat.h"
+#include "jsapi-wrapper.h"
 #include "gi/gerror.h"
 
 #include <util/log.h>
@@ -42,19 +42,19 @@
  * http://egachine.berlios.de/embedding-sm-best-practice/embedding-sm-best-practice.html#error-handling
  */
 static void
+G_GNUC_PRINTF(4, 0)
 gjs_throw_valist(JSContext       *context,
                  const char      *error_class,
+                 const char      *error_name,
                  const char      *format,
                  va_list          args)
 {
     char *s;
-    JSBool result;
-    jsval v_constructor, v_message;
-    JSObject *err_obj;
+    bool result;
 
     s = g_strdup_vprintf(format, args);
 
-    JSAutoCompartment compartment(context, JS_GetGlobalObject(context));
+    JSAutoCompartment compartment(context, gjs_get_import_global(context));
 
     JS_BeginRequest(context);
 
@@ -75,25 +75,43 @@ gjs_throw_valist(JSContext       *context,
         return;
     }
 
-    result = JS_FALSE;
+    JS::RootedObject constructor(context);
+    JS::RootedObject global(context, JS::CurrentGlobalOrNull(context));
+    JS::RootedValue v_constructor(context), exc_val(context);
+    JS::RootedObject new_exc(context);
+    JS::AutoValueArray<1> error_args(context);
+    result = false;
 
-    if (!gjs_string_from_utf8(context, s, -1, &v_message)) {
+    if (!gjs_string_from_utf8(context, s, -1, error_args[0])) {
         JS_ReportError(context, "Failed to copy exception string");
         goto out;
     }
 
-    if (!JS_GetProperty(context, JS_GetGlobalObject(context),
-                        error_class, &v_constructor) ||
-        !JSVAL_IS_OBJECT(v_constructor)) {
+    if (!JS_GetProperty(context, global, error_class, &v_constructor) ||
+        !v_constructor.isObject()) {
         JS_ReportError(context, "??? Missing Error constructor in global object?");
         goto out;
     }
 
     /* throw new Error(message) */
-    err_obj = JS_New(context, JSVAL_TO_OBJECT(v_constructor), 1, &v_message);
-    JS_SetPendingException(context, OBJECT_TO_JSVAL(err_obj));
+    constructor = &v_constructor.toObject();
+    new_exc = JS_New(context, constructor, error_args);
 
-    result = JS_TRUE;
+    if (new_exc == NULL)
+        goto out;
+
+    if (error_name != NULL) {
+        JS::RootedValue name_value(context);
+        if (!gjs_string_from_utf8(context, error_name, -1, &name_value) ||
+            !gjs_object_set_property(context, new_exc, GJS_STRING_NAME,
+                                     name_value))
+            goto out;
+    }
+
+    exc_val.setObject(*new_exc);
+    JS_SetPendingException(context, exc_val);
+
+    result = true;
 
  out:
 
@@ -125,25 +143,26 @@ gjs_throw(JSContext       *context,
     va_list args;
 
     va_start(args, format);
-    gjs_throw_valist(context, "Error", format, args);
+    gjs_throw_valist(context, "Error", NULL, format, args);
     va_end(args);
 }
 
 /*
  * Like gjs_throw, but allows to customize the error
- * class. Mainly used for throwing TypeError instead of
+ * class and 'name' property. Mainly used for throwing TypeError instead of
  * error.
  */
 void
 gjs_throw_custom(JSContext       *context,
                  const char      *error_class,
+                 const char      *error_name,
                  const char      *format,
                  ...)
 {
     va_list args;
 
     va_start(args, format);
-    gjs_throw_valist(context, error_class, format, args);
+    gjs_throw_valist(context, error_class, error_name, format, args);
     va_end(args);
 }
 
@@ -172,17 +191,16 @@ void
 gjs_throw_g_error (JSContext       *context,
                    GError          *error)
 {
-    JSObject *err_obj;
-
     if (error == NULL)
         return;
 
     JS_BeginRequest(context);
 
-    err_obj = gjs_error_from_gerror(context, error, TRUE);
+    JS::RootedValue err(context,
+        JS::ObjectOrNullValue(gjs_error_from_gerror(context, error, true)));
     g_error_free (error);
-    if (err_obj)
-        JS_SetPendingException(context, OBJECT_TO_JSVAL(err_obj));
+    if (!err.isNull())
+        JS_SetPendingException(context, err);
 
     JS_EndRequest(context);
 }

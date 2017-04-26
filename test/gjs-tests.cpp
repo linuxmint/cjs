@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -22,44 +22,20 @@
  */
 
 #include <config.h>
+
+#include <string>
+
 #include <glib.h>
 #include <glib-object.h>
-#include <cjs/gjs-module.h>
 #include <util/glib.h>
-#include <util/crash.h>
 
-#include "gjs-tests-add-funcs.h"
+#include <cjs/context.h>
+#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-wrapper.h"
+#include "gjs-test-utils.h"
+#include "util/error.h"
 
-typedef struct _GjsUnitTestFixture GjsUnitTestFixture;
-
-struct _GjsUnitTestFixture {
-    JSContext *context;
-    GjsContext *gjs_context;
-};
-
-static void
-test_error_reporter(JSContext     *context,
-                    const char    *message,
-                    JSErrorReport *report)
-{
-    g_printerr("error reported by test: %s\n", message);
-}
-
-static void
-_gjs_unit_test_fixture_begin (GjsUnitTestFixture *fixture)
-{
-    fixture->gjs_context = gjs_context_new ();
-    fixture->context = (JSContext *) gjs_context_get_native_context (fixture->gjs_context);
-    JS_BeginRequest(fixture->context);
-    JS_SetErrorReporter(fixture->context, test_error_reporter);
-}
-
-static void
-_gjs_unit_test_fixture_finish (GjsUnitTestFixture *fixture)
-{
-    JS_EndRequest(fixture->context);
-    g_object_unref(fixture->gjs_context);
-}
+#define VALID_UTF8_STRING "\303\211\303\226 foobar \343\203\237"
 
 static void
 gjstest_test_func_gjs_context_construct_destroy(void)
@@ -89,158 +65,227 @@ gjstest_test_func_gjs_context_construct_eval(void)
     g_object_unref (context);
 }
 
-#define N_ELEMS 15
-
 static void
-gjstest_test_func_gjs_jsapi_util_array(void)
+gjstest_test_func_gjs_context_exit(void)
 {
-    GjsUnitTestFixture fixture;
-    JSContext *context;
-    JSObject *global;
-    GjsRootedArray *array;
-    int i;
-    jsval value;
+    GjsContext *context = gjs_context_new();
+    GError *error = NULL;
+    int status;
 
-    _gjs_unit_test_fixture_begin(&fixture);
-    context = fixture.context;
+    bool ok = gjs_context_eval(context, "imports.system.exit(0);", -1,
+                               "<input>", &status, &error);
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT);
+    g_assert_cmpuint(status, ==, 0);
 
-    array = gjs_rooted_array_new();
+    g_clear_error(&error);
 
-    global = JS_GetGlobalObject(context);
-    JSCompartment *oldCompartment = JS_EnterCompartment(context, global);
+    ok = gjs_context_eval(context, "imports.system.exit(42);", -1, "<input>",
+                          &status, &error);
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT);
+    g_assert_cmpuint(status, ==, 42);
 
-    for (i = 0; i < N_ELEMS; i++) {
-        value = STRING_TO_JSVAL(JS_NewStringCopyZ(context, "abcdefghijk"));
-        gjs_rooted_array_append(context, array, value);
-    }
-
-    JS_GC(JS_GetRuntime(context));
-
-    for (i = 0; i < N_ELEMS; i++) {
-        char *ascii;
-
-        value = gjs_rooted_array_get(context, array, i);
-        g_assert(JSVAL_IS_STRING(value));
-        gjs_string_to_utf8(context, value, &ascii);
-        g_assert(strcmp(ascii, "abcdefghijk") == 0);
-        g_free(ascii);
-    }
-
-    gjs_rooted_array_free(context, array, TRUE);
-
-    JS_LeaveCompartment(context, oldCompartment);
-    _gjs_unit_test_fixture_finish(&fixture);
+    g_clear_error(&error);
+    g_object_unref(context);
 }
 
-#undef N_ELEMS
+#define JS_CLASS "\
+const Lang    = imports.lang; \
+const GObject = imports.gi.GObject; \
+\
+const FooBar = new Lang.Class({ \
+    Name: 'FooBar', \
+    Extends: GObject.Object, \
+}); \
+"
 
 static void
-gjstest_test_func_gjs_jsapi_util_string_js_string_utf8(void)
+gjstest_test_func_gjs_gobject_js_defined_type(void)
 {
-    GjsUnitTestFixture fixture;
-    JSContext *context;
-    JSObject *global;
+    GjsContext *context = gjs_context_new();
+    GError *error = NULL;
+    int status;
+    bool ok = gjs_context_eval(context, JS_CLASS, -1, "<input>", &status, &error);
+    g_assert_no_error(error);
+    g_assert_true(ok);
 
-    const char *utf8_string = "\303\211\303\226 foobar \343\203\237";
+    GType foo_type = g_type_from_name("Gjs_FooBar");
+    g_assert_cmpuint(foo_type, !=, G_TYPE_INVALID);
+
+    gpointer foo = g_object_new(foo_type, NULL);
+    g_assert(G_IS_OBJECT(foo));
+
+    g_object_unref(foo);
+    g_object_unref(context);
+}
+
+static void
+gjstest_test_func_gjs_jsapi_util_string_js_string_utf8(GjsUnitTestFixture *fx,
+                                                       gconstpointer       unused)
+{
     char *utf8_result;
-    jsval js_string;
+    JS::RootedValue js_string(fx->cx);
 
-    _gjs_unit_test_fixture_begin(&fixture);
-    context = fixture.context;
-    global = JS_GetGlobalObject(context);
-    JSCompartment *oldCompartment = JS_EnterCompartment(context, global);
-
-    g_assert(gjs_string_from_utf8(context, utf8_string, -1, &js_string) == JS_TRUE);
-    g_assert(JSVAL_IS_STRING(js_string));
-    g_assert(gjs_string_to_utf8(context, js_string, &utf8_result) == JS_TRUE);
-
-    JS_LeaveCompartment(context, oldCompartment);
-    _gjs_unit_test_fixture_finish(&fixture);
-
-    g_assert(g_str_equal(utf8_string, utf8_result));
-
+    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1, &js_string));
+    g_assert(js_string.isString());
+    g_assert(gjs_string_to_utf8(fx->cx, js_string, &utf8_result));
+    g_assert_cmpstr(VALID_UTF8_STRING, ==, utf8_result);
     g_free(utf8_result);
 }
 
 static void
-gjstest_test_func_gjs_stack_dump(void)
+gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture *fx,
+                                             gconstpointer       unused)
 {
-  GjsContext *context;
+    JS::RootedValue exc(fx->cx), value(fx->cx);
+    char *s = NULL;
 
-  /* TODO this test could be better - maybe expose dumpstack as a JS API
-   * so that we have a JS stack to dump?  At least here we're getting some
-   * coverage.
-   */
-  context = gjs_context_new();
+    /* Test that we can throw */
 
-  gjs_dumpstack();
-  g_object_unref(context);
-  gjs_dumpstack();
+    gjs_throw(fx->cx, "This is an exception %d", 42);
+
+    g_assert(JS_IsExceptionPending(fx->cx));
+
+    JS_GetPendingException(fx->cx, &exc);
+    g_assert(!exc.isUndefined());
+
+    JS::RootedObject exc_obj(fx->cx, &exc.toObject());
+    JS_GetProperty(fx->cx, exc_obj, "message", &value);
+
+    g_assert(value.isString());
+
+    gjs_string_to_utf8(fx->cx, value, &s);
+    g_assert_nonnull(s);
+    g_assert_cmpstr(s, ==, "This is an exception 42");
+    JS_free(fx->cx, s);
+
+    /* keep this around before we clear it */
+    JS::RootedValue previous(fx->cx, exc);
+
+    JS_ClearPendingException(fx->cx);
+
+    g_assert(!JS_IsExceptionPending(fx->cx));
+
+    /* Check that we don't overwrite a pending exception */
+    JS_SetPendingException(fx->cx, previous);
+
+    g_assert(JS_IsExceptionPending(fx->cx));
+
+    gjs_throw(fx->cx, "Second different exception %s", "foo");
+
+    g_assert(JS_IsExceptionPending(fx->cx));
+
+    exc = JS::UndefinedValue();
+    JS_GetPendingException(fx->cx, &exc);
+    g_assert(!exc.isUndefined());
+    g_assert(&exc.toObject() == &previous.toObject());
 }
 
 static void
-gjstest_test_func_gjs_jsapi_util_error_throw(void)
+test_jsapi_util_string_char16_data(GjsUnitTestFixture *fx,
+                                   gconstpointer       unused)
 {
-    GjsUnitTestFixture fixture;
-    JSContext *context;
-    JSObject *global;
-    jsval exc, value, previous;
-    char *s = NULL;
-    int strcmp_result;
+    char16_t *chars;
+    size_t len;
+    JS::RootedValue v_string(fx->cx);
 
-    _gjs_unit_test_fixture_begin(&fixture);
-    context = fixture.context;
-    global = JS_GetGlobalObject(context);
-    JSCompartment *oldCompartment = JS_EnterCompartment(context, global);
-    /* Test that we can throw */
+    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1,
+                                       &v_string));
+    g_assert_true(gjs_string_get_char16_data(fx->cx, v_string, &chars,
+                                             &len));
+    std::u16string result(chars, len);
+    g_assert_true(result == u"\xc9\xd6 foobar \u30df");
+    g_free(chars);
 
-    gjs_throw(context, "This is an exception %d", 42);
+    /* Try with a string that is likely to be stored as Latin-1 */
+    v_string.setString(JS_NewStringCopyZ(fx->cx, "abcd"));
+    g_assert_true(gjs_string_get_char16_data(fx->cx, v_string, &chars,
+                                             &len));
 
-    g_assert(JS_IsExceptionPending(context));
+    result.assign(chars, len);
+    g_assert_true(result == u"abcd");
+    g_free(chars);
+}
 
-    exc = JSVAL_VOID;
-    JS_GetPendingException(context, &exc);
-    g_assert(!JSVAL_IS_VOID(exc));
+static void
+test_jsapi_util_string_to_ucs4(GjsUnitTestFixture *fx,
+                               gconstpointer       unused)
+{
+    gunichar *chars;
+    size_t len;
+    JS::RootedValue v_string(fx->cx);
 
-    value = JSVAL_VOID;
-    JS_GetProperty(context, JSVAL_TO_OBJECT(exc), "message",
-                   &value);
+    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1,
+                                       &v_string));
+    g_assert_true(gjs_string_to_ucs4(fx->cx, v_string, &chars, &len));
 
-    g_assert(JSVAL_IS_STRING(value));
+    std::u32string result(chars, chars + len);
+    g_assert_true(result == U"\xc9\xd6 foobar \u30df");
+    g_free(chars);
 
-    gjs_string_to_utf8(context, value, &s);
-    g_assert(s != NULL);
-    strcmp_result = strcmp(s, "This is an exception 42");
-    free(s);
-    if (strcmp_result != 0)
-        g_error("Exception has wrong message '%s'", s);
+    /* Try with a string that is likely to be stored as Latin-1 */
+    v_string.setString(JS_NewStringCopyZ(fx->cx, "abcd"));
+    g_assert_true(gjs_string_to_ucs4(fx->cx, v_string, &chars, &len));
 
-    /* keep this around before we clear it */
-    previous = exc;
-    JS_AddValueRoot(context, &previous);
+    result.assign(chars, chars + len);
+    g_assert_true(result == U"abcd");
+    g_free(chars);
+}
 
-    JS_ClearPendingException(context);
+static void
+test_jsapi_util_debug_string_valid_utf8(GjsUnitTestFixture *fx,
+                                        gconstpointer       unused)
+{
+    JS::RootedValue v_string(fx->cx);
+    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1,
+                                       &v_string));
 
-    g_assert(!JS_IsExceptionPending(context));
+    char *debug_output = gjs_value_debug_string(fx->cx, v_string);
 
-    /* Check that we don't overwrite a pending exception */
-    JS_SetPendingException(context, previous);
+    g_assert_nonnull(debug_output);
+    g_assert_cmpstr("\"" VALID_UTF8_STRING "\"", ==, debug_output);
 
-    g_assert(JS_IsExceptionPending(context));
+    g_free(debug_output);
+}
 
-    gjs_throw(context, "Second different exception %s", "foo");
+static void
+test_jsapi_util_debug_string_invalid_utf8(GjsUnitTestFixture *fx,
+                                          gconstpointer       unused)
+{
+    g_test_skip("SpiderMonkey doesn't validate UTF-8 after encoding it");
 
-    g_assert(JS_IsExceptionPending(context));
+    JS::RootedValue v_string(fx->cx);
+    const char16_t invalid_unicode[] = { 0xffff, 0xffff };
+    v_string.setString(JS_NewUCStringCopyN(fx->cx, invalid_unicode, 2));
 
-    exc = JSVAL_VOID;
-    JS_GetPendingException(context, &exc);
-    g_assert(!JSVAL_IS_VOID(exc));
-    g_assert(JSVAL_TO_OBJECT(exc) == JSVAL_TO_OBJECT(previous));
+    char *debug_output = gjs_value_debug_string(fx->cx, v_string);
 
-    JS_RemoveValueRoot(context, &previous);
+    g_assert_nonnull(debug_output);
+    /* g_assert_cmpstr("\"\\xff\\xff\\xff\\xff\"", ==, debug_output); */
 
-    JS_LeaveCompartment(context, oldCompartment);
-    _gjs_unit_test_fixture_finish(&fixture);
+    g_free(debug_output);
+}
+
+static void
+test_jsapi_util_debug_string_object_with_complicated_to_string(GjsUnitTestFixture *fx,
+                                                               gconstpointer       unused)
+{
+    const char16_t desserts[] = {
+        0xd83c, 0xdf6a,  /* cookie */
+        0xd83c, 0xdf69,  /* doughnut */
+    };
+    JS::AutoValueArray<2> contents(fx->cx);
+    contents[0].setString(JS_NewUCStringCopyN(fx->cx, desserts, 2));
+    contents[1].setString(JS_NewUCStringCopyN(fx->cx, desserts + 2, 2));
+    JS::RootedObject array(fx->cx, JS_NewArrayObject(fx->cx, contents));
+    JS::RootedValue v_array(fx->cx, JS::ObjectValue(*array));
+    char *debug_output = gjs_value_debug_string(fx->cx, v_array);
+
+    g_assert_nonnull(debug_output);
+    g_assert_cmpstr(u8"🍪,🍩", ==, debug_output);
+
+    g_free(debug_output);
 }
 
 static void
@@ -285,8 +330,8 @@ static void
 gjstest_test_strip_shebang_no_advance_for_no_shebang(void)
 {
     const char *script = "foo\nbar";
-    gssize     script_len_original = strlen(script);
-    gssize     script_len = script_len_original;
+    size_t script_len_original = strlen(script);
+    size_t script_len = script_len_original;
     int        line_number = 1;
 
     const char *stripped = gjs_strip_unix_shebang(script,
@@ -302,8 +347,8 @@ static void
 gjstest_test_strip_shebang_advance_for_shebang(void)
 {
     const char *script = "#!foo\nbar";
-    gssize     script_len_original = strlen(script);
-    gssize     script_len = script_len_original;
+    size_t script_len_original = strlen(script);
+    size_t script_len = script_len_original;
     int        line_number = 1;
 
     const char *stripped = gjs_strip_unix_shebang(script,
@@ -319,8 +364,8 @@ static void
 gjstest_test_strip_shebang_return_null_for_just_shebang(void)
 {
     const char *script = "#!foo";
-    gssize     script_len_original = strlen(script);
-    gssize     script_len = script_len_original;
+    size_t script_len_original = strlen(script);
+    size_t script_len = script_len_original;
     int        line_number = 1;
 
     const char *stripped = gjs_strip_unix_shebang(script,
@@ -336,23 +381,48 @@ int
 main(int    argc,
      char **argv)
 {
-    gjs_crash_after_timeout(60*7); /* give the unit tests 7 minutes to complete */
+    /* give the unit tests 7 minutes to complete, unless an environment variable
+     * is set; use this when running under GDB, for example */
+    if (!g_getenv("GJS_TEST_SKIP_TIMEOUT"))
+        gjs_crash_after_timeout(60 * 7);
 
     g_test_init(&argc, &argv, NULL);
 
     g_test_add_func("/gjs/context/construct/destroy", gjstest_test_func_gjs_context_construct_destroy);
     g_test_add_func("/gjs/context/construct/eval", gjstest_test_func_gjs_context_construct_eval);
-    g_test_add_func("/gjs/jsapi/util/array", gjstest_test_func_gjs_jsapi_util_array);
-    g_test_add_func("/gjs/jsapi/util/error/throw", gjstest_test_func_gjs_jsapi_util_error_throw);
-    g_test_add_func("/gjs/jsapi/util/string/js/string/utf8", gjstest_test_func_gjs_jsapi_util_string_js_string_utf8);
+    g_test_add_func("/gjs/context/exit", gjstest_test_func_gjs_context_exit);
+    g_test_add_func("/gjs/gobject/js_defined_type", gjstest_test_func_gjs_gobject_js_defined_type);
     g_test_add_func("/gjs/jsutil/strip_shebang/no_shebang", gjstest_test_strip_shebang_no_advance_for_no_shebang);
     g_test_add_func("/gjs/jsutil/strip_shebang/have_shebang", gjstest_test_strip_shebang_advance_for_shebang);
     g_test_add_func("/gjs/jsutil/strip_shebang/only_shebang", gjstest_test_strip_shebang_return_null_for_just_shebang);
-    g_test_add_func("/gjs/stack/dump", gjstest_test_func_gjs_stack_dump);
     g_test_add_func("/util/glib/strv/concat/null", gjstest_test_func_util_glib_strv_concat_null);
     g_test_add_func("/util/glib/strv/concat/pointers", gjstest_test_func_util_glib_strv_concat_pointers);
 
+#define ADD_JSAPI_UTIL_TEST(path, func)                            \
+    g_test_add("/gjs/jsapi/util/" path, GjsUnitTestFixture, NULL,  \
+               gjs_unit_test_fixture_setup, func,                  \
+               gjs_unit_test_fixture_teardown)
+
+    ADD_JSAPI_UTIL_TEST("error/throw",
+                        gjstest_test_func_gjs_jsapi_util_error_throw);
+    ADD_JSAPI_UTIL_TEST("string/js/string/utf8",
+                        gjstest_test_func_gjs_jsapi_util_string_js_string_utf8);
+    ADD_JSAPI_UTIL_TEST("string/char16_data",
+                        test_jsapi_util_string_char16_data);
+    ADD_JSAPI_UTIL_TEST("string/to_ucs4",
+                        test_jsapi_util_string_to_ucs4);
+    ADD_JSAPI_UTIL_TEST("debug_string/valid-utf8",
+                        test_jsapi_util_debug_string_valid_utf8);
+    ADD_JSAPI_UTIL_TEST("debug_string/invalid-utf8",
+                        test_jsapi_util_debug_string_invalid_utf8);
+    ADD_JSAPI_UTIL_TEST("debug_string/object-with-complicated-to-string",
+                        test_jsapi_util_debug_string_object_with_complicated_to_string);
+
+#undef ADD_JSAPI_UTIL_TEST
+
     gjs_test_add_tests_for_coverage ();
+    gjs_test_add_tests_for_parse_call_args();
+    gjs_test_add_tests_for_rooting();
 
     g_test_run();
 

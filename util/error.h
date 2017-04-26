@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -26,13 +26,17 @@
 
 #include <glib.h>
 
+#include <cjs/macros.h>
+
 G_BEGIN_DECLS
 
+GJS_EXPORT
 GQuark gjs_error_quark(void);
 #define GJS_ERROR gjs_error_quark()
 
 typedef enum {
-    GJS_ERROR_FAILED
+    GJS_ERROR_FAILED,
+    GJS_ERROR_SYSTEM_EXIT,
 } GjsError;
 
 G_END_DECLS

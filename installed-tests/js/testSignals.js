@@ -1,139 +1,123 @@
-const JSUnit = imports.jsUnit;
 const GLib = imports.gi.GLib;
-
+const Lang = imports.lang;
 const Signals = imports.signals;
 
-function Foo() {
-    this._init();
+const Foo = new Lang.Class({
+    Name: 'Foo',
+    Implements: [Signals.WithSignals],
+    _init: function () {},
+});
+
+describe('Object with signals', function () {
+    testSignals(Foo);
+});
+
+const FooWithoutSignals = new Lang.Class({
+    Name: 'FooWithoutSignals',
+    _init: function () {},
+});
+Signals.addSignalMethods(FooWithoutSignals.prototype);
+
+describe('Object with signals added', function () {
+    testSignals(FooWithoutSignals);
+});
+
+function testSignals(klass) {
+    let foo, bar;
+    beforeEach(function () {
+        foo = new klass();
+        bar = jasmine.createSpy('bar');
+    });
+
+    it('calls a signal handler when a signal is emitted', function () {
+        foo.connect('bar', bar);
+        foo.emit('bar', "This is a", "This is b");
+        expect(bar).toHaveBeenCalledWith(foo, 'This is a', 'This is b');
+    });
+
+    it('does not call a signal handler after the signal is disconnected', function () {
+        let id = foo.connect('bar', bar);
+        foo.emit('bar', "This is a", "This is b");
+        bar.calls.reset();
+        foo.disconnect(id);
+        // this emission should do nothing
+        foo.emit('bar', "Another a", "Another b");
+        expect(bar).not.toHaveBeenCalled();
+    });
+
+    it('can disconnect a signal handler during signal emission', function () {
+        var toRemove = [];
+        let firstId = foo.connect('bar', function (theFoo) {
+            theFoo.disconnect(toRemove[0]);
+            theFoo.disconnect(toRemove[1]);
+        });
+        toRemove.push(foo.connect('bar', bar));
+        toRemove.push(foo.connect('bar', bar));
+
+        // emit signal; what should happen is that the second two handlers are
+        // disconnected before they get invoked
+        foo.emit('bar');
+        expect(bar).not.toHaveBeenCalled();
+
+        // clean up the last handler
+        foo.disconnect(firstId);
+
+        // poke in private implementation to sanity-check no handlers left
+        expect(foo._signalConnections.length).toEqual(0);
+    });
+
+    it('distinguishes multiple signals', function () {
+        let bonk = jasmine.createSpy('bonk');
+        foo.connect('bar', bar);
+        foo.connect('bonk', bonk);
+        foo.connect('bar', bar);
+
+        foo.emit('bar');
+        expect(bar).toHaveBeenCalledTimes(2);
+        expect(bonk).not.toHaveBeenCalled();
+
+        foo.emit('bonk');
+        expect(bar).toHaveBeenCalledTimes(2);
+        expect(bonk).toHaveBeenCalledTimes(1);
+
+        foo.emit('bar');
+        expect(bar).toHaveBeenCalledTimes(4);
+        expect(bonk).toHaveBeenCalledTimes(1);
+
+        foo.disconnectAll();
+        bar.calls.reset();
+        bonk.calls.reset();
+
+        // these post-disconnect emissions should do nothing
+        foo.emit('bar');
+        foo.emit('bonk');
+        expect(bar).not.toHaveBeenCalled();
+        expect(bonk).not.toHaveBeenCalled();
+    });
+
+    describe('with exception in signal handler', function () {
+        let bar2;
+        beforeEach(function () {
+            bar.and.throwError('Exception we are throwing on purpose');
+            bar2 = jasmine.createSpy('bar');
+            foo.connect('bar', bar);
+            foo.connect('bar', bar2);
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                                     'JS ERROR: Exception in callback for signal: *');
+            foo.emit('bar');
+        });
+
+        it('does not affect other callbacks', function () {
+            expect(bar).toHaveBeenCalledTimes(1);
+            expect(bar2).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not disconnect the callback', function () {
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                                     'JS ERROR: Exception in callback for signal: *');
+            foo.emit('bar');
+            expect(bar).toHaveBeenCalledTimes(2);
+            expect(bar2).toHaveBeenCalledTimes(2);
+        });
+    });
 }
-
-Foo.prototype = {
-    _init : function() {
-    }
-};
-
-Signals.addSignalMethods(Foo.prototype);
-
-function testSimple() {
-    var foo = new Foo();
-    var id = foo.connect('bar',
-                         function(theFoo, a, b) {
-                             theFoo.a = a;
-                             theFoo.b = b;
-                         });
-    foo.emit('bar', "This is a", "This is b");
-    JSUnit.assertEquals("This is a", foo.a);
-    JSUnit.assertEquals("This is b", foo.b);
-    foo.disconnect(id);
-    // this emission should do nothing
-    foo.emit('bar', "Another a", "Another b");
-    // so these values should be unchanged
-    JSUnit.assertEquals("This is a", foo.a);
-    JSUnit.assertEquals("This is b", foo.b);
-}
-
-function testDisconnectDuringEmit() {
-    var foo = new Foo();
-    var toRemove = [];
-    var firstId = foo.connect('bar',
-                         function(theFoo) {
-                             theFoo.disconnect(toRemove[0]);
-                             theFoo.disconnect(toRemove[1]);
-                         });
-    var id = foo.connect('bar',
-                     function(theFoo) {
-                         throw new Error("This should not have been called 1");
-                     });
-    toRemove.push(id);
-
-    id = foo.connect('bar',
-                     function(theFoo) {
-                         throw new Error("This should not have been called 2");
-                     });
-    toRemove.push(id);
-
-    // emit signal; what should happen is that the second two handlers are
-    // disconnected before they get invoked
-    foo.emit('bar');
-
-    // clean up the last handler
-    foo.disconnect(firstId);
-
-    // poke in private implementation to sanity-check
-    JSUnit.assertEquals('no handlers left', 0, foo._signalConnections.length);
-}
-
-function testMultipleSignals() {
-    var foo = new Foo();
-
-    foo.barHandlersCalled = 0;
-    foo.bonkHandlersCalled = 0;
-    foo.connect('bar',
-                function(theFoo) {
-                    theFoo.barHandlersCalled += 1;
-                });
-    foo.connect('bonk',
-                function(theFoo) {
-                    theFoo.bonkHandlersCalled += 1;
-                });
-    foo.connect('bar',
-                function(theFoo) {
-                    theFoo.barHandlersCalled += 1;
-                });
-    foo.emit('bar');
-
-    JSUnit.assertEquals(2, foo.barHandlersCalled);
-    JSUnit.assertEquals(0, foo.bonkHandlersCalled);
-
-    foo.emit('bonk');
-
-    JSUnit.assertEquals(2, foo.barHandlersCalled);
-    JSUnit.assertEquals(1, foo.bonkHandlersCalled);
-
-    foo.emit('bar');
-
-    JSUnit.assertEquals(4, foo.barHandlersCalled);
-    JSUnit.assertEquals(1, foo.bonkHandlersCalled);
-
-    foo.disconnectAll();
-
-    // these post-disconnect emissions should do nothing
-    foo.emit('bar');
-    foo.emit('bonk');
-
-    JSUnit.assertEquals(4, foo.barHandlersCalled);
-    JSUnit.assertEquals(1, foo.bonkHandlersCalled);
-}
-
-function testExceptionInCallback() {
-    let foo = new Foo();
-
-    foo.bar1Called = 0;
-    foo.bar2Called = 0;
-    foo.connect('bar',
-                function(theFoo) {
-                    theFoo.bar1Called += 1;
-                    throw new Error("Exception we are throwing on purpose");
-                });
-    foo.connect('bar',
-                function(theFoo) {
-                    theFoo.bar2Called += 1;
-                });
-
-    // exception in callback does not effect other callbacks
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
-                             'JS ERROR: Exception in callback for signal: *');
-    foo.emit('bar');
-    JSUnit.assertEquals(1, foo.bar1Called);
-    JSUnit.assertEquals(1, foo.bar2Called);
-
-    // exception in callback does not disconnect the callback
-    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
-                             'JS ERROR: Exception in callback for signal: *');
-    foo.emit('bar');
-    JSUnit.assertEquals(2, foo.bar1Called);
-    JSUnit.assertEquals(2, foo.bar2Called);
-}
-
-JSUnit.gjstestRun(this, JSUnit.setUp, JSUnit.tearDown);
-

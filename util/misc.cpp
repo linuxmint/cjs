@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,17 +24,17 @@
 #include <config.h>
 #include "misc.h"
 
-gboolean
+bool
 gjs_environment_variable_is_set(const char *env_variable_name)
 {
     const char *s;
 
     s = g_getenv(env_variable_name);
     if (s == NULL)
-        return FALSE;
+        return false;
 
     if (*s == '\0')
-        return FALSE;
+        return false;
 
-    return TRUE;
+    return true;
 }

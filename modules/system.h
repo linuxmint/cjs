@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  * Copyright (c) 2012  Red Hat, Inc.
@@ -31,8 +31,8 @@
 
 G_BEGIN_DECLS
 
-JSBool        gjs_js_define_system_stuff     (JSContext      *context,
-                                              JSObject      **module_out);
+bool gjs_js_define_system_stuff(JSContext              *context,
+                                JS::MutableHandleObject module);
 
 G_END_DECLS
 

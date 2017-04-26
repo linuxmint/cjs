@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,6 +24,7 @@
 #ifndef __GJS_CLOSURE_H__
 #define __GJS_CLOSURE_H__
 
+#include <stdbool.h>
 #include <glib-object.h>
 
 #include "cjs/jsapi-util.h"
@@ -33,13 +34,14 @@ G_BEGIN_DECLS
 GClosure*  gjs_closure_new           (JSContext    *context,
                                       JSObject     *callable,
                                       const char   *description,
-                                      gboolean      root_function);
-void       gjs_closure_invoke        (GClosure     *closure,
-                                      int           argc,
-                                      jsval        *argv,
-                                      jsval        *retval);
+                                      bool          root_function);
+
+void gjs_closure_invoke(GClosure                   *closure,
+                        const JS::HandleValueArray& args,
+                        JS::MutableHandleValue      retval);
+
 JSContext* gjs_closure_get_context   (GClosure     *closure);
-gboolean   gjs_closure_is_valid      (GClosure     *closure);
+bool       gjs_closure_is_valid      (GClosure     *closure);
 JSObject*  gjs_closure_get_callable  (GClosure     *closure);
 
 void       gjs_closure_trace         (GClosure     *closure,

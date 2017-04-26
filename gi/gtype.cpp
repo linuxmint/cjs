@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  * Copyright (c) 2012  Red Hat, Inc.
@@ -24,14 +24,22 @@
 
 #include <config.h>
 
-#include "gtype.h"
+#include <set>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "gtype.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-wrapper.h"
 #include <util/log.h>
 #include <girepository.h>
 
-GJS_DEFINE_PROTO_ABSTRACT("GIRepositoryGType", gtype);
+static bool weak_pointer_callback = false;
+static std::set<GType> weak_pointer_list;
+
+static JSObject *gjs_gtype_get_proto(JSContext *) G_GNUC_UNUSED;
+static bool gjs_gtype_define_proto(JSContext *, JS::HandleObject,
+                                   JS::MutableHandleObject);
+
+GJS_DEFINE_PROTO_ABSTRACT("GIRepositoryGType", gtype, 0);
 
 /* priv_from_js adds a "*", so this returns "void *" */
 GJS_DEFINE_PRIV_FROM_JS(void, gjs_gtype_class);
@@ -49,6 +57,30 @@ gjs_get_gtype_wrapper_quark(void)
 }
 
 static void
+update_gtype_weak_pointers(JSRuntime *rt,
+                           void      *data)
+{
+    for (auto iter = weak_pointer_list.begin(); iter != weak_pointer_list.end(); ) {
+        auto heap_wrapper = static_cast<JS::Heap<JSObject *> *>(g_type_get_qdata(*iter, gjs_get_gtype_wrapper_quark()));
+        JS_UpdateWeakPointerAfterGC(heap_wrapper);
+        if (*heap_wrapper == nullptr)
+            iter = weak_pointer_list.erase(iter);
+        else
+            iter++;
+    }
+}
+
+static void
+ensure_weak_pointer_callback(JSContext *cx)
+{
+    if (!weak_pointer_callback) {
+        JS_AddWeakPointerCallback(JS_GetRuntime(cx), update_gtype_weak_pointers,
+                                  nullptr);
+        weak_pointer_callback = true;
+    }
+}
+
+static void
 gjs_gtype_finalize(JSFreeOp *fop,
                    JSObject *obj)
 {
@@ -58,137 +90,126 @@ gjs_gtype_finalize(JSFreeOp *fop,
     if (G_UNLIKELY(gtype == 0))
         return;
 
+    weak_pointer_list.erase(gtype);
     g_type_set_qdata(gtype, gjs_get_gtype_wrapper_quark(), NULL);
 }
 
-static JSBool
+static bool
 to_string_func(JSContext *context,
                unsigned   argc,
-               jsval     *vp)
+               JS::Value *vp)
 {
-    JSObject *obj = JS_THIS_OBJECT(context, vp);
+    GJS_GET_PRIV(context, argc, vp, rec, obj, void, priv);
     GType gtype;
     gchar *strval;
-    JSBool ret;
-    jsval retval;
-    
-    gtype = GPOINTER_TO_SIZE(priv_from_js(context, obj));
+    bool ret;
+
+    gtype = GPOINTER_TO_SIZE(priv);
 
     if (gtype == 0)
         strval = g_strdup("[object GType prototype]");
     else
         strval = g_strdup_printf("[object GType for '%s']",
                                  g_type_name(gtype));
-    ret = gjs_string_from_utf8(context, strval, -1, &retval);
-    if (ret)
-        JS_SET_RVAL(context, vp, retval);
+    ret = gjs_string_from_utf8(context, strval, -1, rec.rval());
     g_free(strval);
     return ret;
 }
 
-static JSBool
+static bool
 get_name_func (JSContext *context,
-               JSObject **obj,
-               jsid      *id,
-               jsval     *vp)
+               unsigned   argc,
+               JS::Value *vp)
 {
+    GJS_GET_PRIV(context, argc, vp, rec, obj, void, priv);
     GType gtype;
-    JSBool ret;
-    jsval retval;
 
-    gtype = GPOINTER_TO_SIZE(priv_from_js(context, *obj));
+    gtype = GPOINTER_TO_SIZE(priv);
 
     if (gtype == 0) {
-        JS_SET_RVAL(context, vp, JSVAL_NULL);
-        return TRUE;
-    } else {
-        ret = gjs_string_from_utf8(context, g_type_name(gtype), -1, &retval);
-        if (ret)
-            JS_SET_RVAL(context, vp, retval);
-        return ret;
+        rec.rval().setNull();
+        return true;
     }
+    return gjs_string_from_utf8(context, g_type_name(gtype), -1, rec.rval());
 }
 
 /* Properties */
 JSPropertySpec gjs_gtype_proto_props[] = {
-    { "name", 0,
-      JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED,
-      JSOP_WRAPPER((JSPropertyOp)get_name_func),
-      JSOP_WRAPPER(JS_StrictPropertyStub) },
-    { NULL },
+    JS_PSG("name", get_name_func, JSPROP_PERMANENT),
+    JS_PS_END,
 };
 
 /* Functions */
 JSFunctionSpec gjs_gtype_proto_funcs[] = {
-    { "toString", JSOP_WRAPPER((JSNative)to_string_func), 0, 0 },
-    { NULL }
+    JS_FS("toString", to_string_func, 0, 0),
+    JS_FS_END
 };
+
+JSFunctionSpec gjs_gtype_static_funcs[] = { JS_FS_END };
 
 JSObject *
 gjs_gtype_create_gtype_wrapper (JSContext *context,
                                 GType      gtype)
 {
-    JSObject *object;
-    JSObject *global;
+    JSAutoRequest ar(context);
 
-    JS_BeginRequest(context);
+    auto heap_wrapper =
+        static_cast<JS::Heap<JSObject *> *>(g_type_get_qdata(gtype, gjs_get_gtype_wrapper_quark()));
+    if (heap_wrapper != nullptr)
+        return *heap_wrapper;
 
-    /* put constructor for GIRepositoryGType() in the global namespace */
-    global = gjs_get_import_global(context);
-    gjs_gtype_create_proto(context, global, "GIRepositoryGType", NULL);
+    JS::RootedObject proto(context);
+    if (!gjs_gtype_define_proto(context, JS::NullPtr(), &proto))
+        return nullptr;
 
-    object = (JSObject*) g_type_get_qdata(gtype, gjs_get_gtype_wrapper_quark());
-    if (object != NULL)
-        goto out;
+    heap_wrapper = new JS::Heap<JSObject *>();
+    *heap_wrapper = JS_NewObjectWithGivenProto(context, &gjs_gtype_class, proto,
+                                               JS::NullPtr());
+    if (*heap_wrapper == nullptr)
+        return nullptr;
 
-    object = JS_NewObject(context, &gjs_gtype_class, NULL, NULL);
-    if (object == NULL)
-        goto out;
+    JS_SetPrivate(*heap_wrapper, GSIZE_TO_POINTER(gtype));
+    ensure_weak_pointer_callback(context);
+    g_type_set_qdata(gtype, gjs_get_gtype_wrapper_quark(), heap_wrapper);
+    weak_pointer_list.insert(gtype);
 
-    JS_SetPrivate(object, GSIZE_TO_POINTER(gtype));
-    g_type_set_qdata(gtype, gjs_get_gtype_wrapper_quark(), object);
-
- out:
-    JS_EndRequest(context);
-    return object;
+    return *heap_wrapper;
 }
 
 static GType
-_gjs_gtype_get_actual_gtype (JSContext *context,
-                             JSObject  *object,
-                             int        recurse)
+_gjs_gtype_get_actual_gtype(JSContext       *context,
+                            JS::HandleObject object,
+                            int              recurse)
 {
-    GType gtype = G_TYPE_INVALID;
-    jsval gtype_val = JSVAL_VOID;
+    JSAutoRequest ar(context);
 
-    JS_BeginRequest(context);
-    if (JS_InstanceOf(context, object, &gjs_gtype_class, NULL)) {
-        gtype = GPOINTER_TO_SIZE(priv_from_js(context, object));
-        goto out;
-    }
+    if (JS_InstanceOf(context, object, &gjs_gtype_class, NULL))
+        return GPOINTER_TO_SIZE(priv_from_js(context, object));
+
+    JS::RootedValue gtype_val(context);
 
     /* OK, we don't have a GType wrapper object -- grab the "$gtype"
      * property on that and hope it's a GType wrapper object */
     if (!JS_GetProperty(context, object, "$gtype", &gtype_val) ||
-        !JSVAL_IS_OBJECT(gtype_val)) {
+        !gtype_val.isObject()) {
 
         /* OK, so we're not a class. But maybe we're an instance. Check
            for "constructor" and recurse on that. */
         if (!JS_GetProperty(context, object, "constructor", &gtype_val))
-            goto out;
+            return G_TYPE_INVALID;
     }
 
-    if (recurse > 0 && JSVAL_IS_OBJECT(gtype_val))
-        gtype = _gjs_gtype_get_actual_gtype(context, JSVAL_TO_OBJECT(gtype_val), recurse - 1);
+    if (recurse > 0 && gtype_val.isObject()) {
+        JS::RootedObject gtype_obj(context, &gtype_val.toObject());
+        return _gjs_gtype_get_actual_gtype(context, gtype_obj, recurse - 1);
+    }
 
- out:
-    JS_EndRequest(context);
-    return gtype;
+    return G_TYPE_INVALID;
 }
 
 GType
-gjs_gtype_get_actual_gtype (JSContext *context,
-                            JSObject  *object)
+gjs_gtype_get_actual_gtype(JSContext       *context,
+                           JS::HandleObject object)
 {
     /* 2 means: recurse at most three times (including this
        call).
@@ -201,10 +222,32 @@ gjs_gtype_get_actual_gtype (JSContext *context,
     return _gjs_gtype_get_actual_gtype(context, object, 2);
 }
 
-JSBool
+bool
 gjs_typecheck_gtype (JSContext             *context,
-                     JSObject              *obj,
-                     JSBool                 throw_error)
+                     JS::HandleObject       obj,
+                     bool                   throw_error)
 {
     return do_base_typecheck(context, obj, throw_error);
+}
+
+const char *
+gjs_get_names_from_gtype_and_gi_info(GType        gtype,
+                                     GIBaseInfo  *info,
+                                     const char **constructor_name)
+{
+    const char *ns;
+    /* ns is only used to set the JSClass->name field (exposed by
+     * Object.prototype.toString).
+     * We can safely set "unknown" if there is no info, as in that case
+     * the name is globally unique (it's a GType name). */
+    if (info) {
+        ns = g_base_info_get_namespace((GIBaseInfo*) info);
+        if (constructor_name)
+            *constructor_name = g_base_info_get_name((GIBaseInfo*) info);
+    } else {
+        ns = "unknown";
+        if (constructor_name)
+            *constructor_name = g_type_name(gtype);
+    }
+    return ns;
 }

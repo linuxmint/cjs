@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  * Copyright (c) 2012  Red Hat, Inc.
@@ -25,133 +25,156 @@
 #include <config.h>
 
 #include <sys/types.h>
-#include <unistd.h>
+#include <time.h>
 
-#include <cjs/gjs-module.h>
-#include <gi/object.h>
+#include <cjs/context.h>
+
+#include "gi/object.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util-args.h"
 #include "system.h"
 
-static JSBool
+/* Note that this cannot be relied on to test whether two objects are the same!
+ * SpiderMonkey can move objects around in memory during garbage collection,
+ * and it can also deduplicate identical instances of objects in memory. */
+static bool
 gjs_address_of(JSContext *context,
                unsigned   argc,
-               jsval     *vp)
+               JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(cx, vp);
-    JSObject *target_obj;
-    JSBool ret;
+    JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
+    JS::RootedObject target_obj(context);
+    bool ret;
     char *pointer_string;
-    jsval retval;
 
-    if (!gjs_parse_args(context, "addressOf", "o", argc, argv, "object", &target_obj))
-        return JS_FALSE;
+    if (!gjs_parse_call_args(context, "addressOf", argv, "o",
+                             "object", &target_obj))
+        return false;
 
-    pointer_string = g_strdup_printf("%p", target_obj);
+    pointer_string = g_strdup_printf("%p", target_obj.get());
 
-    ret = gjs_string_from_utf8(context, pointer_string, -1, &retval);
+    ret = gjs_string_from_utf8(context, pointer_string, -1, argv.rval());
+
     g_free(pointer_string);
-
-    if (ret)
-        JS_SET_RVAL(context, vp, retval);
-
     return ret;
 }
 
-static JSBool
+static bool
 gjs_refcount(JSContext *context,
              unsigned   argc,
-             jsval     *vp)
+             JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(cx, vp);
-    jsval retval;
-    JSObject *target_obj;
+    JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
+    JS::RootedObject target_obj(context);
     GObject *obj;
 
-    if (!gjs_parse_args(context, "refcount", "o", argc, argv, "object", &target_obj))
-        return JS_FALSE;
+    if (!gjs_parse_call_args(context, "refcount", argv, "o",
+                             "object", &target_obj))
+        return false;
 
-    if (!gjs_typecheck_object(context, target_obj,
-                              G_TYPE_OBJECT, JS_TRUE))
-        return JS_FALSE;
+    if (!gjs_typecheck_object(context, target_obj, G_TYPE_OBJECT, true))
+        return false;
 
     obj = gjs_g_object_from_object(context, target_obj);
     if (obj == NULL)
-        return JS_FALSE;
+        return false;
 
-    retval = INT_TO_JSVAL(obj->ref_count);
-    JS_SET_RVAL(context, vp, retval);
-    return JS_TRUE;
+    argv.rval().setInt32(obj->ref_count);
+    return true;
 }
 
-static JSBool
+static bool
 gjs_breakpoint(JSContext *context,
                unsigned   argc,
-               jsval     *vp)
+               JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(cx, vp);
-    if (!gjs_parse_args(context, "breakpoint", "", argc, argv))
-        return JS_FALSE;
+    JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
+    if (!gjs_parse_call_args(context, "breakpoint", argv, ""))
+        return false;
     G_BREAKPOINT();
-    JS_SET_RVAL(context, vp, JSVAL_VOID);
-    return JS_TRUE;
+    argv.rval().setUndefined();
+    return true;
 }
 
-static JSBool
+static bool
 gjs_gc(JSContext *context,
        unsigned   argc,
-       jsval     *vp)
+       JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(cx, vp);
-    if (!gjs_parse_args(context, "gc", "", argc, argv))
-        return JS_FALSE;
+    JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
+    if (!gjs_parse_call_args(context, "gc", argv, ""))
+        return false;
     JS_GC(JS_GetRuntime(context));
-    JS_SET_RVAL(context, vp, JSVAL_VOID);
-    return JS_TRUE;
+    argv.rval().setUndefined();
+    return true;
 }
 
-static JSBool
+static bool
 gjs_exit(JSContext *context,
          unsigned   argc,
-         jsval     *vp)
+         JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(cx, vp);
+    JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
     gint32 ecode;
-    if (!gjs_parse_args(context, "exit", "i", argc, argv, "ecode", &ecode))
-        return JS_FALSE;
-    exit(ecode);
-    return JS_TRUE;
+    if (!gjs_parse_call_args(context, "exit", argv, "i",
+                             "ecode", &ecode))
+        return false;
+
+    GjsContext *gjs_context = static_cast<GjsContext *>(JS_GetContextPrivate(context));
+    _gjs_context_exit(gjs_context, ecode);
+    return false;  /* without gjs_throw() == "throw uncatchable exception" */
+}
+
+static bool
+gjs_clear_date_caches(JSContext *context,
+                      unsigned   argc,
+                      JS::Value *vp)
+{
+    JS::CallReceiver rec = JS::CallReceiverFromVp(vp);
+    JS_BeginRequest(context);
+
+    // Workaround for a bug in SpiderMonkey where tzset is not called before
+    // localtime_r, see https://bugzilla.mozilla.org/show_bug.cgi?id=1004706
+    tzset();
+
+    JS_ClearDateCaches(context);
+    JS_EndRequest(context);
+
+    rec.rval().setUndefined();
+    return true;
 }
 
 static JSFunctionSpec module_funcs[] = {
-    { "addressOf", JSOP_WRAPPER (gjs_address_of), 1, GJS_MODULE_PROP_FLAGS },
-    { "refcount", JSOP_WRAPPER (gjs_refcount), 1, GJS_MODULE_PROP_FLAGS },
-    { "breakpoint", JSOP_WRAPPER (gjs_breakpoint), 0, GJS_MODULE_PROP_FLAGS },
-    { "gc", JSOP_WRAPPER (gjs_gc), 0, GJS_MODULE_PROP_FLAGS },
-    { "exit", JSOP_WRAPPER (gjs_exit), 0, GJS_MODULE_PROP_FLAGS },
-    { NULL },
+    JS_FS("addressOf", gjs_address_of, 1, GJS_MODULE_PROP_FLAGS),
+    JS_FS("refcount", gjs_refcount, 1, GJS_MODULE_PROP_FLAGS),
+    JS_FS("breakpoint", gjs_breakpoint, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FS("gc", gjs_gc, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FS("exit", gjs_exit, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FS("clearDateCaches", gjs_clear_date_caches, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FS_END
 };
 
-JSBool
-gjs_js_define_system_stuff(JSContext  *context,
-                           JSObject  **module_out)
+bool
+gjs_js_define_system_stuff(JSContext              *context,
+                           JS::MutableHandleObject module)
 {
     GjsContext *gjs_context;
     char *program_name;
-    jsval value;
-    JSBool retval;
-    JSObject *module;
+    bool retval;
 
-    module = JS_NewObject (context, NULL, NULL, NULL);
+    module.set(JS_NewPlainObject(context));
 
     if (!JS_DefineFunctions(context, module, &module_funcs[0]))
-        return JS_FALSE;
+        return false;
 
-    retval = JS_FALSE;
+    retval = false;
 
     gjs_context = (GjsContext*) JS_GetContextPrivate(context);
     g_object_get(gjs_context,
                  "program-name", &program_name,
                  NULL);
 
+    JS::RootedValue value(context);
     if (!gjs_string_from_utf8(context, program_name,
                               -1, &value))
         goto out;
@@ -161,24 +184,19 @@ gjs_js_define_system_stuff(JSContext  *context,
     if (!JS_DefineProperty(context, module,
                            "programInvocationName",
                            value,
-                           JS_PropertyStub,
-                           JS_StrictPropertyStub,
-                           GJS_MODULE_PROP_FLAGS | JSPROP_READONLY))
+                           GJS_MODULE_PROP_FLAGS | JSPROP_READONLY,
+                           JS_STUBGETTER, JS_STUBSETTER))
         goto out;
 
     if (!JS_DefineProperty(context, module,
-                           "version",
-                           INT_TO_JSVAL(GJS_VERSION),
-                           JS_PropertyStub,
-                           JS_StrictPropertyStub,
-                           GJS_MODULE_PROP_FLAGS | JSPROP_READONLY))
+                           "version", GJS_VERSION,
+                           GJS_MODULE_PROP_FLAGS | JSPROP_READONLY,
+                           JS_STUBGETTER, JS_STUBSETTER))
         goto out;
 
-    retval = JS_TRUE;
+    retval = true;
 
  out:
     g_free(program_name);
-    *module_out = module;
-
     return retval;
 }

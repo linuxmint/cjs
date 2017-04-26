@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,6 +24,7 @@
 #ifndef __GJS_ERROR_H__
 #define __GJS_ERROR_H__
 
+#include <stdbool.h>
 #include <glib.h>
 #include <girepository.h>
 
@@ -32,16 +33,16 @@
 G_BEGIN_DECLS
 
 void      gjs_define_error_class       (JSContext             *context,
-                                        JSObject              *in_object,
+                                        JS::HandleObject       in_object,
                                         GIEnumInfo            *info);
 GError*   gjs_gerror_from_error        (JSContext             *context,
-                                        JSObject              *obj);
+                                        JS::HandleObject       obj);
 JSObject* gjs_error_from_gerror        (JSContext             *context,
                                         GError                *gerror,
-                                        gboolean               add_stack);
-JSBool    gjs_typecheck_gerror         (JSContext             *context,
-                                        JSObject              *obj,
-                                        JSBool                 throw_error);
+                                        bool                   add_stack);
+bool      gjs_typecheck_gerror         (JSContext             *context,
+                                        JS::HandleObject       obj,
+                                        bool                   throw_error);
 
 G_END_DECLS
 

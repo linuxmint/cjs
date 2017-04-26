@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2010 litl, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,9 +22,10 @@
 
 #include <config.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
-#include <gi/foreign.h>
+#include "gi/foreign.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-wrapper.h"
 #include <cairo.h>
 #include <cairo-gobject.h>
 #include "cairo-private.h"
@@ -36,7 +37,9 @@ typedef struct {
     cairo_surface_t *surface;
 } GjsCairoSurface;
 
-GJS_DEFINE_PROTO_ABSTRACT_WITH_GTYPE("CairoSurface", cairo_surface, CAIRO_GOBJECT_TYPE_SURFACE)
+GJS_DEFINE_PROTO_ABSTRACT_WITH_GTYPE("Surface", cairo_surface,
+                                     CAIRO_GOBJECT_TYPE_SURFACE,
+                                     JSCLASS_BACKGROUND_FINALIZE)
 GJS_DEFINE_PRIV_FROM_JS(GjsCairoSurface, gjs_cairo_surface_class)
 
 static void
@@ -53,67 +56,66 @@ gjs_cairo_surface_finalize(JSFreeOp *fop,
 
 /* Properties */
 JSPropertySpec gjs_cairo_surface_proto_props[] = {
-    { NULL }
+    JS_PS_END
 };
 
 /* Methods */
-static JSBool
+static bool
 writeToPNG_func(JSContext *context,
                 unsigned   argc,
-                jsval     *vp)
+                JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(context, vp);
-    JSObject *obj = JS_THIS_OBJECT(context, vp);
+    GJS_GET_THIS(context, argc, vp, argv, obj);
     char *filename;
     cairo_surface_t *surface;
 
-    if (!gjs_parse_args(context, "writeToPNG", "s", argc, argv,
-                        "filename", &filename))
-        return JS_FALSE;
+    if (!gjs_parse_call_args(context, "writeToPNG", argv, "F",
+                             "filename", &filename))
+        return false;
 
     surface = gjs_cairo_surface_get_surface(context, obj);
     if (!surface) {
         g_free(filename);
-        return JS_FALSE;
+        return false;
     }
     cairo_surface_write_to_png(surface, filename);
     g_free(filename);
     if (!gjs_cairo_check_status(context, cairo_surface_status(surface),
                                 "surface"))
-        return JS_FALSE;
-    JS_SET_RVAL(context, vp, JSVAL_VOID);
-    return JS_TRUE;
+        return false;
+    argv.rval().setUndefined();
+    return true;
 }
 
-static JSBool
+static bool
 getType_func(JSContext *context,
              unsigned   argc,
-             jsval     *vp)
+             JS::Value *vp)
 {
-    JSObject *obj = JS_THIS_OBJECT(context, vp);
+    GJS_GET_THIS(context, argc, vp, rec, obj);
     cairo_surface_t *surface;
     cairo_surface_type_t type;
 
     if (argc > 1) {
         gjs_throw(context, "Surface.getType() takes no arguments");
-        return JS_FALSE;
+        return false;
     }
 
     surface = gjs_cairo_surface_get_surface(context, obj);
     type = cairo_surface_get_type(surface);
     if (!gjs_cairo_check_status(context, cairo_surface_status(surface),
                                 "surface"))
-        return JS_FALSE;
+        return false;
 
-    JS_SET_RVAL(context, vp, INT_TO_JSVAL(type));
-    return JS_TRUE;
+    rec.rval().setInt32(type);
+    return true;
 }
 
 JSFunctionSpec gjs_cairo_surface_proto_funcs[] = {
     // flush
     // getContent
     // getFontOptions
-    { "getType", JSOP_WRAPPER((JSNative)getType_func), 0, 0},
+    JS_FS("getType", getType_func, 0, 0),
     // markDirty
     // markDirtyRectangle
     // setDeviceOffset
@@ -123,9 +125,11 @@ JSFunctionSpec gjs_cairo_surface_proto_funcs[] = {
     // copyPage
     // showPage
     // hasShowTextGlyphs
-    { "writeToPNG", JSOP_WRAPPER((JSNative)writeToPNG_func), 0, 0 },
-    { NULL }
+    JS_FS("writeToPNG", writeToPNG_func, 0, 0),
+    JS_FS_END
 };
+
+JSFunctionSpec gjs_cairo_surface_static_funcs[] = { JS_FS_END };
 
 /* Public API */
 
@@ -142,7 +146,7 @@ JSFunctionSpec gjs_cairo_surface_proto_funcs[] = {
  */
 void
 gjs_cairo_surface_construct(JSContext       *context,
-                            JSObject        *object,
+                            JS::HandleObject object,
                             cairo_surface_t *surface)
 {
     GjsCairoSurface *priv;
@@ -193,25 +197,22 @@ JSObject *
 gjs_cairo_surface_from_surface(JSContext       *context,
                                cairo_surface_t *surface)
 {
-    JSObject *object;
-
     g_return_val_if_fail(context != NULL, NULL);
     g_return_val_if_fail(surface != NULL, NULL);
 
-    switch (cairo_surface_get_type(surface)) {
-        case CAIRO_SURFACE_TYPE_IMAGE:
-            return gjs_cairo_image_surface_from_surface(context, surface);
-        case CAIRO_SURFACE_TYPE_PDF:
-            return gjs_cairo_pdf_surface_from_surface(context, surface);
-        case CAIRO_SURFACE_TYPE_PS:
-            return gjs_cairo_ps_surface_from_surface(context, surface);
-        case CAIRO_SURFACE_TYPE_SVG:
-            return gjs_cairo_svg_surface_from_surface(context, surface);
-        default:
-            break;
-    }
+    cairo_surface_type_t type = cairo_surface_get_type(surface);
+    if (type == CAIRO_SURFACE_TYPE_IMAGE)
+        return gjs_cairo_image_surface_from_surface(context, surface);
+    if (type == CAIRO_SURFACE_TYPE_PDF)
+        return gjs_cairo_pdf_surface_from_surface(context, surface);
+    if (type == CAIRO_SURFACE_TYPE_PS)
+        return gjs_cairo_ps_surface_from_surface(context, surface);
+    if (type == CAIRO_SURFACE_TYPE_SVG)
+        return gjs_cairo_svg_surface_from_surface(context, surface);
 
-    object = JS_NewObject(context, &gjs_cairo_surface_class, NULL, NULL);
+    JS::RootedObject proto(context, gjs_cairo_surface_get_proto(context));
+    JS::RootedObject object(context,
+        JS_NewObjectWithGivenProto(context, &gjs_cairo_surface_class, proto));
     if (!object) {
         gjs_throw(context, "failed to create surface");
         return NULL;
@@ -245,51 +246,51 @@ gjs_cairo_surface_get_surface(JSContext *context,
     return priv->surface;
 }
 
-static JSBool
+static bool
 surface_to_g_argument(JSContext      *context,
-                      jsval           value,
+                      JS::Value       value,
                       const char     *arg_name,
                       GjsArgumentType argument_type,
                       GITransfer      transfer,
-                      gboolean        may_be_null,
+                      bool            may_be_null,
                       GArgument      *arg)
 {
     JSObject *obj;
     cairo_surface_t *s;
 
-    obj = JSVAL_TO_OBJECT(value);
+    obj = &value.toObject();
     s = gjs_cairo_surface_get_surface(context, obj);
     if (!s)
-        return JS_FALSE;
+        return false;
     if (transfer == GI_TRANSFER_EVERYTHING)
         cairo_surface_destroy(s);
 
     arg->v_pointer = s;
-    return JS_TRUE;
+    return true;
 }
 
-static JSBool
-surface_from_g_argument(JSContext  *context,
-                        jsval      *value_p,
-                        GArgument  *arg)
+static bool
+surface_from_g_argument(JSContext             *context,
+                        JS::MutableHandleValue value_p,
+                        GIArgument            *arg)
 {
     JSObject *obj;
 
     obj = gjs_cairo_surface_from_surface(context, (cairo_surface_t*)arg->v_pointer);
     if (!obj)
-        return JS_FALSE;
+        return false;
 
-    *value_p = OBJECT_TO_JSVAL(obj);
-    return JS_TRUE;
+    value_p.setObject(*obj);
+    return true;
 }
 
-static JSBool
+static bool
 surface_release_argument(JSContext  *context,
                          GITransfer  transfer,
                          GArgument  *arg)
 {
     cairo_surface_destroy((cairo_surface_t*)arg->v_pointer);
-    return JS_TRUE;
+    return true;
 }
 
 static GjsForeignInfo foreign_info = {

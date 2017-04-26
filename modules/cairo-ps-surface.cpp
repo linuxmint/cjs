@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2010 litl, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,15 +22,19 @@
 
 #include <config.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-wrapper.h"
 #include <cairo.h>
 #include "cairo-private.h"
 
 #if CAIRO_HAS_PS_SURFACE
 #include <cairo-ps.h>
 
-GJS_DEFINE_PROTO("CairoPSSurface", cairo_ps_surface)
+static JSObject *gjs_cairo_ps_surface_get_proto(JSContext *);
+
+GJS_DEFINE_PROTO_WITH_PARENT("PSSurface", cairo_ps_surface, cairo_surface,
+                             JSCLASS_BACKGROUND_FINALIZE)
 
 GJS_NATIVE_CONSTRUCTOR_DECLARE(cairo_ps_surface)
 {
@@ -41,18 +45,18 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(cairo_ps_surface)
 
     GJS_NATIVE_CONSTRUCTOR_PRELUDE(cairo_ps_surface);
 
-    if (!gjs_parse_args(context, "PSSurface", "sff", argc, argv,
-                        "filename", &filename,
-                        "width", &width,
-                        "height", &height))
-        return JS_FALSE;
+    if (!gjs_parse_call_args(context, "PSSurface", argv, "Fff",
+                             "filename", &filename,
+                             "width", &width,
+                             "height", &height))
+        return false;
 
     surface = cairo_ps_surface_create(filename, width, height);
 
     if (!gjs_cairo_check_status(context, cairo_surface_status(surface),
                                 "surface")) {
         g_free(filename);
-        return JS_FALSE;
+        return false;
     }
 
     gjs_cairo_surface_construct(context, object, surface);
@@ -61,7 +65,7 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(cairo_ps_surface)
 
     GJS_NATIVE_CONSTRUCTOR_FINISH(cairo_ps_surface);
 
-    return JS_TRUE;
+    return true;
 }
 
 static void
@@ -72,7 +76,7 @@ gjs_cairo_ps_surface_finalize(JSFreeOp *fop,
 }
 
 JSPropertySpec gjs_cairo_ps_surface_proto_props[] = {
-    { NULL }
+    JS_PS_END
 };
 
 JSFunctionSpec gjs_cairo_ps_surface_proto_funcs[] = {
@@ -85,20 +89,22 @@ JSFunctionSpec gjs_cairo_ps_surface_proto_funcs[] = {
     // dscBeginSetup
     // dscBeginPageSetup
     // dscComment
-    { NULL }
+    JS_FS_END
 };
+
+JSFunctionSpec gjs_cairo_ps_surface_static_funcs[] = { JS_FS_END };
 
 JSObject *
 gjs_cairo_ps_surface_from_surface(JSContext       *context,
                                   cairo_surface_t *surface)
 {
-    JSObject *object;
-
     g_return_val_if_fail(context != NULL, NULL);
     g_return_val_if_fail(surface != NULL, NULL);
     g_return_val_if_fail(cairo_surface_get_type(surface) == CAIRO_SURFACE_TYPE_PS, NULL);
 
-    object = JS_NewObject(context, &gjs_cairo_ps_surface_class, NULL, NULL);
+    JS::RootedObject proto(context, gjs_cairo_ps_surface_get_proto(context));
+    JS::RootedObject object(context,
+        JS_NewObjectWithGivenProto(context, &gjs_cairo_ps_surface_class, proto));
     if (!object) {
         gjs_throw(context, "failed to create ps surface");
         return NULL;

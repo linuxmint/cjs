@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,9 +24,11 @@
 #ifndef __GJS_FUNCTION_H__
 #define __GJS_FUNCTION_H__
 
+#include <stdbool.h>
 #include <glib.h>
 
 #include "cjs/jsapi-util.h"
+#include "cjs/jsapi-util-root.h"
 
 #include <girepository.h>
 #include <girffi.h>
@@ -40,47 +42,45 @@ typedef enum {
     PARAM_CALLBACK
 } GjsParamType;
 
-typedef struct {
+struct GjsCallbackTrampoline {
     gint ref_count;
     JSContext *context;
     GICallableInfo *info;
-    jsval js_function;
+
+    GjsMaybeOwned<JS::Value> js_function;
+
     ffi_cif cif;
     ffi_closure *closure;
     GIScopeType scope;
-    gboolean is_vfunc;
+    bool is_vfunc;
     GjsParamType *param_types;
-} GjsCallbackTrampoline;
+};
 
 GjsCallbackTrampoline* gjs_callback_trampoline_new(JSContext      *context,
-                                                   jsval           function,
+                                                   JS::HandleValue function,
                                                    GICallableInfo *callable_info,
                                                    GIScopeType     scope,
-                                                   gboolean        is_vfunc);
+                                                   bool            is_vfunc);
 
 void gjs_callback_trampoline_unref(GjsCallbackTrampoline *trampoline);
 void gjs_callback_trampoline_ref(GjsCallbackTrampoline *trampoline);
 
-JSObject* gjs_define_function   (JSContext      *context,
-                                 JSObject       *in_object,
-                                 GType           gtype,
-                                 GICallableInfo *info);
+JSObject *gjs_define_function(JSContext       *context,
+                              JS::HandleObject in_object,
+                              GType            gtype,
+                              GICallableInfo  *info);
 
-JSBool    gjs_invoke_c_function_uncached (JSContext      *context,
-                                          GIFunctionInfo *info,
-                                          JSObject       *obj,
-                                          unsigned        argc,
-                                          jsval          *argv,
-                                          jsval          *rval);
+bool gjs_invoke_c_function_uncached(JSContext                  *context,
+                                    GIFunctionInfo             *info,
+                                    JS::HandleObject            obj,
+                                    const JS::HandleValueArray& args,
+                                    JS::MutableHandleValue      rval);
 
-JSBool    gjs_invoke_constructor_from_c (JSContext      *context,
-                                         JSObject       *constructor,
-                                         JSObject       *obj,
-                                         unsigned        argc,
-                                         jsval          *argv,
-                                         GArgument      *rvalue);
-
-void     gjs_init_cinvoke_profiling (void);
+bool gjs_invoke_constructor_from_c(JSContext                  *context,
+                                   JS::HandleObject            constructor,
+                                   JS::HandleObject            obj,
+                                   const JS::HandleValueArray& args,
+                                   GIArgument                 *rvalue);
 
 G_END_DECLS
 

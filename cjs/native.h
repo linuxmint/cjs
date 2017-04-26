@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,31 +24,28 @@
 #ifndef __GJS_NATIVE_H__
 #define __GJS_NATIVE_H__
 
-#if !defined (__GJS_GJS_MODULE_H__) && !defined (GJS_COMPILATION)
-#error "Only <gjs/gjs-module.h> can be included directly."
-#endif
-
+#include <stdbool.h>
 #include <glib.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-typedef JSBool (* GjsDefineModuleFunc) (JSContext  *context,
-                                        JSObject  **module_out);
+typedef bool (* GjsDefineModuleFunc) (JSContext              *context,
+                                      JS::MutableHandleObject module_out);
 
 /* called on context init */
 void   gjs_register_native_module (const char            *module_id,
                                    GjsDefineModuleFunc  func);
 
 /* called by importer.c to to check for already loaded modules */
-gboolean gjs_is_registered_native_module(JSContext  *context,
+bool     gjs_is_registered_native_module(JSContext  *context,
                                          JSObject   *parent,
                                          const char *name);
 
 /* called by importer.c to load a statically linked native module */
-JSBool gjs_import_native_module (JSContext  *context,
-                                 const char *name,
-                                 JSObject   **module_out);
+bool gjs_import_native_module (JSContext              *context,
+                               const char             *name,
+                               JS::MutableHandleObject module_out);
 
 G_END_DECLS
 

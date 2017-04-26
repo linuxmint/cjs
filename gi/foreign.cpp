@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2010  litl, LLC
  *
@@ -24,19 +24,18 @@
 #include <config.h>
 
 #include <string.h>
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
 #include <girepository.h>
 
 #include "arg.h"
 #include "foreign.h"
+#include "cjs/jsapi-wrapper.h"
 
 static struct {
     char *gi_namespace;
     char *module; // relative to "imports."
-    gboolean loaded;
+    bool loaded;
 } foreign_modules[] = {
-    { (char*)"cairo", (char*)"cairo", FALSE },
+    { (char*)"cairo", (char*)"cairo", false },
     { NULL }
 };
 
@@ -55,7 +54,7 @@ get_foreign_structs(void)
     return foreign_structs_table;
 }
 
-static JSBool
+static bool
 gjs_foreign_load_foreign_module(JSContext *context,
                                 const gchar *gi_namespace)
 {
@@ -69,9 +68,8 @@ gjs_foreign_load_foreign_module(JSContext *context,
         if (strcmp(gi_namespace, foreign_modules[i].gi_namespace) != 0)
             continue;
 
-        if (foreign_modules[i].loaded) {
-            return JS_TRUE;
-        }
+        if (foreign_modules[i].loaded)
+            return true;
 
         // FIXME: Find a way to check if a module is imported
         //        and only execute this statement if isn't
@@ -82,29 +80,30 @@ gjs_foreign_load_foreign_module(JSContext *context,
             g_printerr("ERROR: %s\n", error->message);
             g_free(script);
             g_error_free(error);
-            return JS_FALSE;
+            return false;
         }
         g_free(script);
-        foreign_modules[i].loaded = TRUE;
+        foreign_modules[i].loaded = true;
+        return true;
     }
 
-    return JS_TRUE;
+    return false;
 }
 
-JSBool
+bool
 gjs_struct_foreign_register(const char *gi_namespace,
                             const char *type_name,
                             GjsForeignInfo *info)
 {
     char *canonical_name;
 
-    g_return_val_if_fail(info != NULL, JS_FALSE);
-    g_return_val_if_fail(info->to_func != NULL, JS_FALSE);
-    g_return_val_if_fail(info->from_func != NULL, JS_FALSE);
+    g_return_val_if_fail(info != NULL, false);
+    g_return_val_if_fail(info->to_func != NULL, false);
+    g_return_val_if_fail(info->from_func != NULL, false);
 
     canonical_name = g_strdup_printf("%s.%s", gi_namespace, type_name);
     g_hash_table_insert(get_foreign_structs(), canonical_name, info);
-    return JS_TRUE;
+    return true;
 }
 
 static GjsForeignInfo *
@@ -137,48 +136,48 @@ gjs_struct_foreign_lookup(JSContext  *context,
     return retval;
 }
 
-JSBool
+bool
 gjs_struct_foreign_convert_to_g_argument(JSContext      *context,
-                                         jsval           value,
+                                         JS::Value       value,
                                          GIBaseInfo     *interface_info,
                                          const char     *arg_name,
                                          GjsArgumentType argument_type,
                                          GITransfer      transfer,
-                                         gboolean        may_be_null,
+                                         bool            may_be_null,
                                          GArgument      *arg)
 {
     GjsForeignInfo *foreign;
 
     foreign = gjs_struct_foreign_lookup(context, interface_info);
     if (!foreign)
-        return JS_FALSE;
+        return false;
 
     if (!foreign->to_func(context, value, arg_name,
                            argument_type, transfer, may_be_null, arg))
-        return JS_FALSE;
+        return false;
 
-    return JS_TRUE;
+    return true;
 }
 
-JSBool
-gjs_struct_foreign_convert_from_g_argument(JSContext  *context,
-                                           jsval      *value_p,
-                                           GIBaseInfo *interface_info,
-                                           GArgument  *arg)
+bool
+gjs_struct_foreign_convert_from_g_argument(JSContext             *context,
+                                           JS::MutableHandleValue value_p,
+                                           GIBaseInfo            *interface_info,
+                                           GIArgument            *arg)
 {
     GjsForeignInfo *foreign;
 
     foreign = gjs_struct_foreign_lookup(context, interface_info);
     if (!foreign)
-        return JS_FALSE;
+        return false;
 
     if (!foreign->from_func(context, value_p, arg))
-        return JS_FALSE;
+        return false;
 
-    return JS_TRUE;
+    return true;
 }
 
-JSBool
+bool
 gjs_struct_foreign_release_g_argument(JSContext  *context,
                                       GITransfer  transfer,
                                       GIBaseInfo *interface_info,
@@ -188,14 +187,14 @@ gjs_struct_foreign_release_g_argument(JSContext  *context,
 
     foreign = gjs_struct_foreign_lookup(context, interface_info);
     if (!foreign)
-        return JS_FALSE;
+        return false;
 
     if (!foreign->release_func)
-        return JS_TRUE;
+        return true;
 
     if (!foreign->release_func(context, transfer, arg))
-        return JS_FALSE;
+        return false;
 
-    return JS_TRUE;
+    return true;
 }
 

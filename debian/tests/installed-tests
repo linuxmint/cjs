@@ -1,10 +1,12 @@
-#!/bin/sh
-# autopkgtest check: Run the installed-tests to verify glib works correctly
-# (C) 2013 Canonical Ltd.
+#!/bin/bash
+# autopkgtest check: Run the installed-tests to verify gjs works correctly
+# (C) 2013-2015 Canonical Ltd.
 # Author: Iain Lane <iain.lane@canonical.com>
 
 set -e
 
 export XDG_RUNTIME_DIR=$ADTTMP
+export LC_ALL=C
 
-dbus-launch xvfb-run -a gnome-desktop-testing-runner gjs 
+# dbus outputs activation messages to stderr which fails the test
+dbus-run-session -- xvfb-run -a gnome-desktop-testing-runner gjs 2> >(grep -vE '^(Activating|Successfully activated)')>&2

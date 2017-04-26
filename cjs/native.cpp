@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008-2010  litl, LLC
  *
@@ -28,7 +28,7 @@
 #include <util/log.h>
 
 #include "native.h"
-#include "compat.h"
+#include "jsapi-wrapper.h"
 #include "jsapi-util.h"
 
 static GHashTable *modules = NULL;
@@ -63,13 +63,13 @@ gjs_register_native_module (const char          *module_id,
  * been registered. This is used to check to see if a name is a
  * builtin module without starting to try and load it.
  */
-gboolean
+bool
 gjs_is_registered_native_module(JSContext  *context,
                                 JSObject   *parent,
                                 const char *name)
 {
     if (modules == NULL)
-        return FALSE;
+        return false;
 
     return g_hash_table_lookup(modules, name) != NULL;
 }
@@ -81,10 +81,10 @@ gjs_is_registered_native_module(JSContext  *context,
  *
  * Return a native module that's been preloaded.
  */
-JSBool
-gjs_import_native_module(JSContext   *context,
-                         const char  *name,
-                         JSObject   **module_out)
+bool
+gjs_import_native_module(JSContext              *context,
+                         const char             *name,
+                         JS::MutableHandleObject module_out)
 {
     GjsDefineModuleFunc func;
 
@@ -101,7 +101,7 @@ gjs_import_native_module(JSContext   *context,
         gjs_throw(context,
                   "No native module '%s' has registered itself",
                   name);
-        return JS_FALSE;
+        return false;
     }
 
     return func (context, module_out);

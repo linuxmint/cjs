@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2010 litl, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,12 +22,15 @@
 
 #include <config.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-wrapper.h"
 #include <cairo.h>
 #include "cairo-private.h"
 
-GJS_DEFINE_PROTO_ABSTRACT("CairoGradient", cairo_gradient)
+GJS_DEFINE_PROTO_ABSTRACT_WITH_PARENT("Gradient", cairo_gradient,
+                                      cairo_pattern,
+                                      JSCLASS_BACKGROUND_FINALIZE)
 
 static void
 gjs_cairo_gradient_finalize(JSFreeOp *fop,
@@ -38,71 +41,71 @@ gjs_cairo_gradient_finalize(JSFreeOp *fop,
 
 /* Properties */
 JSPropertySpec gjs_cairo_gradient_proto_props[] = {
-    { NULL }
+    JS_PS_END
 };
 
 /* Methods */
 
-static JSBool
+static bool
 addColorStopRGB_func(JSContext *context,
                      unsigned   argc,
-                     jsval     *vp)
+                     JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(context, vp);
-    JSObject *obj = JS_THIS_OBJECT(context, vp);
+    GJS_GET_THIS(context, argc, vp, argv, obj);
     double offset, red, green, blue;
     cairo_pattern_t *pattern;
 
-    if (!gjs_parse_args(context, "addColorStopRGB", "ffff", argc, argv,
-                        "offset", &offset,
-                        "red", &red,
-                        "green", &green,
-                        "blue", &blue))
-        return JS_FALSE;
+    if (!gjs_parse_call_args(context, "addColorStopRGB", argv, "ffff",
+                             "offset", &offset,
+                             "red", &red,
+                             "green", &green,
+                             "blue", &blue))
+        return false;
 
     pattern = gjs_cairo_pattern_get_pattern(context, obj);
 
     cairo_pattern_add_color_stop_rgb(pattern, offset, red, green, blue);
 
     if (!gjs_cairo_check_status(context, cairo_pattern_status(pattern), "pattern"))
-        return JS_FALSE;
+        return false;
 
-    JS_SET_RVAL(context, vp, JSVAL_VOID);
-    return JS_TRUE;
+    argv.rval().setUndefined();
+    return true;
 }
 
-static JSBool
+static bool
 addColorStopRGBA_func(JSContext *context,
                       unsigned   argc,
-                      jsval     *vp)
+                      JS::Value *vp)
 {
-    jsval *argv = JS_ARGV(context, vp);
-    JSObject *obj = JS_THIS_OBJECT(context, vp);
+    GJS_GET_THIS(context, argc, vp, argv, obj);
     double offset, red, green, blue, alpha;
     cairo_pattern_t *pattern;
 
-    if (!gjs_parse_args(context, "addColorStopRGBA", "fffff", argc, argv,
-                        "offset", &offset,
-                        "red", &red,
-                        "green", &green,
-                        "blue", &blue,
-                        "alpha", &alpha))
-        return JS_FALSE;
+    if (!gjs_parse_call_args(context, "addColorStopRGBA", argv, "fffff",
+                             "offset", &offset,
+                             "red", &red,
+                             "green", &green,
+                             "blue", &blue,
+                             "alpha", &alpha))
+        return false;
 
     pattern = gjs_cairo_pattern_get_pattern(context, obj);
     cairo_pattern_add_color_stop_rgba(pattern, offset, red, green, blue, alpha);
 
     if (!gjs_cairo_check_status(context, cairo_pattern_status(pattern), "pattern"))
-        return JS_FALSE;
+        return false;
 
-    JS_SET_RVAL(context, vp, JSVAL_VOID);
-    return JS_TRUE;
+    argv.rval().setUndefined();
+    return true;
 }
 
 JSFunctionSpec gjs_cairo_gradient_proto_funcs[] = {
-    { "addColorStopRGB", JSOP_WRAPPER((JSNative)addColorStopRGB_func), 0, 0 },
-    { "addColorStopRGBA", JSOP_WRAPPER((JSNative)addColorStopRGBA_func), 0, 0 },
+    JS_FS("addColorStopRGB", addColorStopRGB_func, 0, 0),
+    JS_FS("addColorStopRGBA", addColorStopRGBA_func, 0, 0),
     // getColorStopRGB
     // getColorStopRGBA
-    { NULL }
+    JS_FS_END
 };
+
+JSFunctionSpec gjs_cairo_gradient_static_funcs[] = { JS_FS_END };

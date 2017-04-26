@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,22 +24,26 @@
 #ifndef __GJS_PARAM_H__
 #define __GJS_PARAM_H__
 
+#include <stdbool.h>
 #include <glib.h>
 #include <girepository.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-void        gjs_define_param_class     (JSContext  *context,
-                                        JSObject   *in_object);
-GParamSpec* gjs_g_param_from_param     (JSContext  *context,
-                                        JSObject   *obj);
+void gjs_define_param_class(JSContext       *context,
+                            JS::HandleObject in_object);
+
+GParamSpec *gjs_g_param_from_param (JSContext       *context,
+                                    JS::HandleObject obj);
+
 JSObject*   gjs_param_from_g_param     (JSContext  *context,
                                         GParamSpec *param);
-JSBool      gjs_typecheck_param        (JSContext  *context,
-                                        JSObject   *obj,
-                                        GType       expected_type,
-                                        JSBool      throw_error);
+
+bool        gjs_typecheck_param(JSContext       *context,
+                                JS::HandleObject obj,
+                                GType            expected_type,
+                                bool             throw_error);
 
 G_END_DECLS
 

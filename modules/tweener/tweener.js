@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2008  litl, LLC. */
 /**
  * Tweener
@@ -517,8 +517,8 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
     if (!_engineExists) _startEngine();
 
     // Creates a "safer", more strict tweening object
-    var time = isNaN(obj.time) ? 0 : obj.time;
-    var delay = isNaN(obj.delay) ? 0 : obj.delay;
+    var time = obj.time || 0;
+    var delay = obj.delay || 0;
 
     var transition;
 

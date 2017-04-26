@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,6 +24,7 @@
 #ifndef __GJS_BOXED_H__
 #define __GJS_BOXED_H__
 
+#include <stdbool.h>
 #include <glib.h>
 
 #include "cjs/jsapi-util.h"
@@ -41,21 +42,20 @@ typedef enum {
 typedef GIStructInfo GIBoxedInfo;
 
 void      gjs_define_boxed_class       (JSContext             *context,
-                                        JSObject              *in_object,
+                                        JS::HandleObject       in_object,
                                         GIBoxedInfo           *info);
-JSObject* gjs_lookup_boxed_prototype   (JSContext             *context,
-                                        GIBoxedInfo           *info);
+
 void*     gjs_c_struct_from_boxed      (JSContext             *context,
-                                        JSObject              *obj);
+                                        JS::HandleObject       obj);
 JSObject* gjs_boxed_from_c_struct      (JSContext             *context,
                                         GIStructInfo          *info,
                                         void                  *gboxed,
                                         GjsBoxedCreationFlags  flags);
-JSBool    gjs_typecheck_boxed          (JSContext             *context,
-                                        JSObject              *obj,
+bool      gjs_typecheck_boxed          (JSContext             *context,
+                                        JS::HandleObject       obj,
                                         GIStructInfo          *expected_info,
                                         GType                  expected_type,
-                                        JSBool                 throw_error);
+                                        bool                   throw_error);
 
 G_END_DECLS
 

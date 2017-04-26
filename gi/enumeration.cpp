@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -25,8 +25,7 @@
 
 #include <string.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "cjs/jsapi-wrapper.h"
 #include "repo.h"
 #include "gtype.h"
 #include "function.h"
@@ -37,40 +36,15 @@
 
 #include "enumeration.h"
 
-JSObject*
-gjs_lookup_enumeration(JSContext    *context,
-                       GIEnumInfo   *info)
-{
-    JSObject *in_object;
-    const char *enum_name;
-    jsval value;
-
-    in_object = gjs_lookup_namespace_object(context, (GIBaseInfo*) info);
-
-    if (G_UNLIKELY (!in_object))
-        return NULL;
-
-    enum_name = g_base_info_get_name((GIBaseInfo*) info);
-
-    if (!JS_GetProperty(context, in_object, enum_name, &value))
-        return NULL;
-
-    if (G_UNLIKELY (!JSVAL_IS_OBJECT(value)))
-        return NULL;
-
-    return JSVAL_TO_OBJECT(value);
-}
-
-static JSBool
-gjs_define_enum_value(JSContext    *context,
-                      JSObject     *in_object,
-                      GIValueInfo  *info)
+static bool
+gjs_define_enum_value(JSContext       *context,
+                      JS::HandleObject in_object,
+                      GIValueInfo     *info)
 {
     const char *value_name;
     char *fixed_name;
     gsize i;
     gint64 value_val;
-    jsval value_js;
 
     value_name = g_base_info_get_name( (GIBaseInfo*) info);
     value_val = g_value_info_get_value(info);
@@ -91,29 +65,26 @@ gjs_define_enum_value(JSContext    *context,
               "Defining enum value %s (fixed from %s) %" G_GINT64_MODIFIER "d",
               fixed_name, value_name, value_val);
 
-    if (!JS_NewNumberValue(context, value_val, &value_js) ||
-        !JS_DefineProperty(context, in_object,
-                           fixed_name, value_js,
-                           NULL, NULL,
+    if (!JS_DefineProperty(context, in_object,
+                           fixed_name, (double) value_val,
                            GJS_MODULE_PROP_FLAGS)) {
         gjs_throw(context, "Unable to define enumeration value %s %" G_GINT64_FORMAT " (no memory most likely)",
                   fixed_name, value_val);
         g_free(fixed_name);
-        return JS_FALSE;
+        return false;
     }
     g_free(fixed_name);
 
-    return JS_TRUE;
+    return true;
 }
 
-JSBool
-gjs_define_enum_values(JSContext    *context,
-                       JSObject     *in_object,
-                       GIEnumInfo   *info)
+bool
+gjs_define_enum_values(JSContext       *context,
+                       JS::HandleObject in_object,
+                       GIEnumInfo      *info)
 {
     GType gtype;
     int i, n_values;
-    jsval value;
 
     /* Fill in enum values first, so we don't define the enum itself until we're
      * sure we can finish successfully.
@@ -121,29 +92,29 @@ gjs_define_enum_values(JSContext    *context,
     n_values = g_enum_info_get_n_values(info);
     for (i = 0; i < n_values; ++i) {
         GIValueInfo *value_info = g_enum_info_get_value(info, i);
-        gboolean failed;
+        bool failed;
 
         failed = !gjs_define_enum_value(context, in_object, value_info);
 
         g_base_info_unref( (GIBaseInfo*) value_info);
 
         if (failed) {
-            return JS_FALSE;
+            return false;
         }
     }
 
     gtype = g_registered_type_info_get_g_type((GIRegisteredTypeInfo*)info);
-    value = OBJECT_TO_JSVAL(gjs_gtype_create_gtype_wrapper(context, gtype));
-    JS_DefineProperty(context, in_object, "$gtype", value,
-                      NULL, NULL, JSPROP_PERMANENT);
+    JS::RootedObject gtype_obj(context,
+        gjs_gtype_create_gtype_wrapper(context, gtype));
+    JS_DefineProperty(context, in_object, "$gtype", gtype_obj, JSPROP_PERMANENT);
 
-    return JS_TRUE;
+    return true;
 }
 
-JSBool
-gjs_define_enum_static_methods(JSContext    *context,
-                               JSObject     *constructor,
-                               GIEnumInfo   *enum_info)
+bool
+gjs_define_enum_static_methods(JSContext       *context,
+                               JS::HandleObject constructor,
+                               GIEnumInfo      *enum_info)
 {
     int i, n_methods;
 
@@ -172,16 +143,15 @@ gjs_define_enum_static_methods(JSContext    *context,
         g_base_info_unref((GIBaseInfo*) meth_info);
     }
 
-    return JS_TRUE;
+    return true;
 }
 
-JSBool
-gjs_define_enumeration(JSContext    *context,
-                       JSObject     *in_object,
-                       GIEnumInfo   *info)
+bool
+gjs_define_enumeration(JSContext       *context,
+                       JS::HandleObject in_object,
+                       GIEnumInfo      *info)
 {
     const char *enum_name;
-    JSObject *enum_obj;
 
     /* An enumeration is simply an object containing integer attributes for
      * each enum value. It does not have a special JSClass.
@@ -193,34 +163,28 @@ gjs_define_enumeration(JSContext    *context,
      */
 
     enum_name = g_base_info_get_name( (GIBaseInfo*) info);
-    enum_obj = JS_NewObject(context, NULL, NULL, gjs_get_import_global (context));
+
+    JS::RootedObject enum_obj(context, JS_NewPlainObject(context));
     if (enum_obj == NULL) {
         g_error("Could not create enumeration %s.%s",
                	g_base_info_get_namespace( (GIBaseInfo*) info),
                 enum_name);
     }
 
-    /* https://bugzilla.mozilla.org/show_bug.cgi?id=599651 means we
-     * can't just pass in the global as the parent */
-    JS_SetParent(context, enum_obj,
-                 gjs_get_import_global (context));
-
     if (!gjs_define_enum_values(context, enum_obj, info))
-        return JS_FALSE;
+        return false;
     gjs_define_enum_static_methods (context, enum_obj, info);
 
     gjs_debug(GJS_DEBUG_GENUM,
               "Defining %s.%s as %p",
               g_base_info_get_namespace( (GIBaseInfo*) info),
-              enum_name, enum_obj);
+              enum_name, enum_obj.get());
 
-    if (!JS_DefineProperty(context, in_object,
-                           enum_name, OBJECT_TO_JSVAL(enum_obj),
-                           NULL, NULL,
+    if (!JS_DefineProperty(context, in_object, enum_name, enum_obj,
                            GJS_MODULE_PROP_FLAGS)) {
         gjs_throw(context, "Unable to define enumeration property (no memory most likely)");
-        return JS_FALSE;
+        return false;
     }
 
-    return JS_TRUE;
+    return true;
 }

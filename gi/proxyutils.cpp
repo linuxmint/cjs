@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2012 Red Hat, Inc.
  *
@@ -31,17 +31,17 @@
  * with something that gives us both the introspection name
  * and a memory address.
  */
-JSBool
-_gjs_proxy_to_string_func(JSContext  *context,
-                          JSObject   *this_obj,
-                          const char *objtype,
-                          GIBaseInfo *info,
-                          GType       gtype,
-                          gpointer    native_address,
-                          jsval      *rval)
+bool
+_gjs_proxy_to_string_func(JSContext             *context,
+                          JSObject              *this_obj,
+                          const char            *objtype,
+                          GIBaseInfo            *info,
+                          GType                  gtype,
+                          gpointer               native_address,
+                          JS::MutableHandleValue rval)
 {
     GString *buf;
-    JSBool ret = JS_FALSE;
+    bool ret = false;
 
     buf = g_string_new("");
     g_string_append_c(buf, '[');
@@ -69,8 +69,8 @@ _gjs_proxy_to_string_func(JSContext  *context,
     if (!gjs_string_from_utf8 (context, buf->str, -1, rval))
         goto out;
 
-    ret = JS_TRUE;
+    ret = true;
  out:
-    g_string_free (buf, TRUE);
+    g_string_free (buf, true);
     return ret;
 }

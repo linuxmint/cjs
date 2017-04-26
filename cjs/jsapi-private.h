@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2010 litl, LLC
  *
@@ -36,7 +36,7 @@
 G_BEGIN_DECLS
 
 void gjs_schedule_gc_if_needed (JSContext *context);
-void gjs_gc_if_needed (JSContext *context);
+void gjs_gc_if_needed          (JSContext *context);
 
 G_END_DECLS
 

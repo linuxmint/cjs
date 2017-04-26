@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2010 litl, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,39 +26,46 @@
 #include "cairo-module.h"
 #include <cairo.h>
 
-JSBool           gjs_cairo_check_status                 (JSContext       *context,
+bool             gjs_cairo_check_status                 (JSContext       *context,
                                                          cairo_status_t   status,
                                                          const char      *name);
 
-jsval            gjs_cairo_context_create_proto         (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_region_define_proto(JSContext              *cx,
+                                   JS::HandleObject        module,
+                                   JS::MutableHandleObject proto);
+
+void             gjs_cairo_region_init                  (JSContext       *context);
+
+bool gjs_cairo_context_define_proto(JSContext              *cx,
+                                    JS::HandleObject        module,
+                                    JS::MutableHandleObject proto);
+
 cairo_t *        gjs_cairo_context_get_context          (JSContext       *context,
-                                                         JSObject        *object);
+                                                         JS::HandleObject object);
 JSObject *       gjs_cairo_context_from_context         (JSContext       *context,
                                                          cairo_t         *cr);
 void             gjs_cairo_context_init                 (JSContext       *context);
 void             gjs_cairo_surface_init                 (JSContext       *context);
 
+/* path */
+bool gjs_cairo_path_define_proto(JSContext              *cx,
+                                 JS::HandleObject        module,
+                                 JS::MutableHandleObject proto);
 
-/* cairo_path_t */
-jsval            gjs_cairo_path_create_proto            (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
 JSObject *       gjs_cairo_path_from_path               (JSContext       *context,
                                                          cairo_path_t    *path);
 cairo_path_t *   gjs_cairo_path_get_path                (JSContext       *context,
                                                          JSObject        *path_wrapper);
 
 /* surface */
-jsval            gjs_cairo_surface_create_proto         (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+JSObject *gjs_cairo_surface_get_proto(JSContext *cx);
+
+bool gjs_cairo_surface_define_proto(JSContext              *cx,
+                                    JS::HandleObject        module,
+                                    JS::MutableHandleObject proto);
+
 void             gjs_cairo_surface_construct            (JSContext       *context,
-                                                         JSObject        *object,
+                                                         JS::HandleObject object,
                                                          cairo_surface_t *surface);
 void             gjs_cairo_surface_finalize_surface     (JSFreeOp        *fop,
                                                          JSObject        *object);
@@ -68,52 +75,52 @@ cairo_surface_t* gjs_cairo_surface_get_surface          (JSContext       *contex
                                                          JSObject        *object);
 
 /* image surface */
-jsval            gjs_cairo_image_surface_create_proto   (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_image_surface_define_proto(JSContext              *cx,
+                                          JS::HandleObject        module,
+                                          JS::MutableHandleObject proto);
+
 void             gjs_cairo_image_surface_init           (JSContext       *context,
-                                                         JSObject        *object);
+                                                         JS::HandleObject proto);
+
 JSObject *       gjs_cairo_image_surface_from_surface   (JSContext       *context,
                                                          cairo_surface_t *surface);
 
 /* postscript surface */
 #ifdef CAIRO_HAS_PS_SURFACE
-jsval            gjs_cairo_ps_surface_create_proto      (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_ps_surface_define_proto(JSContext              *cx,
+                                       JS::HandleObject        module,
+                                       JS::MutableHandleObject proto);
 #endif
 JSObject *       gjs_cairo_ps_surface_from_surface       (JSContext       *context,
                                                           cairo_surface_t *surface);
 
 /* pdf surface */
 #ifdef CAIRO_HAS_PDF_SURFACE
-jsval            gjs_cairo_pdf_surface_create_proto     (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_pdf_surface_define_proto(JSContext              *cx,
+                                        JS::HandleObject        module,
+                                        JS::MutableHandleObject proto);
 #endif
 JSObject *       gjs_cairo_pdf_surface_from_surface     (JSContext       *context,
                                                          cairo_surface_t *surface);
 
 /* svg surface */
 #ifdef CAIRO_HAS_SVG_SURFACE
-jsval            gjs_cairo_svg_surface_create_proto     (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_svg_surface_define_proto(JSContext              *cx,
+                                        JS::HandleObject        module,
+                                        JS::MutableHandleObject proto);
 #endif
 JSObject *       gjs_cairo_svg_surface_from_surface     (JSContext       *context,
                                                          cairo_surface_t *surface);
 
 /* pattern */
-jsval            gjs_cairo_pattern_create_proto         (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+JSObject *gjs_cairo_pattern_get_proto(JSContext *cx);
+
+bool gjs_cairo_pattern_define_proto(JSContext              *cx,
+                                    JS::HandleObject        module,
+                                    JS::MutableHandleObject proto);
+
 void             gjs_cairo_pattern_construct            (JSContext       *context,
-                                                         JSObject        *object,
+                                                         JS::HandleObject object,
                                                          cairo_pattern_t *pattern);
 void             gjs_cairo_pattern_finalize_pattern     (JSFreeOp        *fop,
                                                          JSObject        *object);
@@ -123,40 +130,41 @@ cairo_pattern_t* gjs_cairo_pattern_get_pattern          (JSContext       *contex
                                                          JSObject        *object);
 
 /* gradient */
-jsval            gjs_cairo_gradient_create_proto        (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+JSObject *gjs_cairo_gradient_get_proto(JSContext *cx);
+
+bool gjs_cairo_gradient_define_proto(JSContext              *cx,
+                                     JS::HandleObject        module,
+                                     JS::MutableHandleObject proto);
 
 /* linear gradient */
-jsval            gjs_cairo_linear_gradient_create_proto (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_linear_gradient_define_proto(JSContext              *cx,
+                                            JS::HandleObject        module,
+                                            JS::MutableHandleObject proto);
+
 JSObject *       gjs_cairo_linear_gradient_from_pattern (JSContext       *context,
                                                          cairo_pattern_t *pattern);
 
 /* radial gradient */
-jsval            gjs_cairo_radial_gradient_create_proto (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_radial_gradient_define_proto(JSContext              *cx,
+                                            JS::HandleObject        module,
+                                            JS::MutableHandleObject proto);
+
 JSObject *       gjs_cairo_radial_gradient_from_pattern (JSContext       *context,
                                                          cairo_pattern_t *pattern);
 
 /* surface pattern */
-jsval            gjs_cairo_surface_pattern_create_proto (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_surface_pattern_define_proto(JSContext              *cx,
+                                            JS::HandleObject        module,
+                                            JS::MutableHandleObject proto);
+
 JSObject *       gjs_cairo_surface_pattern_from_pattern (JSContext       *context,
                                                          cairo_pattern_t *pattern);
 
 /* solid pattern */
-jsval            gjs_cairo_solid_pattern_create_proto   (JSContext       *context,
-                                                         JSObject        *module,
-                                                         const char      *proto_name,
-                                                         JSObject        *parent);
+bool gjs_cairo_solid_pattern_define_proto(JSContext              *cx,
+                                          JS::HandleObject        module,
+                                          JS::MutableHandleObject proto);
+
 JSObject *       gjs_cairo_solid_pattern_from_pattern   (JSContext       *context,
                                                          cairo_pattern_t *pattern);
 

@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* Copyright 2010 Red Hat, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,8 +22,9 @@
 
 #include <config.h>
 
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-wrapper.h"
 #include <cairo.h>
 #include "cairo-private.h"
 
@@ -33,7 +34,9 @@ typedef struct {
     cairo_path_t    *path;
 } GjsCairoPath;
 
-GJS_DEFINE_PROTO_ABSTRACT("CairoPath", cairo_path)
+static JSObject *gjs_cairo_path_get_proto(JSContext *);
+
+GJS_DEFINE_PROTO_ABSTRACT("Path", cairo_path, JSCLASS_BACKGROUND_FINALIZE)
 GJS_DEFINE_PRIV_FROM_JS(GjsCairoPath, gjs_cairo_path_class)
 
 static void
@@ -50,12 +53,14 @@ gjs_cairo_path_finalize(JSFreeOp *fop,
 
 /* Properties */
 JSPropertySpec gjs_cairo_path_proto_props[] = {
-    { NULL }
+    JS_PS_END
 };
 
 JSFunctionSpec gjs_cairo_path_proto_funcs[] = {
-    { NULL }
+    JS_FS_END
 };
+
+JSFunctionSpec gjs_cairo_path_static_funcs[] = { JS_FS_END };
 
 /**
  * gjs_cairo_path_from_path:
@@ -69,13 +74,14 @@ JSObject *
 gjs_cairo_path_from_path(JSContext    *context,
                          cairo_path_t *path)
 {
-    JSObject *object;
     GjsCairoPath *priv;
 
     g_return_val_if_fail(context != NULL, NULL);
     g_return_val_if_fail(path != NULL, NULL);
 
-    object = JS_NewObject(context, &gjs_cairo_path_class, NULL, NULL);
+    JS::RootedObject proto(context, gjs_cairo_path_get_proto(context));
+    JS::RootedObject object(context,
+        JS_NewObjectWithGivenProto(context, &gjs_cairo_path_class, proto));
     if (!object) {
         gjs_throw(context, "failed to create path");
         return NULL;

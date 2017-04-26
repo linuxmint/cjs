@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2010  litl, LLC
  *
@@ -29,14 +29,7 @@
 
 #include "jsapi-util.h"
 #include "jsapi-private.h"
-#include "compat.h"
-
-#include <string.h>
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-prototypes"
-#pragma GCC diagnostic ignored "-Winvalid-offsetof"
-#include <jsfriendapi.h>
-#pragma GCC diagnostic pop
+#include "jsapi-wrapper.h"
 
 void
 gjs_error_reporter(JSContext     *context,
@@ -48,7 +41,8 @@ gjs_error_reporter(JSContext     *context,
 
     if (gjs_environment_variable_is_set("GJS_ABORT_ON_OOM") &&
         report->flags == JSREPORT_ERROR &&
-        report->errorNumber == JSMSG_OUT_OF_MEMORY) {
+        report->errorNumber == 137) {
+        /* 137, JSMSG_OUT_OF_MEMORY */
         g_error("GJS ran out of memory at %s: %i.",
                 report->filename,
                 report->lineno);
@@ -59,13 +53,12 @@ gjs_error_reporter(JSContext     *context,
         level = G_LOG_LEVEL_MESSAGE;
 
         /* suppress bogus warnings. See mozilla/js/src/js.msg */
-        switch (report->errorNumber) {
+        if (report->errorNumber == 162) {
             /* 162, JSMSG_UNDEFINED_PROP: warns every time a lazy property
              * is resolved, since the property starts out
              * undefined. When this is a real bug it should usually
              * fail somewhere else anyhow.
              */
-        case 162:
             return;
         }
     } else {
@@ -74,9 +67,4 @@ gjs_error_reporter(JSContext     *context,
     }
 
     g_log(G_LOG_DOMAIN, level, "JS %s: [%s %d]: %s", warning, report->filename, report->lineno, message);
-}
-
-JSObject *
-gjs_get_global_object(JSContext *cx){
-    return js::GetDefaultGlobalForContext(cx);
 }

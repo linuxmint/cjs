@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  * Copyright (c) 2012  Red Hat, Inc.
@@ -25,26 +25,26 @@
 #ifndef __GJS_GTYPE_H__
 #define __GJS_GTYPE_H__
 
+#include <stdbool.h>
 #include <glib.h>
 #include <girepository.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-jsval      gjs_gtype_create_proto         (JSContext       *context,
-                                           JSObject        *module,
-                                           const char      *proto_name,
-                                           JSObject        *parent);
-
 JSObject * gjs_gtype_create_gtype_wrapper (JSContext *context,
                                            GType      gtype);
 
-GType      gjs_gtype_get_actual_gtype (JSContext *context,
-                                       JSObject  *object);
+GType       gjs_gtype_get_actual_gtype(JSContext       *context,
+                                       JS::HandleObject object);
 
-JSBool    gjs_typecheck_gtype         (JSContext             *context,
-                                       JSObject              *obj,
-                                       JSBool                 throw_error);
+bool        gjs_typecheck_gtype         (JSContext             *context,
+                                         JS::HandleObject       obj,
+                                         bool                   throw_error);
+
+const char *gjs_get_names_from_gtype_and_gi_info(GType        gtype,
+                                                 GIBaseInfo  *info,
+                                                 const char **constructor_name);
 
 G_END_DECLS
 

@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,25 +24,28 @@
 #ifndef __GJS_UNION_H__
 #define __GJS_UNION_H__
 
+#include <stdbool.h>
 #include <glib.h>
 #include <girepository.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-JSBool    gjs_define_union_class       (JSContext    *context,
-                                        JSObject     *in_object,
-                                        GIUnionInfo  *info);
-void*     gjs_c_union_from_union       (JSContext    *context,
-                                        JSObject     *obj);
+bool gjs_define_union_class(JSContext       *context,
+                            JS::HandleObject in_object,
+                            GIUnionInfo     *info);
+
+void     *gjs_c_union_from_union(JSContext       *context,
+                                 JS::HandleObject obj);
+
 JSObject* gjs_union_from_c_union       (JSContext    *context,
                                         GIUnionInfo  *info,
                                         void         *gboxed);
-JSBool    gjs_typecheck_union          (JSContext             *context,
-                                        JSObject              *obj,
+bool      gjs_typecheck_union          (JSContext             *context,
+                                        JS::HandleObject       obj,
                                         GIStructInfo          *expected_info,
                                         GType                  expected_type,
-                                        JSBool                 throw_error);
+                                        bool                   throw_error);
 
 G_END_DECLS
 

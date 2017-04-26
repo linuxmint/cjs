@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *               2012 Giovanni Campagna <scampa.giovanni@gmail.com>
@@ -28,63 +28,35 @@
 #include <util/glib.h>
 #include <util/misc.h>
 
+#include "jsapi-class.h"
 #include "jsapi-util.h"
-#include "compat.h"
+#include "jsapi-wrapper.h"
 #include "jsapi-private.h"
 
 #include <string.h>
 #include <math.h>
 
-/*
- * JS 1.8.5 has JS_NewObjectForConstructor, but it attempts
- * to retrieve the JSClass from private fields in the constructor function,
- * which fails for our "dynamic classes".
- * This is the version included in SpiderMonkey 1.9 and later, to be
- * used until we rebase on a newer libmozjs.
- */
-JSObject *
-gjs_new_object_for_constructor(JSContext *context,
-                               JSClass   *clasp,
-                               jsval     *vp)
+bool
+gjs_init_class_dynamic(JSContext              *context,
+                       JS::HandleObject        in_object,
+                       JS::HandleObject        parent_proto,
+                       const char             *ns_name,
+                       const char             *class_name,
+                       JSClass                *clasp,
+                       JSNative                constructor_native,
+                       unsigned                nargs,
+                       JSPropertySpec         *proto_ps,
+                       JSFunctionSpec         *proto_fs,
+                       JSPropertySpec         *static_ps,
+                       JSFunctionSpec         *static_fs,
+                       JS::MutableHandleObject prototype,
+                       JS::MutableHandleObject constructor)
 {
-    jsval     callee;
-    JSObject *parent;
-    jsval     prototype;
-
-    callee = JS_CALLEE(context, vp);
-    parent = JS_GetParent(JSVAL_TO_OBJECT (callee));
-
-    if (!gjs_object_get_property_const(context, JSVAL_TO_OBJECT(callee), GJS_STRING_PROTOTYPE, &prototype))
-        return NULL;
-
-    return JS_NewObjectWithGivenProto(context, clasp,
-                                      JSVAL_TO_OBJECT(prototype), parent);
-}
-
-JSBool
-gjs_init_class_dynamic(JSContext       *context,
-                       JSObject        *in_object,
-                       JSObject        *parent_proto,
-                       const char      *ns_name,
-                       const char      *class_name,
-                       JSClass         *clasp,
-                       JSNative         constructor_native,
-                       unsigned         nargs,
-                       JSPropertySpec  *proto_ps,
-                       JSFunctionSpec  *proto_fs,
-                       JSPropertySpec  *static_ps,
-                       JSFunctionSpec  *static_fs,
-                       JSObject       **prototype_p,
-                       JSObject       **constructor_p)
-{
-    JSObject *global;
     /* Force these variables on the stack, so the conservative GC will
        find them */
-    JSObject * volatile prototype;
-    JSObject * volatile constructor;
     JSFunction * volatile constructor_fun;
     char *full_function_name = NULL;
-    JSBool res = JS_FALSE;
+    bool res = false;
 
     /* Without a name, JS_NewObject fails */
     g_assert (clasp->name != NULL);
@@ -95,7 +67,7 @@ gjs_init_class_dynamic(JSContext       *context,
 
     JS_BeginRequest(context);
 
-    global = gjs_get_import_global(context);
+    JS::RootedObject global(context, gjs_get_import_global(context));
 
     /* Class initalization consists of three parts:
        - building a prototype
@@ -106,14 +78,17 @@ gjs_init_class_dynamic(JSContext       *context,
          JS_NewObjectForConstructor can find it
     */
 
-    /*
-     * JS_NewObject will try to search for clasp prototype in the global
-     * object if parent_proto is NULL, which is wrong, but it's not
-     * a problem because it will fallback to Object.prototype if the clasp's
-     * constructor is not found (and it won't be found, because we never call
-     * JS_InitClass).
-     */
-    prototype = JS_NewObject(context, clasp, parent_proto, global);
+    if (parent_proto) {
+        prototype.set(JS_NewObjectWithGivenProto(context, clasp, parent_proto));
+    } else {
+        /* JS_NewObject will try to search for clasp prototype in the
+         * global object, which is wrong, but it's not a problem because
+         * it will fallback to Object.prototype if the clasp's
+         * constructor is not found (and it won't be found, because we
+         * never call JS_InitClass).
+         */
+        prototype.set(JS_NewObject(context, clasp));
+    }
     if (!prototype)
         goto out;
 
@@ -128,36 +103,25 @@ gjs_init_class_dynamic(JSContext       *context,
     if (!constructor_fun)
         goto out;
 
-    constructor = JS_GetFunctionObject(constructor_fun);
+    constructor.set(JS_GetFunctionObject(constructor_fun));
 
     if (static_ps && !JS_DefineProperties(context, constructor, static_ps))
         goto out;
     if (static_fs && !JS_DefineFunctions(context, constructor, static_fs))
         goto out;
 
-    if (!JS_DefineProperty(context, constructor, "prototype", OBJECT_TO_JSVAL(prototype),
-                           JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
-        goto out;
-    if (!JS_DefineProperty(context, prototype, "constructor", OBJECT_TO_JSVAL(constructor),
-                           JS_PropertyStub, JS_StrictPropertyStub, 0))
+    if (!JS_LinkConstructorAndPrototype(context, constructor, prototype))
         goto out;
 
     /* The constructor defined by JS_InitClass has no property attributes, but this
        is a more useful default for gjs */
-    if (!JS_DefineProperty(context, in_object, class_name, OBJECT_TO_JSVAL(constructor),
-                           JS_PropertyStub, JS_StrictPropertyStub, GJS_MODULE_PROP_FLAGS))
+    if (!JS_DefineProperty(context, in_object, class_name, constructor,
+                           GJS_MODULE_PROP_FLAGS, JS_STUBGETTER, JS_STUBSETTER))
         goto out;
 
-    if (constructor_p)
-        *constructor_p = constructor;
-    if (prototype_p)
-        *prototype_p = prototype;
+    res = true;
 
-    res = JS_TRUE;
-
-    prototype = NULL;
     constructor_fun = NULL;
-    constructor = NULL;
 
  out:
     JS_EndRequest(context);
@@ -175,49 +139,41 @@ format_dynamic_class_name (const char *name)
         return name;
 }
 
-JSBool
-gjs_typecheck_instance(JSContext *context,
-                       JSObject  *obj,
-                       JSClass   *static_clasp,
-                       JSBool     throw_error)
+bool
+gjs_typecheck_instance(JSContext       *context,
+                       JS::HandleObject obj,
+                       const JSClass   *static_clasp,
+                       bool             throw_error)
 {
     if (!JS_InstanceOf(context, obj, static_clasp, NULL)) {
         if (throw_error) {
-            JSClass *obj_class = JS_GetClass(obj);
+            const JSClass *obj_class = JS_GetClass(obj);
 
-            gjs_throw_custom(context, "TypeError",
+            gjs_throw_custom(context, "TypeError", NULL,
                              "Object %p is not a subclass of %s, it's a %s",
-                             obj, static_clasp->name, format_dynamic_class_name (obj_class->name));
+                             obj.get(), static_clasp->name,
+                             format_dynamic_class_name(obj_class->name));
         }
 
-        return JS_FALSE;
+        return false;
     }
 
-    return JS_TRUE;
+    return true;
 }
 
 JSObject*
-gjs_construct_object_dynamic(JSContext      *context,
-                             JSObject       *proto,
-                             unsigned        argc,
-                             jsval          *argv)
+gjs_construct_object_dynamic(JSContext                  *context,
+                             JS::HandleObject            proto,
+                             const JS::HandleValueArray& args)
 {
-    JSObject *constructor;
-    JSObject *result = NULL;
-    jsval value;
-    jsid constructor_name;
+    JSAutoRequest ar(context);
 
-    JS_BeginRequest(context);
+    JS::RootedObject constructor(context);
 
-    constructor_name = gjs_context_get_const_string(context, GJS_STRING_CONSTRUCTOR);
     if (!gjs_object_require_property(context, proto, "prototype",
-                                     constructor_name, &value))
-        goto out;
+                                     GJS_STRING_CONSTRUCTOR,
+                                     &constructor))
+        return NULL;
 
-    constructor = JSVAL_TO_OBJECT(value);
-    result = JS_New(context, constructor, argc, argv);
-
- out:
-    JS_EndRequest(context);
-    return result;
+    return JS_New(context, constructor, args);
 }

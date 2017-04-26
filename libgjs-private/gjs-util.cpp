@@ -31,7 +31,49 @@
 char *
 gjs_format_int_alternative_output(int n)
 {
+#ifdef HAVE_PRINTF_ALTERNATIVE_INT
     return g_strdup_printf("%Id", n);
+#else
+    return g_strdup_printf("%d", n);
+#endif
+}
+
+GType
+gjs_locale_category_get_type(void)
+{
+  static volatile size_t g_define_type_id__volatile = 0;
+  if (g_once_init_enter(&g_define_type_id__volatile)) {
+      static const GEnumValue v[] = {
+          { GJS_LOCALE_CATEGORY_ALL, "GJS_LOCALE_CATEGORY_ALL", "all" },
+          { GJS_LOCALE_CATEGORY_COLLATE, "GJS_LOCALE_CATEGORY_COLLATE", "collate" },
+          { GJS_LOCALE_CATEGORY_CTYPE, "GJS_LOCALE_CATEGORY_CTYPE", "ctype" },
+          { GJS_LOCALE_CATEGORY_MESSAGES, "GJS_LOCALE_CATEGORY_MESSAGES", "messages" },
+          { GJS_LOCALE_CATEGORY_MONETARY, "GJS_LOCALE_CATEGORY_MONETARY", "monetary" },
+          { GJS_LOCALE_CATEGORY_NUMERIC, "GJS_LOCALE_CATEGORY_NUMERIC", "numeric" },
+          { GJS_LOCALE_CATEGORY_TIME, "GJS_LOCALE_CATEGORY_TIME", "time" },
+          { 0, NULL, NULL }
+      };
+      GType g_define_type_id =
+        g_enum_register_static(g_intern_static_string("GjsLocaleCategory"), v);
+
+      g_once_init_leave(&g_define_type_id__volatile, g_define_type_id);
+  }
+  return g_define_type_id__volatile;
+}
+
+/**
+ * gjs_setlocale:
+ * @category:
+ * @locale: (allow-none):
+ *
+ * Returns:
+ */
+const char *
+gjs_setlocale(GjsLocaleCategory category, const char *locale)
+{
+    /* According to man setlocale(3), the return value may be allocated in
+     * static storage. */
+    return (const char *) setlocale(category, locale);
 }
 
 void
@@ -47,4 +89,22 @@ gjs_bindtextdomain(const char *domain,
     bindtextdomain(domain, location);
     /* Always use UTF-8; we assume it internally here */
     bind_textdomain_codeset(domain, "UTF-8");
+}
+
+GParamFlags
+gjs_param_spec_get_flags(GParamSpec *pspec)
+{
+    return pspec->flags;
+}
+
+GType
+gjs_param_spec_get_value_type(GParamSpec *pspec)
+{
+    return pspec->value_type;
+}
+
+GType
+gjs_param_spec_get_owner_type(GParamSpec *pspec)
+{
+    return pspec->owner_type;
 }

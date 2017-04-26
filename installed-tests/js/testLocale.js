@@ -1,42 +1,41 @@
-// tests for JS_SetLocaleCallbacks().
-const JSUnit = imports.jsUnit;
+describe('JS_SetLocaleCallbacks', function () {
+    it('Intl API was compiled into SpiderMonkey', function () {
+        expect(Intl).toBeDefined();
+    });
 
-function testToLocaleDateString() {
-    let date = new Date();
-    // %A is the weekday name, this tests locale_to_unicode
-    // we're basically just testing for a non-crash, since
-    // we'd have to run in a specific locale to have any
-    // idea about the result.
-    date.toLocaleDateString("%A");
-}
+    // Requesting the weekday name tests locale_to_unicode
+    it('toLocaleDateString() works', function () {
+        let date = new Date('12/15/1981');
+        let datestr = date.toLocaleDateString('pt-BR', { weekday: 'long' });
+        expect(datestr).toEqual('terça-feira');
+    });
 
-function testToLocaleLowerCase() {
-    JSUnit.assertEquals("aaa", "AAA".toLocaleLowerCase());
+    it('toLocaleLowerCase() works', function () {
+        expect('AAA'.toLocaleLowerCase()).toEqual('aaa');
+    });
 
     // String conversion is implemented internally to GLib,
     // and is more-or-less independent of locale. (A few
     // characters are handled specially for a few locales,
     // like i in Turkish. But not A WITH ACUTE)
-    JSUnit.assertEquals("\u00e1", "\u00c1".toLocaleLowerCase());
-}
+    it('toLocaleLowerCase() works for Unicode', function () {
+        expect('\u00c1'.toLocaleLowerCase()).toEqual('\u00e1');
+    });
 
-function testToLocaleUpperCase() {
-    JSUnit.assertEquals("AAA", "aaa".toLocaleUpperCase());
-    JSUnit.assertEquals("\u00c1", "\u00e1".toLocaleUpperCase());
-}
+    it('toLocaleUpperCase() works', function () {
+        expect('aaa'.toLocaleUpperCase()).toEqual('AAA');
+    });
 
-function testToLocaleCompare() {
+    it('toLocaleUpperCase() works for Unicode', function () {
+        expect('\u00e1'.toLocaleUpperCase()).toEqual('\u00c1');
+    });
+
     // GLib calls out to libc for collation, so we can't really
     // assume anything - we could even be running in the
     // C locale. The below is pretty safe.
-    JSUnit.assertEquals(-1, "a".localeCompare("b"));
-    JSUnit.assertEquals( 0, "a".localeCompare("a"));
-    JSUnit.assertEquals( 1, "b".localeCompare("a"));
-
-    // Again test error handling when conversion fails
-    //assertRaises(function() { "\ud800".localeCompare("a"); });
-    //assertRaises(function() { "a".localeCompare("\ud800"); });
-}
-
-JSUnit.gjstestRun(this, JSUnit.setUp, JSUnit.tearDown);
-
+    it('localeCompare() works', function () {
+        expect('a'.localeCompare('b')).toBeLessThan(0);
+        expect('a'.localeCompare('a')).toEqual(0);
+        expect('b'.localeCompare('a')).toBeGreaterThan(0);
+    });
+});

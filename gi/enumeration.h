@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,6 +24,7 @@
 #ifndef __GJS_ENUMERATION_H__
 #define __GJS_ENUMERATION_H__
 
+#include <stdbool.h>
 #include <glib.h>
 
 #include "cjs/jsapi-util.h"
@@ -32,17 +33,17 @@
 
 G_BEGIN_DECLS
 
-JSBool    gjs_define_enum_values       (JSContext    *context,
-                                        JSObject     *in_object,
-                                        GIEnumInfo   *info);
-JSBool    gjs_define_enum_static_methods(JSContext    *context,
-                                         JSObject     *constructor,
-                                         GIEnumInfo   *enum_info);
-JSBool    gjs_define_enumeration       (JSContext    *context,
-                                        JSObject     *in_object,
-                                        GIEnumInfo   *info);
-JSObject* gjs_lookup_enumeration       (JSContext    *context,
-                                        GIEnumInfo   *info);
+bool gjs_define_enum_values(JSContext       *context,
+                            JS::HandleObject in_object,
+                            GIEnumInfo      *info);
+
+bool gjs_define_enum_static_methods(JSContext       *context,
+                                    JS::HandleObject constructor,
+                                    GIEnumInfo      *enum_info);
+
+bool gjs_define_enumeration(JSContext       *context,
+                            JS::HandleObject in_object,
+                            GIEnumInfo      *info);
 
 G_END_DECLS
 

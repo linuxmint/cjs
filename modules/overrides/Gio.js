@@ -20,7 +20,7 @@
 
 var GLib = imports.gi.GLib;
 var GObject = imports.gi.GObject;
-var GjsPrivate = imports.gi.CjsPrivate;
+var CjsPrivate = imports.gi.CjsPrivate;
 var Lang = imports.lang;
 var Signals = imports.signals;
 var Gio;
@@ -83,7 +83,7 @@ function _proxyInvoker(methodName, sync, inSignature, arg_array) {
             outVariant = proxy.call_finish(result);
             succeeded = true;
         } catch (e) {
-            replyFunc(null, e);
+            replyFunc([], e);
         }
 
         if (succeeded)
@@ -326,7 +326,7 @@ function _wrapJSObject(interfaceInfo, jsObj) {
         info = Gio.DBusInterfaceInfo.new_for_xml(interfaceInfo);
     info.cache_build();
 
-    var impl = new GjsPrivate.DBusImplementation({ g_interface_info: info });
+    var impl = new CjsPrivate.DBusImplementation({ g_interface_info: info });
     impl.connect('handle-method-call', function(impl, method_name, parameters, invocation) {
         return _handleMethodCall.call(jsObj, info, impl, method_name, parameters, invocation);
     });
@@ -389,6 +389,6 @@ function _init() {
     _wrapFunction(Gio.DBusNodeInfo, 'new_for_xml', _newNodeInfo);
     Gio.DBusInterfaceInfo.new_for_xml = _newInterfaceInfo;
 
-    Gio.DBusExportedObject = GjsPrivate.DBusImplementation;
+    Gio.DBusExportedObject = CjsPrivate.DBusImplementation;
     Gio.DBusExportedObject.wrapJSObject = _wrapJSObject;
 }

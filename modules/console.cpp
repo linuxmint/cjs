@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -43,7 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_LIBREADLINE
+#ifdef HAVE_READLINE_READLINE_H
 #include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -51,11 +51,11 @@
 
 #include <glib.h>
 #include <glib/gprintf.h>
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
-#include <cjs/jsapi-private.h>
 
 #include "console.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-private.h"
+#include "cjs/jsapi-wrapper.h"
 
 static void
 gjs_console_error_reporter(JSContext *cx, const char *message, JSErrorReport *report)
@@ -127,49 +127,50 @@ gjs_console_error_reporter(JSContext *cx, const char *message, JSErrorReport *re
     g_free(prefix);
 }
 
-#ifdef HAVE_LIBREADLINE
-static JSBool
+#ifdef HAVE_READLINE_READLINE_H
+static bool
 gjs_console_readline(JSContext *cx, char **bufp, FILE *file, const char *prompt)
 {
     char *line;
     line = readline(prompt);
     if (!line)
-        return JS_FALSE;
+        return false;
     if (line[0] != '\0')
         add_history(line);
     *bufp = line;
-    return JS_TRUE;
+    return true;
 }
 #else
-static JSBool
+static bool
 gjs_console_readline(JSContext *cx, char **bufp, FILE *file, const char *prompt)
 {
     char line[256];
     fprintf(stdout, "%s", prompt);
     fflush(stdout);
     if (!fgets(line, sizeof line, file))
-        return JS_FALSE;
+        return false;
     *bufp = g_strdup(line);
-    return JS_TRUE;
+    return true;
 }
 #endif
 
-JSBool
+static bool
 gjs_console_interact(JSContext *context,
                      unsigned   argc,
-                     jsval     *vp)
+                     JS::Value *vp)
 {
-    JSObject *object = JS_THIS_OBJECT(context, vp);
-    gboolean eof = FALSE;
-    jsval result;
-    JSString *str;
+    JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);
+    bool eof = false;
+    JS::RootedValue result(context);
+    JS::RootedString str(context);
+    JS::RootedObject global(context, gjs_get_import_global(context));
     GString *buffer = NULL;
     char *temp_buf = NULL;
     int lineno;
     int startline;
     FILE *file = stdin;
 
-    JS_SetErrorReporter(context, gjs_console_error_reporter);
+    JS_SetErrorReporter(JS_GetRuntime(context), gjs_console_error_reporter);
 
         /* It's an interactive filehandle; drop into read-eval-print loop. */
     lineno = 1;
@@ -185,29 +186,40 @@ gjs_console_interact(JSContext *context,
         do {
             if (!gjs_console_readline(context, &temp_buf, file,
                                       startline == lineno ? "cjs> " : ".... ")) {
-                eof = JS_TRUE;
+                eof = true;
                 break;
             }
             g_string_append(buffer, temp_buf);
             g_free(temp_buf);
             lineno++;
-        } while (!JS_BufferIsCompilableUnit(context, object, buffer->str, buffer->len));
+        } while (!JS_BufferIsCompilableUnit(context, global,
+                                            buffer->str, buffer->len));
 
         JS::CompileOptions options(context);
         options.setUTF8(true)
                .setFileAndLine("typein", startline);
-        js::RootedObject rootedObj(context, object);
-        JS::Evaluate(context, rootedObj, options, buffer->str, buffer->len,  &result);
+        if (!JS::Evaluate(context, global, options, buffer->str, buffer->len,
+                          &result)) {
+            /* If this was an uncatchable exception, throw another uncatchable
+             * exception on up to the surrounding JS::Evaluate() in main(). This
+             * happens when you run gjs-console and type imports.system.exit(0);
+             * at the prompt. If we don't throw another uncatchable exception
+             * here, then it's swallowed and main() won't exit. */
+            if (!JS_IsExceptionPending(context)) {
+                argv.rval().set(result);
+                return false;
+            }
+        }
 
         gjs_schedule_gc_if_needed(context);
 
         if (JS_GetPendingException(context, &result)) {
-            str = JS_ValueToString(context, result);
+            str = JS::ToString(context, result);
             JS_ClearPendingException(context);
-        } else if (JSVAL_IS_VOID(result)) {
+        } else if (result.isUndefined()) {
             goto next;
         } else {
-            str = JS_ValueToString(context, result);
+            str = JS::ToString(context, result);
         }
 
         if (str) {
@@ -220,7 +232,7 @@ gjs_console_interact(JSContext *context,
         }
 
  next:
-        g_string_free(buffer, TRUE);
+        g_string_free(buffer, true);
     } while (!eof);
 
     g_fprintf(stdout, "\n");
@@ -228,23 +240,14 @@ gjs_console_interact(JSContext *context,
     if (file != stdin)
         fclose(file);
 
-    return JS_TRUE;
+    return true;
 }
 
-JSBool
-gjs_define_console_stuff(JSContext  *context,
-                         JSObject  **module_out)
+bool
+gjs_define_console_stuff(JSContext              *context,
+                         JS::MutableHandleObject module)
 {
-    JSObject *module;
-
-    module = JS_NewObject (context, NULL, NULL, NULL);
-
-    if (!JS_DefineFunction(context, module,
-                           "interact",
-                           (JSNative) gjs_console_interact,
-                           1, GJS_MODULE_PROP_FLAGS))
-        return JS_FALSE;
-
-    *module_out = module;
-    return JS_TRUE;
+    module.set(JS_NewPlainObject(context));
+    return JS_DefineFunction(context, module, "interact", gjs_console_interact,
+                             1, GJS_MODULE_PROP_FLAGS);
 }

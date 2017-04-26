@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
  *
@@ -23,14 +23,21 @@
 
 #include <config.h>
 
-#include "compat.h"
+#include "jsapi-util.h"
+#include "jsapi-wrapper.h"
 #include "runtime.h"
 
+#ifdef G_OS_WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 struct RuntimeData {
-  JSBool in_gc_sweep;
+  unsigned refcount;
+  bool in_gc_sweep;
 };
 
-JSBool
+bool
 gjs_runtime_is_sweeping (JSRuntime *runtime)
 {
   RuntimeData *data = (RuntimeData*) JS_GetRuntimePrivate(runtime);
@@ -44,24 +51,24 @@ gjs_runtime_is_sweeping (JSRuntime *runtime)
  * to UTF-8, using the appropriate GLib functions, and converting
  * back if necessary.
  */
-static JSBool
+static bool
 gjs_locale_to_upper_case (JSContext *context,
                           JS::HandleString src,
                           JS::MutableHandleValue retval)
 {
-    JSBool success = JS_FALSE;
+    bool success = false;
     char *utf8 = NULL;
     char *upper_case_utf8 = NULL;
 
-    if (!gjs_string_to_utf8(context, STRING_TO_JSVAL(src), &utf8))
+    if (!gjs_string_to_utf8(context, JS::StringValue(src), &utf8))
         goto out;
 
     upper_case_utf8 = g_utf8_strup (utf8, -1);
 
-    if (!gjs_string_from_utf8(context, upper_case_utf8, -1, retval.address()))
+    if (!gjs_string_from_utf8(context, upper_case_utf8, -1, retval))
         goto out;
 
-    success = JS_TRUE;
+    success = true;
 
 out:
     g_free(utf8);
@@ -70,24 +77,24 @@ out:
     return success;
 }
 
-static JSBool
+static bool
 gjs_locale_to_lower_case (JSContext *context,
                           JS::HandleString src,
                           JS::MutableHandleValue retval)
 {
-    JSBool success = JS_FALSE;
+    bool success = false;
     char *utf8 = NULL;
     char *lower_case_utf8 = NULL;
 
-    if (!gjs_string_to_utf8(context, STRING_TO_JSVAL(src), &utf8))
+    if (!gjs_string_to_utf8(context, JS::StringValue(src), &utf8))
         goto out;
 
     lower_case_utf8 = g_utf8_strdown (utf8, -1);
 
-    if (!gjs_string_from_utf8(context, lower_case_utf8, -1, retval.address()))
+    if (!gjs_string_from_utf8(context, lower_case_utf8, -1, retval))
         goto out;
 
-    success = JS_TRUE;
+    success = true;
 
 out:
     g_free(utf8);
@@ -96,24 +103,22 @@ out:
     return success;
 }
 
-static JSBool
+static bool
 gjs_locale_compare (JSContext *context,
                     JS::HandleString src_1,
                     JS::HandleString src_2,
                     JS::MutableHandleValue retval)
 {
-    JSBool success = JS_FALSE;
+    bool success = false;
     char *utf8_1 = NULL, *utf8_2 = NULL;
-    int result;
 
-    if (!gjs_string_to_utf8(context, STRING_TO_JSVAL(src_1), &utf8_1) ||
-        !gjs_string_to_utf8(context, STRING_TO_JSVAL(src_2), &utf8_2))
+    if (!gjs_string_to_utf8(context, JS::StringValue(src_1), &utf8_1) ||
+        !gjs_string_to_utf8(context, JS::StringValue(src_2), &utf8_2))
         goto out;
 
-    result = g_utf8_collate (utf8_1, utf8_2);
-    retval.set(INT_TO_JSVAL(result));
+    retval.setInt32(g_utf8_collate(utf8_1, utf8_2));
 
-    success = JS_TRUE;
+    success = true;
 
 out:
     g_free(utf8_1);
@@ -122,12 +127,12 @@ out:
     return success;
 }
 
-static JSBool
+static bool
 gjs_locale_to_unicode (JSContext  *context,
                        const char *src,
                        JS::MutableHandleValue retval)
 {
-    JSBool success;
+    bool success;
     char *utf8;
     GError *error = NULL;
 
@@ -137,10 +142,10 @@ gjs_locale_to_unicode (JSContext  *context,
                   "Failed to convert locale string to UTF8: %s",
                   error->message);
         g_error_free(error);
-        return JS_FALSE;
+        return false;
     }
 
-    success = gjs_string_from_utf8(context, utf8, -1, retval.address());
+    success = gjs_string_from_utf8(context, utf8, -1, retval);
     g_free (utf8);
 
     return success;
@@ -152,8 +157,8 @@ destroy_runtime(gpointer data)
     JSRuntime *runtime = (JSRuntime *) data;
     RuntimeData *rtdata = (RuntimeData *) JS_GetRuntimePrivate(runtime);
 
-    g_free(rtdata);
     JS_DestroyRuntime(runtime);
+    g_free(rtdata);
 }
 
 static GPrivate thread_runtime = G_PRIVATE_INIT(destroy_runtime);
@@ -166,16 +171,13 @@ static JSLocaleCallbacks gjs_locale_callbacks =
     gjs_locale_to_unicode
 };
 
-void
+static void
 gjs_finalize_callback(JSFreeOp         *fop,
                       JSFinalizeStatus  status,
-                      JSBool            isCompartment)
+                      bool              isCompartment,
+                      void             *user_data)
 {
-  JSRuntime *runtime;
-  RuntimeData *data;
-
-  runtime = fop->runtime();
-  data = (RuntimeData*) JS_GetRuntimePrivate(runtime);
+  RuntimeData *data = static_cast<RuntimeData *>(user_data);
 
   /* Implementation note for mozjs 24:
      sweeping happens in two phases, in the first phase all
@@ -206,7 +208,7 @@ gjs_finalize_callback(JSFreeOp         *fop,
        JSAPI call
      - therefore, if there is a finalizer frame somewhere
        in the stack, gjs_runtime_is_sweeping() will return
-       TRUE.
+       true.
 
      Comments in mozjs24 imply that this behavior might
      change in the future, but it hasn't changed in
@@ -218,32 +220,133 @@ gjs_finalize_callback(JSFreeOp         *fop,
   */
 
   if (status == JSFINALIZE_GROUP_START)
-    data->in_gc_sweep = JS_TRUE;
+    data->in_gc_sweep = true;
   else if (status == JSFINALIZE_GROUP_END)
-    data->in_gc_sweep = JS_FALSE;
+    data->in_gc_sweep = false;
 }
 
-JSRuntime *
+/* Destroys the current thread's runtime regardless of refcount. No-op if there
+ * is no runtime */
+static void
+gjs_destroy_runtime_for_current_thread(void)
+{
+    g_private_replace(&thread_runtime, NULL);
+}
+
+#ifdef G_OS_WIN32
+HMODULE gjs_dll;
+static bool gjs_is_inited = false;
+
+BOOL WINAPI
+DllMain (HINSTANCE hinstDLL,
+DWORD     fdwReason,
+LPVOID    lpvReserved)
+{
+  switch (fdwReason)
+  {
+  case DLL_PROCESS_ATTACH:
+    gjs_dll = hinstDLL;
+    gjs_is_inited = JS_Init();
+    break;
+
+  case DLL_THREAD_DETACH:
+    gjs_destroy_runtime_for_current_thread();
+    JS_ShutDown ();
+    break;
+
+  default:
+    /* do nothing */
+    ;
+    }
+
+  return TRUE;
+}
+
+#else
+class GjsInit {
+public:
+    GjsInit() {
+        if (!JS_Init())
+            g_error("Could not initialize Javascript");
+    }
+
+    ~GjsInit() {
+        /* No-op if the runtime was already destroyed */
+        gjs_destroy_runtime_for_current_thread();
+        JS_ShutDown();
+    }
+
+    operator bool() {
+        return true;
+    }
+};
+
+static GjsInit gjs_is_inited;
+#endif
+
+static JSRuntime *
 gjs_runtime_for_current_thread(void)
 {
     JSRuntime *runtime = (JSRuntime *) g_private_get(&thread_runtime);
     RuntimeData *data;
 
     if (!runtime) {
-        runtime = JS_NewRuntime(32*1024*1024 /* max bytes */, JS_USE_HELPER_THREADS);
+        g_assert(gjs_is_inited);
+        runtime = JS_NewRuntime(32 * 1024 * 1024 /* max bytes */);
         if (runtime == NULL)
             g_error("Failed to create javascript runtime");
 
         data = g_new0(RuntimeData, 1);
         JS_SetRuntimePrivate(runtime, data);
 
+        // commented are defaults in moz-24
         JS_SetNativeStackQuota(runtime, 1024*1024);
-        JS_SetGCParameter(runtime, JSGC_MAX_BYTES, 0xffffffff);
+        JS_SetGCParameter(runtime, JSGC_MAX_MALLOC_BYTES, 128*1024*1024);
+        JS_SetGCParameter(runtime, JSGC_MAX_BYTES, -1);
+        JS_SetGCParameter(runtime, JSGC_MODE, JSGC_MODE_INCREMENTAL);
+        JS_SetGCParameter(runtime, JSGC_SLICE_TIME_BUDGET, 10); /* ms */
+        // JS_SetGCParameter(runtime, JSGC_HIGH_FREQUENCY_TIME_LIMIT, 1000); /* ms */
+        JS_SetGCParameter(runtime, JSGC_DYNAMIC_MARK_SLICE, true);
+        JS_SetGCParameter(runtime, JSGC_DYNAMIC_HEAP_GROWTH, true);
+        // JS_SetGCParameter(runtime, JSGC_LOW_FREQUENCY_HEAP_GROWTH, 150);
+        // JS_SetGCParameter(runtime, JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MIN, 150);
+        // JS_SetGCParameter(runtime, JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX, 300);
+        // JS_SetGCParameter(runtime, JSGC_HIGH_FREQUENCY_LOW_LIMIT, 100);
+        // JS_SetGCParameter(runtime, JSGC_HIGH_FREQUENCY_HIGH_LIMIT, 500);
+        // JS_SetGCParameter(runtime, JSGC_ALLOCATION_THRESHOLD, 30);
+        // JS_SetGCParameter(runtime, JSGC_DECOMMIT_THRESHOLD, 32);
         JS_SetLocaleCallbacks(runtime, &gjs_locale_callbacks);
-        JS_SetFinalizeCallback(runtime, gjs_finalize_callback);
+        JS_AddFinalizeCallback(runtime, gjs_finalize_callback, data);
+        JS_SetErrorReporter(runtime, gjs_error_reporter);
 
         g_private_set(&thread_runtime, runtime);
     }
 
     return runtime;
+}
+
+/* These two act on the current thread's runtime. In the future they will go
+ * away because SpiderMonkey is going to merge JSContext and JSRuntime.
+ */
+
+/* Creates a new runtime with one reference if there is no runtime yet */
+JSRuntime *
+gjs_runtime_ref(void)
+{
+    JSRuntime *rt = static_cast<JSRuntime *>(gjs_runtime_for_current_thread());
+    RuntimeData *data = static_cast<RuntimeData *>(JS_GetRuntimePrivate(rt));
+    g_atomic_int_inc(&data->refcount);
+    return rt;
+}
+
+/* No-op if there is no runtime */
+void
+gjs_runtime_unref(void)
+{
+    JSRuntime *rt = static_cast<JSRuntime *>(g_private_get(&thread_runtime));
+    if (rt == NULL)
+        return;
+    RuntimeData *data = static_cast<RuntimeData *>(JS_GetRuntimePrivate(rt));
+    if (g_atomic_int_dec_and_test(&data->refcount))
+        gjs_destroy_runtime_for_current_thread();
 }

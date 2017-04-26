@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -28,7 +28,7 @@
 
 G_BEGIN_DECLS
 
-gboolean    gjs_environment_variable_is_set   (const char *env_variable_name);
+bool    gjs_environment_variable_is_set   (const char *env_variable_name);
 
 G_END_DECLS
 

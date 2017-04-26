@@ -1,22 +1,35 @@
 #!/usr/bin/make -f
 
-include /usr/share/cdbs/1/rules/debhelper.mk
-include /usr/share/cdbs/1/class/autotools.mk
-include /usr/share/cdbs/1/rules/utils.mk
-include /usr/share/cdbs/1/rules/autoreconf.mk
-include /usr/share/gnome-pkg-tools/1/rules/uploaders.mk
 include /usr/share/gnome-pkg-tools/1/rules/gnome-get-source.mk
 
 # Use recursive variables since this variable must not be expanded until 
 # files have been installed.
-LIBMOZJS = $(shell objdump -p debian/tmp/usr/lib/libcjs.so | awk '$$1=="NEEDED" && $$2~/^libmozjs/ { print $$2 }' | sed s/\\.so\\./-/ )
-DEB_DH_MAKESHLIBS_ARGS_libcjs0e = -Xusr/lib/cjs-1.0/ -V'libcjs0e (>= $(DEB_UPSTREAM_VERSION)), libcjs0-$(LIBMOZJS)' -- -c4
+#LIBMOZJS = $(shell objdump -p debian/tmp/usr/lib/libgjs.so | awk '$$1=="NEEDED" && $$2~/^libmozjs/ { print $$2 }' | sed s/\\.so\\./-/ )
+# Hard code the mozjs version here since the above line didn't seem to work
+LIBMOZJS = libmozjs-38-0
 
-DEB_MAKE_CHECK_TARGET := check
+%:
+	dh $@ --with gnome,gir
 
-ifeq ($(DEB_HOST_ARCH), powerpc)
-    DEB_MAKE_CHECK_TARGET := check || true
-endif
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		--libdir=\$${prefix}/lib \
+		--libexecdir=\$${prefix}/lib/cjs \
+		--with-xvfb-tests \
+		--with-dbus-tests
 
-install/libcjs0e::
-	echo cjs:Provides=libcjs0-$(LIBMOZJS) >> debian/$(cdbs_curpkg).substvars
+override_dh_girepository:
+	dh_girepository -l $(CURDIR) /usr/lib/cjs/girepository-1.0
+
+override_dh_install:
+	dh_install --fail-missing -X.la
+
+override_dh_auto_test:
+	dh_auto_test || true
+
+override_dh_makeshlibs:
+	dh_makeshlibs -Xusr/lib/cjs-1.0/ -V'libcjs0f (>= $(DEB_UPSTREAM_VERSION)), libcjs0-$(LIBMOZJS)' -- -c4
+
+override_dh_gencontrol:
+	echo cjs:Provides=libcjs0-$(LIBMOZJS) >> debian/libcjs0f.substvars
+	dh_gencontrol

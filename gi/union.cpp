@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -31,8 +31,9 @@
 #include "union.h"
 #include "arg.h"
 #include "object.h"
-#include <cjs/gjs-module.h>
-#include <cjs/compat.h>
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/mem.h"
 #include "repo.h"
 #include "proxyutils.h"
 #include "function.h"
@@ -50,58 +51,58 @@ extern struct JSClass gjs_union_class;
 GJS_DEFINE_PRIV_FROM_JS(Union, gjs_union_class)
 
 /*
- * Like JSResolveOp, but flags provide contextual information as follows:
- *
- *  JSRESOLVE_QUALIFIED   a qualified property id: obj.id or obj[id], not id
- *  JSRESOLVE_ASSIGNING   obj[id] is on the left-hand side of an assignment
- *  JSRESOLVE_DETECTING   'if (o.p)...' or similar detection opcode sequence
- *  JSRESOLVE_DECLARING   var, const, or boxed prolog declaration opcode
- *  JSRESOLVE_CLASSNAME   class name used when constructing
- *
- * The *objp out parameter, on success, should be null to indicate that id
- * was not resolved; and non-null, referring to obj or one of its prototypes,
- * if id was resolved.
+ * The *resolved out parameter, on success, should be false to indicate that id
+ * was not resolved; and true if id was resolved.
  */
-static JSBool
-union_new_resolve(JSContext *context,
-                  JSObject **obj,
-                  jsid      *id,
-                  unsigned   flags,
-                  JSObject **objp)
+static bool
+union_resolve(JSContext       *context,
+              JS::HandleObject obj,
+              JS::HandleId     id,
+              bool            *resolved)
 {
     Union *priv;
-    char *name;
-    JSBool ret = JS_TRUE;
+    char *name = NULL;
 
-    *objp = NULL;
-
-    if (!gjs_get_string_id(context, *id, &name))
-        return JS_TRUE; /* not resolved, but no error */
-
-    priv = priv_from_js(context, *obj);
-    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook obj %p priv %p",
-                     name, (void *)obj, priv);
-
-    if (priv == NULL) {
-        ret = JS_FALSE; /* wrong class */
-        goto out;
+    if (!gjs_get_string_id(context, id, &name)) {
+        *resolved = false;
+        return true; /* not resolved, but no error */
     }
 
-    if (priv->gboxed == NULL) {
-        /* We are the prototype, so look for methods and other class properties */
-        GIFunctionInfo *method_info;
+    priv = priv_from_js(context, obj);
+    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook obj %p priv %p",
+                     name, obj.get(), priv);
 
-        method_info = g_union_info_find_method((GIUnionInfo*) priv->info,
-                                               name);
+    if (priv == NULL) {
+        g_free(name);
+        return false; /* wrong class */
+    }
 
-        if (method_info != NULL) {
-            JSObject *union_proto;
-            const char *method_name;
+    if (priv->gboxed != NULL) {
+        /* We are an instance, not a prototype, so look for
+         * per-instance props that we want to define on the
+         * JSObject. Generally we do not want to cache these in JS, we
+         * want to always pull them from the C object, or JS would not
+         * see any changes made from C. So we use the get/set prop
+         * hooks, not this resolve hook.
+         */
+        *resolved = false;
+        g_free(name);
+        return true;
+    }
+
+    /* We are the prototype, so look for methods and other class properties */
+    GIFunctionInfo *method_info;
+
+    method_info = g_union_info_find_method((GIUnionInfo*) priv->info,
+                                           name);
+
+    if (method_info != NULL) {
+        const char *method_name;
 
 #if GJS_VERBOSE_ENABLE_GI_USAGE
-            _gjs_log_info_usage((GIBaseInfo*) method_info);
+        _gjs_log_info_usage((GIBaseInfo*) method_info);
 #endif
-
+        if (g_function_info_get_flags (method_info) & GI_FUNCTION_IS_METHOD) {
             method_name = g_base_info_get_name( (GIBaseInfo*) method_info);
 
             gjs_debug(GJS_DEBUG_GBOXED,
@@ -110,39 +111,33 @@ union_new_resolve(JSContext *context,
                       g_base_info_get_namespace( (GIBaseInfo*) priv->info),
                       g_base_info_get_name( (GIBaseInfo*) priv->info));
 
-            union_proto = *obj;
-
-            if (gjs_define_function(context, union_proto,
+            /* obj is union proto */
+            if (gjs_define_function(context, obj,
                                     g_registered_type_info_get_g_type(priv->info),
                                     method_info) == NULL) {
                 g_base_info_unref( (GIBaseInfo*) method_info);
-                ret = JS_FALSE;
-                goto out;
+                g_free(name);
+                return false;
             }
 
-            *objp = union_proto; /* we defined the prop in object_proto */
-
-            g_base_info_unref( (GIBaseInfo*) method_info);
+            *resolved = true; /* we defined the prop in object_proto */
+        } else {
+            *resolved = false;
         }
+
+        g_base_info_unref( (GIBaseInfo*) method_info);
     } else {
-        /* We are an instance, not a prototype, so look for
-         * per-instance props that we want to define on the
-         * JSObject. Generally we do not want to cache these in JS, we
-         * want to always pull them from the C object, or JS would not
-         * see any changes made from C. So we use the get/set prop
-         * hooks, not this resolve hook.
-         */
+        *resolved = false;
     }
 
- out:
     g_free(name);
-    return ret;
+    return true;
 }
 
 static void*
-union_new(JSContext   *context,
-          JSObject    *obj, /* "this" for constructor */
-          GIUnionInfo *info)
+union_new(JSContext       *context,
+          JS::HandleObject obj, /* "this" for constructor */
+          GIUnionInfo     *info)
 {
     int n_methods;
     int i;
@@ -161,11 +156,10 @@ union_new(JSContext   *context,
         if ((flags & GI_FUNCTION_IS_CONSTRUCTOR) != 0 &&
             g_callable_info_get_n_args((GICallableInfo*) func_info) == 0) {
 
-            jsval rval;
+            JS::RootedValue rval(context, JS::NullValue());
 
-            rval = JSVAL_NULL;
             gjs_invoke_c_function_uncached(context, func_info, obj,
-                                           0, NULL, &rval);
+                                           JS::HandleValueArray::empty(), &rval);
 
             g_base_info_unref((GIBaseInfo*) func_info);
 
@@ -173,10 +167,12 @@ union_new(JSContext   *context,
              * creates a JSObject wrapper for the union that we immediately
              * discard.
              */
-            if (JSVAL_IS_NULL(rval))
+            if (rval.isNull()) {
                 return NULL;
-            else
-                return gjs_c_union_from_union(context, JSVAL_TO_OBJECT(rval));
+            } else {
+                JS::RootedObject rval_obj(context, &rval.toObject());
+                return gjs_c_union_from_union(context, rval_obj);
+            }
         }
 
         g_base_info_unref((GIBaseInfo*) func_info);
@@ -193,7 +189,7 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(union)
     GJS_NATIVE_CONSTRUCTOR_VARIABLES(union)
     Union *priv;
     Union *proto_priv;
-    JSObject *proto;
+    JS::RootedObject proto(context);
     void *gboxed;
 
     GJS_NATIVE_CONSTRUCTOR_PRELUDE(union);
@@ -207,10 +203,11 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(union)
 
     gjs_debug_lifecycle(GJS_DEBUG_GBOXED,
                         "union constructor, obj %p priv %p",
-                        object, priv);
+                        object.get(), priv);
 
     JS_GetPrototype(context, object, &proto);
-    gjs_debug_lifecycle(GJS_DEBUG_GBOXED, "union instance __proto__ is %p", proto);
+    gjs_debug_lifecycle(GJS_DEBUG_GBOXED, "union instance __proto__ is %p",
+                        proto.get());
 
     /* If we're the prototype, then post-construct we'll fill in priv->info.
      * If we are not the prototype, though, then we'll get ->info from the
@@ -220,7 +217,7 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(union)
     if (proto_priv == NULL) {
         gjs_debug(GJS_DEBUG_GBOXED,
                   "Bad prototype set on union? Must match JSClass of object. JS error should have been reported.");
-        return JS_FALSE;
+        return false;
     }
 
     priv->info = proto_priv->info;
@@ -228,17 +225,17 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(union)
     priv->gtype = proto_priv->gtype;
 
     /* union_new happens to be implemented by calling
-     * gjs_invoke_c_function(), which returns a jsval.
-     * The returned "gboxed" here is owned by that jsval,
+     * gjs_invoke_c_function(), which returns a JS::Value.
+     * The returned "gboxed" here is owned by that JS::Value,
      * not by us.
      */
     gboxed = union_new(context, object, priv->info);
 
     if (gboxed == NULL) {
-        return JS_FALSE;
+        return false;
     }
 
-    /* Because "gboxed" is owned by a jsval and will
+    /* Because "gboxed" is owned by a JS::Value and will
      * be garbage collected, we make a copy here to be
      * owned by us.
      */
@@ -250,7 +247,7 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(union)
 
     GJS_NATIVE_CONSTRUCTOR_FINISH(union);
 
-    return JS_TRUE;
+    return true;
 }
 
 static void
@@ -280,27 +277,15 @@ union_finalize(JSFreeOp *fop,
     g_slice_free(Union, priv);
 }
 
-static JSBool
+static bool
 to_string_func(JSContext *context,
                unsigned   argc,
-               jsval     *vp)
+               JS::Value *vp)
 {
-    JSObject *obj = JS_THIS_OBJECT(context, vp);
-    Union *priv;
-    JSBool ret = JS_FALSE;
-    jsval retval;
-
-    if (!priv_from_js_with_typecheck(context, obj, &priv))
-        goto out;
-    
-    if (!_gjs_proxy_to_string_func(context, obj, "union", (GIBaseInfo*)priv->info,
-                                   priv->gtype, priv->gboxed, &retval))
-        goto out;
-
-    ret = JS_TRUE;
-    JS_SET_RVAL(context, vp, retval);
- out:
-    return ret;
+    GJS_GET_PRIV(context, argc, vp, rec, obj, Union, priv);
+    return _gjs_proxy_to_string_func(context, obj, "union",
+                                     (GIBaseInfo*)priv->info, priv->gtype,
+                                     priv->gboxed, rec.rval());
 }
 
 /* The bizarre thing about this vtable is that it applies to both
@@ -310,40 +295,35 @@ to_string_func(JSContext *context,
 struct JSClass gjs_union_class = {
     "GObject_Union",
     JSCLASS_HAS_PRIVATE |
-    JSCLASS_NEW_RESOLVE,
-    JS_PropertyStub,
-    JS_DeletePropertyStub,
-    JS_PropertyStub,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    (JSResolveOp) union_new_resolve, /* needs cast since it's the new resolve signature */
-    JS_ConvertStub,
-    union_finalize,
-    NULL,
-    NULL,
-    NULL, NULL, NULL
+    JSCLASS_IMPLEMENTS_BARRIERS,
+    NULL,  /* addProperty */
+    NULL,  /* deleteProperty */
+    NULL,  /* getProperty */
+    NULL,  /* setProperty */
+    NULL,  /* enumerate */
+    union_resolve,
+    NULL,  /* convert */
+    union_finalize
 };
 
 JSPropertySpec gjs_union_proto_props[] = {
-    { NULL }
+    JS_PS_END
 };
 
 JSFunctionSpec gjs_union_proto_funcs[] = {
-    { "toString", JSOP_WRAPPER((JSNative)to_string_func), 0, 0 },
-    { NULL }
+    JS_FS("toString", to_string_func, 0, 0),
+    JS_FS_END
 };
 
-JSBool
-gjs_define_union_class(JSContext    *context,
-                       JSObject     *in_object,
-                       GIUnionInfo  *info)
+bool
+gjs_define_union_class(JSContext       *context,
+                       JS::HandleObject in_object,
+                       GIUnionInfo     *info)
 {
     const char *constructor_name;
-    JSObject *prototype;
-    jsval value;
     Union *priv;
     GType gtype;
-    JSObject *constructor;
+    JS::RootedObject prototype(context), constructor(context);
 
     /* For certain unions, we may be able to relax this in the future by
      * directly allocating union memory, as we do for structures in boxed.c
@@ -351,7 +331,7 @@ gjs_define_union_class(JSContext    *context,
     gtype = g_registered_type_info_get_g_type( (GIRegisteredTypeInfo*) info);
     if (gtype == G_TYPE_NONE) {
         gjs_throw(context, "Unions must currently be registered as boxed types");
-        return JS_FALSE;
+        return false;
     }
 
     /* See the comment in gjs_define_object_class() for an
@@ -362,7 +342,7 @@ gjs_define_union_class(JSContext    *context,
     constructor_name = g_base_info_get_name( (GIBaseInfo*) info);
 
     if (!gjs_init_class_dynamic(context, in_object,
-                                NULL,
+                                JS::NullPtr(),
                                 g_base_info_get_namespace( (GIBaseInfo*) info),
                                 constructor_name,
                                 &gjs_union_class,
@@ -388,13 +368,14 @@ gjs_define_union_class(JSContext    *context,
     JS_SetPrivate(prototype, priv);
 
     gjs_debug(GJS_DEBUG_GBOXED, "Defined class %s prototype is %p class %p in object %p",
-              constructor_name, prototype, JS_GetClass(prototype), in_object);
+              constructor_name, prototype.get(), JS_GetClass(prototype),
+              in_object.get());
 
-    value = OBJECT_TO_JSVAL(gjs_gtype_create_gtype_wrapper(context, gtype));
-    JS_DefineProperty(context, constructor, "$gtype", value,
-                      NULL, NULL, JSPROP_PERMANENT);
+    JS::RootedObject gtype_obj(context,
+        gjs_gtype_create_gtype_wrapper(context, gtype));
+    JS_DefineProperty(context, constructor, "$gtype", gtype_obj, JSPROP_PERMANENT);
 
-    return JS_TRUE;
+    return true;
 }
 
 JSObject*
@@ -403,7 +384,6 @@ gjs_union_from_c_union(JSContext    *context,
                        void         *gboxed)
 {
     JSObject *obj;
-    JSObject *proto;
     Union *priv;
     GType gtype;
 
@@ -423,11 +403,10 @@ gjs_union_from_c_union(JSContext    *context,
                       "Wrapping union %s %p with JSObject",
                       g_base_info_get_name((GIBaseInfo *)info), gboxed);
 
-    proto = gjs_lookup_generic_prototype(context, (GIUnionInfo*) info);
+    JS::RootedObject proto(context,
+        gjs_lookup_generic_prototype(context, (GIUnionInfo*) info));
 
-    obj = JS_NewObjectWithGivenProto(context,
-                                     JS_GetClass(proto), proto,
-                                     gjs_get_import_global (context));
+    obj = JS_NewObjectWithGivenProto(context, JS_GetClass(proto), proto);
 
     GJS_INC_COUNTER(boxed);
     priv = g_slice_new0(Union);
@@ -441,8 +420,8 @@ gjs_union_from_c_union(JSContext    *context,
 }
 
 void*
-gjs_c_union_from_union(JSContext    *context,
-                       JSObject     *obj)
+gjs_c_union_from_union(JSContext       *context,
+                       JS::HandleObject obj)
 {
     Union *priv;
 
@@ -454,30 +433,30 @@ gjs_c_union_from_union(JSContext    *context,
     return priv->gboxed;
 }
 
-JSBool
-gjs_typecheck_union(JSContext     *context,
-                    JSObject      *object,
-                    GIStructInfo  *expected_info,
-                    GType          expected_type,
-                    JSBool         throw_error)
+bool
+gjs_typecheck_union(JSContext       *context,
+                    JS::HandleObject object,
+                    GIStructInfo    *expected_info,
+                    GType            expected_type,
+                    bool             throw_error)
 {
     Union *priv;
-    JSBool result;
+    bool result;
 
     if (!do_base_typecheck(context, object, throw_error))
-        return JS_FALSE;
+        return false;
 
     priv = priv_from_js(context, object);
 
     if (priv->gboxed == NULL) {
         if (throw_error) {
-            gjs_throw_custom(context, "TypeError",
+            gjs_throw_custom(context, "TypeError", NULL,
                              "Object is %s.%s.prototype, not an object instance - cannot convert to a union instance",
                              g_base_info_get_namespace( (GIBaseInfo*) priv->info),
                              g_base_info_get_name( (GIBaseInfo*) priv->info));
         }
 
-        return JS_FALSE;
+        return false;
     }
 
     if (expected_type != G_TYPE_NONE)
@@ -485,18 +464,18 @@ gjs_typecheck_union(JSContext     *context,
     else if (expected_info != NULL)
         result = g_base_info_equal((GIBaseInfo*) priv->info, (GIBaseInfo*) expected_info);
     else
-        result = JS_TRUE;
+        result = true;
 
     if (!result && throw_error) {
         if (expected_info != NULL) {
-            gjs_throw_custom(context, "TypeError",
+            gjs_throw_custom(context, "TypeError", NULL,
                              "Object is of type %s.%s - cannot convert to %s.%s",
                              g_base_info_get_namespace((GIBaseInfo*) priv->info),
                              g_base_info_get_name((GIBaseInfo*) priv->info),
                              g_base_info_get_namespace((GIBaseInfo*) expected_info),
                              g_base_info_get_name((GIBaseInfo*) expected_info));
         } else {
-            gjs_throw_custom(context, "TypeError",
+            gjs_throw_custom(context, "TypeError", NULL,
                              "Object is of type %s.%s - cannot convert to %s",
                              g_base_info_get_namespace((GIBaseInfo*) priv->info),
                              g_base_info_get_name((GIBaseInfo*) priv->info),

@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,31 +24,37 @@
 #ifndef __GJS_REPO_H__
 #define __GJS_REPO_H__
 
+#include <stdbool.h>
 #include <glib.h>
 
 #include <girepository.h>
 
-#include <cjs/gjs-module.h>
+#include "cjs/jsapi-wrapper.h"
 #include <util/log.h>
 
 G_BEGIN_DECLS
 
-JSBool      gjs_define_repo                     (JSContext      *context,
-                                                 JSObject      **module_out,
-                                                 const char     *name);
+bool gjs_define_repo(JSContext              *cx,
+                     JS::MutableHandleObject repo);
+
 const char* gjs_info_type_name                  (GIInfoType      type);
 JSObject*   gjs_lookup_private_namespace        (JSContext      *context);
 JSObject*   gjs_lookup_namespace_object         (JSContext      *context,
                                                  GIBaseInfo     *info);
-JSObject*   gjs_lookup_namespace_object_by_name (JSContext      *context,
-                                                 jsid            name);
-JSObject*   gjs_lookup_function_object          (JSContext      *context,
-                                                 GIFunctionInfo *info);
+
+JSObject *gjs_lookup_namespace_object_by_name(JSContext   *context,
+                                              JS::HandleId name);
+
+JSObject *  gjs_lookup_generic_constructor      (JSContext      *context,
+                                                 GIBaseInfo     *info);
 JSObject *  gjs_lookup_generic_prototype        (JSContext      *context,
                                                  GIBaseInfo     *info);
-JSBool      gjs_define_info                     (JSContext      *context,
-                                                 JSObject       *in_object,
-                                                 GIBaseInfo     *info);
+
+bool gjs_define_info(JSContext       *context,
+                     JS::HandleObject in_object,
+                     GIBaseInfo      *info,
+                     bool            *defined);
+
 char*       gjs_camel_from_hyphen               (const char     *hyphen_name);
 char*       gjs_hyphen_from_camel               (const char     *camel_name);
 

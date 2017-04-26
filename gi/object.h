@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -24,30 +24,49 @@
 #ifndef __GJS_OBJECT_H__
 #define __GJS_OBJECT_H__
 
+#include <stdbool.h>
 #include <glib.h>
 #include <girepository.h>
 #include "cjs/jsapi-util.h"
 
 G_BEGIN_DECLS
 
-void      gjs_define_object_class       (JSContext     *context,
-                                         JSObject      *in_object,
-                                         GIObjectInfo  *info,
-                                         GType          gtype,
-                                         JSObject     **constructor_p);
+void gjs_define_object_class(JSContext              *context,
+                             JS::HandleObject        in_object,
+                             GIObjectInfo           *info,
+                             GType                   gtype,
+                             JS::MutableHandleObject constructor);
+
+bool gjs_lookup_object_constructor(JSContext             *context,
+                                   GType                  gtype,
+                                   JS::MutableHandleValue value_p);
+
 JSObject* gjs_object_from_g_object      (JSContext     *context,
                                          GObject       *gobj);
-GObject*  gjs_g_object_from_object      (JSContext     *context,
-                                         JSObject      *obj);
-JSBool    gjs_typecheck_object          (JSContext     *context,
-                                         JSObject      *obj,
-                                         GType          expected_type,
-                                         JSBool         throw_error);
-JSBool    gjs_typecheck_is_object       (JSContext     *context,
-                                         JSObject      *obj,
-                                         JSBool         throw_error);
+
+GObject  *gjs_g_object_from_object(JSContext       *context,
+                                   JS::HandleObject obj);
+
+bool      gjs_typecheck_object(JSContext       *context,
+                               JS::HandleObject obj,
+                               GType            expected_type,
+                               bool             throw_error);
+
+bool      gjs_typecheck_is_object(JSContext       *context,
+                                  JS::HandleObject obj,
+                                  bool             throw_error);
 
 void      gjs_object_prepare_shutdown   (JSContext     *context);
+
+void gjs_object_clear_toggles(void);
+
+void gjs_object_define_static_methods(JSContext       *context,
+                                      JS::HandleObject constructor,
+                                      GType            gtype,
+                                      GIObjectInfo    *object_info);
+
+bool gjs_define_private_gi_stuff(JSContext              *cx,
+                                 JS::MutableHandleObject module);
 
 G_END_DECLS
 

@@ -1,4 +1,4 @@
-/* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
  * Copyright (c) 2008  litl, LLC
  *
@@ -31,35 +31,44 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <unistd.h>
+
+#ifdef G_OS_WIN32
+# include <io.h>
+# include <process.h>
+# ifndef F_OK
+#  define F_OK 0
+# endif
+#else
+# include <unistd.h>
+#endif
 
 /* prefix is allowed if it's in the ;-delimited environment variable
  * GJS_DEBUG_TOPICS or if that variable is not set.
  */
-static gboolean
+static bool
 is_allowed_prefix (const char *prefix)
 {
     static const char *topics = NULL;
     static char **prefixes = NULL;
-    gboolean found = FALSE;
+    bool found = false;
     int i;
 
     if (topics == NULL) {
         topics = g_getenv("GJS_DEBUG_TOPICS");
 
         if (!topics)
-            return TRUE;
+            return true;
 
         /* We never really free this, should be gone when the process exits */
         prefixes = g_strsplit(topics, ";", -1);
     }
 
     if (!prefixes)
-        return TRUE;
+        return true;
 
     for (i = 0; prefixes[i] != NULL; i++) {
         if (!strcmp(prefixes[i], prefix)) {
-            found = TRUE;
+            found = true;
             break;
         }
     }
@@ -89,10 +98,9 @@ gjs_debug(GjsDebugTopic topic,
           ...)
 {
     static FILE *logfp = NULL;
-    static gboolean debug_log_enabled = FALSE;
-    static gboolean strace_timestamps = FALSE;
-    static gboolean checked_for_timestamp = FALSE;
-    static gboolean print_timestamp = FALSE;
+    static bool debug_log_enabled = false;
+    static bool checked_for_timestamp = false;
+    static bool print_timestamp = false;
     static GTimer *timer = NULL;
     const char *prefix;
     va_list args;
@@ -100,7 +108,7 @@ gjs_debug(GjsDebugTopic topic,
 
     if (!checked_for_timestamp) {
         print_timestamp = gjs_environment_variable_is_set("GJS_DEBUG_TIMESTAMP");
-        checked_for_timestamp = TRUE;
+        checked_for_timestamp = true;
     }
 
     if (print_timestamp && !timer) {
@@ -111,7 +119,7 @@ gjs_debug(GjsDebugTopic topic,
         const char *debug_output = g_getenv("GJS_DEBUG_OUTPUT");
         if (debug_output != NULL &&
             strcmp(debug_output, "stderr") == 0) {
-            debug_log_enabled = TRUE;
+            debug_log_enabled = true;
         } else if (debug_output != NULL) {
             const char *log_file;
             char *free_me;
@@ -125,7 +133,14 @@ gjs_debug(GjsDebugTopic topic,
              */
             c = strchr((char *) debug_output, '%');
             if (c && c[1] == 'u' && !strchr(c+1, '%')) {
+#if defined(__clang__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+_Pragma("GCC diagnostic push")
+_Pragma("GCC diagnostic ignored \"-Wformat-nonliteral\"")
+#endif
                 free_me = g_strdup_printf(debug_output, (guint)getpid());
+#if defined(__clang__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+_Pragma("GCC diagnostic pop")
+#endif
                 log_file = free_me;
             } else {
                 log_file = debug_output;
@@ -140,35 +155,17 @@ gjs_debug(GjsDebugTopic topic,
 
             g_free(free_me);
 
-            debug_log_enabled = TRUE;
+            debug_log_enabled = true;
         }
 
         if (logfp == NULL)
             logfp = stderr;
-
-        strace_timestamps = gjs_environment_variable_is_set("GJS_STRACE_TIMESTAMPS");
     }
 
-    /* only strace timestamps if debug
-     * log wasn't specifically switched on
-     */
-    if (!debug_log_enabled &&
-        topic != GJS_DEBUG_STRACE_TIMESTAMP)
+    if (!debug_log_enabled)
         return;
 
     switch (topic) {
-    case GJS_DEBUG_STRACE_TIMESTAMP:
-        /* return early if strace timestamps are disabled, avoiding
-         * printf format overhead and so forth.
-         */
-        if (!strace_timestamps)
-            return;
-        /* this is a special magic topic for use with
-         * git clone http://www.gnome.org/~federico/git/performance-scripts.git
-         * http://www.gnome.org/~federico/news-2006-03.html#timeline-tools
-         */
-        prefix = "MARK";
-        break;
     case GJS_DEBUG_GI_USAGE:
         prefix = "JS GI USE";
         break;
@@ -241,6 +238,9 @@ gjs_debug(GjsDebugTopic topic,
     case GJS_DEBUG_GERROR:
         prefix = "JS G ERR";
         break;
+    case GJS_DEBUG_PROXY:
+        prefix = "JS CPROXY";
+        break;
     default:
         prefix = "???";
         break;
@@ -253,41 +253,32 @@ gjs_debug(GjsDebugTopic topic,
     s = g_strdup_vprintf (format, args);
     va_end (args);
 
-    if (topic == GJS_DEBUG_STRACE_TIMESTAMP) {
-        /* Put a magic string in strace output */
+    if (print_timestamp) {
+        static gdouble previous = 0.0;
+        gdouble total = g_timer_elapsed(timer, NULL) * 1000.0;
+        gdouble since = total - previous;
+        const char *ts_suffix;
         char *s2;
-        s2 = g_strdup_printf("%s: gjs: %s",
-                             prefix, s);
-        access(s2, F_OK);
-        g_free(s2);
-    } else {
-        if (print_timestamp) {
-            static gdouble previous = 0.0;
-            gdouble total = g_timer_elapsed(timer, NULL) * 1000.0;
-            gdouble since = total - previous;
-            const char *ts_suffix;
-            char *s2;
 
-            if (since > 50.0) {
-                ts_suffix = "!!  ";
-            } else if (since > 100.0) {
-                ts_suffix = "!!! ";
-            } else if (since > 200.0) {
-                ts_suffix = "!!!!";
-            } else {
-                ts_suffix = "    ";
-            }
-
-            s2 = g_strdup_printf("%g %s%s",
-                                 total, ts_suffix, s);
-            g_free(s);
-            s = s2;
-
-            previous = total;
+        if (since > 50.0) {
+            ts_suffix = "!!  ";
+        } else if (since > 100.0) {
+            ts_suffix = "!!! ";
+        } else if (since > 200.0) {
+            ts_suffix = "!!!!";
+        } else {
+            ts_suffix = "    ";
         }
 
-        write_to_stream(logfp, prefix, s);
+        s2 = g_strdup_printf("%g %s%s",
+                             total, ts_suffix, s);
+        g_free(s);
+        s = s2;
+
+        previous = total;
     }
+
+    write_to_stream(logfp, prefix, s);
 
     g_free(s);
 }
