@@ -1763,9 +1763,7 @@ to_string_func(JSContext *context,
                                      priv->gobj, rec.rval());
 }
 
-struct JSClass gjs_object_instance_class = {
-    "GObject_Object",
-    JSCLASS_HAS_PRIVATE,
+static const struct JSClassOps gjs_object_class_ops = {
     NULL,  /* addProperty */
     NULL,  /* deleteProperty */
     object_instance_get_prop,
@@ -1778,7 +1776,12 @@ struct JSClass gjs_object_instance_class = {
     NULL,
     NULL,
     object_instance_trace,
-    
+};
+
+struct JSClass gjs_object_instance_class = {
+    "GObject_Object",
+    JSCLASS_HAS_PRIVATE,
+    &gjs_object_class_ops
 };
 
 static bool
