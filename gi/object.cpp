@@ -1780,7 +1780,7 @@ static const struct JSClassOps gjs_object_class_ops = {
 
 struct JSClass gjs_object_instance_class = {
     "GObject_Object",
-    JSCLASS_HAS_PRIVATE,
+    JSCLASS_HAS_PRIVATE | JSCLASS_FOREGROUND_FINALIZE,
     &gjs_object_class_ops
 };
 
