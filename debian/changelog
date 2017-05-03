@@ -1,8 +1,30 @@
-cjs (3.3.0) UNRELEASED; urgency=medium
+cjs (3.4.0) sonya; urgency=medium
 
+  [ Michael Webster ]
   * Rebase to upstream gjs 1.48.0 (a7bcfb9f3e00ca9849bf44a).
+  * Always reload extension js modules.
 
- -- Michael Webster <miketwebster@gmail.com>  Fri, 14 Apr 2017 08:30:32 -0400
+  [ pixunil ]
+  * min / max properties to specify a minimal / maximal value
+
+  [ dalcde ]
+  * Throw error when attempting to instantiate abstract class
+
+  [ Dexter Chua ]
+  * signals.js: add signalHandlerIsConnected method
+  * Use python2 instead of python
+
+  [ pixunil ]
+  * importer.cpp: Add a method to the global imports object addSubImporter(name, path)
+
+  [ Michael Webster ]
+  * modules/GObject.js: Add access to handler_block and handler_unblock.
+  * Fix file location problem from rebasing
+
+  [ leigh123linux ]
+  * lost commit: remove aclocal
+
+ -- Clement Lefebvre <root@linuxmint.com>  Fri, 14 Apr 2017 08:30:32 -0400
 
 cjs (3.2.0) serena; urgency=medium
 
