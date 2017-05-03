@@ -14,10 +14,10 @@ Build-Depends: debhelper (>= 10),
                libreadline-dev,
                libgtk-3-dev,
                libcairo2-dev,
-               dbus <!nocheck>,
-               dbus-x11 <!nocheck>,
-               at-spi2-core <!nocheck>,
-               xvfb <!nocheck>
+               dbus,
+               dbus-x11,
+               at-spi2-core,
+               xvfb
 Standards-Version: 3.9.8
 
 Package: cjs
