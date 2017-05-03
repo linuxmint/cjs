@@ -1127,7 +1127,7 @@ init_object_private (JSContext       *context,
 }
 
 static void
-update_heap_wrapper_weak_pointers(JSRuntime     *rt,
+update_heap_wrapper_weak_pointers(JSContext     *cx,
                                   JSCompartment *compartment,
                                   gpointer       data)
 {
@@ -1157,7 +1157,7 @@ static void
 ensure_weak_pointer_callback(JSContext *cx)
 {
     if (!weak_pointer_callback) {
-        JS_AddWeakPointerCompartmentCallback(JS_GetRuntime(cx),
+        JS_AddWeakPointerCompartmentCallback(cx,
                                              update_heap_wrapper_weak_pointers,
                                              nullptr);
         weak_pointer_callback = true;
