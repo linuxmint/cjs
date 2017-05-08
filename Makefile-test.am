@@ -118,18 +118,19 @@ minijasmine_SOURCES =			\
 minijasmine_CPPFLAGS =				\
 	$(AM_CPPFLAGS)				\
 	$(GJS_CFLAGS)				\
+	$(GJS_PRIVATE_CFLAGS)			\
 	-I$(top_srcdir)				\
 	-DINSTTESTDIR=\"$(gjsinsttestdir)\"	\
 	-DPKGLIBDIR=\"$(pkglibdir)\"		\
 	$(NULL)
 
-minijasmine_LDADD = $(GJS_LIBS) libcjs.la
+minijasmine_LDADD = $(GJS_LIBS) $(GJS_PRIVATE_LIBS) libcjs.la
 
 ### TEST GIRS ##########################################################
 
 TEST_INTROSPECTION_GIRS =
 common_test_ldflags = -avoid-version
-common_test_libadd = $(GJS_LIBS)
+common_test_libadd = $(GJS_LIBS) $(GJS_PRIVATE_LIBS)
 
 if !BUILDOPT_INSTALL_TESTS
 # This rpath /nowhere thing is the libtool upstream recommended way to
@@ -148,7 +149,7 @@ nodist_libregress_la_SOURCES =		\
 	installed-tests/regress.c	\
 	installed-tests/regress.h	\
 	$(NULL)
-libregress_la_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS) $(GJS_GDBUS_CFLAGS)
+libregress_la_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS) $(GJS_PRIVATE_CFLAGS) $(GJS_GDBUS_CFLAGS)
 libregress_la_LDFLAGS = $(common_test_ldflags) $(GJS_GDBUS_LIBS)
 libregress_la_LIBADD = $(common_test_libadd)
 libregress_scannerflags_includes = --include=Gio-2.0
@@ -176,7 +177,7 @@ nodist_libwarnlib_la_SOURCES =		\
 	installed-tests/warnlib.c	\
 	installed-tests/warnlib.h	\
 	$(NULL)
-libwarnlib_la_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS)
+libwarnlib_la_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS) $(GJS_PRIVATE_CFLAGS)
 libwarnlib_la_LDFLAGS = $(common_test_ldflags)
 libwarnlib_la_LIBADD = $(common_test_libadd)
 WarnLib-1.0.gir: libwarnlib.la
@@ -193,7 +194,7 @@ nodist_libgimarshallingtests_la_SOURCES =	\
 	installed-tests/gimarshallingtests.c	\
 	installed-tests/gimarshallingtests.h	\
 	$(NULL)
-libgimarshallingtests_la_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS)
+libgimarshallingtests_la_CPPFLAGS = $(AM_CPPFLAGS) $(GJS_CFLAGS) $(GJS_PRIVATE_CFLAGS)
 libgimarshallingtests_la_LDFLAGS = $(common_test_ldflags)
 libgimarshallingtests_la_LIBADD = $(common_test_libadd)
 GIMarshallingTests-1.0.gir: libgimarshallingtests.la
@@ -312,7 +313,6 @@ AM_TESTS_ENVIRONMENT += 						\
 	export GJS_UNIT_COVERAGE_OUTPUT=lcov;				\
 	export GJS_UNIT_COVERAGE_PREFIX=resource:///org/gnome/gjs/;	\
 	$(NULL)
-endif
 
 CODE_COVERAGE_IGNORE_PATTERN = */{include,mfbt,gjs/test,gjs/installed-tests}/*
 CODE_COVERAGE_GENHTML_OPTIONS = 			\
@@ -321,3 +321,4 @@ CODE_COVERAGE_GENHTML_OPTIONS = 			\
 	--prefix $(abs_top_builddir) 			\
 	$(NULL)
 @CODE_COVERAGE_RULES@
+endif

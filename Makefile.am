@@ -55,7 +55,8 @@ lib_LTLIBRARIES += libcjs.la
 
 libcjs_la_CPPFLAGS =		\
 	$(AM_CPPFLAGS)		\
-	$(GJS_CFLAGS)	\
+	$(GJS_CFLAGS)		\
+	$(GJS_PRIVATE_CFLAGS)	\
 	$(gjs_directory_defines)\
 	-I$(top_srcdir)/gi	\
 	-DGJS_COMPILATION
@@ -64,7 +65,8 @@ libcjs_la_LDFLAGS = 		\
 	-no-undefined \
 	$(NULL)
 libcjs_la_LIBADD = 		\
-	$(GJS_LIBS)
+	$(GJS_LIBS)		\
+	$(GJS_PRIVATE_LIBS)
 
 if ENABLE_GTK
 libcjs_la_CPPFLAGS += $(GJS_GTK_CFLAGS)
