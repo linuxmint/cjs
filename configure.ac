@@ -53,7 +53,7 @@ AX_CHECK_LINK_FLAG([-lgcov],, [
 ])
 
 # Checks for libraries.
-m4_define(glib_required_version, 2.48.2)
+m4_define(glib_required_version, 2.42.0)
 
 GOBJECT_INTROSPECTION_REQUIRE([1.41.4])
 
@@ -62,7 +62,7 @@ gjs_base_packages="$GOBJECT_REQUIREMENT gio-2.0"
 common_packages="gthread-2.0 gio-2.0 >= glib_required_version mozjs-38"
 gjs_packages="gobject-introspection-1.0 libffi $common_packages"
 gjs_cairo_packages="cairo cairo-gobject $common_packages"
-gjs_gtk_packages="gtk+-3.0 >= 3.18.9"
+gjs_gtk_packages="gtk+-3.0 >= 3.14.0"
 # gjs-tests links against everything
 gjstests_packages="gio-unix-2.0 $gjs_packages"
 
