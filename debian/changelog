@@ -1,3 +1,13 @@
+cjs (3.4.1) sonya; urgency=medium
+
+  [ Clement Lefebvre ]
+  * Packaging: Don't use build profiles in build-deps
+
+  [ Alexei Sorokin ]
+  * Better GLib and autotools compatibility (#44)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 23 May 2017 15:28:25 +0100
+
 cjs (3.4.0) sonya; urgency=medium
 
   [ Michael Webster ]
