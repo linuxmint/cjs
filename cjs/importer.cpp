@@ -764,13 +764,17 @@ importer_enumerate(JSContext        *context,
 
         while (true) {
             GFileInfo *info;
-            GFile *file;
-            if (!g_file_enumerator_iterate(direnum, &info, &file, NULL, NULL))
+            GError *error = NULL;
+            info = g_file_enumerator_next_file(direnum, NULL, &error);
+            if (error != NULL) {
+                g_error_free (error);
                 break;
-            if (info == NULL || file == NULL)
+            }
+            if (info == NULL)
                 break;
 
-            GjsAutoChar filename = g_file_get_basename(file);
+            GjsAutoChar filename =
+              g_path_get_basename(g_file_info_get_name(info));
 
             /* skip hidden files and directories (.svn, .git, ...) */
             if (filename[0] == '.')

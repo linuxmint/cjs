@@ -10,7 +10,8 @@ m4_define(pkg_int_version, (pkg_major_version * 100 + pkg_minor_version) * 100 +
 AC_PREREQ([2.64])
 AC_INIT([cjs],[pkg_version],[https://github.com/linuxmint/cjs/issues/new],[cjs],[https://github.com/linuxmint/cjs])
 AM_INIT_AUTOMAKE([1.11.1 subdir-objects dist-xz no-dist-gzip tar-ustar -Wno-portability])
-AX_IS_RELEASE([git-directory])
+m4_ifdef([AX_IS_RELEASE],
+         [AX_IS_RELEASE([git-directory])])
 AC_CONFIG_SRCDIR([cjs/console.cpp])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
@@ -45,7 +46,9 @@ AC_PROG_AWK
 
 AX_COMPILER_FLAGS
 
-AX_CODE_COVERAGE
+m4_ifdef([AX_CODE_COVERAGE],
+         [AX_CODE_COVERAGE],
+         [AM_CONDITIONAL(CODE_COVERAGE_ENABLED, false)])
 dnl Clang does not need to link with -lgcov
 AX_CHECK_LINK_FLAG([-lgcov],, [
 	CODE_COVERAGE_LIBS=
@@ -53,7 +56,7 @@ AX_CHECK_LINK_FLAG([-lgcov],, [
 ])
 
 # Checks for libraries.
-m4_define(glib_required_version, 2.48.2)
+m4_define(glib_required_version, 2.42.0)
 
 GOBJECT_INTROSPECTION_REQUIRE([1.41.4])
 
@@ -62,12 +65,15 @@ gjs_base_packages="$GOBJECT_REQUIREMENT gio-2.0"
 common_packages="gthread-2.0 gio-2.0 >= glib_required_version mozjs-38"
 gjs_packages="gobject-introspection-1.0 libffi $common_packages"
 gjs_cairo_packages="cairo cairo-gobject $common_packages"
-gjs_gtk_packages="gtk+-3.0 >= 3.18.9"
+gjs_gtk_packages="gtk+-3.0 >= 3.14.0"
 # gjs-tests links against everything
 gjstests_packages="gio-unix-2.0 $gjs_packages"
 
-AX_PKG_CHECK_MODULES([GJS], [$GOBJECT_REQUIREMENT], [$gjs_packages])
-dnl These don't need to be put in the .pc file so use regular PKG_CHECK_MODULES
+CJS_PACKAGE_REQUIRES="$GOBJECT_REQUIREMENT"
+CJS_PACKAGE_REQUIRES_PRIVATE="$gjs_packages"
+
+PKG_CHECK_MODULES([GJS], [$GOBJECT_REQUIREMENT])
+PKG_CHECK_MODULES([GJS_PRIVATE], [$gjs_packages])
 PKG_CHECK_MODULES([GJS_GDBUS], [$gjs_base_packages])
 PKG_CHECK_MODULES([GJS_CONSOLE], [$gjs_base_packages])
 PKG_CHECK_MODULES([GJSTESTS], [$gjstests_packages])
@@ -76,14 +82,16 @@ PKG_CHECK_MODULES([GJSTESTS], [$gjstests_packages])
 AC_ARG_WITH(cairo,
   [AS_HELP_STRING([--without-cairo], [Don't build cairo module])])
 AS_IF([test "x$with_cairo" != "xno"],
-  [AX_PKG_CHECK_MODULES([GJS_CAIRO], [], [$gjs_cairo_packages],
-    [have_cairo=yes], [have_cairo=no])],
+  [PKG_CHECK_MODULES([GJS_CAIRO], [$gjs_cairo_packages],
+    [have_cairo=yes], [have_cairo=no])
+   CJS_PACKAGE_REQUIRES_PRIVATE="$CJS_PACKAGE_REQUIRES_PRIVATE $gjs_cairo_packages"],
   [have_cairo=no])
 AM_CONDITIONAL(ENABLE_CAIRO, test x$have_cairo = xyes)
 AS_IF([test x$have_cairo = xyes], [
   AC_DEFINE([ENABLE_CAIRO],[1],[Define if you want to build with cairo support])
-  AX_PKG_CHECK_MODULES([GJS_CAIRO_XLIB], [], [cairo-xlib], [],
-    [AC_MSG_WARN([Cairo-xlib support not found])])
+  PKG_CHECK_MODULES([GJS_CAIRO_XLIB], [cairo-xlib], [],
+    [AC_MSG_WARN([Cairo-xlib support not found])
+  CJS_PACKAGE_REQUIRES_PRIVATE="$CJS_PACKAGE_REQUIRES_PRIVATE cairo-xlib"])
 ], [AS_IF([test "x$with_cairo" = "xyes"],
   [AC_MSG_ERROR([Cairo requested but not found])])])
 
@@ -91,8 +99,9 @@ AS_IF([test x$have_cairo = xyes], [
 AC_ARG_WITH(gtk,
   [AS_HELP_STRING([--without-gtk], [Don't build GTK-related code])])
 AS_IF([test "x$with_gtk" != "xno"],
-  [AX_PKG_CHECK_MODULES([GJS_GTK], [], [$gjs_gtk_packages],
-    [have_gtk=yes], [have_gtk=no])],
+  [PKG_CHECK_MODULES([GJS_GTK], [$gjs_gtk_packages],
+    [have_gtk=yes], [have_gtk=no])
+   CJS_PACKAGE_REQUIRES_PRIVATE="$CJS_PACKAGE_REQUIRES_PRIVATE $gjs_gtk_packages"],
   [have_gtk=no])
 AM_CONDITIONAL(ENABLE_GTK, test x$have_gtk = xyes)
 AS_IF([test x$have_gtk = xyes], [
@@ -101,6 +110,9 @@ AS_IF([test x$have_gtk = xyes], [
   [AC_MSG_ERROR([GTK requested but not found])])])
 
 PKG_CHECK_VAR([GI_DATADIR], [gobject-introspection-1.0], [gidatadir])
+
+AC_SUBST([CJS_PACKAGE_REQUIRES])
+AC_SUBST([CJS_PACKAGE_REQUIRES_PRIVATE])
 
 # readline
 LIBS_no_readline=$LIBS

@@ -9,8 +9,8 @@ datadir=@datadir@
 cjs_console=${bindir}/cjs-console
 
 Cflags: -I${includedir}/cjs-1.0
-Requires: @AX_PACKAGE_REQUIRES@
-Requires.private: @AX_PACKAGE_REQUIRES_PRIVATE@
+Requires: @CJS_PACKAGE_REQUIRES@
+Requires.private: @CJS_PACKAGE_REQUIRES_PRIVATE@
 Libs: -L${libdir} -lcjs
 
 Name: cjs-1.0
