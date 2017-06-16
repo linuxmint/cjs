@@ -508,6 +508,7 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
                     if (scopes[i][istr] == undefined)
                         log("The property " + istr + " doesn't seem to be a normal object property of " + scopes[i] + " or a registered special property");
                 }
+                properties[istr].isSpecialProperty = false;
             }
         }
     }
@@ -545,8 +546,8 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
                                                         properties[istr].arrayIndex || 0,
                                                         {},
                                                         properties[istr].isSpecialProperty,
-                                                        properties[istr].modifierFunction,
-                                                        properties[istr].modifierParameters);
+                                                        properties[istr].modifierFunction || null,
+                                                        properties[istr].modifierParameters || null);
             }
         }
 
@@ -555,7 +556,7 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
                                         _ticker.getTime() + (((delay * 1000) + (time * 1000)) / _timeScale),
                                         false,
                                         transition,
-                                        obj.transitionParams);
+                                        obj.transitionParams || null);
 
         tween.properties               =       isCaller ? null : copyProperties;
         tween.onStart                  =       obj.onStart;
