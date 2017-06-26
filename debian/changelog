@@ -1,3 +1,17 @@
+cjs (3.4.2) sonya; urgency=medium
+
+  [ leigh123linux ]
+  * tweener: Add undefined property check (#45)
+
+  [ Michael Webster ]
+  * tweener.js: silence some additional warnings due to missing/unused properties.
+
+  [ leigh123linux ]
+  * object: Prevent use-after-free in signal connections
+  * util-root: Require GjsMaybeOwned callback to reset
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 26 Jun 2017 12:18:57 +0200
+
 cjs (3.4.1) sonya; urgency=medium
 
   [ Clement Lefebvre ]
