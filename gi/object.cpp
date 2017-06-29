@@ -1417,6 +1417,7 @@ signal_connection_invalidate_idle(void *user_data)
 {
     auto cd = static_cast<ConnectData *>(user_data);
     cd->obj->signals.erase(cd);
+    cd->idle_invalidate_id = 0;
     g_slice_free(ConnectData, cd);
     return G_SOURCE_REMOVE;
 }
@@ -1465,8 +1466,10 @@ object_instance_finalize(JSFreeOp  *fop,
          */
         for (ConnectData *cd : priv->signals) {
             /* First remove any pending invalidation, we are doing it now. */
-            if (cd->idle_invalidate_id > 0)
+            if (cd->idle_invalidate_id > 0) {
                 g_source_remove(cd->idle_invalidate_id);
+                cd->idle_invalidate_id = 0;
+            }
 
             /* We also have to remove the invalidate notifier, which would
              * otherwise schedule a new pending invalidation. */
@@ -1665,6 +1668,7 @@ real_connect_func(JSContext *context,
     connect_data = g_slice_new(ConnectData);
     priv->signals.insert(connect_data);
     connect_data->obj = priv;
+    connect_data->idle_invalidate_id = 0;
     /* This is a weak reference, and will be cleared when the closure is invalidated */
     connect_data->closure = closure;
     g_closure_add_invalidate_notifier(closure, connect_data, signal_connection_invalidated);
