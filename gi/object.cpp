@@ -1469,14 +1469,15 @@ object_instance_finalize(JSFreeOp  *fop,
             if (cd->idle_invalidate_id > 0) {
                 g_source_remove(cd->idle_invalidate_id);
                 cd->idle_invalidate_id = 0;
+            } else {
+                /* We also have to remove the invalidate notifier, which would
+                 * otherwise schedule a new pending invalidation. */
+                g_closure_remove_invalidate_notifier(cd->closure, cd,
+                                                     signal_connection_invalidated);
+
+                g_closure_invalidate(cd->closure);
             }
 
-            /* We also have to remove the invalidate notifier, which would
-             * otherwise schedule a new pending invalidation. */
-            g_closure_remove_invalidate_notifier(cd->closure, cd,
-                                                 signal_connection_invalidated);
-
-            g_closure_invalidate(cd->closure);
             g_slice_free(ConnectData, cd);
         }
         priv->signals.clear();
