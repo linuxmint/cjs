@@ -1,3 +1,20 @@
+cjs (3.4.3) sonya; urgency=medium
+
+  [ Michael Webster ]
+  * object.cpp: Follow-up to 503fa20e07ce - handler ID's *must* be managed from start to finish - they should be initialized to 0, and re-set to 0 whenever they're finished being used.
+
+  [ leigh123linux ]
+  * arg: don't crash when asked to convert a null strv to an array (#48)
+
+  [ Michael Webster ]
+  * Apply upstream: https://github.com/GNOME/gjs/commit/bace908922aa6ee9ee3885eef01b75816ece842f
+
+  [ Philip Chimento ]
+  * closure: Remove pointer to runtime
+  * closure: Prevent use-after-free in closures
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 06 Jul 2017 11:10:34 +0200
+
 cjs (3.4.2) sonya; urgency=medium
 
   [ leigh123linux ]
