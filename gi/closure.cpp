@@ -109,8 +109,8 @@ global_context_finalized(JS::HandleObject obj,
                       "which calls object %p",
                       c, c->obj.get());
 
-    if (c->obj != NULL) {
-        g_assert(c->obj == obj);
+    if (c->obj) {
+        g_assert(c->obj == obj.get());
 
         invalidate_js_pointers(gc);
     }
