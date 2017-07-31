@@ -63,3 +63,17 @@ Description: Mozilla-based javascript bindings for the Cinnamon platform
  .
  This package contains the development files applications need to
  build against.
+
+Package: libcjs-dbg
+Section: debug
+Architecture: any
+Priority: extra
+Depends: libcjs0f (= ${binary:Version}),
+         ${misc:Depends}
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
+ libraries using the JavaScript language. It's mainly based on the
+ Mozilla JavaScript engine and the GObject introspection framework.
+ .
+ This development package contains unstripped binaries compiled with
+ debugging symbols needed by gdb.

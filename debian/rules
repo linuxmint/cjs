@@ -27,6 +27,9 @@ override_dh_install:
 override_dh_auto_test:
 	dh_auto_test || true
 
+override_dh_strip:
+	dh_strip --dbg-package=libcjs-dbg
+
 override_dh_makeshlibs:
 	dh_makeshlibs -Xusr/lib/cjs-1.0/ -V'libcjs0f (>= $(DEB_UPSTREAM_VERSION)), libcjs0-$(LIBMOZJS)' -- -c4
 
