@@ -1,3 +1,17 @@
+cjs (3.4.4) sonya; urgency=medium
+
+  [ leigh123linux ]
+  * object: Keep proper track of pending closure invalidations
+  * revert b66d7c2965f20c2cf51628840682c404a01bf408
+
+  [ Michael Webster ]
+  * Add a debug package.
+
+  [ Jason Hicks ]
+  * object: Zero out new ConnectData
+
+ -- Clement Lefebvre <root@linuxmint.com>  Wed, 09 Aug 2017 12:43:19 +0200
+
 cjs (3.4.3) sonya; urgency=medium
 
   [ Michael Webster ]
