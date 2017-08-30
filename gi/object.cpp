@@ -874,19 +874,10 @@ object_instance_resolve(JSContext       *context,
     return true;
 }
 
-static void
-free_g_params(GParameter *params,
-              int         n_params)
-{
-    int i;
-
-    for (i = 0; i < n_params; ++i) {
-        g_value_unset(&params[i].value);
-    }
-}
-
 /* Set properties from args to constructor (argv[0] is supposed to be
  * a hash)
+ * The GParameter elements in the passed-in vector must be unset by the caller,
+ * regardless of the return value of this function.
  */
 static bool
 object_instance_props_to_g_parameters(JSContext                  *context,
@@ -902,7 +893,6 @@ object_instance_props_to_g_parameters(JSContext                  *context,
 
     if (!args[0].isObject()) {
         gjs_throw(context, "argument should be a hash with props to set");
-        free_g_params(&gparams[0], gparams.size());
         return false;
     }
 
@@ -912,7 +902,7 @@ object_instance_props_to_g_parameters(JSContext                  *context,
     JS::Rooted<JS::IdVector> ids(context, context);
     if (!JS_Enumerate(context, props, &ids)) {
         gjs_throw(context, "Failed to create property iterator for object props hash");
-        goto free_array_and_fail;
+        return false;
     }
 
     for (ix = 0, length = ids.length(); ix < length; ix++) {
@@ -923,12 +913,10 @@ object_instance_props_to_g_parameters(JSContext                  *context,
          * doesn't know that */
         prop_id = ids[ix];
 
-        if (!gjs_object_require_property(context, props, "property list", prop_id, &value)) {
-            goto free_array_and_fail;
-        }
-
-        if (!gjs_get_string_id(context, prop_id, &name))
-            goto free_array_and_fail;
+        if (!gjs_object_require_property(context, props, "property list",
+                                         prop_id, &value) ||
+            !gjs_get_string_id(context, prop_id, &name))
+            return false;
 
         switch (init_g_param_from_property(context, name,
                                            value,
@@ -940,7 +928,7 @@ object_instance_props_to_g_parameters(JSContext                  *context,
                       name.get(), g_type_name(gtype));
             /* fallthrough */
         case SOME_ERROR_OCCURRED:
-            goto free_array_and_fail;
+            return false;
         case VALUE_WAS_SET:
         default:
             break;
@@ -950,10 +938,6 @@ object_instance_props_to_g_parameters(JSContext                  *context,
     }
 
     return true;
-
- free_array_and_fail:
-    free_g_params(&gparams[0], gparams.size());
-    return false;
 }
 
 #define DEBUG_DISPOSE 0
@@ -1322,6 +1306,13 @@ disassociate_js_gobject(GObject *gobj)
     priv->js_object_finalized = true;
 }
 
+static void
+clear_g_params(std::vector<GParameter>& params)
+{
+    for (GParameter param : params)
+        g_value_unset(&param.value);
+}
+
 static bool
 object_instance_init (JSContext                  *context,
                       JS::MutableHandleObject     object,
@@ -1345,6 +1336,7 @@ object_instance_init (JSContext                  *context,
 
     if (!object_instance_props_to_g_parameters(context, object, args,
                                                gtype, params)) {
+        clear_g_params(params);
         return false;
     }
 
@@ -1357,10 +1349,10 @@ object_instance_init (JSContext                  *context,
     }
 
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-    gobj = (GObject*) g_object_newv(gtype, params.size(), &params[0]);
+    gobj = (GObject*) g_object_newv(gtype, params.size(), params.data());
 G_GNUC_END_IGNORE_DEPRECATIONS
 
-    free_g_params(&params[0], params.size());
+    clear_g_params(params);
 
     ObjectInstance *other_priv = get_object_qdata(gobj);
     if (other_priv && other_priv->keep_alive != object.get()) {
