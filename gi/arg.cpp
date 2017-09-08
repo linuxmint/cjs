@@ -1387,7 +1387,7 @@ gjs_value_to_g_argument(JSContext      *context,
             wrong = true;
         if (i > G_MAXUINT32 || i < 0)
             out_of_range = true;
-        arg->v_uint32 = (guint32)i;
+        arg->v_uint32 = CLAMP(i, 0, G_MAXUINT32);
         break;
     }
 
@@ -1408,7 +1408,7 @@ gjs_value_to_g_argument(JSContext      *context,
         if (v < 0)
             out_of_range = true;
         /* XXX we fail with values close to G_MAXUINT64 */
-        arg->v_uint64 = v;
+        arg->v_uint64 = MAX(v, 0);
     }
         break;
 
@@ -1884,9 +1884,6 @@ gjs_value_to_g_argument(JSContext      *context,
         gpointer data;
         gsize length;
         GIArrayType array_type = g_type_info_get_array_type(type_info);
-        GITypeInfo *param_info;
-
-        param_info = g_type_info_get_param_type(type_info, 0);
 
         /* First, let's handle the case where we're passed an instance
          * of our own byteArray class.
@@ -1915,6 +1912,7 @@ gjs_value_to_g_argument(JSContext      *context,
             break;
         }
 
+        GITypeInfo *param_info = g_type_info_get_param_type(type_info, 0);
         if (array_type == GI_ARRAY_TYPE_C) {
             arg->v_pointer = data;
         } else if (array_type == GI_ARRAY_TYPE_ARRAY) {
@@ -2268,33 +2266,32 @@ gjs_array_from_carray_internal (JSContext             *context,
           ITERATE(double);
           break;
         case GI_TYPE_TAG_INTERFACE: {
-          GIBaseInfo *interface_info;
-          GIInfoType info_type;
+            GIBaseInfo *interface_info = g_type_info_get_interface (param_info);
+            GIInfoType info_type = g_base_info_get_type (interface_info);
 
-          interface_info = g_type_info_get_interface (param_info);
-          info_type = g_base_info_get_type (interface_info);
+            if ((info_type == GI_INFO_TYPE_STRUCT ||
+                 info_type == GI_INFO_TYPE_UNION) &&
+                !g_type_info_is_pointer(param_info)) {
+                size_t struct_size;
 
-          if ((info_type == GI_INFO_TYPE_STRUCT ||
-               info_type == GI_INFO_TYPE_UNION) &&
-              !g_type_info_is_pointer (param_info)) {
-              gsize struct_size;
+                if (info_type == GI_INFO_TYPE_UNION)
+                    struct_size = g_union_info_get_size(interface_info);
+                else
+                    struct_size = g_struct_info_get_size(interface_info);
 
-              if (info_type == GI_INFO_TYPE_UNION)
-                  struct_size = g_union_info_get_size ((GIUnionInfo*)interface_info);
-              else
-                  struct_size = g_struct_info_get_size ((GIStructInfo*)interface_info);
+                for (i = 0; i < length; i++) {
+                    arg.v_pointer = static_cast<char *>(array) + (struct_size * i);
 
-              for (i = 0; i < length; i++) {
-                  arg.v_pointer = ((char*)array) + (struct_size * i);
+                    if (!gjs_value_from_g_argument(context, elems[i], param_info,
+                                                   &arg, true))
+                        return false;
+                }
 
-                  if (!gjs_value_from_g_argument(context, elems[i], param_info,
-                                                 &arg, true))
-                      return false;
-              }
+                g_base_info_unref(interface_info);
+                break;
+            }
 
-              break;
-          }
-
+            g_base_info_unref(interface_info);
         }
         /* fallthrough */
         case GI_TYPE_TAG_GTYPE:
@@ -2617,7 +2614,8 @@ gjs_value_from_g_argument (JSContext             *context,
         break;
 
     case GI_TYPE_TAG_INT64:
-        if (std::abs(arg->v_int64) > MAX_SAFE_INT64)
+        if (arg->v_int64 == G_MININT64 ||
+            std::abs(arg->v_int64) > MAX_SAFE_INT64)
             g_warning("Value %" G_GINT64_FORMAT " cannot be safely stored in "
                       "a JS Number and may be rounded", arg->v_int64);
         value_p.setNumber(static_cast<double>(arg->v_int64));

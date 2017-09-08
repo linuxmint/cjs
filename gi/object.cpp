@@ -24,7 +24,6 @@
 #include <config.h>
 
 #include <deque>
-#include <map>
 #include <memory>
 #include <set>
 #include <stack>
@@ -66,7 +65,6 @@ struct ObjectInstance {
 
     /* a list of all signal connections, used when tracing */
     std::set<ConnectData *> signals;
-    std::map<ConnectData *, unsigned> pending_invalidations;
 
     /* the GObjectClass wrapped by this JS Object (only used for
        prototypes) */
@@ -820,19 +818,10 @@ object_instance_resolve(JSContext       *context,
     return true;
 }
 
-static void
-free_g_params(GParameter *params,
-              int         n_params)
-{
-    int i;
-
-    for (i = 0; i < n_params; ++i) {
-        g_value_unset(&params[i].value);
-    }
-}
-
 /* Set properties from args to constructor (argv[0] is supposed to be
  * a hash)
+ * The GParameter elements in the passed-in vector must be unset by the caller,
+ * regardless of the return value of this function.
  */
 static bool
 object_instance_props_to_g_parameters(JSContext                  *context,
@@ -848,7 +837,6 @@ object_instance_props_to_g_parameters(JSContext                  *context,
 
     if (!args[0].isObject()) {
         gjs_throw(context, "argument should be a hash with props to set");
-        free_g_params(&gparams[0], gparams.size());
         return false;
     }
 
@@ -858,7 +846,7 @@ object_instance_props_to_g_parameters(JSContext                  *context,
     JS::RootedValue value(context);
     if (!ids) {
         gjs_throw(context, "Failed to create property iterator for object props hash");
-        goto free_array_and_fail;
+        return false;
     }
 
     for (ix = 0, length = ids.length(); ix < length; ix++) {
@@ -869,12 +857,10 @@ object_instance_props_to_g_parameters(JSContext                  *context,
          * doesn't know that */
         prop_id = ids[ix];
 
-        if (!gjs_object_require_property(context, props, "property list", prop_id, &value)) {
-            goto free_array_and_fail;
-        }
-
-        if (!gjs_get_string_id(context, prop_id, &name))
-            goto free_array_and_fail;
+        if (!gjs_object_require_property(context, props, "property list",
+                                         prop_id, &value) ||
+            !gjs_get_string_id(context, prop_id, &name))
+            return false;
 
         switch (init_g_param_from_property(context, name,
                                            value,
@@ -887,7 +873,7 @@ object_instance_props_to_g_parameters(JSContext                  *context,
             /* fallthrough */
         case SOME_ERROR_OCCURRED:
             g_free(name);
-            goto free_array_and_fail;
+            return false;
         case VALUE_WAS_SET:
         default:
             break;
@@ -899,10 +885,6 @@ object_instance_props_to_g_parameters(JSContext                  *context,
     }
 
     return true;
-
- free_array_and_fail:
-    free_g_params(&gparams[0], gparams.size());
-    return false;
 }
 
 #define DEBUG_DISPOSE 0
@@ -1269,6 +1251,13 @@ disassociate_js_gobject(GObject *gobj)
     priv->js_object_finalized = true;
 }
 
+static void
+clear_g_params(std::vector<GParameter>& params)
+{
+    for (GParameter param : params)
+        g_value_unset(&param.value);
+}
+
 static bool
 object_instance_init (JSContext                  *context,
                       JS::MutableHandleObject     object,
@@ -1292,6 +1281,7 @@ object_instance_init (JSContext                  *context,
 
     if (!object_instance_props_to_g_parameters(context, object, args,
                                                gtype, params)) {
+        clear_g_params(params);
         return false;
     }
 
@@ -1304,10 +1294,10 @@ object_instance_init (JSContext                  *context,
     }
 
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-    gobj = (GObject*) g_object_newv(gtype, params.size(), &params[0]);
+    gobj = (GObject*) g_object_newv(gtype, params.size(), params.data());
 G_GNUC_END_IGNORE_DEPRECATIONS
 
-    free_g_params(&params[0], params.size());
+    clear_g_params(params);
 
     ObjectInstance *other_priv = get_object_qdata(gobj);
     if (other_priv && other_priv->keep_alive != object) {
@@ -1408,61 +1398,14 @@ object_instance_trace(JSTracer *tracer,
         vfunc->js_function.trace(tracer, "ObjectInstance::vfunc");
 }
 
-/* Removing the signal connection data from the list means that the object stops
- * tracing the JS function objects belonging to the closures. Incremental GC
- * does not allow that in the middle of a garbage collection. Therefore, we must
- * do it in an idle handler.
- */
-static gboolean
-signal_connection_invalidate_idle(void *user_data)
-{
-    auto cd = static_cast<ConnectData *>(user_data);
-    cd->obj->pending_invalidations.erase(cd);
-    cd->obj->signals.erase(cd);
-    g_slice_free(ConnectData, cd);
-    return G_SOURCE_REMOVE;
-}
-
 static void
 signal_connection_invalidated(void     *data,
                               GClosure *closure)
 {
     auto cd = static_cast<ConnectData *>(data);
-    std::map<ConnectData *, unsigned>& pending = cd->obj->pending_invalidations;
-    g_assert(pending.count(cd) == 0);
-    pending[cd] = g_idle_add(signal_connection_invalidate_idle, cd);
-}
 
-/* This is basically the same as invalidate_all_signals(), but does not defer
- * the invalidation to an idle handler. */
-static void
-invalidate_all_signals_now(ObjectInstance *priv)
-{
-    for (auto& iter : priv->pending_invalidations) {
-        ConnectData *cd = iter.first;
-        g_source_remove(iter.second);
-        g_slice_free(ConnectData, cd);
-        /* Erase element if not already erased */
-        priv->signals.erase(cd);
-    }
-    priv->pending_invalidations.clear();
-
-    /* Can't loop directly through the items, since invalidating an item's
-     * closure might have the effect of removing the item from the set in the
-     * invalidate notifier. */
-    while (!priv->signals.empty()) {
-        ConnectData *cd = *priv->signals.begin();
-
-        /* We have to remove the invalidate notifier, which would
-         * otherwise schedule a new pending invalidation. */
-        g_closure_remove_invalidate_notifier(cd->closure, cd,
-                                             signal_connection_invalidated);
-        g_closure_invalidate(cd->closure);
-
-        g_slice_free(ConnectData, cd);
-        /* Erase element if not already erased */
-        priv->signals.erase(cd);
-    }
+    cd->obj->signals.erase(cd);
+    g_slice_free(ConnectData, cd);
 }
 
 static void
@@ -1484,16 +1427,9 @@ object_instance_finalize(JSFreeOp  *fop,
                                     priv->info ? g_base_info_get_namespace((GIBaseInfo*) priv->info) : "_gjs_private",
                                     priv->info ? g_base_info_get_name((GIBaseInfo*) priv->info) : g_type_name(priv->gtype)));
 
-    /* We must invalidate all signal connections now, instead of in an idle
-     * handler, because the object will not exist anymore when we get around to
-     * the idle function. We originally needed to defer these invalidations to
-     * an idle function since the object needs to continue tracing its signal
-     * connections while GC is going on. However, once the object is finalized,
-     * it will not be tracing them any longer anyway, so it's safe to do them
-     * now.
-     * This applies only to instances, not prototypes, but it's possible that
+    /* This applies only to instances, not prototypes, but it's possible that
      * an instance's GObject is already freed at this point. */
-    invalidate_all_signals_now(priv);
+    invalidate_all_signals(priv);
 
     /* Object is instance, not prototype, AND GObject is not already freed */
     if (priv->gobj) {
