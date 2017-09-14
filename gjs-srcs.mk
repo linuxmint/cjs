@@ -54,6 +54,8 @@ gjs_srcs =				\
 	cjs/context-private.h		\
 	cjs/coverage-internal.h		\
 	cjs/coverage.cpp 		\
+	cjs/engine.cpp			\
+	cjs/engine.h			\
 	cjs/global.cpp			\
 	cjs/global.h		  \
 	cjs/importer.cpp		\
@@ -77,8 +79,6 @@ gjs_srcs =				\
 	cjs/module.cpp			\
 	cjs/native.cpp			\
 	cjs/native.h			\
-	cjs/runtime.cpp			\
-	cjs/runtime.h			\
 	cjs/stack.cpp			\
 	modules/modules.cpp		\
 	modules/modules.h		\
