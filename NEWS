@@ -1,3 +1,189 @@
+NEXT
+----
+
+- New JavaScript features! This version of GJS is based on SpiderMonkey 52, an
+  upgrade from the previous ESR (Extended Support Release) of SpiderMonkey 38.
+  GJS now uses the latest ESR in its engine and the plan is to upgrade again
+  when SpiderMonkey 59 is released in March 2018, pending maintainer
+  availability. Here are the highlights of the new JavaScript features.
+  For more information, look them up on MDN or devdocs.io.
+
+  * New language features
+    + ES6 classes
+    + Async functions and await operator
+    + Reflect - built-in object with methods for interceptable operations
+
+  * New syntax
+    + Exponentiation operator: `**`
+    + Variable-length Unicode code point escapes: `"\u{1f369}"`
+    + Destructured default arguments: `function f([x, y]=[1, 2], {z: z}={z: 3})`
+    + Destructured rest parameters: `function f(...[a, b, c])`
+    + `new.target` allows a constructor access to the original constructor that
+      was invoked
+    + Unicode (u) flag for regular expressions, and corresponding RegExp.unicode
+      property
+    + Trailing comma in function parameter lists now allowed
+
+  * New APIs
+    + New Array, String, and TypedArray method: includes()
+    + TypedArray sort(), toLocaleString(), and toString() methods, to correspond
+      with regular arrays
+    + New Object.getOwnPropertyDescriptors() and Object.values() methods
+    + New Proxy traps: getPrototypeOf() and setPrototypeOf()
+    + [Symbol.toPrimitive] property specifying how to convert an object to a
+      primitive value
+    + [Symbol.species] property allowing to override the default constructor
+      for objects
+    + [Symbol.match], [Symbol.replace], [Symbol.search], and [Symbol.split]
+      properties allowing to customize matching behaviour in RegExp subclasses
+    + [Symbol.hasInstance] property allowing to customize the behaviour of
+      the instanceof operator for objects
+    + [Symbol.toStringTag] property allowing to customize the message printed
+      by Object.toString() without overriding it
+    + [Symbol.isConcatSpreadable] property allowing to control the behaviour of
+      an array subclass in an argument list to Array.concat()
+    + [Symbol.unscopables] property allowing to control which object properties
+      are lifted into the scope of a with statement
+    + New Intl.getCanonicalLocales() method
+    + Date.toString() and RegExp.toString() generic methods
+    + Typed arrays can now be constructed from any iterable object
+    + Array.toLocaleString() gained optional locales and options arguments, to
+      correspond with other toLocaleString() methods
+
+  * New behaviour
+    + The "arguments" object is now iterable
+    + Date.prototype, WeakMap.prototype, and WeakSet.prototype are now ordinary
+      objects, not instances
+    + Full ES6-compliant implementation of let keyword
+    + RegExp.sticky ('y' flag) behaviour is ES6 standard, it used to be subject
+      to a long-standing bug in Firefox
+    + RegExp constructor with RegExp first argument and flags no longer throws
+      an exception (`new RegExp(/ab+c/, 'i')` works now)
+    + Generators are no longer constructible, as per ES6 (`function* f {}`
+      followed by `new f` will not work)
+    + It is now required to construct ArrayBuffer, TypedArray, Map, Set, and
+      WeakMap with the new operator
+    + Block-level functions (e.g. `{ function foo() {} }`) are now allowed in
+      strict mode; they are scoped to their block
+    + The options.timeZone argument to Date.toLocaleDateString(),
+      Date.toLocaleString(), Date.toLocaleTimeString(), and the constructor of
+      Intl.DateTimeFormat now understands IANA time zone names (such as
+      "America/Vancouver")
+
+  * Backwards-incompatible changes
+    + Non-standard "let expressions" and "let blocks" (e.g.,
+      `let (x = 5) { use(x) }`) are not supported any longer
+    + Non-standard flags argument to String.match(), String.replace(), and
+      String.search() (e.g. `str.replace('foo', 'bar', 'g')`) is now ignored
+    + Non-standard WeakSet.clear() method has been removed
+    + Variables declared with let and const are now 'global lexical bindings',
+      as per the ES6 standard, meaning that they will not be exported in
+      modules. We are maintaining the old behaviour for the time being as a
+      compatibility workaround, but please change "let" or "const" to "var"
+      inside your module file. A warning will remind you of this. For more
+      information, read:
+      https://blog.mozilla.org/addons/2015/10/14/breaking-changes-let-const-firefox-nightly-44/
+
+  * Experimental features (may change in future versions)
+    + String.padEnd(), String.padStart() methods (proposed in ES2017)
+    + Intl.DateTimeFormat.formatToParts() method (proposed in ES2017)
+    + Object.entries() method (proposed in ES2017)
+    + Atomics, SharedArrayBuffer, and WebAssembly are disabled by default, but
+      can be enabled if you compile mozjs yourself
+
+Version 1.49.3
+--------------
+
+- This will be the last release using SpiderMonkey 38.
+- Fixes in preparation for SpiderMonkey 52 [Philip Chimento]
+- Use the Centricular fork of libffi to build on Windows [Chun-wei Fan]
+
+- Closed bugs:
+
+  * [RFC] Use a C++ auto pointer instead of g_autofree [#777597, Chun-wei Fan,
+    Daniel Boles, Philip Chimento]
+  * Build failure in GNOME Continuous [#783031, Chun-wei Fan]
+
+Version 1.48.4
+--------------
+
+- Closed bugs:
+
+  * gnome-shell 3.24.1 crash on wayland [#781799, Philip Chimento]; thanks to
+    everyone who contributed clues
+
+Version 1.49.2
+--------------
+
+- New feature: When building an app with the Package module, using the Meson
+  build system, you can now run the app with "ninja run" and all the paths will
+  be set up correctly.
+
+- New feature: Gio.ListStore is now iterable.
+
+- New API: Package.requireSymbol(), a companion for the already existing
+  Package.require(), that not only checks for a GIR library but also for a
+  symbol defined in that library.
+
+- New API: Package.checkSymbol(), similar to Package.requireSymbol() but does
+  not exit if the symbol was not found. Use this to support older versions of
+  a GIR library with fallback functionality.
+
+- New API: System.dumpHeap(), for debugging only. Prints the state of the JS
+  engine's heap to standard output. Takes an optional filename parameter which
+  will dump to a file instead if given.
+
+- Closed bugs:
+
+  * Make gjs build on Windows/Visual Studio [#775868, Chun-wei Fan]
+  * Bring back fancy error reporter in gjs-console [#781882, Philip Chimento]
+  * Add Meson running from source support to package.js [#781882, Patrick
+    Griffis]
+  * package: Fix initSubmodule() when running from source in Meson [#782065,
+    Patrick Griffis]
+  * package: Set GSETTINGS_SCHEMA_DIR when ran from source [#782069, Patrick
+    Griffis]
+  * Add imports.gi.has() to check for symbol availability [#779593, Florian
+    Müllner]
+  * overrides: Implement Gio.ListStore[Symbol.iterator] [#782310, Patrick
+    Griffis]
+  * tweener: Explicitly check for undefined properties [#781219, Debarshi Ray,
+    Philip Chimento]
+  * Add a way to dump the heap [#780106, Juan Pablo Ugarte]
+
+- Fixes in preparation for SpiderMonkey 52 [Philip Chimento]
+- Misc fixes [Philip Chimento]
+
+Version 1.48.3
+--------------
+
+- Closed bugs:
+
+  * arg: don't crash when asked to convert a null strv to an array [#775679,
+    Cosimo Cecchi, Sam Spilsbury]
+  * gjs 1.48.0: does not compile on macOS with clang [#780350, Tom Schoonjans,
+    Philip Chimento]
+  * Modernize shell scripts [#781806, Claudio André]
+
+Version 1.49.1
+--------------
+
+- Closed bugs:
+
+  * test GObject Class failure [#693676, Stef Walter]
+  * Enable incremental GCs [#724797, Giovanni Campagna]
+  * Don't silently accept extra arguments to C functions [#680215, Jasper
+    St. Pierre, Philip Chimento]
+  * Special case GValues in signals and properties [#688128, Giovanni Campagna,
+    Philip Chimento]
+  * [cairo] Instantiate wrappers properly [#614413, Philip Chimento,
+    Johan Dahlin]
+  * Warn if we're importing an unversioned namespace [#689654, Colin Walters,
+    Philip Chimento]
+
+- Fixes in preparation for SpiderMonkey 45 [Philip Chimento]
+- Misc fixes [Philip Chimento, Chun-wei Fan, Dan Winship]
+
 Version 1.48.2
 --------------
 
