@@ -29,10 +29,10 @@
 
 /* COMPAT: SpiderMonkey headers in some places use DEBUG instead of JS_DEBUG */
 /* https://bugzilla.mozilla.org/show_bug.cgi?id=1261161 */
-#ifdef HAVE_DEBUG_SPIDERMONKEY
+/*#ifdef HAVE_DEBUG_SPIDERMONKEY
 #define DEBUG 1
 #endif
-
+*/
 #include <js-config.h>  /* SpiderMonkey's #defines that affect public API */
 
 #if defined(__clang__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
