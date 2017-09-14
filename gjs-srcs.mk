@@ -61,8 +61,6 @@ gjs_srcs =				\
 	cjs/importer.cpp		\
 	cjs/importer.h			\
 	cjs/jsapi-class.h		\
-	cjs/jsapi-constructor-proxy.cpp	\
-	cjs/jsapi-constructor-proxy.h	\
 	cjs/jsapi-dynamic-class.cpp	\
 	cjs/jsapi-private.cpp		\
 	cjs/jsapi-private.h		\
