@@ -71,6 +71,8 @@ gjs_srcs =				\
 	cjs/jsapi-wrapper.h		\
 	cjs/mem.h			\
 	cjs/mem.cpp			\
+	cjs/module.h			\
+	cjs/module.cpp			\
 	cjs/native.cpp			\
 	cjs/native.h			\
 	cjs/runtime.cpp			\
