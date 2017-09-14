@@ -508,8 +508,10 @@ _gjs_context_enqueue_job(GjsContext      *gjs_context,
     if (!gjs_context->job_queue->append(job))
         return false;
     if (!gjs_context->idle_drain_handler)
+        /*Modified for CJS, Promises shouldn't take 200ms to resolve. When several
+        promises are queued up, this artifically inflates resolve time. */
         gjs_context->idle_drain_handler =
-            g_idle_add(drain_job_queue_idle_handler, gjs_context);
+            g_idle_add_full(0, drain_job_queue_idle_handler, gjs_context, NULL);
 
     return true;
 }
