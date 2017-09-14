@@ -54,6 +54,8 @@ gjs_srcs =				\
 	cjs/context-private.h		\
 	cjs/coverage-internal.h		\
 	cjs/coverage.cpp 		\
+	cjs/global.cpp			\
+	cjs/global.h		  \
 	cjs/importer.cpp		\
 	cjs/importer.h			\
 	cjs/jsapi-class.h		\
