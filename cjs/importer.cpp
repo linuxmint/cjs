@@ -351,17 +351,6 @@ import_module_init(JSContext       *context,
     return ret;
 }
 
-static gboolean
-is_extension_module (const gchar *path)
-{
-    if (g_strstr_len (path, -1, "applets") ||
-        g_strstr_len (path, -1, "desklets") ||
-        g_strstr_len (path, -1, "extensions"))
-        return TRUE;
-
-    return FALSE;
-}
-
 static JSObject *
 load_module_init(JSContext       *context,
                  JS::HandleObject in_object,
@@ -370,8 +359,7 @@ load_module_init(JSContext       *context,
     bool found;
 
     /* First we check if js module has already been loaded  */
-    if (!is_extension_module (full_path) &&
-        gjs_object_has_property(context, in_object, GJS_STRING_MODULE_INIT,
+    if (gjs_object_has_property(context, in_object, GJS_STRING_MODULE_INIT,
                                 &found) && found) {
         JS::RootedValue module_obj_val(context);
         if (gjs_object_get_property(context, in_object,
@@ -740,17 +728,13 @@ importer_enumerate(JSContext        *context,
 
         while (true) {
             GFileInfo *info;
-            GError *error = NULL;
-            info = g_file_enumerator_next_file(direnum, NULL, &error);
-            if (error != NULL) {
-                g_error_free (error);
+            GFile *file;
+            if (!g_file_enumerator_iterate(direnum, &info, &file, NULL, NULL))
                 break;
-            }
-            if (info == NULL)
+            if (info == NULL || file == NULL)
                 break;
 
-            GjsAutoChar filename =
-              g_path_get_basename(g_file_info_get_name(info));
+            GjsAutoChar filename = g_file_get_basename(file);
 
             /* skip hidden files and directories (.svn, .git, ...) */
             if (filename[0] == '.')
@@ -825,75 +809,6 @@ importer_resolve(JSContext        *context,
 
 GJS_NATIVE_CONSTRUCTOR_DEFINE_ABSTRACT(importer)
 
-static bool
-gjs_importer_add_subimporter(JSContext *context,
-                             unsigned   argc,
-                             JS::Value *vp)
-{
-    if (argc != 2) {
-        gjs_throw(context, "Must pass two arguments to addSubImporter()");
-        return false;
-    }
-
-    GJS_GET_THIS(context, argc, vp, argv, importer);
-
-    bool success = false;
-
-    JSExceptionState *exc_state;
-
-    char *name;
-    char *path;
-    char *search_path[2] = { 0, 0 };
-
-    JS_BeginRequest(context);
-
-    /* JS::ToString might throw, in which case we will only log that the value
-     * could not be converted to string */
-    exc_state = JS_SaveExceptionState(context);
-    JS::RootedString name_str(context, JS::ToString(context, argv[0]));
-    if (name_str != NULL)
-        argv[0].setString(name_str);
-    JS_RestoreExceptionState(context, exc_state);
-
-    if (name_str == NULL) {
-        g_message("addSubImporter: <cannot convert name value to string>");
-        JS_EndRequest(context);
-        return false;
-    }
-
-    exc_state = JS_SaveExceptionState(context);
-    JS::RootedString path_str(context, JS::ToString(context, argv[1]));
-    if (path_str != NULL)
-        argv[1].setString(path_str);
-    JS_RestoreExceptionState(context, exc_state);
-
-    if (path_str == NULL) {
-        g_message("addSubImporter: <cannot convert path value to string>");
-        JS_EndRequest(context);
-        return false;
-    }
-
-    if (!gjs_string_to_utf8(context, JS::StringValue(name_str), &name))
-        goto out;
-
-    if (!gjs_string_to_utf8(context, JS::StringValue(path_str), &path))
-        goto out;
-
-    search_path[0] = path;
-
-    gjs_define_importer(context, importer, name, (const char **)search_path, FALSE);
-
-    JS_EndRequest(context);
-    argv.rval().setUndefined();
-    success = true;
-
-    out:
-
-    g_free (name);
-    g_free (path);
-    return success;
-}
-
 static void
 importer_finalize(js::FreeOp *fop,
                   JSObject   *obj)
@@ -958,11 +873,6 @@ JSFunctionSpec gjs_importer_proto_funcs[] = {
 
 GJS_DEFINE_PROTO_FUNCS(importer)
 
-JSFunctionSpec gjs_global_importer_funcs[] = {
-    JS_FS("addSubImporter", gjs_importer_add_subimporter, 0, 0),
-    JS_FS_END
-};
-
 static JSObject*
 importer_new(JSContext *context,
              bool       is_root)
@@ -1021,7 +931,7 @@ gjs_get_search_path(void)
             g_free(dirs);
         }
 
-        g_ptr_array_add(path, g_strdup("resource:///org/cinnamon/cjs/modules/"));
+        g_ptr_array_add(path, g_strdup("resource:///org/gnome/gjs/modules/"));
 
         /* $XDG_DATA_DIRS /gjs-1.0 */
         system_data_dirs = g_get_system_data_dirs();
@@ -1123,14 +1033,13 @@ gjs_create_root_importer(JSContext   *context,
                          const char **initial_search_path,
                          bool         add_standard_search_path)
 {
-    JS::Value importer_val;
-    JSObject *importer;
+    JS::Value importer;
 
     JS_BeginRequest(context);
 
-    importer_val = gjs_get_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS);
+    importer = gjs_get_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS);
 
-    if (G_UNLIKELY (!importer_val.isUndefined())) {
+    if (G_UNLIKELY (!importer.isUndefined())) {
         gjs_debug(GJS_DEBUG_IMPORTER,
                   "Someone else already created root importer, ignoring second request");
 
@@ -1138,17 +1047,11 @@ gjs_create_root_importer(JSContext   *context,
         return true;
     }
 
-    importer = gjs_create_importer(context, "imports",
-                                   initial_search_path,
-                                   add_standard_search_path,
-                                   true, JS::NullPtr());
-
-    JS::RootedObject global(context, importer);
-
-    importer_val = JS::ObjectValue (*importer);
-
-    JS_DefineFunctions(context, global, &gjs_global_importer_funcs[0]);
-    gjs_set_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS, importer_val);
+    importer = JS::ObjectValue(*gjs_create_importer(context, "imports",
+                                                    initial_search_path,
+                                                    add_standard_search_path,
+                                                    true, JS::NullPtr()));
+    gjs_set_global_slot(context, GJS_GLOBAL_SLOT_IMPORTS, importer);
 
     JS_EndRequest(context);
     return true;
