@@ -1,9 +1,9 @@
 #!/bin/sh
 
 if test "$GJS_USE_UNINSTALLED_FILES" = "1"; then
-    gjs="$LOG_COMPILER $LOG_FLAGS $TOP_BUILDDIR/gjs-console"
+    gjs="$LOG_COMPILER $LOG_FLAGS $TOP_BUILDDIR/cjs-console"
 else
-    gjs="$LOG_COMPILER $LOG_FLAGS gjs-console"
+    gjs="$LOG_COMPILER $LOG_FLAGS cjs-console"
 fi
 
 total=0

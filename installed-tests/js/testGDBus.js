@@ -258,7 +258,7 @@ describe('Exported DBus object', function () {
     /* excp must be exactly the exception thrown by the remote method
        (more or less) */
     it('can handle an exception thrown by a remote method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         proxy.alwaysThrowExceptionRemote({}, function(result, excp) {
@@ -269,7 +269,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can still destructure the return value when an exception is thrown', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         // This test will not fail, but instead if the functionality is not
