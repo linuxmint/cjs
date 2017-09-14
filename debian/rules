@@ -6,7 +6,7 @@ include /usr/share/gnome-pkg-tools/1/rules/gnome-get-source.mk
 # files have been installed.
 #LIBMOZJS = $(shell objdump -p debian/tmp/usr/lib/libgjs.so | awk '$$1=="NEEDED" && $$2~/^libmozjs/ { print $$2 }' | sed s/\\.so\\./-/ )
 # Hard code the mozjs version here since the above line didn't seem to work
-LIBMOZJS = libmozjs-38-0
+LIBMOZJS = libmozjs-52-0
 
 %:
 	dh $@ --with gnome,gir

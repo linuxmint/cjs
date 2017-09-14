@@ -14,7 +14,7 @@ Build-Depends: debhelper (>= 10),
                libglib2.0-dev (>= 2.42.0),
                libgirepository1.0-dev (>= 1.46.0),
                gobject-introspection (>= 1.46.0),
-               libmozjs-38-dev,
+               libmozjs-52-dev,
                libreadline-dev,
                libgtk-3-dev,
                libcairo2-dev,
@@ -59,7 +59,7 @@ Depends: ${misc:Depends},
          libcjs0f (= ${binary:Version}),
          libgirepository1.0-dev (>= 1.41.4),
          libgtk-3-dev,
-         libmozjs-38-dev
+         libmozjs-52-dev
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon's platform
  libraries using the JavaScript language. It's mainly based on the
