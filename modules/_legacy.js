@@ -670,7 +670,7 @@ function defineGtkLegacyObjects(GObject, Gtk) {
             this.parent(params);
 
             if (cssName)
-                Gtk.Widget.set_css_name.call(this, cssName);
+                //Gtk.Widget.set_css_name.call(this, cssName);
 
             if (template) {
                 if (typeof template == 'string' &&

@@ -1,9 +1,9 @@
 #!/bin/sh
 
 if test "$GJS_USE_UNINSTALLED_FILES" = "1"; then
-    gjs="$LOG_COMPILER $LOG_FLAGS $TOP_BUILDDIR/gjs-console"
+    gjs="$LOG_COMPILER $LOG_FLAGS $TOP_BUILDDIR/cjs-console"
 else
-    gjs="$LOG_COMPILER $LOG_FLAGS gjs-console"
+    gjs="$LOG_COMPILER $LOG_FLAGS cjs-console"
 fi
 
 # This JS script should exit immediately with code 42. If that is not working,
@@ -72,7 +72,7 @@ report_xfail () {
     fi
 }
 
-# Test that System.exit() works in gjs-console
+# Test that System.exit() works in cjs-console
 $gjs -c 'imports.system.exit(0)'
 report "System.exit(0) should exit successfully"
 $gjs -c 'imports.system.exit(42)'
@@ -128,11 +128,11 @@ report "--help after -c should not print anything"
 # "$gjs" help.js --help -I sentinel
 # report_xfail "-I after script file should not be added to search path"
 # fi
-$gjs help.js --help -I sentinel 2>&1 | grep -q 'Gjs-WARNING.*--include-path'
+$gjs help.js --help -I sentinel 2>&1 | grep -q 'Cjs-WARNING.*--include-path'
 report "-I after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-prefix'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-prefix'
 report "--coverage-prefix after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-output'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-output'
 report "--coverage-output after script should succeed but give a warning"
 rm -f foo/coverage.lcov
 
@@ -158,7 +158,7 @@ report "interpreter should run queued promise jobs before finishing"
 test -n "${output##*Should not be printed*}"
 report "interpreter should stop running jobs when one calls System.exit()"
 
-$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Gjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
+$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Cjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
 report "unhandled promise rejection should be reported"
 test -z $($gjs awaitcatch.js)
 report "catching an await expression should not cause unhandled rejection"

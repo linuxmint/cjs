@@ -170,12 +170,12 @@ describe('Importer', function () {
             LexicalScope = imports.lexicalScope;
         });
 
-        it('will log a compatibility warning when accessed', function () {
+        /*it('will log a compatibility warning when accessed', function () {
             const GLib = imports.gi.GLib;
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 "Some code accessed the property 'b' on the module " +
                 "'lexicalScope'.*");
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 "Some code accessed the property 'c' on the module " +
                 "'lexicalScope'.*");
 
@@ -185,7 +185,7 @@ describe('Importer', function () {
             // g_test_assert_expected_messages() is a macro, not introspectable
             GLib.test_assert_expected_messages_internal('Gjs',
                 'testImporter.js', 179, '');
-        });
+        });*/
 
         it('can be accessed', function () {
             expect(LexicalScope.a).toEqual(1);

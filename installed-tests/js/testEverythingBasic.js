@@ -87,7 +87,7 @@ describe('Life, the Universe and Everything', function () {
                 pending("This test doesn't work");
 
             if (bytes === '64')
-                GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                     "*cannot be safely stored*");
 
             let val = Limits[bytes][limit];
@@ -112,9 +112,9 @@ describe('Life, the Universe and Everything', function () {
         });
 
         it('warns when conversion is lossy', function () {
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 "*cannot be safely stored*");
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 "*cannot be safely stored*");
             void GLib.MAXINT64;
             void GLib.MAXUINT64;
