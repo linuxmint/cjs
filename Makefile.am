@@ -60,9 +60,10 @@ libcjs_la_CPPFLAGS =		\
 	$(gjs_directory_defines)\
 	-I$(top_srcdir)/gi	\
 	-DGJS_COMPILATION
-libcjs_la_LDFLAGS = 		\
-	-export-symbols-regex "^[^_]" -version-info 0:0:0	\
-	-no-undefined \
+libcjs_la_LDFLAGS = 			\
+	-export-symbols-regex "^[^_]"	\
+	-version-info 0:0:0		\
+	$(NO_UNDEFINED_FLAG)		\
 	$(NULL)
 libcjs_la_LIBADD = 		\
 	$(GJS_LIBS)		\
