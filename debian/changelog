@@ -1,3 +1,25 @@
+cjs (3.6.0) sylvia; urgency=medium
+
+  [ leigh123linux ]
+  * object: Keep proper track of pending closure invalidations
+  * revert b66d7c2965f20c2cf51628840682c404a01bf408
+
+  [ Michael Webster ]
+  * Add a debug package.
+
+  [ Jason Hicks ]
+  * object: Zero out new ConnectData
+
+  [ Clement Lefebvre ]
+  * Update README
+  * Add a README.md
+
+  [ Philip Chimento ]
+  * Revert freeing closures in idle handler
+  * closure: Prevent collection of invalidated closure
+
+ -- Clement Lefebvre <root@linuxmint.com>  Sat, 21 Oct 2017 13:49:00 +0100
+
 cjs (3.4.3) sonya; urgency=medium
 
   [ Michael Webster ]
