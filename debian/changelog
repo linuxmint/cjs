@@ -1,3 +1,12 @@
+cjs (3.6.1) sylvia; urgency=medium
+
+  [ Simon Brown ]
+  * cairo: Free popped pattern (#59)
+  * value: Fix memory leak while marshalling GValue (#57)
+  * arg: Fix memory leaks (#58)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 09 Nov 2017 13:31:37 +0000
+
 cjs (3.6.0) sylvia; urgency=medium
 
   [ leigh123linux ]
