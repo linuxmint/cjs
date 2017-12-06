@@ -275,7 +275,7 @@ EXTRA_DIST +=						\
 
 ### TEST EXECUTION #####################################################
 
-@VALGRIND_CHECK_RULES@
+#@VALGRIND_CHECK_RULES@
 VALGRIND_SUPPRESSIONS_FILES = 				\
 	$(datadir)/glib-2.0/valgrind/glib.supp		\
 	$(top_srcdir)/installed-tests/extra/gjs.supp	\
@@ -344,4 +344,3 @@ CODE_COVERAGE_GENHTML_OPTIONS = 			\
 	--prefix $(abs_top_builddir) 			\
 	$(NULL)
 @CODE_COVERAGE_RULES@
-endif

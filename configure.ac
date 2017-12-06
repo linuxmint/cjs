@@ -46,19 +46,12 @@ AC_PROG_AWK
 
 AX_COMPILER_FLAGS
 
-m4_ifdef([AX_CODE_COVERAGE],
-         [AX_CODE_COVERAGE],
-         [AM_CONDITIONAL(CODE_COVERAGE_ENABLED, false)])
+AX_CODE_COVERAGE
 dnl Clang does not need to link with -lgcov
 AX_CHECK_LINK_FLAG([-lgcov],, [
 	CODE_COVERAGE_LIBS=
 	CODE_COVERAGE_LDFLAGS=
 ])
-
-AX_VALGRIND_DFLT([drd], [off])
-AX_VALGRIND_DFLT([sgcheck], [off])
-# DRD and sgcheck don't produce useful diagnostics at this time
-AX_VALGRIND_CHECK
 
 # Checks for libraries.
 m4_define(glib_required_version, 2.42.0)
