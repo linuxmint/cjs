@@ -5,7 +5,7 @@ const GLib = imports.gi.GLib;
 
 var reqs = {
   immediate: function () {
-    return function (func, priority=GLib.PRIORITY_DEFAULT_IDLE) {
+    return function (func, priority=GLib.PRIORITY_DEFAULT) {
       GLib.idle_add(priority, function () {
         func();
         return GLib.SOURCE_REMOVE;
