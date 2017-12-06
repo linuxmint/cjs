@@ -545,7 +545,7 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
                                                         properties[istr].valueComplete,
                                                         properties[istr].arrayIndex || 0,
                                                         {},
-                                                        properties[istr].isSpecialProperty,
+                                                        properties[istr].isSpecialProperty || false,
                                                         properties[istr].modifierFunction || null,
                                                         properties[istr].modifierParameters || null);
             }
