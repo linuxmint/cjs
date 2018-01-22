@@ -372,7 +372,7 @@ object_instance_get_prop(JSContext              *context,
                          JS::MutableHandleValue  value_p)
 {
     ObjectInstance *priv;
-    GjsAutoJSChar name(context);
+    GjsAutoJSChar name;
 
     if (!gjs_get_string_id(context, id, &name))
         return true; /* not resolved, but no error */
@@ -492,7 +492,7 @@ object_instance_set_prop(JSContext              *context,
                          JS::ObjectOpResult&     result)
 {
     ObjectInstance *priv;
-    GjsAutoJSChar name(context);
+    GjsAutoJSChar name;
     bool ret = true;
     bool g_param_was_set = false;
 
@@ -718,7 +718,7 @@ object_instance_resolve(JSContext       *context,
 {
     GIFunctionInfo *method_info;
     ObjectInstance *priv;
-    GjsAutoJSChar name(context);
+    GjsAutoJSChar name;
 
     if (!gjs_get_string_id(context, id, &name)) {
         *resolved = false;
@@ -911,7 +911,7 @@ object_instance_props_to_g_parameters(JSContext                  *context,
     }
 
     for (ix = 0, length = ids.length(); ix < length; ix++) {
-        GjsAutoJSChar name(context);
+        GjsAutoJSChar name;
         GParameter gparam = { NULL, { 0, }};
 
         /* ids[ix] is reachable because props is rooted, but require_property
@@ -1688,7 +1688,7 @@ real_connect_func(JSContext *context,
     }
 
     JS::RootedString signal_str(context, argv[0].toString());
-    GjsAutoJSChar signal_name(context, JS_EncodeStringToUTF8(context, signal_str));
+    GjsAutoJSChar signal_name = JS_EncodeStringToUTF8(context, signal_str);
     if (!signal_name)
         return false;
 
@@ -1781,7 +1781,7 @@ emit_func(JSContext *context,
     }
 
     JS::RootedString signal_str(context, argv[0].toString());
-    GjsAutoJSChar signal_name(context, JS_EncodeStringToUTF8(context, signal_str));
+    GjsAutoJSChar signal_name = JS_EncodeStringToUTF8(context, signal_str);
     if (!signal_name)
         return false;
 
@@ -2306,7 +2306,7 @@ gjs_hook_up_vfunc(JSContext *cx,
                   JS::Value *vp)
 {
     JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     JS::RootedObject object(cx), function(cx);
     ObjectInstance *priv;
     GType gtype, info_gtype;
@@ -2540,7 +2540,7 @@ gjs_override_property(JSContext *cx,
                       JS::Value *vp)
 {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     JS::RootedObject type(cx);
     GParamSpec *pspec;
     GParamSpec *new_pspec;
@@ -2787,7 +2787,7 @@ gjs_register_interface(JSContext *cx,
                        JS::Value *vp)
 {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     guint32 i, n_interfaces, n_properties;
     GType *iface_types;
     GType interface_type;
@@ -2882,7 +2882,7 @@ gjs_register_type(JSContext *cx,
                   JS::Value *vp)
 {
     JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     GType instance_type, parent_type;
     GTypeQuery query;
     ObjectInstance *parent_priv;
@@ -2983,7 +2983,7 @@ gjs_signal_new(JSContext *cx,
 {
     JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
     GType gtype;
-    GjsAutoJSChar signal_name(cx);
+    GjsAutoJSChar signal_name;
     GSignalAccumulator accumulator;
     gint signal_id;
     guint i, n_parameters;
