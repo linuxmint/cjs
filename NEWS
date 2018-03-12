@@ -1,3 +1,40 @@
+Version 1.51.3
+--------------
+
+- This release was made from an earlier state of master, before a breaking
+  change was merged, while we decide whether to revert that change or not.
+
+- Closed bugs and merge requests:
+
+  * CI improvements on GitLab [!14, !15, !19, Claudio André]
+  * Fix CI build on Ubuntu [#16, !18, !21, Claudio André, Philip Chimento]
+
+Version 1.51.2
+--------------
+
+- Version 1.51.1 was skipped.
+
+- The home of GJS is now at GNOME's GitLab instance:
+  https://gitlab.gnome.org/GNOME/gjs
+  From now on we'll be taking GitLab merge requests instead of Bugzilla
+  patches. If you want to report a bug, please report it at GitLab.
+
+- Closed bugs and merge requests:
+
+  * Allow throwing GErrors from JS virtual functions [#682701, Giovanni
+    Campagna]
+  * [RFC] bootstrap system [#777724, Jasper St. Pierre, Philip Chimento]
+  * Fix code coverage (and refactor it to take advantage of mozjs52 features)
+    [#788166, !1, !3, Philip Chimento]
+  * Various maintenance [!2, Philip Chimento]
+  * Get GitLab CI working and various improvements [#6, !7, !9, !11, !13,
+    Claudio André]
+  * Add build status badge to README [!8, Claudio André]
+  * Use Docker images for CI [!12, Claudio André]
+
+- Some changes in progress to improve garbage collection when signals are
+  disconnected. See bug #679688 for more information [Giovanni Campagna]
+
 Version 1.50.2
 --------------
 
