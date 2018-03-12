@@ -76,6 +76,7 @@ gjs_srcs =				\
 	cjs/native.cpp			\
 	cjs/native.h			\
 	cjs/profiler.cpp		\
+	cjs/profiler-private.h		\
 	cjs/stack.cpp			\
 	modules/modules.cpp		\
 	modules/modules.h		\
