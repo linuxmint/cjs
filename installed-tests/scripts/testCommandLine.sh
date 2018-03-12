@@ -162,7 +162,7 @@ report "--version after -c should not print anything"
 
 # --profile
 rm -f gjs-*.syscap foo.syscap
-$gjs -c 'imports.system.exit(0)' && test ! -f gjs-*.syscap
+$gjs -c 'imports.system.exit(0)' && ! stat gjs-*.syscap &> /dev/null
 report "no profiling data should be dumped without --profile"
 
 # Skip some tests if built without profiler support
@@ -172,7 +172,8 @@ if gjs --profile -c 1 2>&1 | grep -q 'Cjs-Message.*Profiler is disabled'; then
     skip "--profile with argument should dump profiling data to the named file" "$reason"
     skip "GJS_ENABLE_PROFILER=1 should enable the profiler" "$reason"
 else
-    $gjs --profile -c 'imports.system.exit(0)' && test -f gjs-*.syscap
+    rm -f gjs-*.syscap
+    $gjs --profile -c 'imports.system.exit(0)' && stat gjs-*.syscap &> /dev/null
     report "--profile should dump profiling data to the default file name"
     $gjs --profile=foo.syscap -c 'imports.system.exit(0)' && test -f foo.syscap
     report "--profile with argument should dump profiling data to the named file"
