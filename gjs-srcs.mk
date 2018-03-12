@@ -52,7 +52,6 @@ gjs_srcs =				\
 	cjs/byteArray.h			\
 	cjs/context.cpp			\
 	cjs/context-private.h		\
-	cjs/coverage-internal.h		\
 	cjs/coverage.cpp 		\
 	cjs/engine.cpp			\
 	cjs/engine.h			\
