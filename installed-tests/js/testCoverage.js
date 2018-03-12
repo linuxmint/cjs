@@ -538,37 +538,6 @@ describe('Coverage.functionsForAST', function () {
                 { key: '(anonymous):2:1', line: 2, n_params: 1 },
             ],
         ],
-
-        'finds functions inside labeled statement': [
-            `loop:
-            for (function () {}; ; ) {}`,
-            [
-                { key: '(anonymous):2:0', line: 2, n_params: 0 },
-            ],
-        ],
-
-        'finds functions inside switch expression': [
-            'switch (function () {}) {}',
-            [
-                { key: '(anonymous):1:0', line: 1, n_params: 0 },
-            ],
-        ],
-
-        'finds functions inside function default arguments': [
-            'function foo(bar=function () {}) {}',
-            [
-                { key: 'foo:1:1', line: 1, n_params: 1 },
-                { key: '(anonymous):1:0', line: 1, n_params: 0 },
-            ],
-        ],
-
-        'finds functions inside function expression default arguments': [
-            'void function foo(bar=function () {}) {}',
-            [
-                { key: 'foo:1:1', line: 1, n_params: 1 },
-                { key: '(anonymous):1:0', line: 1, n_params: 0 },
-            ],
-        ],
     };
 
     Object.keys(testTable).forEach(testcase => {
