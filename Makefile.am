@@ -87,6 +87,7 @@ libcjs_la_SOURCES = $(gjs_srcs)
 
 if ENABLE_PROFILER
 libcjs_la_SOURCES += $(gjs_sysprof_srcs)
+libcjs_la_LIBADD += $(LIB_TIMER_TIME)
 endif
 
 # Also, these files used to be a separate library
