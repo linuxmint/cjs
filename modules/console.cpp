@@ -55,7 +55,6 @@
 #include "console.h"
 #include "cjs/context.h"
 #include "cjs/context-private.h"
-#include "cjs/jsapi-private.h"
 #include "cjs/jsapi-wrapper.h"
 
 static void

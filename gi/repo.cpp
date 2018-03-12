@@ -38,7 +38,6 @@
 #include "gerror.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-wrapper.h"
-#include "cjs/jsapi-private.h"
 #include "cjs/mem.h"
 
 #include <util/misc.h>

@@ -57,13 +57,11 @@ gjs_srcs =				\
 	cjs/engine.cpp			\
 	cjs/engine.h			\
 	cjs/global.cpp			\
-	cjs/global.h		  \
+	cjs/global.h			\
 	cjs/importer.cpp		\
 	cjs/importer.h			\
 	cjs/jsapi-class.h		\
 	cjs/jsapi-dynamic-class.cpp	\
-	cjs/jsapi-private.cpp		\
-	cjs/jsapi-private.h		\
 	cjs/jsapi-util.cpp		\
 	cjs/jsapi-util.h		\
 	cjs/jsapi-util-args.h		\

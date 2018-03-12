@@ -35,7 +35,6 @@
 #include "param.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-class.h"
-#include "cjs/jsapi-private.h"
 #include "cjs/jsapi-wrapper.h"
 #include "cjs/mem.h"
 
