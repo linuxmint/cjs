@@ -3,6 +3,7 @@ gjs_public_headers =		\
 	cjs/coverage.h		\
 	cjs/gjs.h		\
 	cjs/macros.h		\
+	cjs/profiler.h		\
 	util/error.h		\
 	$(NULL)
 
@@ -74,6 +75,7 @@ gjs_srcs =				\
 	cjs/module.cpp			\
 	cjs/native.cpp			\
 	cjs/native.h			\
+	cjs/profiler.cpp		\
 	cjs/stack.cpp			\
 	modules/modules.cpp		\
 	modules/modules.h		\
@@ -84,6 +86,9 @@ gjs_srcs =				\
 	util/log.h			\
 	util/misc.cpp			\
 	util/misc.h			\
+	util/sp-capture-types.h		\
+	util/sp-capture-writer.c	\
+	util/sp-capture-writer.h	\
 	$(NULL)
 
 # These files were part of a separate library
