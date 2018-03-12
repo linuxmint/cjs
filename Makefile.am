@@ -43,10 +43,10 @@ pkgconfig_DATA = cjs-1.0.pc
 
 EXTRA_DIST += cjs-1.0.pc.in
 
-valgrinddir = $(datadir)/gjs-1.0/valgrind
+valgrinddir = $(datadir)/cjs-1.0/valgrind
 dist_valgrind_DATA = installed-tests/extra/gjs.supp
 
-lsandir = $(datadir)/gjs-1.0/lsan
+lsandir = $(datadir)/cjs-1.0/lsan
 dist_lsan_DATA = installed-tests/extra/lsan.supp
 
 ########################################################################
