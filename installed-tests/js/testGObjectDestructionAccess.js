@@ -17,7 +17,7 @@ describe('Access to destroyed GObject', () => {
     });
 
     it('Get property', () => {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         let title = destroyedWindow.title;
@@ -27,7 +27,7 @@ describe('Access to destroyed GObject', () => {
     });
 
     it('Set property', () => {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.title = 'I am dead';
@@ -37,7 +37,7 @@ describe('Access to destroyed GObject', () => {
     });
 
     it('Access to getter method', () => {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         let title = destroyedWindow.get_title();
@@ -47,7 +47,7 @@ describe('Access to destroyed GObject', () => {
     });
 
     it('Access to setter method', () => {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.set_title('I am dead');
@@ -57,7 +57,7 @@ describe('Access to destroyed GObject', () => {
     });
 
     it('Proto function connect', () => {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.connect('foo-signal', () => {});
@@ -67,7 +67,7 @@ describe('Access to destroyed GObject', () => {
     });
 
     it('Proto function connect_after', () => {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.connect_after('foo-signal', () => {});
@@ -77,7 +77,7 @@ describe('Access to destroyed GObject', () => {
     });
 
     it('Proto function emit', () => {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.emit('foo-signal');

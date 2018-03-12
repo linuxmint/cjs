@@ -111,9 +111,9 @@ describe('Gtk overrides', function () {
     });
 
     it('avoid crashing when GTK vfuncs are called in garbage collection', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*during garbage collection*');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*destroy*');
 
         let BadLabel = GObject.registerClass(class BadLabel extends Gtk.Label {
