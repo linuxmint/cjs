@@ -431,17 +431,21 @@ get_array_from_js_value(JSContext             *context,
     if (element_clear_func)
         g_array_set_clear_func(c_side_array, element_clear_func);
 
-    if (!JS_GetArrayLength(context, js_array, &js_array_len)) {
-        g_array_unref(c_side_array);
-        return false;
-    }
+    if (JS_GetArrayLength(context, js_array, &js_array_len)) {
+        uint32_t i = 0;
+        JS::RootedValue element(context);
+        for (; i < js_array_len; ++i) {
+            if (!JS_GetElement(context, js_array, i, &element)) {
+                g_array_unref(c_side_array);
+                gjs_throw(context, "Failed to get function names array element %d", i);
+                return false;
+            }
 
-    JS::RootedValue element(context);
-    for (uint32_t i = 0; i < js_array_len; ++i) {
-        if (!JS_GetElement(context, js_array, i, &element) ||
-            !inserter(c_side_array, context, element)) {
-            g_array_unref(c_side_array);
-            return false;
+            if (!(inserter(c_side_array, context, element))) {
+                g_array_unref(c_side_array);
+                gjs_throw(context, "Failed to convert array element %d", i);
+                return false;
+            }
         }
     }
 
@@ -522,12 +526,12 @@ get_hit_count_and_line_data(JSContext       *cx,
                             int32_t         *line)
 {
     JS::RootedId hit_count_name(cx, gjs_intern_string_to_id(cx, "hitCount"));
-    if (!gjs_object_require_property(cx, obj, description,
+    if (!gjs_object_require_property(cx, obj, "function element",
                                      hit_count_name, hit_count))
         return false;
 
     JS::RootedId line_number_name(cx, gjs_intern_string_to_id(cx, "line"));
-    return gjs_object_require_property(cx, obj, description,
+    return gjs_object_require_property(cx, obj, "function_element",
                                        line_number_name, line);
 }
 
@@ -966,6 +970,33 @@ gjs_get_file_checksum(GFile *file)
     return checksum;
 }
 
+/* The binary data for the cache has the following structure:
+ *
+ * {
+ *     array [ tuple {
+ *         string filename;
+ *         string? checksum;
+ *         tuple? {
+ *             mtime_sec;
+ *             mtime_usec;
+ *         }
+ *         array [
+ *             int line;
+ *         ] executable lines;
+ *         array [ tuple {
+ *             int branch_point;
+ *             array [
+ *                 int line;
+ *             ] exits;
+ *         } branch_info ] branches;
+ *         array [ tuple {
+ *             int line;
+ *             string key;
+ *         } function ] functions;
+ *     } file ] files;
+ */
+const char *COVERAGE_STATISTICS_CACHE_BINARY_DATA_TYPE = "a(sm(xx)msaia(iai)a(is))";
+
 GBytes *
 gjs_serialize_statistics(GjsCoverage *coverage)
 {
@@ -1237,59 +1268,6 @@ gjs_coverage_init(GjsCoverage *self)
 }
 
 static bool
-gjs_context_eval_file_in_compartment(GjsContext      *context,
-                                     const char      *filename,
-                                     JS::HandleObject compartment_object,
-                                     GError         **error)
-{
-    char  *script = NULL;
-    gsize script_len = 0;
-
-    GFile *file = g_file_new_for_commandline_arg(filename);
-
-    if (!g_file_load_contents(file,
-                              NULL,
-                              &script,
-                              &script_len,
-                              NULL,
-                              error)) {
-        g_object_unref(file);
-        return false;
-    }
-
-    g_object_unref(file);
-
-    int start_line_number = 1;
-    const char *stripped_script = gjs_strip_unix_shebang(script, &script_len,
-                                                         &start_line_number);
-
-    JSContext *js_context = (JSContext *) gjs_context_get_native_context(context);
-
-    JSAutoCompartment compartment(js_context, compartment_object);
-
-    JS::CompileOptions options(js_context);
-    options.setUTF8(true)
-           .setFileAndLine(filename, start_line_number)
-           .setSourceIsLazy(true);
-    JS::RootedScript compiled_script(js_context);
-    if (!JS::Compile(js_context, options, stripped_script, script_len,
-                     &compiled_script))
-        return false;
-
-    JS::RootedValue dummy_rval(js_context);
-    if (!JS::CloneAndExecuteScript(js_context, compiled_script, &dummy_rval)) {
-        g_free(script);
-        gjs_log_exception(js_context);
-        g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED, "Failed to evaluate %s", filename);
-        return false;
-    }
-
-    g_free(script);
-
-    return true;
-}
-
-static bool
 coverage_log(JSContext *context,
              unsigned   argc,
              JS::Value *vp)
@@ -1515,10 +1493,8 @@ gjs_inject_value_into_coverage_compartment(GjsCoverage     *coverage,
 static bool
 bootstrap_coverage(GjsCoverage *coverage)
 {
-    static const char  *coverage_script = "resource:///org/cinnamon/cjs/modules/coverage.js";
     GjsCoveragePrivate *priv = (GjsCoveragePrivate *) gjs_coverage_get_instance_private(coverage);
     GBytes             *cache_bytes = NULL;
-    GError             *error = NULL;
 
     JSContext *context = (JSContext *) gjs_context_get_native_context(priv->context);
     JSAutoRequest ar(context);
@@ -1531,33 +1507,16 @@ bootstrap_coverage(GjsCoverage *coverage)
     {
         JSAutoCompartment compartment(context, debugger_compartment);
         JS::RootedObject debuggeeWrapper(context, debuggee);
-        if (!JS_WrapObject(context, &debuggeeWrapper)) {
-            gjs_throw(context, "Failed to wrap debugeee");
+        if (!JS_WrapObject(context, &debuggeeWrapper))
             return false;
-        }
 
         JS::RootedValue debuggeeWrapperValue(context, JS::ObjectValue(*debuggeeWrapper));
         if (!JS_SetProperty(context, debugger_compartment, "debuggee",
-                            debuggeeWrapperValue)) {
-            gjs_throw(context, "Failed to set debuggee property");
+                            debuggeeWrapperValue) ||
+            !JS_DefineFunctions(context, debugger_compartment, coverage_funcs) ||
+            !gjs_define_global_properties(context, debugger_compartment,
+                                          "coverage"))
             return false;
-        }
-
-        if (!gjs_define_global_properties(context, debugger_compartment,
-                                          "default")) {
-            gjs_throw(context, "Failed to define global properties on debugger "
-                      "compartment");
-            return false;
-        }
-
-        if (!JS_DefineFunctions(context, debugger_compartment, &coverage_funcs[0]))
-            g_error("Failed to init coverage");
-
-        if (!gjs_context_eval_file_in_compartment(priv->context,
-                                                  coverage_script,
-                                                  debugger_compartment,
-                                                  &error))
-            g_error("Failed to eval coverage script: %s\n", error->message);
 
         JS::RootedObject coverage_statistics_constructor(context);
         JS::RootedId coverage_statistics_name(context,
@@ -1598,7 +1557,7 @@ bootstrap_coverage(GjsCoverage *coverage)
                                                coverage_statistics_constructor_args);
 
         if (!coverage_statistics) {
-            gjs_throw(context, "Failed to create coverage_statitiscs object");
+            gjs_throw(context, "Failed to create coverage_statistics object");
             return false;
         }
 
