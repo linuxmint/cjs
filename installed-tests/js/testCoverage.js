@@ -1045,25 +1045,16 @@ describe('Coverage.incrementFunctionCounters', function () {
 
 describe('Coverage statistics container', function () {
     const MockFiles = {
-        'prefix/filename':
-            `function f() {
-                return 1;
-            }
-            if (f())
-                f = 0;
-            `,
-        'prefix/uncached':
-            `function f() {
-                return 1;
-            }
-            `,
-        'unprefixed':
-            `function f() {
-                return 1;
-            }
-            `,
-        'prefix/shebang':
-            `#!/usr/bin/env gjs
+        'filename': "function f() {\n" +
+                    "    return 1;\n" +
+                    "}\n" +
+                    "if (f())\n" +
+                    "    f = 0;\n" +
+                    "\n",
+        'uncached': "function f() {\n" +
+                    "    return 1;\n" +
+                    '}\n',
+        'shebang': `#!/usr/bin/env gjs
             function f() {}
             `,
     };
@@ -1079,11 +1070,11 @@ describe('Coverage statistics container', function () {
             jasmine.createSpy('getFileChecksum').and.returnValue('abcd');
         Coverage.getFileModificationTime =
             jasmine.createSpy('getFileModificationTime').and.returnValue([1, 2]);
-        container = new Coverage.CoverageStatisticsContainer(['prefix/']);
+        container = new Coverage.CoverageStatisticsContainer(MockFilenames);
     });
 
     it('fetches valid statistics for file', function () {
-        let statistics = container.fetchStatistics('prefix/filename');
+        let statistics = container.fetchStatistics('filename');
         expect(statistics).toBeDefined();
 
         let files = container.getCoveredFiles();
@@ -1091,22 +1082,15 @@ describe('Coverage statistics container', function () {
     });
 
     it('throws for nonexisting file', function () {
-        expect(() => container.fetchStatistics('prefix/nonexistent')).toThrow();
+        expect(() => container.fetchStatistics('nonexistent')).toThrow();
     });
 
     it('handles a shebang on line 1', function () {
-        let statistics = container.fetchStatistics('prefix/shebang');
-        expect(statistics).toBeDefined();
+        expect(() => container.fetchStatistics('shebang')).not.toThrow();
     });
 
     it('ignores a file in angle brackets (our convention for programmatic scripts)', function () {
-        let statistics = container.fetchStatistics('<script>');
-        expect(statistics).not.toBeDefined();
-    });
-
-    it('ignores a file without the specified prefix', function () {
-        let statistics = container.fetchStatistics('unprefixed');
-        expect(statistics).not.toBeDefined();
+        expect(() => container.fetchStatistics('<script>')).not.toThrow();
     });
 
     const MockCache = '{ \

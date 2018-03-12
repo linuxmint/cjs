@@ -817,10 +817,6 @@ function CoverageStatisticsContainer(prefixes, cache) {
         // Skip scripts fed to JS engine programmatically.
         if (filename.startsWith('<') && filename.endsWith('>'))
             return undefined;
-
-        if (!_prefixes.some(prefix => filename.startsWith(prefix)))
-            return undefined;
-
         if (!coveredFiles[filename])
             coveredFiles[filename] = createStatisticsFor(filename);
         return coveredFiles[filename];
