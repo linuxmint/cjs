@@ -216,7 +216,7 @@ seal_import(JSContext       *cx,
         return false;
     }
 
-    descr.setConfigurable(false);
+    descr.setConfigurable(true);
     if (!JS_DefinePropertyById(cx, descr.object(), id, descr)) {
         gjs_debug(GJS_DEBUG_IMPORTER,
                   "Failed to redefine attributes to seal '%s' in importer",
