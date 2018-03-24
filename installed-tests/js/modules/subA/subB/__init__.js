@@ -14,4 +14,4 @@ ImporterClass.prototype = {
     testMethod : function() {
         return this._a;
     }
-}
+};

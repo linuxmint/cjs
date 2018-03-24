@@ -191,7 +191,7 @@ function _resumeTweenByIndex(i) {
     tweening.isPaused = false;
 
     return true;
-};
+}
 
 /* FIXME: any way to get the function name from the fn itself? */
 function _callOnFunction(fn, fnname, scope, fallbackScope, params)
@@ -365,7 +365,7 @@ function _onEnterFrame() {
         _stopEngine();
 
     return true;
-};
+}
 
 var restrictedWords = {
     time: true,
@@ -601,15 +601,15 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
     }
 
     return true;
-};
+}
 
 function addTween(target, tweeningParameters) {
     return _addTweenOrCaller(target, tweeningParameters, false);
-};
+}
 
 function addCaller(target, tweeningParameters) {
     return _addTweenOrCaller(target, tweeningParameters, true);
-};
+}
 
 function _getNumberOfProperties(object) {
     var totalProperties = 0;
@@ -655,7 +655,7 @@ function removeTweensByTime(scope, properties, timeStart, timeComplete) {
     }
 
     return removed;
-};
+}
 
 function _pauseTweenByIndex(i) {
     var tweening = _tweenList[i];
@@ -667,7 +667,7 @@ function _pauseTweenByIndex(i) {
     tweening.isPaused = true;
 
     return true;
-};
+}
 
 function _splitTweens(tween, properties) {
     var originalTween = _tweenList[tween];
@@ -743,7 +743,7 @@ function _affectTweens(affectFunction, scope, properties) {
     }
 
     return affected;
-};
+}
 
 function _isInArray(string, array) {
     var l = array.length;
@@ -791,15 +791,15 @@ function _affectTweensWithFunction(func, args) {
 
 function resumeTweens() {
     return _affectTweensWithFunction(_resumeTweenByIndex, arguments);
-};
+}
 
 function pauseTweens() {
     return _affectTweensWithFunction(_pauseTweenByIndex, arguments);
-};
+}
 
 function removeTweens() {
     return _affectTweensWithFunction(_removeTweenByIndex, arguments);
-};
+}
 
 function _mapOverTweens(func) {
     var rv = false;
@@ -817,15 +817,15 @@ function _mapOverTweens(func) {
 
 function pauseAllTweens() {
     return _mapOverTweens(_pauseTweenByIndex);
-};
+}
 
 function resumeAllTweens() {
     return _mapOverTweens(_resumeTweenByIndex);
-};
+}
 
 function removeAllTweens() {
     return _mapOverTweens(_removeTweenByIndex);
-};
+}
 
 function getTweenCount(scope) {
     if (!_tweenList)
@@ -839,7 +839,7 @@ function getTweenCount(scope) {
     }
 
     return c;
-};
+}
 
 function registerSpecialProperty(name, getFunction, setFunction,
                                  parameters, preProcessFunction) {
