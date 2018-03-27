@@ -93,6 +93,12 @@ $gjs exit.js
 test $? -ne 0
 report "System.exit() should still exit across an FFI boundary"
 
+# ensure the encoding of argv is being properly handled
+$gjs -c 'log(ARGV[0])' "Valentín"
+report "Valentín should be outputed. ValentÃ­n is incorrect and if shown encoding is broken for argv"
+$gjs -c 'log(ARGV[0])' "☭"
+report "☭ should be outputed. If you see a unicode code point, encoding is broken for argv (and possibly imports)"
+
 # gjs --help prints GJS help
 $gjs --help >/dev/null
 report "--help should succeed"
