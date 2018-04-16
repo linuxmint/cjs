@@ -1,3 +1,270 @@
+cjs (3.8.0) tara; urgency=medium
+
+  [ Cosimo Cecchi ]
+  * arg: don't crash when asked to convert a null strv to an array
+
+  [ Tom Schoonjans ]
+  * arg: Include headers for std::abs()
+
+  [ Claudio André ]
+  * maintenance: modernize shell scripts
+
+  [ Philip Chimento ]
+  * modules/console: Update fancy error reporter to mozjs38
+
+  [ Jason Hicks ]
+  * jsapi-util-args: Mark functions as always-inline
+
+  [ Patrick Griffis ]
+  * package: Support running Meson projects from source
+  * package: Fix initSubmodule() with Meson.
+  * package: Don't rely upon directory configuration for initSubmodule()
+  * package: Set GSETTINGS_SCHEMA_DIR when ran from source
+
+  [ Philip Chimento ]
+  * build: Autodetect SpiderMonkey's debug mode
+  * context: Use GThread to determine owner thread
+  * jsapi-constructor-proxy: Inherit from js::Wrapper
+  * system: Switch from JS::CallReceiver to JS::CallArgs
+  * coverage: Root using context, not runtime
+
+  [ Florian Müllner ]
+  * package: Add checkSymbol() to check for symbol availability
+  * package: Add requireSymbol() method
+
+  [ Patrick Griffis ]
+  * overrides: Implement Gio.ListStore[Symbol.iterator]
+
+  [ Juan Pablo Ugarte ]
+  * modules/system.cpp: added dumpHeapComplete() method
+
+  [ Chun-wei Fan ]
+  * Use std::unique_ptr instead of g_autofree/g_autoptr()
+  * modules/cairo-*-surface.cpp: Silence compiler warnings
+
+  [ Philip Chimento ]
+  * js: Stop using flags argument to String.replace()
+  * tests: Root using context, not runtime
+
+  [ Chun-wei Fan ]
+  * Windows: Build against SpiderMonkey 52
+  * Partially revert "Windows: Build against SpiderMonkey 52"
+
+  [ Philip Chimento ]
+  * autofree: Avoid using local typedefs in classes
+
+  [ Daniel Boles ]
+  * GjsAutoChar: Do not take ownership of const char*
+
+  [ Claudio André ]
+  * maint: fix a wrong sscanf argument
+
+  [ Philip Chimento ]
+  * js: Use autoptr in gjs_object_require_property()
+  * jsapi-util-string: Remove useless length calculation
+
+  [ Claudio André ]
+  * maint: add a static code analysis 'make target'
+
+  [ Tomas Popela ]
+  * Fix the build with debug logs enabled
+
+  [ Jason Hicks ]
+  * js: Module exports use ES6 scope rules
+  * console: Refactor read-eval-print loop
+  * js: Use a special object for modules
+  * js: Refactor global object creation
+
+  [ Philip Chimento ]
+  * build: Build with mozj45
+  * js: new JS_Enumerate API
+
+  [ Jason Hicks ]
+  * js: Switch from JS::NullPtr() to nullptr
+
+  [ Philip Chimento ]
+  * js: Global object is implicit in many functions
+  * js: JSCLASS_IMPLEMENTS_BARRIERS is now implicit
+  * js: Weak pointer callback API change
+  * js: setProperty operations with triple result state
+  * js: New JS_IsArrayObject() API
+  * js: Rename JS_InternString to JS_AtomizeAndPinString
+  * importer: API change in enumerate operation
+  * js: Set JSPROP_RESOLVING when defining properties
+  * modules/console: Update to js::PrintError from upstream
+
+  [ Jason Hicks ]
+  * js: Various API changes for SpiderMonkey 45
+
+  [ Philip Chimento ]
+  * coverage: Misc Javascript-side API changes
+  * importer: Seal import with JSPropertyDescriptor directly
+  * js: Update obsolete comments
+  * js: Adapt to new JS::TraceEdge<T> API
+  * build: Build with mozjs52
+
+  [ Chun-wei Fan ]
+  * Windows: Build against SpiderMonkey 52
+
+  [ Philip Chimento ]
+  * js: New JSClass struct layout
+  * js: Add JSCLASS_FOREGROUND_FINALIZE flag
+  * js: Adapt to options changes
+  * js: Report warnings and errors with encoding
+  * tests: Refactor to avoid error reporter
+  * js: Replace error reporter callbacks
+  * js: Replace JSRuntime APIs that now take JSContext
+
+  [ Jason Hicks ]
+  * js: Remove JSRuntime
+
+  [ Philip Chimento ]
+  * js: Adapt to misc API changes in SpiderMonkey 52
+  * js: Unbarriered read while in weak ptr callback
+
+  [ Jason Hicks ]
+  * docs: Overview of SpiderMonkey 52 features in NEWS
+  * GjsAutoChar: Add a proper operator= (const char*)
+
+  [ Philip Chimento ]
+  * js: Allow access to modules' lexical scope
+  * tests: Re-enable JIT
+  * release: Include NEWS from 1.48.5
+  * release: Prepare for 1.49.4
+  * build: Use 'always inline' macro in more places
+  * js: Use correct autoptr in gjs_string_to_filename()
+  * function: Better message about call during GC
+
+  [ Jason Hicks ]
+  * promise: Move to native promises
+
+  [ Philip Chimento ]
+  * promise: Report unhandled rejections
+  * context: Properly create const strings array
+  * importer: Give module objects a [Symbol.toStringTag]
+  * release: Include NEWS from 1.48.6
+
+  [ Jason Hicks ]
+  * object: Don't let a method shadow a property
+
+  [ luke.nukem.jones@gmail.com ]
+  * Backport of patch required for JSObject compare to nullptr
+  * Backport of patch required for vectors MOZ_MUST_USE returns
+
+  [ Jason Hicks ]
+  * Revert "js: Workaround for function with custom prototype"
+
+  [ Philip Chimento ]
+  * Revert "build: Allow compiling without RTTI"
+
+  [ Jason Hicks ]
+  * lang: Move all legacy Lang.Class code
+
+  [ Philip Chimento ]
+  * class: Move to ES6 classes in internal code
+
+  [ Jason Hicks ]
+  * GObject: Move all legacy GObject class code
+
+  [ Philip Chimento ]
+  * GObject: Adapt GObject class framework to ES6
+  * class: Move to ES6 GObject classes in internal code
+  * tests: Add ES6 class inheriting from legacy class
+  * build: Fix distcheck
+  * release: Prepare for 1.49.90
+
+  [ Jason Hicks ]
+  * Gtk: Use GObject.registerClass() for Gtk.Widgets
+
+  [ Philip Chimento ]
+  * legacy class: Add name property to class object
+  * legacy class: Reinstate Lang.getMetaClass()
+  * gerror: Use JS::CaptureCurrentStack for stack info
+  * stack: Remove gjs_context_get_frame_info()
+  * gerror: Define a columnNumber on GError-backed errors
+  * console: Print exception even when not from SpiderMonkey
+  * tests: Re-enable accidentally disabled tests
+
+  [ Benjamin Berg ]
+  * jsapi-util: Also rate limit checking the process size
+
+  [ Philip Chimento ]
+  * release: Prepare for 1.49.91
+  * object: Remove unused argument
+
+  [ Jason Hicks ]
+  * maint: add ASAN Address Sanitizer
+
+  [ Philip Chimento ]
+  * docs: Correct leftover mozjs38
+  * arg: Avoid assigning out-of-range values
+  * build: Add LSan suppression file
+  * build: Don't use the vptr sanitizer
+  * arg: Avoid taking abs() of -2^63
+  * tests: Suppress message about too-big integer
+  * main: Use g_option_context_parse_strv()
+
+  [ Jason Hicks ]
+  * build: Put dbus-run-session in AM_TESTS_ENVIRONMENT
+  * build: Don't use LOG_COMPILER for shell scripts
+
+  [ Philip Chimento ]
+  * object: Avoid taking address of empty vector
+  * context: Avoid null pointer dereference
+  * build: Update Valgrind suppressions rules
+  * build: Valgrind with AX_VALGRIND_CHECK
+  * maint: Add SpiderMonkey helgrind suppression rules
+  * tests: Split legacy Gtk.Widget tests out
+
+  [ Jason Hicks ]
+  * Revert freeing closures in idle handler
+
+  [ Philip Chimento ]
+  * closure: Debug message on invalidate signal
+  * object: Refactor out ConnectData
+  * closure: Prevent collection of invalidated closure
+  * release: Prepare for 1.49.92
+  * coverage: Correct licensing mistake
+  * release: Prepare for 1.50.0
+  * stack: Use js::DumpBacktrace() for gjs_dumpstack()
+  * coverage: Don't error out on various files
+  * coverage: Scan ES6 classes for functions
+  * coverage: Correct AST walking for labelled statements
+  * coverage: Walk AST in more cases
+  * tests: Create test ASTs by parsing JS
+  * coverage: Don't count literals as executable
+  * coverage: Don't mark empty var declarations executable
+  * coverage: Misc refactors
+  * coverage: Fix coverage prefixes
+  * release: Prepare for 1.50.1
+  * jsapi-util-args: Update out-of-date comments
+  * build: Tweak code coverage options
+
+  [ Jason Hicks ]
+  * tweener: Fix a couple of warnings
+
+  [ Florian Müllner ]
+  * legacy: Allow ES6 classes to inherit from abstract Lang.Class class
+
+  [ Philip Chimento ]
+  * release: Prepare for 1.50.2
+
+  [ Jason Hicks ]
+  * importer.cpp: Update search path for Cinnamon
+  * Remove valgrind configuration
+  * Fix DEBUG compiler error in Spidermonkey 52
+  * Depend on libmozjs-52
+  * Get most tests passing
+  * Fix usage of g_idle_add for resolving promises
+
+  [ Clement Lefebvre ]
+  * Add CI configuration
+
+  [ Jason Hicks ]
+  * Fix scope warning for restrictedWords in the tweener module (#64)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 16 Apr 2018 12:14:11 +0100
+
 cjs (3.6.1) sylvia; urgency=medium
 
   [ Simon Brown ]
