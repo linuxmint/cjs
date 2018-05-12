@@ -1238,8 +1238,8 @@ assert_coverage_data_for_source_file(ExpectedSourceFileCoverageData *expected,
 }
 
 static void
-test_correct_line_coverage_data_written_for_both_source_file_sectons(gpointer      fixture_data,
-                                                                     gconstpointer user_data)
+test_correct_line_coverage_data_written_for_both_source_file_sections(void       *fixture_data,
+                                                                      const void *user_data)
 {
     GjsCoverageMultpleSourcesFixutre *fixture = (GjsCoverageMultpleSourcesFixutre *) fixture_data;
 
@@ -1427,6 +1427,6 @@ void gjs_test_add_tests_for_coverage()
                          NULL);
     add_test_for_fixture("/gjs/coverage/correct_line_coverage_data_written_for_both_sections",
                          &coverage_for_multiple_files_to_single_output_fixture,
-                         test_correct_line_coverage_data_written_for_both_source_file_sectons,
+                         test_correct_line_coverage_data_written_for_both_source_file_sections,
                          NULL);
 }
