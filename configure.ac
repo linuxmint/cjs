@@ -64,9 +64,7 @@ gjs_base_packages="$GOBJECT_REQUIREMENT gio-2.0"
 common_packages="gthread-2.0 gio-2.0 >= glib_required_version mozjs-60"
 gjs_packages="gobject-introspection-1.0 libffi $common_packages"
 gjs_cairo_packages="cairo cairo-gobject $common_packages"
-gjs_gtk_packages="gtk+-3.0 >= 3.14.0"
-# gjs-tests links against everything
-gjstests_packages="gio-unix-2.0 $gjs_packages"
+gjs_gtk_packages="gtk+-3.0 >= 3.20"
 
 CJS_PACKAGE_REQUIRES="$GOBJECT_REQUIREMENT"
 CJS_PACKAGE_REQUIRES_PRIVATE="$gjs_packages"
@@ -75,7 +73,6 @@ PKG_CHECK_MODULES([GJS], [$GOBJECT_REQUIREMENT])
 PKG_CHECK_MODULES([GJS_PRIVATE], [$gjs_packages])
 PKG_CHECK_MODULES([GJS_GDBUS], [$gjs_base_packages])
 PKG_CHECK_MODULES([GJS_CONSOLE], [$gjs_base_packages])
-PKG_CHECK_MODULES([GJSTESTS], [$gjstests_packages])
 
 # Optional cairo dep (enabled by default)
 AC_ARG_WITH(cairo,
