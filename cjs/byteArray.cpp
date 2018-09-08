@@ -25,7 +25,7 @@
 
 #include "byteArray.h"
 #include "gi/boxed.h"
-#include "gjs/deprecation.h"
+#include "cjs/deprecation.h"
 #include "jsapi-util-args.h"
 #include "jsapi-wrapper.h"
 
