@@ -9,9 +9,9 @@ install: all
 	@copy /b $(LIBGJS_DLL_FILENAME).dll $(PREFIX)\bin
 	@copy /b $(LIBGJS_DLL_FILENAME).pdb $(PREFIX)\bin
 	@copy /b $(CFG)\$(PLAT)\gjs.lib $(PREFIX)\lib
-	@copy /b $(CFG)\$(PLAT)\gjs-console.exe $(PREFIX)\bin
-	@copy /b $(CFG)\$(PLAT)\gjs-console.exe $(PREFIX)\bin\gjs.exe
-	@copy /b $(CFG)\$(PLAT)\gjs-console.pdb $(PREFIX)\bin
+	@copy /b $(CFG)\$(PLAT)\cjs-console.exe $(PREFIX)\bin
+	@copy /b $(CFG)\$(PLAT)\cjs-console.exe $(PREFIX)\bin\gjs.exe
+	@copy /b $(CFG)\$(PLAT)\cjs-console.pdb $(PREFIX)\bin
 	@for %h in ($(LIBGJS_HEADERS)) do @copy ..\%h $(PREFIX)\include\gjs-1.0\%h
 	@rem Copy the generated introspection files, if built
 	@if exist $(CFG)\$(PLAT)\CjsPrivate-1.0.gir copy $(CFG)\$(PLAT)\CjsPrivate-1.0.gir $(PREFIX)\share\gir-1.0

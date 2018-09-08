@@ -13,7 +13,7 @@ $(CFG)\$(PLAT)\module-system	\
 $(CFG)\$(PLAT)\module-resources	\
 $(CFG)\$(PLAT)\module-cairo	\
 $(CFG)\$(PLAT)\libgjs		\
-$(CFG)\$(PLAT)\gjs-console:
+$(CFG)\$(PLAT)\cjs-console:
 	@-mkdir $@
 
 # Generate the GResource sources

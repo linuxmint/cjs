@@ -58,6 +58,7 @@ gjs_srcs =				\
 	cjs/context.cpp			\
 	cjs/context-private.h		\
 	cjs/coverage.cpp 		\
+	cjs/debugger.cpp		\
 	cjs/engine.cpp			\
 	cjs/engine.h			\
 	cjs/global.cpp			\

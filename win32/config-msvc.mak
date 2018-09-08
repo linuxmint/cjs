@@ -70,7 +70,7 @@ LIBGJS_HEADERS = $(gjs_public_headers:/=\)
 # We build libgjs and gjs-console at least
 GJS_LIBS = $(CFG)\$(PLAT)\gjs.lib
 
-GJS_UTILS = $(CFG)\$(PLAT)\gjs-console.exe
+GJS_UTILS = $(CFG)\$(PLAT)\cjs-console.exe
 GJS_TESTS =
 
 # Enable Cairo

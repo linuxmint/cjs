@@ -53,7 +53,7 @@ NULL=
 !if [call create-lists.bat header gjs_objs.mak gjs_OBJS]
 !endif
 
-!if [for %c in ($(gjs_console_srcs)) do @if "%~xc" == ".cpp" @call create-lists.bat file gjs_objs.mak ^$(CFG)\^$(PLAT)\gjs-console\%~nc.obj]
+!if [for %c in ($(gjs_console_srcs)) do @if "%~xc" == ".cpp" @call create-lists.bat file gjs_objs.mak ^$(CFG)\^$(PLAT)\cjs-console\%~nc.obj]
 !endif
 
 !if [call create-lists.bat footer gjs_objs.mak]

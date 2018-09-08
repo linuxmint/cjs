@@ -63,8 +63,8 @@ $<
 $<
 <<
 
-{..\gjs\}.cpp{$(CFG)\$(PLAT)\gjs-console\}.obj::
-	$(CXX) $(CFLAGS) $(GJS_CFLAGS) /Fo$(CFG)\$(PLAT)\gjs-console\ /c @<<
+{..\gjs\}.cpp{$(CFG)\$(PLAT)\cjs-console\}.obj::
+	$(CXX) $(CFLAGS) $(GJS_CFLAGS) /Fo$(CFG)\$(PLAT)\cjs-console\ /c @<<
 $<
 <<
 
@@ -114,7 +114,7 @@ $(module_cairo_OBJS)
 # <<
 # 	@-if exist $@.manifest mt /manifest $@.manifest /outputresource:$@;1
 
-$(CFG)\$(PLAT)\gjs-console.exe: $(CFG)\$(PLAT)\gjs.lib $(CFG)\$(PLAT)\gjs-console $(gjs_OBJS)
+$(CFG)\$(PLAT)\cjs-console.exe: $(CFG)\$(PLAT)\gjs.lib $(CFG)\$(PLAT)\cjs-console $(gjs_OBJS)
 	link $(LDFLAGS) $(CFG)\$(PLAT)\gjs.lib $(GJS_BASE_LIBS) -out:$@ $(gjs_OBJS)
 	@-if exist $@.manifest mt /manifest $@.manifest /outputresource:$@;1
 
@@ -123,8 +123,8 @@ clean:
 	@-if exist $(CFG)\$(PLAT)\CjsPrivate-1.0.gir del /f /q $(CFG)\$(PLAT)\CjsPrivate-1.0.gir
 	@-if exist $(CFG)\$(PLAT)\gjs_private_list del /f /q $(CFG)\$(PLAT)\gjs_private_list
 	@-del /f /q $(CFG)\$(PLAT)\*.pdb
-	@-if exist $(CFG)\$(PLAT)\gjs-console.exe.manifest del /f /q $(CFG)\$(PLAT)\gjs-console.exe.manifest
-	@-if exist $(CFG)\$(PLAT)\gjs-console.exe del /f /q $(CFG)\$(PLAT)\gjs-console.exe
+	@-if exist $(CFG)\$(PLAT)\cjs-console.exe.manifest del /f /q $(CFG)\$(PLAT)\cjs-console.exe.manifest
+	@-if exist $(CFG)\$(PLAT)\cjs-console.exe del /f /q $(CFG)\$(PLAT)\cjs-console.exe
 	@-del /f /q $(CFG)\$(PLAT)\*.dll.manifest
 	@-del /f /q $(CFG)\$(PLAT)\*.dll
 	@-del /f /q $(CFG)\$(PLAT)\*.ilk
@@ -134,7 +134,7 @@ clean:
 	@-del /f /q $(CFG)\$(PLAT)\module-system\*.obj
 	@-del /f /q $(CFG)\$(PLAT)\module-console\*.obj
 	@-del /f /q $(CFG)\$(PLAT)\libgjs\*.obj
-	@-del /f /q $(CFG)\$(PLAT)\gjs-console\*.obj
+	@-del /f /q $(CFG)\$(PLAT)\cjs-console\*.obj
 	@-del /f /q $(module_resources_generated_srcs)
 	@-del vc$(VSVER)0.pdb
 	@-del ..\config.h
