@@ -343,6 +343,31 @@ function* _listModelIterator() {
     }
 }
 
+function _promisify(proto, asyncFunc, finishFunc) {
+    proto[`_original_${asyncFunc}`] = proto[asyncFunc];
+    proto[asyncFunc] = function(...args) {
+        if (!args.every(arg => typeof arg !== 'function')) 
+            return this[`_original_${asyncFunc}`](...args);
+        return new Promise((resolve, reject) => {
+            const callStack = new Error().stack.split('\n').filter(line => !line.match(/promisify/)).join('\n');
+            this[`_original_${asyncFunc}`](...args, function(source, res) {
+                try {
+                    const result = source[finishFunc](res);
+                    if (Array.isArray(result) && result.length > 1 && result[0] === true)
+                        result.shift();
+                    resolve(result);
+                } catch (error) {
+                    if (error.stack) 
+                        error.stack += `### Promise created here: ###\n${callStack}`;
+                    else 
+                        error.stack = callStack;
+                    reject(error);
+                }
+            });
+        });
+    };
+}
+
 function _init() {
     Gio = this;
 
@@ -402,6 +427,6 @@ function _init() {
     // ListStore
     Gio.ListStore.prototype[Symbol.iterator] = _listModelIterator;
 
-    // Temporary Gio.File.prototype fix
-    Gio._LocalFilePrototype = Gio.File.new_for_path('').constructor.prototype;
+    // Promisify
+    Gio._promisify = _promisify;
 }
