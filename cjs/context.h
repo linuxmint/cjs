@@ -25,13 +25,14 @@
 #define __GJS_CONTEXT_H__
 
 #if !defined (__GJS_GJS_H__) && !defined (GJS_COMPILATION)
-#error "Only <gjs/gjs.h> can be included directly."
+#error "Only <cjs/gjs.h> can be included directly."
 #endif
 
 #include <stdbool.h>
 #include <glib-object.h>
 
 #include <cjs/macros.h>
+#include <cjs/profiler.h>
 
 G_BEGIN_DECLS
 
@@ -92,7 +93,17 @@ GJS_EXPORT
 void            gjs_context_gc                    (GjsContext  *context);
 
 GJS_EXPORT
+GjsProfiler *gjs_context_get_profiler(GjsContext *self);
+
+GJS_EXPORT
+bool gjs_profiler_chain_signal(GjsContext *context,
+                               siginfo_t  *info);
+
+GJS_EXPORT
 void            gjs_dumpstack                     (void);
+
+GJS_EXPORT
+const char *gjs_get_js_version(void);
 
 G_END_DECLS
 

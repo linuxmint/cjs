@@ -79,6 +79,11 @@ endif
 # reasons
 libcjs_la_SOURCES = $(gjs_srcs)
 
+if ENABLE_PROFILER
+libcjs_la_SOURCES += $(gjs_sysprof_srcs)
+libcjs_la_LIBADD += $(LIB_TIMER_TIME)
+endif
+
 # Also, these files used to be a separate library
 libgjs_private_source_files = $(gjs_private_srcs)
 
@@ -214,6 +219,8 @@ CPPCHECK=cppcheck
 ### cppcheck static code analysis
 #
 cppcheck:
-	$(CPPCHECK) --enable=warning,performance,portability,information,missingInclude --force -q $(top_srcdir) -I $(top_builddir)
+	$(CPPCHECK) --inline-suppr \
+		--enable=warning,performance,portability,information,missingInclude \
+		--force -q $(top_srcdir) -I $(top_builddir)
 
 -include $(top_srcdir)/git.mk

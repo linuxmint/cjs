@@ -23,6 +23,10 @@
 
 #include <config.h>
 
+#include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <array>
 #include <unordered_map>
 
@@ -32,10 +36,11 @@
 #include "engine.h"
 #include "global.h"
 #include "importer.h"
-#include "jsapi-private.h"
 #include "jsapi-util.h"
 #include "jsapi-wrapper.h"
+#include "mem.h"
 #include "native.h"
+#include "profiler-private.h"
 #include "byteArray.h"
 #include "gi/object.h"
 #include "gi/repo.h"
@@ -85,6 +90,7 @@ struct _GjsContext {
     uint8_t exit_code;
 
     guint    auto_gc_id;
+    bool     force_gc;
 
     std::array<JS::PersistentRootedId*, GJS_STRING_LAST> const_strings;
 
@@ -93,6 +99,10 @@ struct _GjsContext {
     bool draining_job_queue;
 
     std::unordered_map<uint64_t, GjsAutoChar> unhandled_rejection_stacks;
+
+    GjsProfiler *profiler;
+    bool should_profile : 1;
+    bool should_listen_sigusr2 : 1;
 };
 
 /* Keep this consistent with GjsConstString */
@@ -112,16 +122,92 @@ struct _GjsContextClass {
     GObjectClass parent;
 };
 
+/* Temporary workaround for https://bugzilla.gnome.org/show_bug.cgi?id=793175 */
+#if __GNUC__ >= 8
+_Pragma("GCC diagnostic push")
+_Pragma("GCC diagnostic ignored \"-Wcast-function-type\"")
+#endif
 G_DEFINE_TYPE(GjsContext, gjs_context, G_TYPE_OBJECT);
+#if __GNUC__ >= 8
+_Pragma("GCC diagnostic pop")
+#endif
 
 enum {
     PROP_0,
     PROP_SEARCH_PATH,
     PROP_PROGRAM_NAME,
+    PROP_PROFILER_ENABLED,
+    PROP_PROFILER_SIGUSR2,
 };
 
 static GMutex contexts_lock;
 static GList *all_contexts = NULL;
+
+static GjsAutoChar dump_heap_output;
+static unsigned dump_heap_idle_id = 0;
+
+static void
+gjs_context_dump_heaps(void)
+{
+    static unsigned counter = 0;
+
+    gjs_memory_report("signal handler", false);
+
+    /* dump to sequential files to allow easier comparisons */
+    GjsAutoChar filename = g_strdup_printf("%s.%jd.%u", dump_heap_output.get(),
+                                           intmax_t(getpid()), counter);
+    ++counter;
+
+    FILE *fp = fopen(filename, "w");
+    if (!fp)
+        return;
+
+    for (GList *l = all_contexts; l; l = g_list_next(l)) {
+        auto js_context = static_cast<GjsContext *>(l->data);
+        js::DumpHeap(js_context->context, fp, js::IgnoreNurseryObjects);
+    }
+
+    fclose(fp);
+}
+
+static gboolean
+dump_heap_idle(gpointer user_data)
+{
+    dump_heap_idle_id = 0;
+
+    gjs_context_dump_heaps();
+
+    return false;
+}
+
+static void
+dump_heap_signal_handler(int signum)
+{
+    if (dump_heap_idle_id == 0)
+        dump_heap_idle_id = g_idle_add_full(G_PRIORITY_HIGH_IDLE,
+                                            dump_heap_idle, nullptr, nullptr);
+}
+
+static void
+setup_dump_heap(void)
+{
+    static bool dump_heap_initialized = false;
+    if (!dump_heap_initialized) {
+        dump_heap_initialized = true;
+
+        /* install signal handler only if environment variable is set */
+        const char *heap_output = g_getenv("GJS_DEBUG_HEAP_OUTPUT");
+        if (heap_output) {
+            struct sigaction sa;
+
+            dump_heap_output = g_strdup(heap_output);
+
+            memset(&sa, 0, sizeof(sa));
+            sa.sa_handler = dump_heap_signal_handler;
+            sigaction(SIGUSR1, &sa, nullptr);
+        }
+    }
+}
 
 static void
 gjs_context_init(GjsContext *js_context)
@@ -164,7 +250,40 @@ gjs_context_class_init(GjsContextClass *klass)
                                     pspec);
     g_param_spec_unref(pspec);
 
-    /* For CjsPrivate */
+    /**
+     * GjsContext:profiler-enabled:
+     *
+     * Set this property to profile any JS code run by this context. By
+     * default, the profiler is started and stopped when you call
+     * gjs_context_eval().
+     *
+     * The value of this property is superseded by the GJS_ENABLE_PROFILER
+     * environment variable.
+     *
+     * You may only have one context with the profiler enabled at a time.
+     */
+    pspec = g_param_spec_boolean("profiler-enabled", "Profiler enabled",
+                                 "Whether to profile JS code run by this context",
+                                 FALSE,
+                                 GParamFlags(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
+    g_object_class_install_property(object_class, PROP_PROFILER_ENABLED, pspec);
+    g_param_spec_unref(pspec);
+
+    /**
+     * GjsContext:profiler-sigusr2:
+     *
+     * Set this property to install a SIGUSR2 signal handler that starts and
+     * stops the profiler. This property also implies that
+     * #GjsContext:profiler-enabled is set.
+     */
+    pspec = g_param_spec_boolean("profiler-sigusr2", "Profiler SIGUSR2",
+                                 "Whether to activate the profiler on SIGUSR2",
+                                 FALSE,
+                                 GParamFlags(G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
+    g_object_class_install_property(object_class, PROP_PROFILER_SIGUSR2, pspec);
+    g_param_spec_unref(pspec);
+
+    /* For GjsPrivate */
     {
 #ifdef G_OS_WIN32
         extern HMODULE gjs_dll;
@@ -210,19 +329,34 @@ warn_about_unhandled_promise_rejections(GjsContext *gjs_context)
 static void
 gjs_context_dispose(GObject *object)
 {
+    gjs_debug(GJS_DEBUG_CONTEXT, "JS shutdown sequence");
+
     GjsContext *js_context;
 
     js_context = GJS_CONTEXT(object);
 
-    /* Run dispose notifications first, so that anything releasing
+    /* Profiler must be stopped and freed before context is shut down */
+    gjs_debug(GJS_DEBUG_CONTEXT, "Stopping profiler");
+    if (js_context->profiler)
+        g_clear_pointer(&js_context->profiler, _gjs_profiler_free);
+
+    /* Stop accepting entries in the toggle queue before running dispose
+     * notifications, which causes all GjsMaybeOwned instances to unroot.
+     * We don't want any objects to toggle down after that. */
+    gjs_debug(GJS_DEBUG_CONTEXT, "Shutting down toggle queue");
+    gjs_object_clear_toggles();
+    gjs_object_shutdown_toggle_queue();
+
+    /* Run dispose notifications next, so that anything releasing
      * references in response to this can still get garbage collected */
+    gjs_debug(GJS_DEBUG_CONTEXT,
+              "Notifying reference holders of GjsContext dispose");
     G_OBJECT_CLASS(gjs_context_parent_class)->dispose(object);
 
     if (js_context->context != NULL) {
 
         gjs_debug(GJS_DEBUG_CONTEXT,
-                  "Destroying JS context");
-
+                  "Checking unhandled promise rejections");
         warn_about_unhandled_promise_rejections(js_context);
 
         JS_BeginRequest(js_context->context);
@@ -231,34 +365,42 @@ gjs_context_dispose(GObject *object)
          * that we may not have the JS_GetPrivate() to access the
          * context
          */
+        gjs_debug(GJS_DEBUG_CONTEXT, "Final triggered GC");
         JS_GC(js_context->context);
         JS_EndRequest(js_context->context);
 
+        gjs_debug(GJS_DEBUG_CONTEXT, "Destroying JS context");
         js_context->destroying = true;
 
         /* Now, release all native objects, to avoid recursion between
          * the JS teardown and the C teardown.  The JSObject proxies
          * still exist, but point to NULL.
          */
+        gjs_debug(GJS_DEBUG_CONTEXT, "Releasing all native objects");
         gjs_object_prepare_shutdown();
 
+        gjs_debug(GJS_DEBUG_CONTEXT, "Disabling auto GC");
         if (js_context->auto_gc_id > 0) {
             g_source_remove (js_context->auto_gc_id);
             js_context->auto_gc_id = 0;
         }
 
+        gjs_debug(GJS_DEBUG_CONTEXT, "Ending trace on global object");
         JS_RemoveExtraGCRootsTracer(js_context->context, gjs_context_tracer,
                                     js_context);
         js_context->global = NULL;
 
+        gjs_debug(GJS_DEBUG_CONTEXT, "Unrooting atoms");
         for (auto& root : js_context->const_strings)
             delete root;
 
+        gjs_debug(GJS_DEBUG_CONTEXT, "Freeing allocated resources");
         delete js_context->job_queue;
 
         /* Tear down JS */
         JS_DestroyContext(js_context->context);
         js_context->context = NULL;
+        gjs_debug(GJS_DEBUG_CONTEXT, "JS context destroyed");
     }
 }
 
@@ -307,6 +449,21 @@ gjs_context_constructed(GObject *object)
         g_error("Failed to create javascript context");
     js_context->context = cx;
 
+    const char *env_profiler = g_getenv("GJS_ENABLE_PROFILER");
+    if (env_profiler || js_context->should_listen_sigusr2)
+        js_context->should_profile = true;
+
+    if (js_context->should_profile) {
+        js_context->profiler = _gjs_profiler_new(js_context);
+
+        if (!js_context->profiler) {
+            js_context->should_profile = false;
+        } else {
+            if (js_context->should_listen_sigusr2)
+                _gjs_profiler_setup_signals(js_context->profiler, js_context);
+        }
+    }
+
     new (&js_context->unhandled_rejection_stacks) std::unordered_map<uint64_t, GjsAutoChar>;
     new (&js_context->const_strings) std::array<JS::PersistentRootedId*, GJS_STRING_LAST>;
     for (i = 0; i < GJS_STRING_LAST; i++) {
@@ -342,16 +499,25 @@ gjs_context_constructed(GObject *object)
 
     gjs_set_global_slot(cx, GJS_GLOBAL_SLOT_IMPORTS, JS::ObjectValue(*importer));
 
-    if (!gjs_define_global_properties(cx, global)) {
+    if (!gjs_define_global_properties(cx, global, "default")) {
         gjs_log_exception(cx);
         g_error("Failed to define properties on global object");
     }
+
+    /* Pre-import the byteArray module. We depend on this module for some of
+     * our GObject introspection marshalling, so the ByteArray prototype
+     * defined in it needs to be always available. */
+    gjs_import_native_module(cx, importer, "byteArray");
 
     JS_EndRequest(cx);
 
     g_mutex_lock (&contexts_lock);
     all_contexts = g_list_prepend(all_contexts, object);
     g_mutex_unlock (&contexts_lock);
+
+    setup_dump_heap();
+
+    g_object_weak_ref(object, gjs_object_context_dispose_notify, nullptr);
 }
 
 static void
@@ -391,6 +557,12 @@ gjs_context_set_property (GObject      *object,
     case PROP_PROGRAM_NAME:
         js_context->program_name = g_value_dup_string(value);
         break;
+    case PROP_PROFILER_ENABLED:
+        js_context->should_profile = g_value_get_boolean(value);
+        break;
+    case PROP_PROFILER_SIGUSR2:
+        js_context->should_listen_sigusr2 = g_value_get_boolean(value);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
         break;
@@ -423,19 +595,42 @@ trigger_gc_if_needed (gpointer user_data)
 {
     GjsContext *js_context = GJS_CONTEXT(user_data);
     js_context->auto_gc_id = 0;
-    gjs_gc_if_needed(js_context->context);
+
+    if (js_context->force_gc)
+        JS_GC(js_context->context);
+    else
+        gjs_gc_if_needed(js_context->context);
+
+    js_context->force_gc = false;
+
     return G_SOURCE_REMOVE;
 }
 
-void
-_gjs_context_schedule_gc_if_needed (GjsContext *js_context)
+
+static void
+_gjs_context_schedule_gc_internal(GjsContext *js_context,
+                                  bool        force_gc)
 {
+    js_context->force_gc |= force_gc;
+
     if (js_context->auto_gc_id > 0)
         return;
 
     js_context->auto_gc_id = g_idle_add_full(G_PRIORITY_LOW,
                                              trigger_gc_if_needed,
                                              js_context, NULL);
+}
+
+void
+_gjs_context_schedule_gc(GjsContext *js_context)
+{
+    _gjs_context_schedule_gc_internal(js_context, true);
+}
+
+void
+_gjs_context_schedule_gc_if_needed(GjsContext *js_context)
+{
+    _gjs_context_schedule_gc_internal(js_context, false);
 }
 
 void
@@ -508,10 +703,9 @@ _gjs_context_enqueue_job(GjsContext      *gjs_context,
     if (!gjs_context->job_queue->append(job))
         return false;
     if (!gjs_context->idle_drain_handler)
-        /*Modified for CJS, Promises shouldn't take 200ms to resolve. When several
-        promises are queued up, this artifically inflates resolve time. */
         gjs_context->idle_drain_handler =
-            g_idle_add_full(0, drain_job_queue_idle_handler, gjs_context, NULL);
+            g_idle_add_full(G_PRIORITY_DEFAULT, drain_job_queue_idle_handler,
+                            gjs_context, nullptr);
 
     return true;
 }
@@ -572,6 +766,10 @@ _gjs_context_run_jobs(GjsContext *gjs_context)
                  * System.exit() works in the interactive shell and when
                  * exiting the interpreter. */
                 if (!JS_IsExceptionPending(cx)) {
+                    /* System.exit() is an uncatchable exception, but does not
+                     * indicate a bug. Log everything else. */
+                    if (!_gjs_context_should_exit(gjs_context, nullptr))
+                        g_critical("Promise callback terminated with uncatchable exception");
                     retval = false;
                     continue;
                 }
@@ -693,10 +891,18 @@ gjs_context_eval(GjsContext   *js_context,
 {
     bool ret = false;
 
+    bool auto_profile = js_context->should_profile;
+    if (auto_profile && (_gjs_profiler_is_running(js_context->profiler) ||
+                         js_context->should_listen_sigusr2))
+        auto_profile = false;
+
     JSAutoCompartment ac(js_context->context, js_context->global);
     JSAutoRequest ar(js_context->context);
 
     g_object_ref(G_OBJECT(js_context));
+
+    if (auto_profile)
+        gjs_profiler_start(js_context->profiler);
 
     JS::RootedValue retval(js_context->context);
     bool ok = gjs_eval_with_scope(js_context->context, nullptr, script,
@@ -705,7 +911,13 @@ gjs_context_eval(GjsContext   *js_context,
     /* The promise job queue should be drained even on error, to finish
      * outstanding async tasks before the context is torn down. Drain after
      * uncaught exceptions have been reported since draining runs callbacks. */
-    ok = _gjs_context_run_jobs(js_context) && ok;
+    {
+        JS::AutoSaveExceptionState saved_exc(js_context->context);
+        ok = _gjs_context_run_jobs(js_context) && ok;
+    }
+
+    if (auto_profile)
+        gjs_profiler_stop(js_context->profiler);
 
     if (!ok) {
         uint8_t code;
@@ -718,11 +930,18 @@ gjs_context_eval(GjsContext   *js_context,
             goto out;  /* Don't log anything */
         }
 
+        if (!JS_IsExceptionPending(js_context->context)) {
+            g_critical("Script %s terminated with an uncatchable exception",
+                       filename);
+            g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+                        "Script %s terminated with an uncatchable exception",
+                        filename);
+        } else {
+            g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+                        "Script %s threw an exception", filename);
+        }
+
         gjs_log_exception(js_context->context);
-        g_set_error(error,
-                    GJS_ERROR,
-                    GJS_ERROR_FAILED,
-                    "JS_EvaluateScript() failed");
         /* No exit code from script, but we don't want to exit(0) */
         *exit_status_p = 1;
         goto out;
@@ -844,4 +1063,32 @@ gjs_get_import_global(JSContext *context)
 {
     GjsContext *gjs_context = (GjsContext *) JS_GetContextPrivate(context);
     return gjs_context->global;
+}
+
+/**
+ * gjs_context_get_profiler:
+ * @self: the #GjsContext
+ *
+ * Returns the profiler's internal instance of #GjsProfiler for you to
+ * customize, or %NULL if profiling is not enabled on this #GjsContext.
+ *
+ * Returns: (transfer none) (nullable): a #GjsProfiler
+ */
+GjsProfiler *
+gjs_context_get_profiler(GjsContext *self)
+{
+    return self->profiler;
+}
+
+/**
+ * gjs_get_js_version:
+ *
+ * Returns the underlying version of the JS engine.
+ *
+ * Returns: a string
+ */
+const char *
+gjs_get_js_version(void)
+{
+    return JS_GetImplementationVersion();
 }

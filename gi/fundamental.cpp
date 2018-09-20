@@ -301,17 +301,11 @@ fundamental_instance_resolve(JSContext       *context,
                              bool            *resolved)
 {
     FundamentalInstance *priv;
-    GjsAutoJSChar name(context);
-
-    if (!gjs_get_string_id(context, id, &name)) {
-        *resolved = false;
-        return true; /* not resolved, but no error */
-    }
 
     priv = priv_from_js(context, obj);
     gjs_debug_jsprop(GJS_DEBUG_GFUNDAMENTAL,
-                     "Resolve prop '%s' hook obj %p priv %p",
-                     name.get(), obj.get(), priv);
+                     "Resolve prop '%s' hook, obj %s, priv %p",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(), priv);
 
     if (priv == nullptr)
         return false; /* wrong class */
@@ -326,6 +320,12 @@ fundamental_instance_resolve(JSContext       *context,
          */
         *resolved = false;
         return true;
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
+        *resolved = false;
+        return true; /* not resolved, but no error */
     }
 
     /* We are the prototype, so look for methods and other class properties */
@@ -870,13 +870,13 @@ gjs_typecheck_fundamental(JSContext       *context,
 
     if (!result && throw_error) {
         if (priv->prototype->info) {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s.%s - cannot convert to %s",
                              g_base_info_get_namespace((GIBaseInfo *) priv->prototype->info),
                              g_base_info_get_name((GIBaseInfo *) priv->prototype->info),
                              g_type_name(expected_gtype));
         } else {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s - cannot convert to %s",
                              g_type_name(priv->prototype->gtype),
                              g_type_name(expected_gtype));

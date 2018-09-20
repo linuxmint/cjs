@@ -31,7 +31,6 @@
 #include "jsapi-class.h"
 #include "jsapi-util.h"
 #include "jsapi-wrapper.h"
-#include "jsapi-private.h"
 
 #include <string.h>
 #include <math.h>
@@ -121,19 +120,20 @@ gjs_init_class_dynamic(JSContext              *context,
     } else {
         /* Have to fake it with JSPROP_RESOLVING, otherwise it will trigger
          * the resolve hook */
-        if (!JS_DefineProperty(context, constructor, "prototype", prototype,
-                               JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_RESOLVING,
-                               JS_STUBGETTER, JS_STUBSETTER))
+        if (!gjs_object_define_property(context, constructor,
+                                        GJS_STRING_PROTOTYPE, prototype,
+                                        JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_RESOLVING))
             goto out;
-        if (!JS_DefineProperty(context, prototype, "constructor", constructor,
-                               JSPROP_RESOLVING, JS_STUBGETTER, JS_STUBSETTER))
+        if (!gjs_object_define_property(context, prototype,
+                                        GJS_STRING_CONSTRUCTOR, constructor,
+                                        JSPROP_RESOLVING))
             goto out;
     }
 
     /* The constructor defined by JS_InitClass has no property attributes, but this
        is a more useful default for gjs */
     if (!JS_DefineProperty(context, in_object, class_name, constructor,
-                           GJS_MODULE_PROP_FLAGS, JS_STUBGETTER, JS_STUBSETTER))
+                           GJS_MODULE_PROP_FLAGS))
         goto out;
 
     res = true;
@@ -166,7 +166,7 @@ gjs_typecheck_instance(JSContext       *context,
         if (throw_error) {
             const JSClass *obj_class = JS_GetClass(obj);
 
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object %p is not a subclass of %s, it's a %s",
                              obj.get(), static_clasp->name,
                              format_dynamic_class_name(obj_class->name));

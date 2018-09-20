@@ -3,6 +3,7 @@ gjs_public_headers =		\
 	cjs/coverage.h		\
 	cjs/gjs.h		\
 	cjs/macros.h		\
+	cjs/profiler.h		\
 	util/error.h		\
 	$(NULL)
 
@@ -52,18 +53,15 @@ gjs_srcs =				\
 	cjs/byteArray.h			\
 	cjs/context.cpp			\
 	cjs/context-private.h		\
-	cjs/coverage-internal.h		\
 	cjs/coverage.cpp 		\
 	cjs/engine.cpp			\
 	cjs/engine.h			\
 	cjs/global.cpp			\
-	cjs/global.h		  \
+	cjs/global.h			\
 	cjs/importer.cpp		\
 	cjs/importer.h			\
 	cjs/jsapi-class.h		\
 	cjs/jsapi-dynamic-class.cpp	\
-	cjs/jsapi-private.cpp		\
-	cjs/jsapi-private.h		\
 	cjs/jsapi-util.cpp		\
 	cjs/jsapi-util.h		\
 	cjs/jsapi-util-args.h		\
@@ -77,14 +75,14 @@ gjs_srcs =				\
 	cjs/module.cpp			\
 	cjs/native.cpp			\
 	cjs/native.h			\
+	cjs/profiler.cpp		\
+	cjs/profiler-private.h		\
 	cjs/stack.cpp			\
 	modules/modules.cpp		\
 	modules/modules.h		\
 	util/error.cpp			\
 	util/glib.cpp			\
 	util/glib.h			\
-	util/hash-x32.cpp		\
-	util/hash-x32.h			\
 	util/log.cpp			\
 	util/log.h			\
 	util/misc.cpp			\
@@ -106,4 +104,10 @@ gjs_gtk_private_srcs =			\
 
 gjs_console_srcs =	\
 	cjs/console.cpp	\
+	$(NULL)
+
+gjs_sysprof_srcs =			\
+	util/sp-capture-types.h		\
+	util/sp-capture-writer.c	\
+	util/sp-capture-writer.h	\
 	$(NULL)

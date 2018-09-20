@@ -23,12 +23,12 @@
 
 #include <config.h>
 
-#include <deque>
 #include <memory>
 #include <set>
 #include <stack>
 #include <string.h>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 #include "object.h"
@@ -52,8 +52,66 @@
 #include "cjs/mem.h"
 
 #include <util/log.h>
-#include <util/hash-x32.h>
 #include <girepository.h>
+
+typedef class GjsListLink GjsListLink;
+typedef struct ObjectInstance ObjectInstance;
+
+static GjsListLink* object_instance_get_link(ObjectInstance *priv);
+
+class GjsListLink {
+ private:
+    ObjectInstance *m_prev;
+    ObjectInstance *m_next;
+
+ public:
+    ObjectInstance* prev() {
+        return m_prev;
+    }
+
+    ObjectInstance* next() {
+        return m_next;
+    }
+
+    void prepend(ObjectInstance *this_instance,
+                 ObjectInstance *head) {
+        GjsListLink *elem = object_instance_get_link(head);
+
+        g_assert(object_instance_get_link(this_instance) == this);
+
+        if (elem->m_prev) {
+            GjsListLink *prev = object_instance_get_link(elem->m_prev);
+            prev->m_next = this_instance;
+            this->m_prev = elem->m_prev;
+        }
+
+        elem->m_prev = this_instance;
+        this->m_next = head;
+    }
+
+    void unlink() {
+        if (m_prev)
+            object_instance_get_link(m_prev)->m_next = m_next;
+        if (m_next)
+            object_instance_get_link(m_next)->m_prev = m_prev;
+
+        m_prev = m_next = NULL;
+    }
+
+    size_t size() {
+        GjsListLink *elem = this;
+        size_t count = 0;
+
+        do {
+            count++;
+            if (!elem->m_next)
+                break;
+            elem = object_instance_get_link(elem->m_next);
+        } while (elem);
+
+        return count;
+    }
+};
 
 struct ObjectInstance {
     GIObjectInfo *info;
@@ -61,32 +119,39 @@ struct ObjectInstance {
     GjsMaybeOwned<JSObject *> keep_alive;
     GType gtype;
 
-    /* a list of all signal connections, used when tracing */
-    std::set<GClosure *> signals;
+    /* a list of all GClosures installed on this object (from
+     * signals, trampolines and explicit GClosures), used when tracing */
+    std::set<GClosure *> closures;
 
     /* the GObjectClass wrapped by this JS Object (only used for
        prototypes) */
     GTypeClass *klass;
 
-    /* A list of all vfunc trampolines, used when tracing */
-    std::deque<GjsCallbackTrampoline *> vfuncs;
+    GjsListLink instance_link;
 
     unsigned js_object_finalized : 1;
+    unsigned g_object_finalized  : 1;
+
+    /* True if this object has visible JS state, and thus its lifecycle is
+     * managed using toggle references. False if this object just keeps a
+     * hard ref on the underlying GObject, and may be finalized at will. */
+    bool uses_toggle_ref : 1;
 };
 
 static std::stack<JS::PersistentRootedObject> object_init_list;
-static GHashTable *class_init_properties;
+
+using ParamRef = std::unique_ptr<GParamSpec, decltype(&g_param_spec_unref)>;
+using ParamRefArray = std::vector<ParamRef>;
+static std::unordered_map<GType, ParamRefArray> class_init_properties;
 
 static bool weak_pointer_callback = false;
-static std::set<ObjectInstance *> weak_pointer_list;
+ObjectInstance *wrapped_gobject_list;
 
 extern struct JSClass gjs_object_instance_class;
-
-static std::set<ObjectInstance *> dissociate_list;
-
 GJS_DEFINE_PRIV_FROM_JS(ObjectInstance, gjs_object_instance_class)
 
-static void            disassociate_js_gobject (GObject *gobj);
+static void disassociate_js_gobject(ObjectInstance *priv);
+static void ensure_uses_toggle_ref(JSContext *cx, ObjectInstance *priv);
 
 typedef enum {
     SOME_ERROR_OCCURRED = false,
@@ -148,28 +213,13 @@ throw_priv_is_null_error(JSContext *context)
               " up to the parent _init properly?");
 }
 
-static void
-dissociate_list_add(ObjectInstance *priv)
-{
-    bool inserted;
-    std::tie(std::ignore, inserted) = dissociate_list.insert(priv);
-    g_assert(inserted);
-}
-
-static void
-dissociate_list_remove(ObjectInstance *priv)
-{
-    size_t erased = dissociate_list.erase(priv);
-    g_assert(erased > 0);
-}
-
 static ObjectInstance *
 get_object_qdata(GObject *gobj)
 {
     auto priv = static_cast<ObjectInstance *>(g_object_get_qdata(gobj,
                                                                  gjs_object_priv_quark()));
 
-    if (priv && G_UNLIKELY(priv->js_object_finalized)) {
+    if (priv && priv->uses_toggle_ref && G_UNLIKELY(priv->js_object_finalized)) {
         g_critical("Object %p (a %s) resurfaced after the JS wrapper was finalized. "
                    "This is some library doing dubious memory management inside dispose()",
                    gobj, g_type_name(G_TYPE_FROM_INSTANCE(gobj)));
@@ -388,16 +438,10 @@ object_instance_get_prop(JSContext              *context,
                          JS::HandleId            id,
                          JS::MutableHandleValue  value_p)
 {
-    ObjectInstance *priv;
-    GjsAutoJSChar name(context);
-
-    if (!gjs_get_string_id(context, id, &name))
-        return true; /* not resolved, but no error */
-
-    priv = priv_from_js(context, obj);
+    ObjectInstance *priv = priv_from_js(context, obj);
     gjs_debug_jsprop(GJS_DEBUG_GOBJECT,
-                     "Get prop '%s' hook obj %p priv %p",
-                     name.get(), obj.get(), priv);
+                     "Get prop '%s' hook, obj %s, priv %p",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(), priv);
 
     if (priv == nullptr)
         /* If we reach this point, either object_instance_new_resolve
@@ -407,6 +451,20 @@ object_instance_get_prop(JSContext              *context,
 
     if (priv->gobj == NULL) /* prototype, not an instance. */
         return true;
+
+    if (priv->g_object_finalized) {
+        g_critical("Object %s.%s (%p), has been already finalized. "
+                   "Impossible to get any property from it.",
+                   priv->info ? g_base_info_get_namespace( (GIBaseInfo*) priv->info) : "",
+                   priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype),
+                   priv->gobj);
+        gjs_dumpstack();
+        return true;
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name))
+        return true; /* not resolved, but no error */
 
     if (!get_prop_from_g_param(context, obj, priv, name, value_p))
         return false;
@@ -437,6 +495,9 @@ set_g_param_from_prop(JSContext          *context,
     case SOME_ERROR_OCCURRED:
         return false;
     case NO_SUCH_G_PROPERTY:
+        /* We need to keep the wrapper alive in order not to lose custom
+         * "expando" properties */
+        ensure_uses_toggle_ref(context, priv);
         return result.succeed();
     case VALUE_WAS_SET:
     default:
@@ -499,17 +560,14 @@ object_instance_set_prop(JSContext              *context,
                          JS::ObjectOpResult&     result)
 {
     ObjectInstance *priv;
-    GjsAutoJSChar name(context);
     bool ret = true;
     bool g_param_was_set = false;
 
-    if (!gjs_get_string_id(context, id, &name))
-        return result.succeed();  /* not resolved, but no error */
-
     priv = priv_from_js(context, obj);
-    gjs_debug_jsprop(GJS_DEBUG_GOBJECT,
-                     "Set prop '%s' hook obj %p priv %p",
-                     name.get(), obj.get(), priv);
+
+    gjs_debug_jsprop(GJS_DEBUG_GOBJECT, "Set prop '%s' hook, obj %s, priv %p",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(),
+                     priv);
 
     if (priv == nullptr)
         /* see the comment in object_instance_get_prop() on this */
@@ -517,6 +575,25 @@ object_instance_set_prop(JSContext              *context,
 
     if (priv->gobj == NULL) /* prototype, not an instance. */
         return result.succeed();
+
+    if (priv->g_object_finalized) {
+        g_critical("Object %s.%s (%p), has been already finalized. "
+                   "Impossible to set any property to it.",
+                   priv->info ? g_base_info_get_namespace( (GIBaseInfo*) priv->info) : "",
+                   priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype),
+                   priv->gobj);
+        gjs_dumpstack();
+        return result.succeed();
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
+        /* We need to keep the wrapper alive in order not to lose custom
+         * "expando" properties. In this case if gjs_get_string_id() is false
+         * then a number or symbol property was probably set. */
+        ensure_uses_toggle_ref(context, priv);
+        return result.succeed();  /* not resolved, but no error */
+    }
 
     ret = set_g_param_from_prop(context, priv, name, g_param_was_set, value_p, result);
     if (g_param_was_set || !ret)
@@ -705,11 +782,8 @@ is_gobject_field_name(GIObjectInfo *info,
     return true;
 }
 
-/*
- * The *objp out parameter, on success, should be null to indicate that id
- * was not resolved; and non-null, referring to obj or one of its prototypes,
- * if id was resolved.
- */
+/* The *resolved out parameter, on success, should be false to indicate that id
+ * was not resolved; and true if id was resolved. */
 static bool
 object_instance_resolve(JSContext       *context,
                         JS::HandleObject obj,
@@ -717,20 +791,12 @@ object_instance_resolve(JSContext       *context,
                         bool            *resolved)
 {
     GIFunctionInfo *method_info;
-    ObjectInstance *priv;
-    GjsAutoJSChar name(context);
-
-    if (!gjs_get_string_id(context, id, &name)) {
-        *resolved = false;
-        return true; /* not resolved, but no error */
-    }
-
-    priv = priv_from_js(context, obj);
+    ObjectInstance *priv = priv_from_js(context, obj);
 
     gjs_debug_jsprop(GJS_DEBUG_GOBJECT,
-                     "Resolve prop '%s' hook obj %p priv %p (%s.%s) gobj %p %s",
-                     name.get(),
-                     obj.get(),
+                     "Resolve prop '%s' hook, obj %s, priv %p (%s.%s), gobj %p %s",
+                     gjs_debug_id(id).c_str(),
+                     gjs_debug_object(obj).c_str(),
                      priv,
                      priv && priv->info ? g_base_info_get_namespace (priv->info) : "",
                      priv && priv->info ? g_base_info_get_name (priv->info) : "",
@@ -753,6 +819,23 @@ object_instance_resolve(JSContext       *context,
     if (priv->gobj != NULL) {
         *resolved = false;
         return true;
+    }
+
+    if (priv->g_object_finalized) {
+        g_critical("Object %s.%s (%p), has been already finalized. "
+                   "Impossible to resolve it.",
+                   priv->info ? g_base_info_get_namespace( (GIBaseInfo*) priv->info) : "",
+                   priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype),
+                   priv->gobj);
+        gjs_dumpstack();
+        *resolved = false;
+        return true;
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
+        *resolved = false;
+        return true;  /* not resolved, but no error */
     }
 
     /* If we have no GIRepository information (we're a JS GObject subclass),
@@ -899,7 +982,7 @@ object_instance_props_to_g_parameters(JSContext                  *context,
     }
 
     for (ix = 0, length = ids.length(); ix < length; ix++) {
-        GjsAutoJSChar name(context);
+        GjsAutoJSChar name;
         GParameter gparam = { NULL, { 0, }};
 
         /* ids[ix] is reachable because props is rooted, but require_property
@@ -933,32 +1016,59 @@ object_instance_props_to_g_parameters(JSContext                  *context,
     return true;
 }
 
-#define DEBUG_DISPOSE 0
+static GjsListLink *
+object_instance_get_link(ObjectInstance *priv)
+{
+    return &priv->instance_link;
+}
+
+static void
+object_instance_unlink(ObjectInstance *priv)
+{
+    if (wrapped_gobject_list == priv)
+        wrapped_gobject_list = priv->instance_link.next();
+    priv->instance_link.unlink();
+}
+
+static void
+object_instance_link(ObjectInstance *priv)
+{
+    if (wrapped_gobject_list)
+        priv->instance_link.prepend(priv, wrapped_gobject_list);
+    wrapped_gobject_list = priv;
+}
+
 static void
 wrapped_gobj_dispose_notify(gpointer      data,
                             GObject      *where_the_object_was)
 {
-    weak_pointer_list.erase(static_cast<ObjectInstance *>(data));
-#if DEBUG_DISPOSE
-    gjs_debug(GJS_DEBUG_GOBJECT, "Wrapped GObject %p disposed", where_the_object_was);
-#endif
+    auto *priv = static_cast<ObjectInstance *>(data);
+
+    priv->g_object_finalized = true;
+    object_instance_unlink(priv);
+    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Wrapped GObject %p disposed",
+                        where_the_object_was);
 }
 
-static void
-gobj_no_longer_kept_alive_func(JS::HandleObject obj,
-                               void            *data)
+void
+gjs_object_context_dispose_notify(void    *data,
+                                  GObject *where_the_object_was)
 {
-    ObjectInstance *priv;
+    ObjectInstance *priv = wrapped_gobject_list;
+    while (priv) {
+        ObjectInstance *next = priv->instance_link.next();
 
-    priv = (ObjectInstance *) data;
+        if (priv->keep_alive.rooted()) {
+            gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "GObject wrapper %p for GObject "
+                                "%p (%s) was rooted but is now unrooted due to "
+                                "GjsContext dispose", priv->keep_alive.get(),
+                                priv->gobj, G_OBJECT_TYPE_NAME(priv->gobj));
+            priv->keep_alive.reset();
+            object_instance_unlink(priv);
+        }
 
-    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
-                        "GObject wrapper %p will no longer be kept alive, eligible for collection",
-                        obj.get());
-
-    priv->keep_alive.reset();
-    dissociate_list_remove(priv);
-    weak_pointer_list.erase(priv);
+        priv = next;
+    }
 }
 
 static void
@@ -966,17 +1076,38 @@ handle_toggle_down(GObject *gobj)
 {
     ObjectInstance *priv = get_object_qdata(gobj);
 
-    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
-                        "Toggle notify gobj %p obj %p is_last_ref true",
-                        gobj, priv->keep_alive.get());
+    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Toggle notify DOWN for GObject "
+                        "%p (%s), JS obj %p", gobj, G_OBJECT_TYPE_NAME(gobj),
+                        priv->keep_alive.get());
 
     /* Change to weak ref so the wrapper-wrappee pair can be
      * collected by the GC
      */
     if (priv->keep_alive.rooted()) {
-        gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Removing object from keep alive");
+        GjsContext *context;
+
+        gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Unrooting object");
         priv->keep_alive.switch_to_unrooted();
-        dissociate_list_remove(priv);
+
+        /* During a GC, the collector asks each object which other
+         * objects that it wants to hold on to so if there's an entire
+         * section of the heap graph that's not connected to anything
+         * else, and not reachable from the root set, then it can be
+         * trashed all at once.
+         *
+         * GObjects, however, don't work like that, there's only a
+         * reference count but no notion of who owns the reference so,
+         * a JS object that's proxying a GObject is unconditionally held
+         * alive as long as the GObject has >1 references.
+         *
+         * Since we cannot know how many more wrapped GObjects are going
+         * be marked for garbage collection after the owner is destroyed,
+         * always queue a garbage collection when a toggle reference goes
+         * down.
+         */
+        context = gjs_context_get_current();
+        if (!_gjs_context_destroying(context))
+            _gjs_context_schedule_gc(context);
     }
 }
 
@@ -992,9 +1123,9 @@ handle_toggle_up(GObject   *gobj)
     if (!priv->keep_alive) /* Object already GC'd */
         return;
 
-    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
-                        "Toggle notify gobj %p obj %p is_last_ref false",
-                        gobj, priv->keep_alive.get());
+    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Toggle notify UP for GObject "
+                        "%p (%s), JS obj %p", gobj, G_OBJECT_TYPE_NAME(gobj),
+                        priv->keep_alive.get());
 
     /* Change to strong ref so the wrappee keeps the wrapper alive
      * in case the wrapper has data in it that the app cares about
@@ -1003,10 +1134,9 @@ handle_toggle_up(GObject   *gobj)
         /* FIXME: thread the context through somehow. Maybe by looking up
          * the compartment that obj belongs to. */
         GjsContext *context = gjs_context_get_current();
-        gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Adding object to keep alive");
+        gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Rooting object");
         auto cx = static_cast<JSContext *>(gjs_context_get_native_context(context));
-        priv->keep_alive.switch_to_rooted(cx, gobj_no_longer_kept_alive_func, priv);
-        dissociate_list_add(priv);
+        priv->keep_alive.switch_to_rooted(cx);
     }
 }
 
@@ -1115,7 +1245,10 @@ static void
 release_native_object (ObjectInstance *priv)
 {
     priv->keep_alive.reset();
-    g_object_remove_toggle_ref(priv->gobj, wrapped_gobj_toggle_notify, NULL);
+    if (priv->uses_toggle_ref)
+        g_object_remove_toggle_ref(priv->gobj, wrapped_gobj_toggle_notify, nullptr);
+    else
+        g_object_unref(priv->gobj);
     priv->gobj = NULL;
 }
 
@@ -1131,19 +1264,32 @@ gjs_object_clear_toggles(void)
 }
 
 void
+gjs_object_shutdown_toggle_queue(void)
+{
+    auto& toggle_queue = ToggleQueue::get_default();
+    toggle_queue.shutdown();
+}
+
+void
 gjs_object_prepare_shutdown(void)
 {
-    /* First, get rid of anything left over on the main context */
-    gjs_object_clear_toggles();
-
-    /* Now, we iterate over all of the objects, breaking the JS <-> C
+    /* We iterate over all of the objects, breaking the JS <-> C
      * association.  We avoid the potential recursion implied in:
      *   toggle ref removal -> gobj dispose -> toggle ref notify
-     * by simply ignoring toggle ref notifications during this process.
-     */
-    for (auto iter : dissociate_list)
-        release_native_object(iter);
-    dissociate_list.clear();
+     * by emptying the toggle queue earlier in the shutdown sequence. */
+    std::vector<ObjectInstance *> to_be_released;
+    ObjectInstance *link = wrapped_gobject_list;
+    while (link) {
+        ObjectInstance *next = link->instance_link.next();
+        if (link->keep_alive.rooted()) {
+            to_be_released.push_back(link);
+            object_instance_unlink(link);
+        }
+
+        link = next;
+    }
+    for (ObjectInstance *priv : to_be_released)
+        release_native_object(priv);
 }
 
 static ObjectInstance *
@@ -1163,10 +1309,6 @@ init_object_private (JSContext       *context,
     g_assert(priv_from_js(context, object) == NULL);
     JS_SetPrivate(object, priv);
 
-    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
-                        "obj instance constructor, obj %p priv %p",
-                        object.get(), priv);
-
     proto_priv = proto_priv_from_js(context, object);
     g_assert(proto_priv != NULL);
 
@@ -1174,6 +1316,10 @@ init_object_private (JSContext       *context,
     priv->info = proto_priv->info;
     if (priv->info)
         g_base_info_ref( (GIBaseInfo*) priv->info);
+
+    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Instance constructor of %s, "
+                        "JS obj %p, priv %p", g_type_name(priv->gtype),
+                        object.get(), priv);
 
     JS_EndRequest(context);
     return priv;
@@ -1184,26 +1330,37 @@ update_heap_wrapper_weak_pointers(JSContext     *cx,
                                   JSCompartment *compartment,
                                   gpointer       data)
 {
-    std::vector<GObject *> to_be_disassociated;
+    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Weak pointer update callback, "
+                        "%zu wrapped GObject(s) to examine",
+                        wrapped_gobject_list->instance_link.size());
 
-    for (auto iter = weak_pointer_list.begin(); iter != weak_pointer_list.end(); ) {
-        ObjectInstance *priv = *iter;
-        if (priv->keep_alive.rooted() || priv->keep_alive == nullptr ||
-            !priv->keep_alive.update_after_gc()) {
-            iter++;
-        } else {
+    std::vector<ObjectInstance *> to_be_disassociated;
+    ObjectInstance *priv = wrapped_gobject_list;
+
+    while (priv) {
+        ObjectInstance *next = priv->instance_link.next();
+
+        if (!priv->keep_alive.rooted() &&
+            priv->keep_alive != nullptr &&
+            priv->keep_alive.update_after_gc()) {
             /* Ouch, the JS object is dead already. Disassociate the
              * GObject and hope the GObject dies too. (Remove it from
              * the weak pointer list first, since the disassociation
              * may also cause it to be erased.)
              */
-            to_be_disassociated.push_back(priv->gobj);
-            iter = weak_pointer_list.erase(iter);
+            gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Found GObject weak pointer "
+                                "whose JS object %p is about to be finalized: "
+                                "%p (%s)", priv->keep_alive.get(), priv->gobj,
+                                G_OBJECT_TYPE_NAME(priv->gobj));
+            to_be_disassociated.push_back(priv);
+            object_instance_unlink(priv);
         }
+
+        priv = next;
     }
 
-    for (GObject *gobj : to_be_disassociated)
-        disassociate_js_gobject(gobj);
+    for (ObjectInstance *ex_object : to_be_disassociated)
+        disassociate_js_gobject(ex_object);
 }
 
 static void
@@ -1225,16 +1382,28 @@ associate_js_gobject (JSContext       *context,
     ObjectInstance *priv;
 
     priv = priv_from_js(context, object);
+    priv->uses_toggle_ref = false;
     priv->gobj = gobj;
 
     g_assert(!priv->keep_alive.rooted());
 
     set_object_qdata(gobj, priv);
 
+    priv->keep_alive = object;
     ensure_weak_pointer_callback(context);
-    weak_pointer_list.insert(priv);
+    object_instance_link(priv);
 
     g_object_weak_ref(gobj, wrapped_gobj_dispose_notify, priv);
+}
+
+static void
+ensure_uses_toggle_ref(JSContext      *cx,
+                       ObjectInstance *priv)
+{
+    if (priv->uses_toggle_ref)
+        return;
+
+    g_assert(!priv->keep_alive.rooted());
 
     /* OK, here is where things get complicated. We want the
      * wrapped gobj to keep the JSObject* wrapper alive, because
@@ -1247,56 +1416,57 @@ associate_js_gobject (JSContext       *context,
      * the wrapper to be garbage collected (and thus unref the
      * wrappee).
      */
-    priv->keep_alive.root(context, object, gobj_no_longer_kept_alive_func, priv);
-    dissociate_list_add(priv);
-    g_object_add_toggle_ref(gobj, wrapped_gobj_toggle_notify, NULL);
+    priv->uses_toggle_ref = true;
+    priv->keep_alive.switch_to_rooted(cx);
+    g_object_add_toggle_ref(priv->gobj, wrapped_gobj_toggle_notify, nullptr);
+
+    /* We now have both a ref and a toggle ref, we only want the toggle ref.
+     * This may immediately remove the GC root we just added, since refcount
+     * may drop to 1. */
+    g_object_unref(priv->gobj);
 }
 
 static void
-invalidate_all_signals(ObjectInstance *priv)
+invalidate_all_closures(ObjectInstance *priv)
 {
     /* Can't loop directly through the items, since invalidating an item's
      * closure might have the effect of removing the item from the set in the
      * invalidate notifier */
-    while (!priv->signals.empty()) {
+    while (!priv->closures.empty()) {
         /* This will also free cd, through the closure invalidation mechanism */
-        GClosure *closure = *priv->signals.begin();
+        GClosure *closure = *priv->closures.begin();
         g_closure_invalidate(closure);
         /* Erase element if not already erased */
-        priv->signals.erase(closure);
+        priv->closures.erase(closure);
     }
 }
 
 static void
-disassociate_js_gobject(GObject *gobj)
+disassociate_js_gobject(ObjectInstance *priv)
 {
-    ObjectInstance *priv = get_object_qdata(gobj);
     bool had_toggle_down, had_toggle_up;
 
-    g_object_weak_unref(priv->gobj, wrapped_gobj_dispose_notify, priv);
+    if (!priv->g_object_finalized)
+        g_object_weak_unref(priv->gobj, wrapped_gobj_dispose_notify, priv);
 
-    /* FIXME: this check fails when JS code runs after the main loop ends,
-     * because the idle functions are not dispatched without a main loop.
-     * The only situation I'm aware of where this happens is during the
-     * dbus_unregister stage in GApplication. Ideally this check should be an
-     * assertion.
-     * https://bugzilla.gnome.org/show_bug.cgi?id=778862
-     */
     auto& toggle_queue = ToggleQueue::get_default();
-    std::tie(had_toggle_down, had_toggle_up) = toggle_queue.cancel(gobj);
+    std::tie(had_toggle_down, had_toggle_up) = toggle_queue.cancel(priv->gobj);
     if (had_toggle_down != had_toggle_up) {
-        g_critical("JS object wrapper for GObject %p (%s) is being released "
-                   "while toggle references are still pending. This may happen "
-                   "on exit in Gio.Application.vfunc_dbus_unregister(). If you "
-                   "encounter it another situation, please report a GJS bug.",
-                   gobj, G_OBJECT_TYPE_NAME(gobj));
+        g_error("JS object wrapper for GObject %p (%s) is being released while "
+                "toggle references are still pending.",
+                priv->gobj, G_OBJECT_TYPE_NAME(priv->gobj));
     }
 
-    invalidate_all_signals(priv);
+    /* Fist, remove the wrapper pointer from the wrapped GObject */
+    set_object_qdata(priv->gobj, nullptr);
+
+    /* Now release all the resources the current wrapper has */
+    invalidate_all_closures(priv);
     release_native_object(priv);
 
     /* Mark that a JS object once existed, but it doesn't any more */
     priv->js_object_finalized = true;
+    priv->keep_alive = nullptr;
 }
 
 static void
@@ -1358,6 +1528,7 @@ G_GNUC_END_IGNORE_DEPRECATIONS
          * we're not actually using it, so just let it get collected. Avoiding
          * this would require a non-trivial amount of work.
          * */
+        ensure_uses_toggle_ref(context, other_priv);
         object.set(other_priv->keep_alive);
         g_object_unref(gobj); /* We already own a reference */
         gobj = NULL;
@@ -1385,15 +1556,9 @@ G_GNUC_END_IGNORE_DEPRECATIONS
 
     if (priv->gobj == NULL)
         associate_js_gobject(context, object, gobj);
-    /* We now have both a ref and a toggle ref, we only want the
-     * toggle ref. This may immediately remove the GC root
-     * we just added, since refcount may drop to 1.
-     */
-    g_object_unref(gobj);
 
-    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
-                        "JSObject created with GObject %p %s",
-                        priv->gobj, g_type_name_from_instance((GTypeInstance*) priv->gobj));
+    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "JSObject created with GObject %p (%s)",
+                        priv->gobj, G_OBJECT_TYPE_NAME(priv->gobj));
 
     TRACE(GJS_OBJECT_PROXY_NEW(priv, priv->gobj,
                                priv->info ? g_base_info_get_namespace((GIBaseInfo*) priv->info) : "_gjs_private",
@@ -1439,19 +1604,25 @@ object_instance_trace(JSTracer *tracer,
     if (priv == NULL)
         return;
 
-    for (GClosure *closure : priv->signals)
-        gjs_closure_trace(closure, tracer);
+    if (priv->g_object_finalized) {
+        g_debug("Object %s.%s (%p), has been already finalized. "
+                "Impossible to trace it.",
+                 priv->info ? g_base_info_get_namespace( (GIBaseInfo*) priv->info) : "",
+                 priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype),
+                 priv->gobj);
+        return;
+    }
 
-    for (auto vfunc : priv->vfuncs)
-        vfunc->js_function.trace(tracer, "ObjectInstance::vfunc");
+    for (GClosure *closure : priv->closures)
+        gjs_closure_trace(closure, tracer);
 }
 
 static void
-signal_connection_invalidated(void     *data,
-                              GClosure *closure)
+closure_invalidated(void     *data,
+                    GClosure *closure)
 {
     auto priv = static_cast<ObjectInstance *>(data);
-    priv->signals.erase(closure);
+    priv->closures.erase(closure);
 }
 
 static void
@@ -1461,13 +1632,10 @@ object_instance_finalize(JSFreeOp  *fop,
     ObjectInstance *priv;
 
     priv = (ObjectInstance *) JS_GetPrivate(obj);
-    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
-                        "finalize obj %p priv %p gtype %s gobj %p", obj, priv,
-                        (priv && priv->gobj) ?
-                        g_type_name_from_instance( (GTypeInstance*) priv->gobj) :
-                        "<no gobject>",
-                        priv ? priv->gobj : NULL);
     g_assert (priv != NULL);
+    gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
+                        "Finalizing %s, JS obj %p, priv %p, GObject %p",
+                        g_type_name(priv->gtype), obj, priv, priv->gobj);
 
     TRACE(GJS_OBJECT_PROXY_FINALIZE(priv, priv->gobj,
                                     priv->info ? g_base_info_get_namespace((GIBaseInfo*) priv->info) : "_gjs_private",
@@ -1475,7 +1643,7 @@ object_instance_finalize(JSFreeOp  *fop,
 
     /* This applies only to instances, not prototypes, but it's possible that
      * an instance's GObject is already freed at this point. */
-    invalidate_all_signals(priv);
+    invalidate_all_closures(priv);
 
     /* Object is instance, not prototype, AND GObject is not already freed */
     if (priv->gobj) {
@@ -1496,15 +1664,11 @@ object_instance_finalize(JSFreeOp  *fop,
                     priv->info ? g_base_info_get_namespace((GIBaseInfo*) priv->info) : "",
                     priv->info ? g_base_info_get_name((GIBaseInfo*) priv->info) : g_type_name(priv->gtype));
         }
-        
+
+        if (!priv->g_object_finalized)
+            g_object_weak_unref(priv->gobj, wrapped_gobj_dispose_notify, priv);
         release_native_object(priv);
     }
-
-    /* We have to leak the trampolines, since the GType's vtable still refers
-     * to them */
-    for (auto iter : priv->vfuncs)
-        iter->js_function.reset();
-    priv->vfuncs.clear();
 
     if (priv->keep_alive.rooted()) {
         /* This happens when the refcount on the object is still >1,
@@ -1514,12 +1678,11 @@ object_instance_finalize(JSFreeOp  *fop,
         gjs_debug(GJS_DEBUG_GOBJECT,
                   "Wrapper was finalized despite being kept alive, has refcount >1");
 
-        gjs_debug_lifecycle(GJS_DEBUG_GOBJECT,
-                            "Removing from keep alive");
+        gjs_debug_lifecycle(GJS_DEBUG_GOBJECT, "Unrooting object");
 
         priv->keep_alive.reset();
-        dissociate_list_remove(priv);
     }
+    object_instance_unlink(priv);
 
     if (priv->info) {
         g_base_info_unref( (GIBaseInfo*) priv->info);
@@ -1534,6 +1697,9 @@ object_instance_finalize(JSFreeOp  *fop,
     GJS_DEC_COUNTER(object);
     priv->~ObjectInstance();
     g_slice_free(ObjectInstance, priv);
+
+    /* Remove the ObjectInstance pointer from the JSObject */
+    JS_SetPrivate(obj, nullptr);
 }
 
 static JSObject *
@@ -1564,7 +1730,9 @@ gjs_lookup_object_constructor_from_info(JSContext    *context,
         /* In case we're looking for a private type, and we don't find it,
            we need to define it first.
         */
-        gjs_define_object_class(context, in_object, NULL, gtype, &constructor);
+        JS::RootedObject ignored(context);
+        gjs_define_object_class(context, in_object, NULL, gtype, &constructor,
+                                &ignored);
     } else {
         if (G_UNLIKELY (!value.isObject()))
             return NULL;
@@ -1614,6 +1782,16 @@ gjs_lookup_object_prototype(JSContext *context,
     return proto;
 }
 
+static void
+do_associate_closure(ObjectInstance *priv,
+                     GClosure       *closure)
+{
+    /* This is a weak reference, and will be cleared when the closure is
+     * invalidated */
+    priv->closures.insert(closure);
+    g_closure_add_invalidate_notifier(closure, priv, closure_invalidated);
+}
+
 static bool
 real_connect_func(JSContext *context,
                   unsigned   argc,
@@ -1624,7 +1802,6 @@ real_connect_func(JSContext *context,
     GClosure *closure;
     gulong id;
     guint signal_id;
-    GjsAutoJSChar signal_name(context);
     GQuark signal_detail;
 
     gjs_debug_gsignal("connect obj %p priv %p argc %d", obj.get(), priv, argc);
@@ -1639,15 +1816,28 @@ real_connect_func(JSContext *context,
                   priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype));
         return false;
     }
+    if (priv->g_object_finalized) {
+        g_critical("Object %s.%s (%p), has been already deallocated - impossible to connect to signal. "
+                   "This might be caused by the fact that the object has been destroyed from C "
+                   "code using something such as destroy(), dispose(), or remove() vfuncs",
+                   priv->info ? g_base_info_get_namespace( (GIBaseInfo*) priv->info) : "",
+                   priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype),
+                   priv->gobj);
+        gjs_dumpstack();
+        return true;
+    }
+
+    ensure_uses_toggle_ref(context, priv);
 
     if (argc != 2 || !argv[0].isString() || !JS::IsCallable(&argv[1].toObject())) {
         gjs_throw(context, "connect() takes two args, the signal name and the callback");
         return false;
     }
 
-    if (!gjs_string_to_utf8(context, argv[0], &signal_name)) {
+    JS::RootedString signal_str(context, argv[0].toString());
+    GjsAutoJSChar signal_name = JS_EncodeStringToUTF8(context, signal_str);
+    if (!signal_name)
         return false;
-    }
 
     if (!g_signal_parse_name(signal_name,
                              G_OBJECT_TYPE(priv->gobj),
@@ -1663,11 +1853,7 @@ real_connect_func(JSContext *context,
     closure = gjs_closure_new_for_signal(context, &argv[1].toObject(), "signal callback", signal_id);
     if (closure == NULL)
         return false;
-
-    /* This is a weak reference, and will be cleared when the closure is invalidated */
-    priv->signals.insert(closure);
-    g_closure_add_invalidate_notifier(closure, priv,
-                                      signal_connection_invalidated);
+    do_associate_closure(priv, closure);
 
     id = g_signal_connect_closure_by_id(priv->gobj,
                                         signal_id,
@@ -1705,7 +1891,6 @@ emit_func(JSContext *context,
     guint signal_id;
     GQuark signal_detail;
     GSignalQuery signal_query;
-    GjsAutoJSChar signal_name(context);
     GValue *instance_and_args;
     GValue rvalue = G_VALUE_INIT;
     unsigned int i;
@@ -1726,12 +1911,25 @@ emit_func(JSContext *context,
         return false;
     }
 
+    if (priv->g_object_finalized) {
+        g_critical("Object %s.%s (%p), has been already deallocated - impossible to emit signal. "
+                   "This might be caused by the fact that the object has been destroyed from C "
+                   "code using something such as destroy(), dispose(), or remove() vfuncs",
+                   priv->info ? g_base_info_get_namespace( (GIBaseInfo*) priv->info) : "",
+                   priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype),
+                   priv->gobj);
+        gjs_dumpstack();
+        return true;
+    }
+
     if (argc < 1 || !argv[0].isString()) {
         gjs_throw(context, "emit() first arg is the signal name");
         return false;
     }
 
-    if (!gjs_string_to_utf8(context, argv[0], &signal_name))
+    JS::RootedString signal_str(context, argv[0].toString());
+    GjsAutoJSChar signal_name = JS_EncodeStringToUTF8(context, signal_str);
+    if (!signal_name)
         return false;
 
     if (!g_signal_parse_name(signal_name,
@@ -1814,7 +2012,9 @@ to_string_func(JSContext *context,
         return false;  /* wrong class passed in */
     }
 
-    return _gjs_proxy_to_string_func(context, obj, "object",
+    return _gjs_proxy_to_string_func(context, obj,
+                                     (priv->g_object_finalized) ?
+                                      "object (FINALIZED)" : "object",
                                      (GIBaseInfo*)priv->info, priv->gtype,
                                      priv->gobj, rec.rval());
 }
@@ -1934,10 +2134,11 @@ gjs_define_object_class(JSContext              *context,
                         JS::HandleObject        in_object,
                         GIObjectInfo           *info,
                         GType                   gtype,
-                        JS::MutableHandleObject constructor)
+                        JS::MutableHandleObject constructor,
+                        JS::MutableHandleObject prototype)
 {
     const char *constructor_name;
-    JS::RootedObject prototype(context), parent_proto(context);
+    JS::RootedObject parent_proto(context);
 
     ObjectInstance *priv;
     const char *ns;
@@ -2006,7 +2207,7 @@ gjs_define_object_class(JSContext              *context,
                                 NULL,
                                 /* funcs of constructor, MyConstructor.myfunc() */
                                 NULL,
-                                &prototype,
+                                prototype,
                                 constructor)) {
         g_error("Can't init class %s", constructor_name);
     }
@@ -2021,9 +2222,9 @@ gjs_define_object_class(JSContext              *context,
     priv->klass = (GTypeClass*) g_type_class_ref (gtype);
     JS_SetPrivate(prototype, priv);
 
-    gjs_debug(GJS_DEBUG_GOBJECT, "Defined class %s prototype %p class %p in object %p",
-              constructor_name, prototype.get(), JS_GetClass(prototype),
-              in_object.get());
+    gjs_debug(GJS_DEBUG_GOBJECT, "Defined class for %s (%s), prototype %p, "
+              "JSClass %p, in object %p", constructor_name, g_type_name(gtype),
+              prototype.get(), JS_GetClass(prototype), in_object.get());
 
     if (info)
         gjs_object_define_static_methods(context, constructor, gtype, info);
@@ -2067,9 +2268,6 @@ gjs_object_from_g_object(JSContext    *context,
 
         g_object_ref_sink(gobj);
         associate_js_gobject(context, obj, gobj);
-
-        /* see the comment in init_object_instance() for this */
-        g_object_unref(gobj);
 
         g_assert(priv->keep_alive == obj.get());
     }
@@ -2133,6 +2331,18 @@ gjs_typecheck_object(JSContext       *context,
         return false;
     }
 
+    if (priv->g_object_finalized) {
+        g_critical("Object %s.%s (%p), has been already deallocated - impossible to access to it. "
+                   "This might be caused by the fact that the object has been destroyed from C "
+                   "code using something such as destroy(), dispose(), or remove() vfuncs",
+                   priv->info ? g_base_info_get_namespace( (GIBaseInfo*) priv->info) : "",
+                   priv->info ? g_base_info_get_name( (GIBaseInfo*) priv->info) : g_type_name(priv->gtype),
+                   priv->gobj);
+        gjs_dumpstack();
+
+        return true;
+    }
+
     g_assert(priv->gtype == G_OBJECT_TYPE(priv->gobj));
 
     if (expected_type != G_TYPE_NONE)
@@ -2142,13 +2352,13 @@ gjs_typecheck_object(JSContext       *context,
 
     if (!result && throw_error) {
         if (priv->info) {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s.%s - cannot convert to %s",
                              g_base_info_get_namespace((GIBaseInfo*) priv->info),
                              g_base_info_get_name((GIBaseInfo*) priv->info),
                              g_type_name(expected_type));
         } else {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s - cannot convert to %s",
                              g_type_name(priv->gtype),
                              g_type_name(expected_type));
@@ -2240,7 +2450,7 @@ gjs_hook_up_vfunc(JSContext *cx,
                   JS::Value *vp)
 {
     JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     JS::RootedObject object(cx), function(cx);
     ObjectInstance *priv;
     GType gtype, info_gtype;
@@ -2312,30 +2522,20 @@ gjs_hook_up_vfunc(JSContext *cx,
 
     find_vfunc_info(cx, gtype, vfunc, name, &implementor_vtable, &field_info);
     if (field_info != NULL) {
-        GITypeInfo *type_info;
-        GIBaseInfo *interface_info;
-        GICallbackInfo *callback_info;
         gint offset;
         gpointer method_ptr;
         GjsCallbackTrampoline *trampoline;
 
-        type_info = g_field_info_get_type(field_info);
-
-        interface_info = g_type_info_get_interface(type_info);
-
-        callback_info = (GICallbackInfo*)interface_info;
         offset = g_field_info_get_offset(field_info);
         method_ptr = G_STRUCT_MEMBER_P(implementor_vtable, offset);
 
         JS::RootedValue v_function(cx, JS::ObjectValue(*function));
-        trampoline = gjs_callback_trampoline_new(cx, v_function, callback_info,
-                                                 GI_SCOPE_TYPE_NOTIFIED, true);
+        trampoline = gjs_callback_trampoline_new(cx, v_function, vfunc,
+                                                 GI_SCOPE_TYPE_NOTIFIED,
+                                                 object, true);
 
         *((ffi_closure **)method_ptr) = trampoline->closure;
-        priv->vfuncs.push_back(trampoline);
 
-        g_base_info_unref(interface_info);
-        g_base_info_unref(type_info);
         g_base_info_unref(field_info);
     }
 
@@ -2484,7 +2684,7 @@ gjs_override_property(JSContext *cx,
                       JS::Value *vp)
 {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     JS::RootedObject type(cx);
     GParamSpec *pspec;
     GParamSpec *new_pspec;
@@ -2531,49 +2731,45 @@ static void
 gjs_interface_init(GTypeInterface *g_iface,
                    gpointer        iface_data)
 {
-    GPtrArray *properties;
-    GType gtype;
-    guint i;
+    GType gtype = G_TYPE_FROM_INTERFACE(g_iface);
 
-    gtype = G_TYPE_FROM_INTERFACE (g_iface);
-
-    properties = (GPtrArray *) gjs_hash_table_for_gsize_lookup(class_init_properties, gtype);
-    if (properties == NULL)
+    auto found = class_init_properties.find(gtype);
+    if (found == class_init_properties.end())
         return;
 
-    for (i = 0; i < properties->len; i++) {
-        GParamSpec *pspec = (GParamSpec *) properties->pdata[i];
-        g_param_spec_set_qdata(pspec, gjs_is_custom_property_quark(), GINT_TO_POINTER(1));
-        g_object_interface_install_property(g_iface, pspec);
+    ParamRefArray& properties = found->second;
+    for (ParamRef& pspec : properties) {
+        g_param_spec_set_qdata(pspec.get(), gjs_is_custom_property_quark(),
+                               GINT_TO_POINTER(1));
+        g_object_interface_install_property(g_iface, pspec.get());
     }
 
-    gjs_hash_table_for_gsize_remove(class_init_properties, gtype);
+    class_init_properties.erase(found);
 }
 
 static void
 gjs_object_class_init(GObjectClass *klass,
                       gpointer      user_data)
 {
-    GPtrArray *properties;
-    GType gtype;
-    guint i;
-
-    gtype = G_OBJECT_CLASS_TYPE (klass);
+    GType gtype = G_OBJECT_CLASS_TYPE(klass);
 
     klass->constructor = gjs_object_constructor;
     klass->set_property = gjs_object_set_gproperty;
     klass->get_property = gjs_object_get_gproperty;
 
-    properties = (GPtrArray*) gjs_hash_table_for_gsize_lookup (class_init_properties, gtype);
-    if (properties != NULL) {
-        for (i = 0; i < properties->len; i++) {
-            GParamSpec *pspec = (GParamSpec*) properties->pdata[i];
-            g_param_spec_set_qdata(pspec, gjs_is_custom_property_quark(), GINT_TO_POINTER(1));
-            g_object_class_install_property (klass, i+1, pspec);
-        }
-        
-        gjs_hash_table_for_gsize_remove (class_init_properties, gtype);
+    auto found = class_init_properties.find(gtype);
+    if (found == class_init_properties.end())
+        return;
+
+    ParamRefArray& properties = found->second;
+    unsigned i = 0;
+    for (ParamRef& pspec : properties) {
+        g_param_spec_set_qdata(pspec.get(), gjs_is_custom_property_quark(),
+                               GINT_TO_POINTER(1));
+        g_object_class_install_property(klass, ++i, pspec.get());
     }
+
+    class_init_properties.erase(found);
 }
 
 static void
@@ -2603,6 +2799,10 @@ gjs_object_custom_init(GTypeInstance *instance,
     object_init_list.pop();
 
     associate_js_gobject(context, object, G_OBJECT (instance));
+
+    /* Custom JS objects will most likely have visible state, so
+     * just do this from the start */
+    ensure_uses_toggle_ref(context, priv);
 
     JS::RootedValue v(context);
     if (!gjs_object_get_property(context, object,
@@ -2706,36 +2906,26 @@ save_properties_for_class_init(JSContext       *cx,
                                uint32_t         n_properties,
                                GType            gtype)
 {
-    GPtrArray *properties_native = NULL;
-    guint32 i;
-
-    if (!class_init_properties)
-        class_init_properties = gjs_hash_table_new_for_gsize((GDestroyNotify) g_ptr_array_unref);
-    properties_native = g_ptr_array_new_with_free_func((GDestroyNotify) g_param_spec_unref);
-    for (i = 0; i < n_properties; i++) {
-        JS::RootedValue prop_val(cx);
-
-        if (!JS_GetElement(cx, properties, i, &prop_val)) {
-            g_clear_pointer(&properties_native, g_ptr_array_unref);
+    ParamRefArray properties_native;
+    JS::RootedValue prop_val(cx);
+    JS::RootedObject prop_obj(cx);
+    for (uint32_t i = 0; i < n_properties; i++) {
+        if (!JS_GetElement(cx, properties, i, &prop_val))
             return false;
-        }
+
         if (!prop_val.isObject()) {
-            g_clear_pointer(&properties_native, g_ptr_array_unref);
             gjs_throw(cx, "Invalid parameter, expected object");
             return false;
         }
 
-        JS::RootedObject prop_obj(cx, &prop_val.toObject());
-        if (!gjs_typecheck_param(cx, prop_obj, G_TYPE_NONE, true)) {
-            g_clear_pointer(&properties_native, g_ptr_array_unref);
+        prop_obj = &prop_val.toObject();
+        if (!gjs_typecheck_param(cx, prop_obj, G_TYPE_NONE, true))
             return false;
-        }
-        g_ptr_array_add(properties_native, g_param_spec_ref(gjs_g_param_from_param(cx, prop_obj)));
-    }
-    gjs_hash_table_for_gsize_insert(class_init_properties, (gsize) gtype,
-                                    g_ptr_array_ref(properties_native));
 
-    g_clear_pointer(&properties_native, g_ptr_array_unref);
+        properties_native.emplace_back(g_param_spec_ref(gjs_g_param_from_param(cx, prop_obj)),
+                                       g_param_spec_unref);
+    }
+    class_init_properties[gtype] = std::move(properties_native);
     return true;
 }
 
@@ -2745,7 +2935,7 @@ gjs_register_interface(JSContext *cx,
                        JS::Value *vp)
 {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     guint32 i, n_interfaces, n_properties;
     GType *iface_types;
     GType interface_type;
@@ -2810,21 +3000,45 @@ gjs_register_interface(JSContext *cx,
     return true;
 }
 
+static void
+gjs_object_base_init(void *klass)
+{
+    auto priv = static_cast<ObjectInstance *>(g_type_get_qdata(G_OBJECT_CLASS_TYPE(klass),
+                                              gjs_object_priv_quark()));
+
+    if (priv) {
+        for (GClosure *closure : priv->closures)
+            g_closure_ref(closure);
+    }
+}
+
+static void
+gjs_object_base_finalize(void *klass)
+{
+    auto priv = static_cast<ObjectInstance *>(g_type_get_qdata(G_OBJECT_CLASS_TYPE(klass),
+                                              gjs_object_priv_quark()));
+
+    if (priv) {
+        for (GClosure *closure : priv->closures)
+            g_closure_unref(closure);
+    }
+}
+
 static bool
 gjs_register_type(JSContext *cx,
                   unsigned   argc,
                   JS::Value *vp)
 {
     JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
-    GjsAutoJSChar name(cx);
+    GjsAutoJSChar name;
     GType instance_type, parent_type;
     GTypeQuery query;
     ObjectInstance *parent_priv;
     GTypeInfo type_info = {
         0, /* class_size */
 
-	(GBaseInitFunc) NULL,
-	(GBaseFinalizeFunc) NULL,
+        gjs_object_base_init,
+        gjs_object_base_finalize,
 
 	(GClassInitFunc) gjs_object_class_init,
 	(GClassFinalizeFunc) NULL,
@@ -2897,8 +3111,13 @@ gjs_register_type(JSContext *cx,
         gjs_add_interface(instance_type, iface_types[i]);
 
     /* create a custom JSClass */
-    JS::RootedObject module(cx, gjs_lookup_private_namespace(cx)), constructor(cx);
-    gjs_define_object_class(cx, module, NULL, instance_type, &constructor);
+    JS::RootedObject module(cx, gjs_lookup_private_namespace(cx));
+    JS::RootedObject constructor(cx), prototype(cx);
+    gjs_define_object_class(cx, module, nullptr, instance_type, &constructor,
+                            &prototype);
+
+    ObjectInstance *priv = priv_from_js(cx, prototype);
+    g_type_set_qdata(instance_type, gjs_object_priv_quark(), priv);
 
     argv.rval().setObject(*constructor);
 
@@ -2912,7 +3131,7 @@ gjs_signal_new(JSContext *cx,
 {
     JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
     GType gtype;
-    GjsAutoJSChar signal_name(cx);
+    GjsAutoJSChar signal_name;
     GSignalAccumulator accumulator;
     gint signal_id;
     guint i, n_parameters;
@@ -3025,5 +3244,21 @@ gjs_lookup_object_constructor(JSContext             *context,
         g_base_info_unref((GIBaseInfo*)object_info);
 
     value_p.setObject(*constructor);
+    return true;
+}
+
+bool
+gjs_object_associate_closure(JSContext       *cx,
+                             JS::HandleObject object,
+                             GClosure        *closure)
+{
+    ObjectInstance *priv = priv_from_js(cx, object);
+    if (!priv)
+        return false;
+
+    if (priv->gobj)
+        ensure_uses_toggle_ref(cx, priv);
+
+    do_associate_closure(priv, closure);
     return true;
 }

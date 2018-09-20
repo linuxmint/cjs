@@ -58,18 +58,19 @@ param_resolve(JSContext       *context,
     GIObjectInfo *info = NULL;
     GIFunctionInfo *method_info;
     Param *priv;
-    GjsAutoJSChar name(context);
     bool ret = false;
 
-    if (!gjs_get_string_id(context, id, &name))
-        return true; /* not resolved, but no error */
-
     priv = priv_from_js(context, obj);
-
     if (priv != NULL) {
         /* instance, not prototype */
         *resolved = false;
         return true;
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
+        *resolved = false;
+        return true; /* not resolved, but no error */
     }
 
     info = (GIObjectInfo*)g_irepository_find_by_gtype(g_irepository_get_default(), G_TYPE_PARAM);
@@ -304,7 +305,7 @@ gjs_typecheck_param(JSContext       *context,
 
     if (priv->gparam == NULL) {
         if (throw_error) {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is GObject.ParamSpec.prototype, not an object instance - "
                              "cannot convert to a GObject.ParamSpec instance");
         }
@@ -318,7 +319,7 @@ gjs_typecheck_param(JSContext       *context,
         result = true;
 
     if (!result && throw_error) {
-        gjs_throw_custom(context, "TypeError", NULL,
+        gjs_throw_custom(context, JSProto_TypeError, nullptr,
                          "Object is of type %s - cannot convert to %s",
                          g_type_name(G_TYPE_FROM_INSTANCE (priv->gparam)),
                          g_type_name(expected_type));

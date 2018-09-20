@@ -101,6 +101,8 @@ gjs_debug(GjsDebugTopic topic,
     static bool debug_log_enabled = false;
     static bool checked_for_timestamp = false;
     static bool print_timestamp = false;
+    static bool checked_for_thread = false;
+    static bool print_thread = false;
     static GTimer *timer = NULL;
     const char *prefix;
     va_list args;
@@ -109,6 +111,11 @@ gjs_debug(GjsDebugTopic topic,
     if (!checked_for_timestamp) {
         print_timestamp = gjs_environment_variable_is_set("GJS_DEBUG_TIMESTAMP");
         checked_for_timestamp = true;
+    }
+
+    if (!checked_for_thread) {
+        print_thread = gjs_environment_variable_is_set("GJS_DEBUG_THREAD");
+        checked_for_thread = true;
     }
 
     if (print_timestamp && !timer) {
@@ -211,30 +218,6 @@ _Pragma("GCC diagnostic pop")
     case GJS_DEBUG_GPARAM:
         prefix = "JS G PRM";
         break;
-    case GJS_DEBUG_DATABASE:
-        prefix = "JS DB";
-        break;
-    case GJS_DEBUG_RESULTSET:
-        prefix = "JS RS";
-        break;
-    case GJS_DEBUG_WEAK_HASH:
-        prefix = "JS WEAK";
-        break;
-    case GJS_DEBUG_MAINLOOP:
-        prefix = "JS MAINLOOP";
-        break;
-    case GJS_DEBUG_PROPS:
-        prefix = "JS PROPS";
-        break;
-    case GJS_DEBUG_SCOPE:
-        prefix = "JS SCOPE";
-        break;
-    case GJS_DEBUG_HTTP:
-        prefix = "JS HTTP";
-        break;
-    case GJS_DEBUG_BYTE_ARRAY:
-        prefix = "JS BYTE ARRAY";
-        break;
     case GJS_DEBUG_GERROR:
         prefix = "JS G ERR";
         break;
@@ -273,6 +256,12 @@ _Pragma("GCC diagnostic pop")
         s = s2;
 
         previous = total;
+    }
+
+    if (print_thread) {
+        char *s2 = g_strdup_printf("(thread %p) %s", g_thread_self(), s);
+        g_free(s);
+        s = s2;
     }
 
     write_to_stream(logfp, prefix, s);

@@ -19,22 +19,10 @@
 // IN THE SOFTWARE.
 
 var GLib = imports.gi.GLib;
-var GObject = imports.gi.GObject;
 var CjsPrivate = imports.gi.CjsPrivate;
 var Lang = imports.lang;
 var Signals = imports.signals;
 var Gio;
-
-function _signatureLength(sig) {
-    var counter = 0;
-    // make it an array
-    var signature = Array.prototype.slice.call(sig);
-    while (signature.length) {
-        GLib._read_single_type(sig);
-        counter++;
-    }
-    return counter;
-}
 
 function _proxyInvoker(methodName, sync, inSignature, arg_array) {
     var replyFunc;
@@ -215,10 +203,7 @@ function _makeProxyWrapper(interfaceXml) {
 function _newNodeInfo(constructor, value) {
     if (typeof value == 'string')
         return constructor(value);
-    else if (value instanceof XML)
-        return constructor(value.toXMLString());
-    else
-        throw TypeError('Invalid type ' + Object.prototype.toString.call(value));
+    throw TypeError(`Invalid type ${Object.prototype.toString.call(value)}`);
 }
 
 function _newInterfaceInfo(value) {
@@ -232,6 +217,16 @@ function _injectToMethod(klass, method, addition) {
     klass[method] = function() {
         addition.apply(this, arguments);
         return previous.apply(this, arguments);
+    };
+}
+
+function _injectToStaticMethod(klass, method, addition) {
+    var previous = klass[method];
+
+    klass[method] = function(...parameters) {
+        let obj = previous.apply(this, parameters);
+        addition.apply(obj, parameters);
+        return obj;
     };
 }
 
@@ -388,6 +383,10 @@ function _init() {
 
     _injectToMethod(Gio.DBusProxy.prototype, 'init', _addDBusConvenience);
     _injectToMethod(Gio.DBusProxy.prototype, 'init_async', _addDBusConvenience);
+    _injectToStaticMethod(Gio.DBusProxy, 'new_sync', _addDBusConvenience);
+    _injectToStaticMethod(Gio.DBusProxy, 'new_finish', _addDBusConvenience);
+    _injectToStaticMethod(Gio.DBusProxy, 'new_for_bus_sync', _addDBusConvenience);
+    _injectToStaticMethod(Gio.DBusProxy, 'new_for_bus_finish', _addDBusConvenience);
     Gio.DBusProxy.prototype.connectSignal = Signals._connect;
     Gio.DBusProxy.prototype.disconnectSignal = Signals._disconnect;
 

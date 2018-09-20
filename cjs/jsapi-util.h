@@ -25,6 +25,7 @@
 #define __GJS_JSAPI_UTIL_H__
 
 #include <memory>
+#include <string>
 #include <stdbool.h>
 
 #include <glib-object.h>
@@ -65,58 +66,27 @@ public:
     }
 };
 
-class GjsJSFreeArgs {
-private:
-    JSContext *m_cx;
-
-public:
-    explicit GjsJSFreeArgs(JSContext *cx) : m_cx(cx)
-    {}
-
+struct GjsJSFreeArgs {
     void operator() (char *str) {
-        JS_free(m_cx, str);
-    }
-
-    JSContext* get_context() {
-        return m_cx;
-    }
-
-    void set_context(JSContext *cx) {
-        m_cx = cx;
+        JS_free(nullptr, str);
     }
 };
 
-class GjsAutoJSChar {
-private:
-    std::unique_ptr<char, GjsJSFreeArgs> m_ptr;
-
+class GjsAutoJSChar : public std::unique_ptr<char, GjsJSFreeArgs> {
 public:
-    GjsAutoJSChar(JSContext *cx, char *str = nullptr)
-    : m_ptr (str, GjsJSFreeArgs(cx)) {
-        g_assert(cx != nullptr);
-    }
+    GjsAutoJSChar(char *str = nullptr) : unique_ptr(str, GjsJSFreeArgs()) { }
 
     operator const char*() {
-        return m_ptr.get();
+        return get();
     }
 
-    const char* get() {
-        return m_ptr.get();
+    void operator=(char *str) {
+        reset(str);
     }
 
     char* copy() {
         /* Strings acquired by this should be g_free()'ed */
-        return g_strdup(m_ptr.get());
-    }
-
-    char* js_copy() {
-        /* Strings acquired by this should be JS_free()'ed */
-        return JS_strdup(m_ptr.get_deleter().get_context(), m_ptr.get());
-    }
-
-    void reset(JSContext *cx, char *str) {
-        m_ptr.get_deleter().set_context(cx);
-        m_ptr.reset(str);
+        return g_strdup(get());
     }
 };
 
@@ -137,7 +107,6 @@ typedef struct GjsRootedArray GjsRootedArray;
 /* Flags that should be set on properties exported from native code modules.
  * Basically set these on API, but do NOT set them on data.
  *
- * READONLY:  forbid setting prop to another value
  * PERMANENT: forbid deleting the prop
  * ENUMERATE: allows copyProperties to work among other reasons to have it
  */
@@ -180,7 +149,7 @@ void        gjs_throw                        (JSContext       *context,
                                               const char      *format,
                                               ...)  G_GNUC_PRINTF (2, 3);
 void        gjs_throw_custom                 (JSContext       *context,
-                                              const char      *error_class,
+                                              JSProtoKey       error_kind,
                                               const char      *error_name,
                                               const char      *format,
                                               ...)  G_GNUC_PRINTF (4, 5);
@@ -212,8 +181,11 @@ bool        gjs_string_to_utf8               (JSContext       *context,
                                               GjsAutoJSChar   *utf8_string_p);
 bool gjs_string_from_utf8(JSContext             *context,
                           const char            *utf8_string,
-                          ssize_t                n_bytes,
                           JS::MutableHandleValue value_p);
+bool gjs_string_from_utf8_n(JSContext             *cx,
+                            const char            *utf8_chars,
+                            size_t                 len,
+                            JS::MutableHandleValue out);
 
 bool gjs_string_to_filename(JSContext       *cx,
                             const JS::Value  string_val,
@@ -224,15 +196,15 @@ bool gjs_string_from_filename(JSContext             *context,
                               ssize_t                n_bytes,
                               JS::MutableHandleValue value_p);
 
-bool gjs_string_get_char16_data(JSContext *context,
-                                JS::Value  value,
-                                char16_t **data_p,
-                                size_t    *len_p);
+bool gjs_string_get_char16_data(JSContext       *cx,
+                                JS::HandleString str,
+                                char16_t       **data_p,
+                                size_t          *len_p);
 
-bool gjs_string_to_ucs4(JSContext      *cx,
-                        JS::HandleValue value,
-                        gunichar      **ucs4_string_p,
-                        size_t         *len_p);
+bool gjs_string_to_ucs4(JSContext       *cx,
+                        JS::HandleString value,
+                        gunichar       **ucs4_string_p,
+                        size_t          *len_p);
 bool gjs_string_from_ucs4(JSContext             *cx,
                           const gunichar        *ucs4_string,
                           ssize_t                n_chars,
@@ -248,11 +220,11 @@ bool        gjs_unichar_from_string          (JSContext       *context,
                                               JS::Value        string,
                                               gunichar        *result);
 
-const char* gjs_get_type_name                (JS::Value        value);
-
 /* Functions intended for more "internal" use */
 
 void gjs_maybe_gc (JSContext *context);
+void gjs_schedule_gc_if_needed(JSContext *cx);
+void gjs_gc_if_needed(JSContext *cx);
 
 bool gjs_eval_with_scope(JSContext             *context,
                          JS::HandleObject       object,
@@ -324,33 +296,25 @@ bool gjs_object_define_property(JSContext       *cx,
                                 JS::HandleObject obj,
                                 GjsConstString   property_name,
                                 JS::HandleValue  value,
-                                unsigned         flags,
-                                JSNative         getter = nullptr,
-                                JSNative         setter = nullptr);
+                                unsigned         flags);
 
 bool gjs_object_define_property(JSContext       *cx,
                                 JS::HandleObject obj,
                                 GjsConstString   property_name,
                                 JS::HandleObject value,
-                                unsigned         flags,
-                                JSNative         getter = nullptr,
-                                JSNative         setter = nullptr);
+                                unsigned         flags);
 
 bool gjs_object_define_property(JSContext       *cx,
                                 JS::HandleObject obj,
                                 GjsConstString   property_name,
                                 JS::HandleString value,
-                                unsigned         flags,
-                                JSNative         getter = nullptr,
-                                JSNative         setter = nullptr);
+                                unsigned         flags);
 
 bool gjs_object_define_property(JSContext       *cx,
                                 JS::HandleObject obj,
                                 GjsConstString   property_name,
                                 uint32_t         value,
-                                unsigned         flags,
-                                JSNative         getter = nullptr,
-                                JSNative         setter = nullptr);
+                                unsigned         flags);
 
 JS::HandleId gjs_context_get_const_string(JSContext     *cx,
                                           GjsConstString string);
@@ -419,5 +383,11 @@ bool gjs_object_require_converted_property(JSContext       *cx,
                                                  gjs_context_get_const_string(cx, property_name),
                                                  value);
 }
+
+std::string gjs_debug_string(JSString *str);
+std::string gjs_debug_symbol(JS::Symbol * const sym);
+std::string gjs_debug_object(JSObject *obj);
+std::string gjs_debug_value(JS::Value v);
+std::string gjs_debug_id(jsid id);
 
 #endif  /* __GJS_JSAPI_UTIL_H__ */

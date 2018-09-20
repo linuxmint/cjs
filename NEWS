@@ -1,3 +1,231 @@
+Version 1.52.1
+--------------
+
+- This version has more changes than would normally be expected from a stable
+  version. The intention of 1.52.1 is to deliver a version that runs cleaner
+  under performance tools, in time for the upcoming GNOME Shell performance
+  hackfest. We also wanted to deliver a stable CI pipeline before branching
+  GNOME 3.28 off of master.
+
+- Claudio André's work on the CI pipeline deserves a spotlight. We now have
+  test jobs that run linters, sanitizers, Valgrind, and more; the tests are
+  run on up-to-date Docker images; and the reliability errors that were plaguing
+  the test runs are solved.
+
+- In addition to System.dumpHeap(), you can now dump a heap from a running
+  Javascript program by starting it with the environment variable
+  GJS_DEBUG_HEAP_OUTPUT=some_name, and sending it SIGUSR1.
+
+- heapgraph.py is a tool in the repository (not installed in distributions) for
+  analyzing and graphing heap dumps, to aid with tracking down memory leaks.
+
+- The linter CI jobs will compare your branch against GNOME/gjs@master, and fail
+  if your branch added any new linter errors. There may be false positives, and
+  the rules configuration is not perfect. If that's the case on your merge
+  request, you can skip the appropriate linter job by adding the text
+  "[skip (linter)]" in your commit message: e.g., "[skip cpplint]".
+
+- We welcomed first merge requests from several new contributors for this
+  release.
+
+- Closed bugs and merge requests:
+
+  * Crash when resolving promises if exception is pending [#18, !95, Philip
+    Chimento]
+  * gjs_byte_array_get_proto(JSContext*): assertion failed: (((void) "gjs_"
+    "byte_array" "_define_proto() must be called before " "gjs_" "byte_array"
+    "_get_proto()", !v_proto.isUndefined())) [#39, !92, Philip Chimento]
+  * Tools for examining heap graph [#116, !61, !118, Andy Holmes, Tommi
+    Komulainen, Philip Chimento]
+  * Run analysis tools to prepare for release [#120, !88, Philip Chimento]
+  * Add support for passing flags to Gio.DBusProxy in makeProxyWrapper [#122,
+    !81, Florian Müllner]
+  * Cannot instantiate Cairo.Context [#126, !91, Philip Chimento]
+  * GISCAN GjsPrivate-1.0.gir fails [#128, !90, Philip Chimento]
+  * Invalid read of g_object_finalized flag [#129, !117, Philip Chimento]
+  * Fix race condition in coverage file test [#130, !99, Philip Chimento]
+  * Linter jobs should only fail if new lint errors were added [#133, !94,
+    Philip Chimento]
+  * Disable all tests that depends on X if there is no XServer [#135, !109,
+    Claudio André]
+  * Pick a different C++ linter [#137, !102, Philip Chimento]
+  * Create a CI test that builds using autotools only [!74, Claudio André]
+  * CI: enable ASAN [!89, Claudio André]
+  * CI: disable static analysis jobs using the commit message [!93, Claudio
+    André]
+  * profiler: Don't assume layout of struct sigaction [!96, James Cowgill]
+  * Valgrind [!98, Claudio André]
+  * Robustness of CI [!103, Claudio André]
+  * CI: make a separate job for installed tests [!106, Claudio André]
+  * Corrected Markdown format and added links to JHBuild in setup guide for GJS
+    [!111, Avi Zajac]
+  * Update tweener.js -- 48 eslint errors fixed [!112, Karen Medina]
+  * Various maintenance [!100, !104, !105, !107, !110, !113, !116, Claudio
+    André, Philip Chimento]
+
+Version 1.52.0
+--------------
+
+- No changes from 1.51.92 except for the continuous integration configuration.
+
+- Closed bugs and merge requests:
+
+  * Various CI improvements [!84, !85, !86, !87, Claudio André]
+
+Version 1.51.92
+---------------
+
+- Closed bugs and merge requests:
+
+  * abort if we are called back in a non-main thread [#75, !72, Philip Chimento]
+  * 3.27.91 build failure on debian/Ubuntu [#122, !73, Tim Lunn]
+  * Analyze project code quality with Code Climate inside CI [#10, !77, Claudio
+    André]
+  * Various CI improvements [!75, !76, !79, !80, !82, !83, Claudio André]
+
+Version 1.51.91
+---------------
+
+- Promises now resolve with a higher priority, so asynchronous code should be
+  faster. [Jason Hicks]
+
+- Closed bugs and merge requests:
+
+  * New build 'warnings' [#117, !62, !63, Claudio André, Philip Chimento]
+  * Various CI maintenance [!64, !65, !66, Claudio André, Philip Chimento]
+  * profiler: Don't include alloca.h when disabled [!69, Ting-Wei Lan]
+  * GNOME crash with fatal error "Finalizing proxy for an object that's
+    scheduled to be unrooted: Gio.Subprocess" in gjs [#26, !70, Philip Chimento]
+
+Version 1.51.90
+---------------
+
+- Note that all the old Bugzilla bug reports have been migrated over to GitLab.
+
+- GJS now, once again, includes a profiler, which outputs files that can be
+  read with sysprof. To use it, simply run your program with the environment
+  variable GJS_ENABLE_PROFILER=1 set. If your program is a JS script that is
+  executed with the interpreter, you can also pass --profile to the
+  interpreter. See "gjs --help" for more info.
+
+- New API: For programs that want more control over when to start and stop
+  profiling, there is new API for GjsContext. When you create your GjsContext
+  there are two construct-only properties available, "profiler-enabled" and
+  "profiler-sigusr2". If you set profiler-sigusr2 to TRUE, then the profiler
+  can be started and stopped while the program is running by sending SIGUSR2 to
+  the process. You can also use gjs_context_get_profiler(),
+  gjs_profiler_set_filename(), gjs_profiler_start(), and gjs_profiler_stop()
+  for more explicit control.
+
+- New API: GObject.signal_connect(), GObject.signal_disconnect(), and
+  GObject.signal_emit_by_name() are now available in case a GObject-derived
+  class has conflicting connect(), disconnect() or emit() methods.
+
+- Closed bugs and merge requests:
+
+  * Handle 0-valued GType gracefully [#11, !10, Philip Chimento]
+  * Profiler [#31, !37, Christian Hergert, Philip Chimento]
+  * Various maintenance [!40, !59, Philip Chimento, Giovanni Campagna]
+  * Rename GObject.Object.connect/disconnect? [#65, !47, Giovanni Campagna]
+  * Better debugging output for uncatchable exceptions [!39, Simon McVittie]
+  * Update Docker images and various CI maintenance [!54, !56, !57, !58,
+    Claudio André]
+  * Install GJS suppression file for Valgrind [#2, !55, Philip Chimento]
+
+Version 1.50.4
+--------------
+
+- Closed bugs and merge requests:
+
+  * Gnome Shell crash with places-status extension when you plug an USB device
+    [#33, !38, Philip Chimento]
+
+Version 1.50.3
+--------------
+
+- GJS will now log a warning when a GObject is accessed in Javascript code
+  after the underlying object has been freed in C. (This used to work most of
+  the time, but crash unpredictably.) We now prevent this situation which, is
+  usually caused by a memory management bug in the underlying C library.
+
+- Closed bugs and merge requests:
+
+  * Add checks for GObjects that have been finalized [#21, #23, !25, !28, !33,
+    Marco Trevisan]
+  * Test "Cairo context has methods when created from a C function" fails [#27,
+    !35, Valentín Barros]
+  * Various fixes from the master branch for rare crashes [Philip Chimento]
+
+Version 1.51.4
+--------------
+
+- We welcomed code and documentation from several new contributors in this
+  release!
+
+- GJS will now log a warning when a GObject is accessed in Javascript code
+  after the underlying object has been freed in C. (This used to work most of
+  the time, but crash unpredictably.) We now prevent this situation which, is
+  usually caused by a memory management bug in the underlying C library.
+
+- APIs exposed through GObject Introspection that use the GdkAtom type are now
+  usable from Javascript. Previously these did not work. On the Javascript side,
+  a GdkAtom translates to a string, so there is no Gdk.Atom type that you can
+  access. The special atom GDK_NONE translates to null in Javascript, and there
+  is also no Gdk.NONE constant.
+
+- The GitLab CI tasks have continued to gradually become more and more
+  sophisticated.
+
+- Closed bugs and merge requests:
+
+  * Add checks for GObjects that have been finalized [#21, #23, !22, !27, Marco
+    Trevisan]
+  * Fail static analyzer if new warnings are found [!24, Claudio André]
+  * Run code coverage on GitLab [!20, Claudio André]
+  * Amend gtk.js and add gtk-application.js with suggestion [!32, Andy Holmes]
+  * Improve GdkAtom support that is blocking clipboard APIs [#14, !29, makepost]
+  * Test "Cairo context has methods when created from a C function" fails [#27,
+    !35, Valentín Barros]
+  * Various CI improvements [#6, !26, !34, Claudio André]
+  * Various maintenance [!23, !36, Philip Chimento]
+
+Version 1.51.3
+--------------
+
+- This release was made from an earlier state of master, before a breaking
+  change was merged, while we decide whether to revert that change or not.
+
+- Closed bugs and merge requests:
+
+  * CI improvements on GitLab [!14, !15, !19, Claudio André]
+  * Fix CI build on Ubuntu [#16, !18, !21, Claudio André, Philip Chimento]
+
+Version 1.51.2
+--------------
+
+- Version 1.51.1 was skipped.
+
+- The home of GJS is now at GNOME's GitLab instance:
+  https://gitlab.gnome.org/GNOME/gjs
+  From now on we'll be taking GitLab merge requests instead of Bugzilla
+  patches. If you want to report a bug, please report it at GitLab.
+
+- Closed bugs and merge requests:
+
+  * Allow throwing GErrors from JS virtual functions [#682701, Giovanni
+    Campagna]
+  * [RFC] bootstrap system [#777724, Jasper St. Pierre, Philip Chimento]
+  * Fix code coverage (and refactor it to take advantage of mozjs52 features)
+    [#788166, !1, !3, Philip Chimento]
+  * Various maintenance [!2, Philip Chimento]
+  * Get GitLab CI working and various improvements [#6, !7, !9, !11, !13,
+    Claudio André]
+  * Add build status badge to README [!8, Claudio André]
+  * Use Docker images for CI [!12, Claudio André]
+
+- Some changes in progress to improve garbage collection when signals are
+  disconnected. See bug #679688 for more information [Giovanni Campagna]
+
 Version 1.50.2
 --------------
 

@@ -269,7 +269,7 @@ closure_marshal(GClosure        *closure,
             g_base_info_unref((GIBaseInfo *)type_info_for[i]);
 
     JS::RootedValue rval(context);
-    gjs_closure_invoke(closure, argv, &rval);
+    gjs_closure_invoke(closure, nullptr, argv, &rval, false);
 
     if (return_value != NULL) {
         if (rval.isUndefined()) {
@@ -343,6 +343,19 @@ gjs_value_guess_g_type(JSContext *context,
 }
 
 static bool
+throw_expect_type(JSContext      *cx,
+                  JS::HandleValue value,
+                  const char     *expected_type,
+                  GType           gtype = 0)
+{
+    gjs_throw(cx, "Wrong type %s; %s%s%s expected",
+              JS::InformalValueTypeName(value), expected_type,
+              gtype ? " " : "",
+              gtype ? g_type_name(gtype) : "");
+    return false;  /* for convenience */
+}
+
+static bool
 gjs_value_to_g_value_internal(JSContext      *context,
                               JS::HandleValue value,
                               GValue         *gvalue,
@@ -379,77 +392,56 @@ gjs_value_to_g_value_internal(JSContext      *context,
         if (value.isNull()) {
             g_value_set_string(gvalue, NULL);
         } else if (value.isString()) {
-            GjsAutoJSChar utf8_string(context);
-
-            if (!gjs_string_to_utf8(context, value, &utf8_string))
+            JS::RootedString str(context, value.toString());
+            GjsAutoJSChar utf8_string = JS_EncodeStringToUTF8(context, str);
+            if (!utf8_string)
                 return false;
 
             g_value_take_string(gvalue, utf8_string.copy());
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; string expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "string");
         }
     } else if (gtype == G_TYPE_CHAR) {
         gint32 i;
         if (JS::ToInt32(context, value, &i) && i >= SCHAR_MIN && i <= SCHAR_MAX) {
             g_value_set_schar(gvalue, (signed char)i);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; char expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "char");
         }
     } else if (gtype == G_TYPE_UCHAR) {
         guint16 i;
         if (JS::ToUint16(context, value, &i) && i <= UCHAR_MAX) {
             g_value_set_uchar(gvalue, (unsigned char)i);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; unsigned char expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "unsigned char");
         }
     } else if (gtype == G_TYPE_INT) {
         gint32 i;
         if (JS::ToInt32(context, value, &i)) {
             g_value_set_int(gvalue, i);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; integer expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "integer");
         }
     } else if (gtype == G_TYPE_DOUBLE) {
         gdouble d;
         if (JS::ToNumber(context, value, &d)) {
             g_value_set_double(gvalue, d);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; double expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "double");
         }
     } else if (gtype == G_TYPE_FLOAT) {
         gdouble d;
         if (JS::ToNumber(context, value, &d)) {
             g_value_set_float(gvalue, d);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; float expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "float");
         }
     } else if (gtype == G_TYPE_UINT) {
         guint32 i;
         if (JS::ToUint32(context, value, &i)) {
             g_value_set_uint(gvalue, i);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; unsigned integer expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "unsigned integer");
         }
     } else if (gtype == G_TYPE_BOOLEAN) {
         /* JS::ToBoolean() can't fail */
@@ -468,11 +460,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
 
             gobj = gjs_g_object_from_object(context, obj);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; object %s expected",
-                      gjs_get_type_name(value),
-                      g_type_name(gtype));
-            return false;
+            return throw_expect_type(context, value, "object", gtype);
         }
 
         g_value_set_object(gvalue, gobj);
@@ -493,10 +481,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
                                                            GJS_STRING_LENGTH,
                                                            &length)) {
                     JS_ClearPendingException(context);
-                    gjs_throw(context,
-                              "Wrong type %s; strv expected",
-                              gjs_get_type_name(value));
-                    return false;
+                    return throw_expect_type(context, value, "strv");
                 } else {
                     void *result;
                     char **strv;
@@ -510,10 +495,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
                     g_value_take_boxed (gvalue, strv);
                 }
             } else {
-                gjs_throw(context,
-                          "Wrong type %s; strv expected",
-                          gjs_get_type_name(value));
-                return false;
+                return throw_expect_type(context, value, "strv");
             }
         }
     } else if (g_type_is_a(gtype, G_TYPE_BOXED)) {
@@ -587,11 +569,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
                 }
             }
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; boxed type %s expected",
-                      gjs_get_type_name(value),
-                      g_type_name(gtype));
-            return false;
+            return throw_expect_type(context, value, "boxed type", gtype);
         }
 
         if (no_copy)
@@ -611,11 +589,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
 
             variant = (GVariant*) gjs_c_struct_from_boxed(context, obj);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; boxed type %s expected",
-                      gjs_get_type_name(value),
-                      g_type_name(gtype));
-            return false;
+            return throw_expect_type(context, value, "boxed type", gtype);
         }
 
         g_value_set_variant (gvalue, variant);
@@ -639,11 +613,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
 
             g_value_set_enum(gvalue, v->value);
         } else {
-            gjs_throw(context,
-                         "Wrong type %s; enum %s expected",
-                         gjs_get_type_name(value),
-                         g_type_name(gtype));
-            return false;
+            return throw_expect_type(context, value, "enum", gtype);
         }
     } else if (g_type_is_a(gtype, G_TYPE_FLAGS)) {
         int64_t value_int64;
@@ -655,11 +625,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
             /* See arg.c:_gjs_enum_to_int() */
             g_value_set_flags(gvalue, (int)value_int64);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; flags %s expected",
-                      gjs_get_type_name(value),
-                      g_type_name(gtype));
-            return false;
+            return throw_expect_type(context, value, "flags", gtype);
         }
     } else if (g_type_is_a(gtype, G_TYPE_PARAM)) {
         void *gparam;
@@ -675,22 +641,15 @@ gjs_value_to_g_value_internal(JSContext      *context,
 
             gparam = gjs_g_param_from_param(context, obj);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; param type %s expected",
-                      gjs_get_type_name(value),
-                      g_type_name(gtype));
-            return false;
+            return throw_expect_type(context, value, "param type", gtype);
         }
 
         g_value_set_param(gvalue, (GParamSpec*) gparam);
     } else if (g_type_is_a(gtype, G_TYPE_GTYPE)) {
         GType type;
 
-        if (!value.isObject()) {
-            gjs_throw(context, "Wrong type %s; expect a GType object",
-                      gjs_get_type_name(value));
-            return false;
-        }
+        if (!value.isObject())
+            return throw_expect_type(context, value, "GType object");
 
         JS::RootedObject obj(context, &value.toObject());
         type = gjs_gtype_get_actual_gtype(context, obj);
@@ -716,10 +675,7 @@ gjs_value_to_g_value_internal(JSContext      *context,
             g_value_set_int(&int_value, i);
             g_value_transform(&int_value, gvalue);
         } else {
-            gjs_throw(context,
-                      "Wrong type %s; integer expected",
-                      gjs_get_type_name(value));
-            return false;
+            return throw_expect_type(context, value, "integer");
         }
     } else {
         gjs_debug(GJS_DEBUG_GCLOSURE, "JS::Value is number %d gtype fundamental %d transformable to int %d from int %d",
@@ -801,7 +757,7 @@ gjs_value_from_g_value_internal(JSContext             *context,
                               "Converting NULL string to JS::NullValue()");
             value_p.setNull();
         } else {
-            if (!gjs_string_from_utf8(context, v, -1, value_p))
+            if (!gjs_string_from_utf8(context, v, value_p))
                 return false;
         }
     } else if (gtype == G_TYPE_CHAR) {
@@ -934,24 +890,15 @@ gjs_value_from_g_value_internal(JSContext             *context,
         bool res;
         GArgument arg;
         GIArgInfo *arg_info;
-        GIBaseInfo *obj;
         GISignalInfo *signal_info;
         GITypeInfo type_info;
 
-        obj = g_irepository_find_by_gtype(NULL, signal_query->itype);
-        if (!obj) {
-            gjs_throw(context, "Signal argument with GType %s isn't introspectable",
-                      g_type_name(signal_query->itype));
-            return false;
-        }
-
-        signal_info = g_object_info_find_signal((GIObjectInfo*)obj, signal_query->signal_name);
-
+        signal_info = get_signal_info_if_available(signal_query);
         if (!signal_info) {
             gjs_throw(context, "Unknown signal.");
-            g_base_info_unref((GIBaseInfo*)obj);
             return false;
         }
+
         arg_info = g_callable_info_get_arg(signal_info, arg_n - 1);
         g_arg_info_load_type(arg_info, &type_info);
 
@@ -965,7 +912,6 @@ gjs_value_from_g_value_internal(JSContext             *context,
 
         g_base_info_unref((GIBaseInfo*)arg_info);
         g_base_info_unref((GIBaseInfo*)signal_info);
-        g_base_info_unref((GIBaseInfo*)obj);
         return res;
     } else if (g_type_is_a(gtype, G_TYPE_POINTER)) {
         gpointer pointer;

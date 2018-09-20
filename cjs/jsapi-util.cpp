@@ -24,6 +24,11 @@
 
 #include <config.h>
 
+#include <codecvt>
+#include <locale>
+#include "jsapi-wrapper.h"
+#include <js/GCAPI.h>
+
 #include <util/log.h>
 #include <util/glib.h>
 #include <util/misc.h>
@@ -31,9 +36,7 @@
 
 #include "jsapi-class.h"
 #include "jsapi-util.h"
-#include "jsapi-wrapper.h"
 #include "context-private.h"
-#include "jsapi-private.h"
 #include <gi/boxed.h>
 
 #include <string.h>
@@ -83,13 +86,11 @@ gjs_object_define_property(JSContext       *cx,
                            JS::HandleObject obj,
                            GjsConstString   property_name,
                            JS::HandleValue  value,
-                           unsigned         flags,
-                           JSNative         getter,
-                           JSNative         setter)
+                           unsigned         flags)
 {
     return JS_DefinePropertyById(cx, obj,
                                  gjs_context_get_const_string(cx, property_name),
-                                 value, flags, getter, setter);
+                                 value, flags);
 }
 
 bool
@@ -97,13 +98,11 @@ gjs_object_define_property(JSContext       *cx,
                            JS::HandleObject obj,
                            GjsConstString   property_name,
                            JS::HandleObject value,
-                           unsigned         flags,
-                           JSNative         getter,
-                           JSNative         setter)
+                           unsigned         flags)
 {
     return JS_DefinePropertyById(cx, obj,
                                  gjs_context_get_const_string(cx, property_name),
-                                 value, flags, getter, setter);
+                                 value, flags);
 }
 
 bool
@@ -111,13 +110,11 @@ gjs_object_define_property(JSContext       *cx,
                            JS::HandleObject obj,
                            GjsConstString   property_name,
                            JS::HandleString value,
-                           unsigned         flags,
-                           JSNative         getter,
-                           JSNative         setter)
+                           unsigned         flags)
 {
     return JS_DefinePropertyById(cx, obj,
                                  gjs_context_get_const_string(cx, property_name),
-                                 value, flags, getter, setter);
+                                 value, flags);
 }
 
 bool
@@ -125,13 +122,11 @@ gjs_object_define_property(JSContext       *cx,
                            JS::HandleObject obj,
                            GjsConstString   property_name,
                            uint32_t         value,
-                           unsigned         flags,
-                           JSNative         getter,
-                           JSNative         setter)
+                           unsigned         flags)
 {
     return JS_DefinePropertyById(cx, obj,
                                  gjs_context_get_const_string(cx, property_name),
-                                 value, flags, getter, setter);
+                                 value, flags);
 }
 
 static void
@@ -144,15 +139,12 @@ throw_property_lookup_error(JSContext       *cx,
     /* remember gjs_throw() is a no-op if JS_GetProperty()
      * already set an exception
      */
-    GjsAutoJSChar name(cx);
-    gjs_get_string_id(cx, property_name, &name);
-
     if (description)
-        gjs_throw(cx, "No property '%s' in %s (or %s)", name.get(), description,
-                  reason);
+        gjs_throw(cx, "No property '%s' in %s (or %s)",
+                  gjs_debug_id(property_name).c_str(), description, reason);
     else
-        gjs_throw(cx, "No property '%s' in object %p (or %s)", name.get(),
-                  obj.address(), reason);
+        gjs_throw(cx, "No property '%s' in object %p (or %s)",
+                  gjs_debug_id(property_name).c_str(), obj.get(), reason);
 }
 
 /* Returns whether the object had the property; if the object did
@@ -319,8 +311,9 @@ gjs_build_string_array(JSContext   *context,
         g_error("Unable to reserve memory for vector");
 
     for (i = 0; i < array_length; ++i) {
+        JS::ConstUTF8CharsZ chars(array_values[i], strlen(array_values[i]));
         JS::RootedValue element(context,
-            JS::StringValue(JS_NewStringCopyZ(context, array_values[i])));
+            JS::StringValue(JS_NewStringCopyUTF8Z(context, chars)));
         if (!elems.append(element))
             g_error("Unable to append to vector");
     }
@@ -360,22 +353,21 @@ gjs_define_string_array(JSContext       *context,
  *
  */
 static char *
-gjs_string_readable (JSContext   *context,
-                     JSString    *string)
+gjs_string_readable(JSContext       *context,
+                    JS::HandleString string)
 {
     GString *buf = g_string_new("");
-    GjsAutoJSChar chars(context);
 
     JS_BeginRequest(context);
 
     g_string_append_c(buf, '"');
 
-    if (!gjs_string_to_utf8(context, JS::StringValue(string), &chars)) {
-        /* I'm not sure this code will actually ever be reached, since
-         * JS_EncodeStringToUTF8(), called internally by
-         * gjs_string_to_utf8(), seems to happily output non-valid UTF-8
-         * bytes. However, let's leave this in, since SpiderMonkey may
-         * decide to do this in the future. */
+    GjsAutoJSChar chars = JS_EncodeStringToUTF8(context, string);
+    if (!chars) {
+        /* I'm not sure this code will actually ever be reached except in the
+         * case of OOM, since JS_EncodeStringToUTF8() seems to happily output
+         * non-valid UTF-8 bytes. However, let's leave this in, since
+         * SpiderMonkey may decide to do validation in the future. */
 
         /* Find out size of buffer to allocate, not counting 0-terminator */
         size_t len = JS_PutEscapedString(context, NULL, 0, string, '"');
@@ -450,7 +442,8 @@ gjs_value_debug_string(JSContext      *context,
 
     /* Special case debug strings for strings */
     if (value.isString()) {
-        return gjs_string_readable(context, value.toString());
+        JS::RootedString str(context, value.toString());
+        return gjs_string_readable(context, str);
     }
 
     JS_BeginRequest(context);
@@ -496,10 +489,11 @@ static char *
 utf8_exception_from_non_gerror_value(JSContext      *cx,
                                      JS::HandleValue exc)
 {
-    GjsAutoJSChar utf8_exception(cx);
     JS::RootedString exc_str(cx, JS::ToString(cx, exc));
-    if (exc_str)
-        gjs_string_to_utf8(cx, JS::StringValue(exc_str), &utf8_exception);
+    if (!exc_str)
+        return nullptr;
+
+    GjsAutoJSChar utf8_exception = JS_EncodeStringToUTF8(cx, exc_str);
     return utf8_exception.copy();
 }
 
@@ -509,7 +503,6 @@ gjs_log_exception_full(JSContext       *context,
                        JS::HandleString message)
 {
     char *utf8_exception;
-    GjsAutoJSChar utf8_message(context);
     bool is_syntax;
 
     JS_BeginRequest(context);
@@ -527,22 +520,17 @@ gjs_log_exception_full(JSContext       *context,
                                              g_quark_to_string(gerror->domain),
                                              gerror->message);
         } else {
-            JS::RootedValue js_name(context);
-            GjsAutoJSChar utf8_name(context);
-
-            if (gjs_object_get_property(context, exc_obj,
-                                        GJS_STRING_NAME, &js_name) &&
-                js_name.isString() &&
-                gjs_string_to_utf8(context, js_name, &utf8_name)) {
-                is_syntax = strcmp("SyntaxError", utf8_name) == 0;
-            }
+            const JSClass *syntax_error =
+                js::Jsvalify(js::ProtoKeyToClass(JSProto_SyntaxError));
+            is_syntax = JS_InstanceOf(context, exc_obj, syntax_error, nullptr);
 
             utf8_exception = utf8_exception_from_non_gerror_value(context, exc);
         }
     }
 
+    GjsAutoJSChar utf8_message;
     if (message)
-        gjs_string_to_utf8(context, JS::StringValue(message), &utf8_message);
+        utf8_message = JS_EncodeStringToUTF8(context, message);
 
     /* We log syntax errors differently, because the stack for those includes
        only the referencing module, but we want to print out the filename and
@@ -552,17 +540,19 @@ gjs_log_exception_full(JSContext       *context,
     if (is_syntax) {
         JS::RootedValue js_lineNumber(context), js_fileName(context);
         unsigned lineNumber;
-        GjsAutoJSChar utf8_filename(context);
 
         gjs_object_get_property(context, exc_obj, GJS_STRING_LINE_NUMBER,
                                 &js_lineNumber);
         gjs_object_get_property(context, exc_obj, GJS_STRING_FILENAME,
                                 &js_fileName);
 
-        if (js_fileName.isString())
-            gjs_string_to_utf8(context, js_fileName, &utf8_filename);
-        else
-            utf8_filename.reset(context, JS_strdup(context, "unknown"));
+        GjsAutoJSChar utf8_filename;
+        if (js_fileName.isString()) {
+            JS::RootedString str(context, js_fileName.toString());
+            utf8_filename = JS_EncodeStringToUTF8(context, str);
+        }
+        if (!utf8_filename)
+            utf8_filename = JS_strdup(context, "unknown");
 
         lineNumber = js_lineNumber.toInt32();
 
@@ -575,25 +565,24 @@ gjs_log_exception_full(JSContext       *context,
         }
 
     } else {
-        GjsAutoJSChar utf8_stack(context);
+        GjsAutoJSChar utf8_stack;
         JS::RootedValue stack(context);
-        bool have_utf8_stack = false;
 
         if (exc.isObject() &&
             gjs_object_get_property(context, exc_obj, GJS_STRING_STACK,
                                     &stack) &&
             stack.isString()) {
-            gjs_string_to_utf8(context, stack, &utf8_stack);
-            have_utf8_stack = true;
+            JS::RootedString str(context, stack.toString());
+            utf8_stack = JS_EncodeStringToUTF8(context, str);
         }
 
         if (message) {
-            if (have_utf8_stack)
+            if (utf8_stack)
                 g_warning("JS ERROR: %s: %s\n%s", utf8_message.get(), utf8_exception, utf8_stack.get());
             else
                 g_warning("JS ERROR: %s: %s", utf8_message.get(), utf8_exception);
         } else {
-            if (have_utf8_stack)
+            if (utf8_stack)
                 g_warning("JS ERROR: %s\n%s", utf8_exception, utf8_stack.get());
             else
                 g_warning("JS ERROR: %s", utf8_exception);
@@ -648,29 +637,6 @@ gjs_call_function_value(JSContext                  *context,
 
     JS_EndRequest(context);
     return result;
-}
-
-/* get a debug string for type tag in JS::Value */
-const char*
-gjs_get_type_name(JS::Value value)
-{
-    if (value.isNull()) {
-        return "null";
-    } else if (value.isUndefined()) {
-        return "undefined";
-    } else if (value.isInt32()) {
-        return "integer";
-    } else if (value.isDouble()) {
-        return "double";
-    } else if (value.isBoolean()) {
-        return "boolean";
-    } else if (value.isString()) {
-        return "string";
-    } else if (value.isObject()) {
-        return "object";
-    } else {
-        return "<unknown>";
-    }
 }
 
 #ifdef __linux__
@@ -741,7 +707,7 @@ gjs_gc_if_needed (JSContext *context)
          */
         if (rss_size > linux_rss_trigger) {
             linux_rss_trigger = (gulong) MIN(G_MAXULONG, rss_size * 1.25);
-            JS_GC(context);
+            JS::GCForReason(context, GC_SHRINK, JS::gcreason::Reason::API);
         } else if (rss_size < (0.75 * linux_rss_trigger)) {
             /* If we've shrunk by 75%, lower the trigger */
             linux_rss_trigger = (rss_size * 1.25);
@@ -861,19 +827,19 @@ gjs_eval_with_scope(JSContext             *context,
         eval_obj = JS_NewPlainObject(context);
 
     JS::CompileOptions options(context);
-    options.setUTF8(true)
-           .setFileAndLine(filename, start_line_number)
+    options.setFileAndLine(filename, start_line_number)
            .setSourceIsLazy(true);
 
-    JS::RootedScript compiled_script(context);
-    if (!JS::Compile(context, options, script, real_len, &compiled_script))
-        return false;
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+    std::u16string utf16_string = convert.from_bytes(script);
+    JS::SourceBufferHolder buf(utf16_string.c_str(), utf16_string.size(),
+                               JS::SourceBufferHolder::NoOwnership);
 
     JS::AutoObjectVector scope_chain(context);
     if (!scope_chain.append(eval_obj))
         g_error("Unable to append to vector");
 
-    if (!JS_ExecuteScript(context, scope_chain, compiled_script, retval))
+    if (!JS::Evaluate(context, scope_chain, options, buf, retval))
         return false;
 
     gjs_schedule_gc_if_needed(context);

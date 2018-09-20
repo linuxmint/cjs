@@ -38,7 +38,6 @@
 #include "gerror.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-wrapper.h"
-#include "cjs/jsapi-private.h"
 #include "cjs/mem.h"
 
 #include <util/misc.h>
@@ -92,7 +91,7 @@ resolve_namespace_object(JSContext       *context,
 
     JSAutoRequest ar(context);
 
-    GjsAutoJSChar version(context);
+    GjsAutoJSChar version;
     if (!get_version_for_ns(context, repo_obj, ns_id, &version))
         return false;
 
@@ -114,7 +113,7 @@ resolve_namespace_object(JSContext       *context,
     if (error != NULL) {
         gjs_throw(context,
                   "Requiring %s, version %s: %s",
-                  ns_name, version?version:"none", error->message);
+                  ns_name, version ? version.get() : "none", error->message);
 
         g_error_free(error);
         return false;
@@ -162,26 +161,32 @@ repo_resolve(JSContext       *context,
              bool            *resolved)
 {
     Repo *priv;
-    GjsAutoJSChar name(context);
 
-    if (!gjs_get_string_id(context, id, &name)) {
+    if (!JSID_IS_STRING(id)) {
         *resolved = false;
         return true; /* not resolved, but no error */
     }
 
+    JSFlatString *str = JSID_TO_FLAT_STRING(id);
     /* let Object.prototype resolve these */
-    if (strcmp(name, "valueOf") == 0 ||
-        strcmp(name, "toString") == 0) {
+    if (JS_FlatStringEqualsAscii(str, "valueOf") ||
+        JS_FlatStringEqualsAscii(str, "toString")) {
         *resolved = false;
         return true;
     }
 
     priv = priv_from_js(context, obj);
-    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook obj %p priv %p",
-                     name.get(), obj.get(), priv);
+    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook, obj %s, priv %p",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(), priv);
 
     if (priv == NULL) {
         /* we are the prototype, or have the wrong class */
+        *resolved = false;
+        return true;
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
         *resolved = false;
         return true;
     }
@@ -422,9 +427,9 @@ gjs_define_info(JSContext       *context,
             if (g_type_is_a (gtype, G_TYPE_PARAM)) {
                 gjs_define_param_class(context, in_object);
             } else if (g_type_is_a (gtype, G_TYPE_OBJECT)) {
-                JS::RootedObject ignored(context);
-                gjs_define_object_class(context, in_object,
-                                        (GIObjectInfo *) info, gtype, &ignored);
+                JS::RootedObject ignored1(context), ignored2(context);
+                gjs_define_object_class(context, in_object, info, gtype,
+                                        &ignored1, &ignored2);
             } else if (G_TYPE_IS_INSTANTIATABLE(gtype)) {
                 JS::RootedObject ignored1(context), ignored2(context);
                 if (!gjs_define_fundamental_class(context, in_object,

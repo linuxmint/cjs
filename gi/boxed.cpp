@@ -110,69 +110,23 @@ gjs_define_static_methods(JSContext       *context,
     return true;
 }
 
-/*
- * The *objp out parameter, on success, should be null to indicate that id
- * was not resolved; and non-null, referring to obj or one of its prototypes,
- * if id was resolved.
- */
+/* The *resolved out parameter, on success, should be false to indicate that id
+ * was not resolved; and true if id was resolved. */
 static bool
 boxed_resolve(JSContext       *context,
               JS::HandleObject obj,
               JS::HandleId     id,
               bool            *resolved)
 {
-    Boxed *priv;
-    GjsAutoJSChar name(context);
-
-    if (!gjs_get_string_id(context, id, &name)) {
-        *resolved = false;
-        return true;
-    }
-
-    priv = priv_from_js(context, obj);
-    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook obj %p priv %p",
-                     name.get(), obj.get(), priv);
+    Boxed *priv = priv_from_js(context, obj);
+    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook, obj %s, priv %p",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(),
+                     priv);
 
     if (priv == nullptr)
         return false; /* wrong class */
 
-    if (priv->gboxed == NULL) {
-        /* We are the prototype, so look for methods and other class properties */
-        GIFunctionInfo *method_info;
-
-        method_info = g_struct_info_find_method((GIStructInfo*) priv->info,
-                                                name);
-
-        if (method_info != NULL) {
-            const char *method_name;
-
-#if GJS_VERBOSE_ENABLE_GI_USAGE
-            _gjs_log_info_usage((GIBaseInfo*) method_info);
-#endif
-            if (g_function_info_get_flags (method_info) & GI_FUNCTION_IS_METHOD) {
-                method_name = g_base_info_get_name( (GIBaseInfo*) method_info);
-
-                gjs_debug(GJS_DEBUG_GBOXED,
-                          "Defining method %s in prototype for %s.%s",
-                          method_name,
-                          g_base_info_get_namespace( (GIBaseInfo*) priv->info),
-                          g_base_info_get_name( (GIBaseInfo*) priv->info));
-
-                /* obj is the Boxed prototype */
-                if (gjs_define_function(context, obj, priv->gtype,
-                                        (GICallableInfo *)method_info) == NULL) {
-                    g_base_info_unref( (GIBaseInfo*) method_info);
-                    return false;
-                }
-
-                *resolved = true;
-            } else {
-                *resolved = false;
-            }
-
-            g_base_info_unref( (GIBaseInfo*) method_info);
-        }
-    } else {
+    if (priv->gboxed) {
         /* We are an instance, not a prototype, so look for
          * per-instance props that we want to define on the
          * JSObject. Generally we do not want to cache these in JS, we
@@ -181,7 +135,46 @@ boxed_resolve(JSContext       *context,
          * hooks, not this resolve hook.
          */
         *resolved = false;
+        return true;
     }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
+        *resolved = false;
+        return true;
+    }
+
+    /* We are the prototype, so look for methods and other class properties */
+    GIFunctionInfo *method_info = g_struct_info_find_method(priv->info, name);
+    if (!method_info) {
+        *resolved = false;
+        return true;
+    }
+#if GJS_VERBOSE_ENABLE_GI_USAGE
+    _gjs_log_info_usage(method_info);
+#endif
+
+    if (g_function_info_get_flags(method_info) & GI_FUNCTION_IS_METHOD) {
+        const char *method_name = g_base_info_get_name(method_info);
+
+        gjs_debug(GJS_DEBUG_GBOXED,
+                  "Defining method %s in prototype for %s.%s",
+                  method_name,
+                  g_base_info_get_namespace( (GIBaseInfo*) priv->info),
+                  g_base_info_get_name( (GIBaseInfo*) priv->info));
+
+        /* obj is the Boxed prototype */
+        if (!gjs_define_function(context, obj, priv->gtype, method_info)) {
+            g_base_info_unref( (GIBaseInfo*) method_info);
+            return false;
+        }
+
+        *resolved = true;
+    } else {
+        *resolved = false;
+    }
+
+    g_base_info_unref(method_info);
     return true;
 }
 
@@ -275,10 +268,9 @@ boxed_init_from_props(JSContext   *context,
         priv->field_map = get_field_map(priv->info);
 
     JS::RootedValue value(context);
-    JS::RootedId prop_id(context);
     for (ix = 0, length = ids.length(); ix < length; ix++) {
         GIFieldInfo *field_info;
-        GjsAutoJSChar name(context);
+        GjsAutoJSChar name;
 
         if (!gjs_get_string_id(context, ids[ix], &name))
             return false;
@@ -292,9 +284,9 @@ boxed_init_from_props(JSContext   *context,
 
         /* ids[ix] is reachable because props is rooted, but require_property
          * doesn't know that */
-        prop_id = ids[ix];
         if (!gjs_object_require_property(context, props, "property list",
-                                         prop_id, &value))
+                                         JS::HandleId::fromMarkedLocation(ids[ix].address()),
+                                         &value))
             return false;
 
         if (!boxed_set_field_from_value(context, priv, field_info, value))
@@ -373,15 +365,14 @@ boxed_new(JSContext             *context,
     } else if (priv->can_allocate_directly) {
         boxed_new_direct(priv);
     } else if (priv->default_constructor >= 0) {
-        bool retval;
-
-        /* for simplicity, we simply delegate all the work to the actual JS constructor
-           function (which we retrieve from the JS constructor, that is, Namespace.BoxedType,
-           or object.constructor, given that object was created with the right prototype */
-        JS::RootedId default_constructor_name(context, priv->default_constructor_name);
-        retval = boxed_invoke_constructor(context, obj,
-                                          default_constructor_name, args);
-        return retval;
+        /* for simplicity, we simply delegate all the work to the actual JS
+         * constructor function (which we retrieve from the JS constructor,
+         * that is, Namespace.BoxedType, or object.constructor, given that
+         * object was created with the right prototype. The ID is traced from
+         * the object, so it's OK to create a handle from it. */
+        return boxed_invoke_constructor(context, obj,
+            JS::HandleId::fromMarkedLocation(priv->default_constructor_name.address()),
+            args);
     } else {
         gjs_throw(context, "Unable to construct struct type %s since it has no default constructor and cannot be allocated directly",
                   g_base_info_get_name((GIBaseInfo*) priv->info));
@@ -834,23 +825,17 @@ define_boxed_class_fields(JSContext       *cx,
      * error message. If we omitted fields or defined them read-only
      * we'd:
      *
-     *  - Storing a new property for a non-accessible field
+     *  - Store a new property for a non-accessible field
      *  - Silently do nothing when writing a read-only field
      *
      * Which is pretty confusing if the only reason a field isn't
      * writable is language binding or memory-management restrictions.
      *
      * We just go ahead and define the fields immediately for the
-     * class; doing it lazily in boxed_new_resolve() would be possible
+     * class; doing it lazily in boxed_resolve() would be possible
      * as well if doing it ahead of time caused to much start-up
      * memory overhead.
      */
-    if (n_fields > 256) {
-        g_warning("Only defining the first 256 fields in boxed type '%s'",
-                  g_base_info_get_name ((GIBaseInfo *)priv->info));
-        n_fields = 256;
-    }
-
     for (i = 0; i < n_fields; i++) {
         GIFieldInfo *field = g_struct_info_get_field (priv->info, i);
         const char *field_name = g_base_info_get_name ((GIBaseInfo *)field);
@@ -1284,7 +1269,7 @@ gjs_typecheck_boxed(JSContext       *context,
 
     if (priv->gboxed == NULL) {
         if (throw_error) {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is %s.%s.prototype, not an object instance - cannot convert to a boxed instance",
                              g_base_info_get_namespace( (GIBaseInfo*) priv->info),
                              g_base_info_get_name( (GIBaseInfo*) priv->info));
@@ -1302,14 +1287,14 @@ gjs_typecheck_boxed(JSContext       *context,
 
     if (!result && throw_error) {
         if (expected_info != NULL) {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s.%s - cannot convert to %s.%s",
                              g_base_info_get_namespace((GIBaseInfo*) priv->info),
                              g_base_info_get_name((GIBaseInfo*) priv->info),
                              g_base_info_get_namespace((GIBaseInfo*) expected_info),
                              g_base_info_get_name((GIBaseInfo*) expected_info));
         } else {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s.%s - cannot convert to %s",
                              g_base_info_get_namespace((GIBaseInfo*) priv->info),
                              g_base_info_get_name((GIBaseInfo*) priv->info),

@@ -1,6 +1,6 @@
-/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2010 litl, LLC
+/* profiler.h
+ *
+ * Copyright (C) 2016 Christian Hergert <christian@hergert.me>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -21,23 +21,32 @@
  * IN THE SOFTWARE.
  */
 
-/* This file wraps C++ stuff from the spidermonkey private API so we
- * can use it from our other C files. This file should be included by
- * jsapi-util.c only. "Public" API from this jsapi-private.c should be
- * declared in jsapi-util.h
- */
+#ifndef GJS_PROFILER_H
+#define GJS_PROFILER_H
 
-#ifndef __GJS_JSAPI_PRIVATE_H__
-#define __GJS_JSAPI_PRIVATE_H__
+#include <glib.h>
 
-#include <glib-object.h>
-#include "cjs/jsapi-util.h"
+#include <cjs/context.h>
 
 G_BEGIN_DECLS
 
-void gjs_schedule_gc_if_needed (JSContext *context);
-void gjs_gc_if_needed          (JSContext *context);
+#define GJS_TYPE_PROFILER (gjs_profiler_get_type())
+
+typedef struct _GjsProfiler GjsProfiler;
+
+GJS_EXPORT
+GType gjs_profiler_get_type(void);
+
+GJS_EXPORT
+void gjs_profiler_set_filename(GjsProfiler *self,
+                               const char  *filename);
+
+GJS_EXPORT
+void gjs_profiler_start(GjsProfiler *self);
+
+GJS_EXPORT
+void gjs_profiler_stop(GjsProfiler *self);
 
 G_END_DECLS
 
-#endif  /* __GJS_JSAPI_PRIVATE_H__ */
+#endif /* GJS_PROFILER_H */

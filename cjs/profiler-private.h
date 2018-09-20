@@ -1,6 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
- * Copyright (c) 2013 Red Hat, Inc.
+ * Copyright (c) 2018 Endless Mobile, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,23 +20,22 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-#ifndef __GJS_UTIL_HASH_X32_H__
-#define __GJS_UTIL_HASH_X32_H__
 
-#include <glib.h>
+#ifndef GJS_PROFILER_PRIVATE_H
+#define GJS_PROFILER_PRIVATE_H
+
+#include "context.h"
+#include "profiler.h"
 
 G_BEGIN_DECLS
 
-/* Hash table that operates on gsize; on every architecture except x32,
- * sizeof(gsize) == sizeof(gpointer), and so we can just use it as a
- * hash key directly.  But on x32, we have to fall back to malloc().
- */
+GjsProfiler *_gjs_profiler_new(GjsContext *context);
+void _gjs_profiler_free(GjsProfiler *self);
 
-GHashTable *gjs_hash_table_new_for_gsize (GDestroyNotify value_destroy);
-void gjs_hash_table_for_gsize_insert (GHashTable *table, gsize key, gpointer value);
-void gjs_hash_table_for_gsize_remove (GHashTable *table, gsize key);
-gpointer gjs_hash_table_for_gsize_lookup (GHashTable *table, gsize key);
+bool _gjs_profiler_is_running(GjsProfiler *self);
+
+void _gjs_profiler_setup_signals(GjsProfiler *self, GjsContext *context);
 
 G_END_DECLS
 
-#endif
+#endif  /* GJS_PROFILER_PRIVATE_H */

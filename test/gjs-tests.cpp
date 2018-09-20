@@ -29,7 +29,7 @@
 #include <glib-object.h>
 #include <util/glib.h>
 
-#include <cjs/context.h>
+#include <cjs/gjs.h>
 #include "cjs/jsapi-util.h"
 #include "cjs/jsapi-wrapper.h"
 #include "gjs-test-utils.h"
@@ -119,11 +119,11 @@ static void
 gjstest_test_func_gjs_jsapi_util_string_js_string_utf8(GjsUnitTestFixture *fx,
                                                        gconstpointer       unused)
 {
-    GjsAutoJSChar utf8_result(fx->cx);
     JS::RootedValue js_string(fx->cx);
-
-    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1, &js_string));
+    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, &js_string));
     g_assert(js_string.isString());
+
+    GjsAutoJSChar utf8_result;
     g_assert(gjs_string_to_utf8(fx->cx, js_string, &utf8_result));
     g_assert_cmpstr(VALID_UTF8_STRING, ==, utf8_result);
 }
@@ -133,7 +133,6 @@ gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture *fx,
                                              gconstpointer       unused)
 {
     JS::RootedValue exc(fx->cx), value(fx->cx);
-    GjsAutoJSChar s(fx->cx);
 
     /* Test that we can throw */
 
@@ -149,6 +148,7 @@ gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture *fx,
 
     g_assert(value.isString());
 
+    GjsAutoJSChar s;
     gjs_string_to_utf8(fx->cx, value, &s);
     g_assert_nonnull(s);
     g_assert_cmpstr(s, ==, "This is an exception 42");
@@ -176,25 +176,33 @@ gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture *fx,
 }
 
 static void
+test_jsapi_util_string_utf8_nchars_to_js(GjsUnitTestFixture *fx,
+                                         const void         *unused)
+{
+    JS::RootedValue v_out(fx->cx);
+    bool ok = gjs_string_from_utf8_n(fx->cx, VALID_UTF8_STRING,
+                                     strlen(VALID_UTF8_STRING), &v_out);
+    g_assert_true(ok);
+    g_assert_true(v_out.isString());
+}
+
+static void
 test_jsapi_util_string_char16_data(GjsUnitTestFixture *fx,
                                    gconstpointer       unused)
 {
     char16_t *chars;
     size_t len;
-    JS::RootedValue v_string(fx->cx);
 
-    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1,
-                                       &v_string));
-    g_assert_true(gjs_string_get_char16_data(fx->cx, v_string, &chars,
-                                             &len));
+    JS::ConstUTF8CharsZ jschars(VALID_UTF8_STRING, strlen(VALID_UTF8_STRING));
+    JS::RootedString str(fx->cx, JS_NewStringCopyUTF8Z(fx->cx, jschars));
+    g_assert_true(gjs_string_get_char16_data(fx->cx, str, &chars, &len));
     std::u16string result(chars, len);
     g_assert_true(result == u"\xc9\xd6 foobar \u30df");
     g_free(chars);
 
     /* Try with a string that is likely to be stored as Latin-1 */
-    v_string.setString(JS_NewStringCopyZ(fx->cx, "abcd"));
-    g_assert_true(gjs_string_get_char16_data(fx->cx, v_string, &chars,
-                                             &len));
+    str = JS_NewStringCopyZ(fx->cx, "abcd");
+    g_assert_true(gjs_string_get_char16_data(fx->cx, str, &chars, &len));
 
     result.assign(chars, len);
     g_assert_true(result == u"abcd");
@@ -207,19 +215,18 @@ test_jsapi_util_string_to_ucs4(GjsUnitTestFixture *fx,
 {
     gunichar *chars;
     size_t len;
-    JS::RootedValue v_string(fx->cx);
 
-    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1,
-                                       &v_string));
-    g_assert_true(gjs_string_to_ucs4(fx->cx, v_string, &chars, &len));
+    JS::ConstUTF8CharsZ jschars(VALID_UTF8_STRING, strlen(VALID_UTF8_STRING));
+    JS::RootedString str(fx->cx, JS_NewStringCopyUTF8Z(fx->cx, jschars));
+    g_assert_true(gjs_string_to_ucs4(fx->cx, str, &chars, &len));
 
     std::u32string result(chars, chars + len);
     g_assert_true(result == U"\xc9\xd6 foobar \u30df");
     g_free(chars);
 
     /* Try with a string that is likely to be stored as Latin-1 */
-    v_string.setString(JS_NewStringCopyZ(fx->cx, "abcd"));
-    g_assert_true(gjs_string_to_ucs4(fx->cx, v_string, &chars, &len));
+    str = JS_NewStringCopyZ(fx->cx, "abcd");
+    g_assert_true(gjs_string_to_ucs4(fx->cx, str, &chars, &len));
 
     result.assign(chars, chars + len);
     g_assert_true(result == U"abcd");
@@ -231,8 +238,7 @@ test_jsapi_util_debug_string_valid_utf8(GjsUnitTestFixture *fx,
                                         gconstpointer       unused)
 {
     JS::RootedValue v_string(fx->cx);
-    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, -1,
-                                       &v_string));
+    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, &v_string));
 
     char *debug_output = gjs_value_debug_string(fx->cx, v_string);
 
@@ -370,6 +376,32 @@ gjstest_test_strip_shebang_return_null_for_just_shebang(void)
     g_assert(line_number == -1);
 }
 
+static void
+gjstest_test_profiler_start_stop(void)
+{
+    GjsAutoUnref<GjsContext> context =
+        static_cast<GjsContext *>(g_object_new(GJS_TYPE_CONTEXT,
+                                               "profiler-enabled", TRUE,
+                                               nullptr));
+    GjsProfiler *profiler = gjs_context_get_profiler(context);
+
+    gjs_profiler_start(profiler);
+
+    for (size_t ix = 0; ix < 100; ix++) {
+        GError *error = nullptr;
+        int estatus;
+
+#define TESTJS "[1,5,7,1,2,3,67,8].sort()"
+
+        if (!gjs_context_eval(context, TESTJS, -1, "<input>", &estatus, &error))
+            g_printerr("ERROR: %s", error->message);
+
+#undef TESTJS
+    }
+
+    gjs_profiler_stop(profiler);
+}
+
 int
 main(int    argc,
      char **argv)
@@ -378,6 +410,9 @@ main(int    argc,
      * is set; use this when running under GDB, for example */
     if (!g_getenv("GJS_TEST_SKIP_TIMEOUT"))
         gjs_crash_after_timeout(60 * 7);
+
+    /* Avoid interference in the tests from stray environment variable */
+    g_unsetenv("GJS_ENABLE_PROFILER");
 
     g_test_init(&argc, &argv, NULL);
 
@@ -388,6 +423,7 @@ main(int    argc,
     g_test_add_func("/gjs/jsutil/strip_shebang/no_shebang", gjstest_test_strip_shebang_no_advance_for_no_shebang);
     g_test_add_func("/gjs/jsutil/strip_shebang/have_shebang", gjstest_test_strip_shebang_advance_for_shebang);
     g_test_add_func("/gjs/jsutil/strip_shebang/only_shebang", gjstest_test_strip_shebang_return_null_for_just_shebang);
+    g_test_add_func("/gjs/profiler/start_stop", gjstest_test_profiler_start_stop);
     g_test_add_func("/util/glib/strv/concat/null", gjstest_test_func_util_glib_strv_concat_null);
     g_test_add_func("/util/glib/strv/concat/pointers", gjstest_test_func_util_glib_strv_concat_pointers);
 
@@ -400,6 +436,8 @@ main(int    argc,
                         gjstest_test_func_gjs_jsapi_util_error_throw);
     ADD_JSAPI_UTIL_TEST("string/js/string/utf8",
                         gjstest_test_func_gjs_jsapi_util_string_js_string_utf8);
+    ADD_JSAPI_UTIL_TEST("string/utf8-nchars-to-js",
+                        test_jsapi_util_string_utf8_nchars_to_js);
     ADD_JSAPI_UTIL_TEST("string/char16_data",
                         test_jsapi_util_string_char16_data);
     ADD_JSAPI_UTIL_TEST("string/to_ucs4",

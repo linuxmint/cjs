@@ -43,11 +43,8 @@ extern struct JSClass gjs_ns_class;
 
 GJS_DEFINE_PRIV_FROM_JS(Ns, gjs_ns_class)
 
-/*
- * The *objp out parameter, on success, should be null to indicate that id
- * was not resolved; and non-null, referring to obj or one of its prototypes,
- * if id was resolved.
- */
+/* The *resolved out parameter, on success, should be false to indicate that id
+ * was not resolved; and true if id was resolved. */
 static bool
 ns_resolve(JSContext       *context,
            JS::HandleObject obj,
@@ -55,31 +52,37 @@ ns_resolve(JSContext       *context,
            bool            *resolved)
 {
     Ns *priv;
-    GjsAutoJSChar name(context);
     GIRepository *repo;
     GIBaseInfo *info;
     bool defined;
 
-    if (!gjs_get_string_id(context, id, &name)) {
+    if (!JSID_IS_STRING(id)) {
         *resolved = false;
         return true; /* not resolved, but no error */
     }
 
     /* let Object.prototype resolve these */
-    if (strcmp(name, "valueOf") == 0 ||
-        strcmp(name, "toString") == 0) {
+    JSFlatString *str = JSID_TO_FLAT_STRING(id);
+    if (JS_FlatStringEqualsAscii(str, "valueOf") ||
+        JS_FlatStringEqualsAscii(str, "toString")) {
         *resolved = false;
         return true;
     }
 
     priv = priv_from_js(context, obj);
     gjs_debug_jsprop(GJS_DEBUG_GNAMESPACE,
-                     "Resolve prop '%s' hook obj %p priv %p",
-                     name.get(), obj.get(), priv);
+                     "Resolve prop '%s' hook, obj %s, priv %p",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(), priv);
 
     if (priv == NULL) {
         *resolved = false;  /* we are the prototype, or have the wrong class */
         return true;
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
+        *resolved = false;
+        return true;  /* not resolved, but no error */
     }
 
     repo = g_irepository_get_default();
@@ -123,7 +126,7 @@ get_name (JSContext *context,
     if (priv == NULL)
         return false;
 
-    return gjs_string_from_utf8(context, priv->gi_namespace, -1, args.rval());
+    return gjs_string_from_utf8(context, priv->gi_namespace, args.rval());
 }
 
 GJS_NATIVE_CONSTRUCTOR_DEFINE_ABSTRACT(ns)

@@ -60,17 +60,9 @@ union_resolve(JSContext       *context,
               JS::HandleId     id,
               bool            *resolved)
 {
-    Union *priv;
-    GjsAutoJSChar name(context);
-
-    if (!gjs_get_string_id(context, id, &name)) {
-        *resolved = false;
-        return true; /* not resolved, but no error */
-    }
-
-    priv = priv_from_js(context, obj);
-    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook obj %p priv %p",
-                     name.get(), obj.get(), priv);
+    Union *priv = priv_from_js(context, obj);
+    gjs_debug_jsprop(GJS_DEBUG_GBOXED, "Resolve prop '%s' hook, obj %s, priv %p",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(), priv);
 
     if (priv == nullptr)
         return false; /* wrong class */
@@ -85,6 +77,12 @@ union_resolve(JSContext       *context,
          */
         *resolved = false;
         return true;
+    }
+
+    GjsAutoJSChar name;
+    if (!gjs_get_string_id(context, id, &name)) {
+        *resolved = false;
+        return true; /* not resolved, but no error */
     }
 
     /* We are the prototype, so look for methods and other class properties */
@@ -447,7 +445,7 @@ gjs_typecheck_union(JSContext       *context,
 
     if (priv->gboxed == NULL) {
         if (throw_error) {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is %s.%s.prototype, not an object instance - cannot convert to a union instance",
                              g_base_info_get_namespace( (GIBaseInfo*) priv->info),
                              g_base_info_get_name( (GIBaseInfo*) priv->info));
@@ -465,14 +463,14 @@ gjs_typecheck_union(JSContext       *context,
 
     if (!result && throw_error) {
         if (expected_info != NULL) {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s.%s - cannot convert to %s.%s",
                              g_base_info_get_namespace((GIBaseInfo*) priv->info),
                              g_base_info_get_name((GIBaseInfo*) priv->info),
                              g_base_info_get_namespace((GIBaseInfo*) expected_info),
                              g_base_info_get_name((GIBaseInfo*) expected_info));
         } else {
-            gjs_throw_custom(context, "TypeError", NULL,
+            gjs_throw_custom(context, JSProto_TypeError, nullptr,
                              "Object is of type %s.%s - cannot convert to %s",
                              g_base_info_get_namespace((GIBaseInfo*) priv->info),
                              g_base_info_get_name((GIBaseInfo*) priv->info),

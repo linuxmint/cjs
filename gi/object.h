@@ -25,7 +25,8 @@
 #define __GJS_OBJECT_H__
 
 #include <stdbool.h>
-#include <glib.h>
+
+#include <glib-object.h>
 #include <girepository.h>
 #include "cjs/jsapi-util.h"
 
@@ -35,7 +36,8 @@ void gjs_define_object_class(JSContext              *context,
                              JS::HandleObject        in_object,
                              GIObjectInfo           *info,
                              GType                   gtype,
-                             JS::MutableHandleObject constructor);
+                             JS::MutableHandleObject constructor,
+                             JS::MutableHandleObject prototype);
 
 bool gjs_lookup_object_constructor(JSContext             *context,
                                    GType                  gtype,
@@ -58,6 +60,9 @@ bool      gjs_typecheck_is_object(JSContext       *context,
 
 void gjs_object_prepare_shutdown(void);
 void gjs_object_clear_toggles(void);
+void gjs_object_shutdown_toggle_queue(void);
+void gjs_object_context_dispose_notify(void    *data,
+                                       GObject *where_the_object_was);
 
 void gjs_object_define_static_methods(JSContext       *context,
                                       JS::HandleObject constructor,
@@ -66,6 +71,10 @@ void gjs_object_define_static_methods(JSContext       *context,
 
 bool gjs_define_private_gi_stuff(JSContext              *cx,
                                  JS::MutableHandleObject module);
+
+bool gjs_object_associate_closure(JSContext       *cx,
+                                  JS::HandleObject obj,
+                                  GClosure        *closure);
 
 G_END_DECLS
 

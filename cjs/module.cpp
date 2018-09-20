@@ -21,9 +21,11 @@
  * IN THE SOFTWARE.
  */
 
+#include <codecvt>
+#include <locale>
+
 #include <gio/gio.h>
 
-#include "jsapi-private.h"
 #include "jsapi-util.h"
 #include "jsapi-wrapper.h"
 #include "module.h"
@@ -87,20 +89,20 @@ class GjsModule {
                     int              line_number)
     {
         JS::CompileOptions options(cx);
-        options.setUTF8(true)
-               .setFileAndLine(filename, line_number)
+        options.setFileAndLine(filename, line_number)
                .setSourceIsLazy(true);
 
-        JS::RootedScript compiled_script(cx);
-        if (!JS::Compile(cx, options, script, script_len, &compiled_script))
-            return false;
+        std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+        std::u16string utf16_string = convert.from_bytes(script);
+        JS::SourceBufferHolder buf(utf16_string.c_str(), utf16_string.size(),
+                                   JS::SourceBufferHolder::NoOwnership);
 
         JS::AutoObjectVector scope_chain(cx);
         if (!scope_chain.append(module))
             g_error("Unable to append to vector");
 
         JS::RootedValue ignored_retval(cx);
-        if (!JS_ExecuteScript(cx, scope_chain, compiled_script, &ignored_retval))
+        if (!JS::Evaluate(cx, scope_chain, options, buf, &ignored_retval))
             return false;
 
         gjs_schedule_gc_if_needed(cx);
@@ -161,17 +163,14 @@ class GjsModule {
          * be supported according to ES6. For compatibility with earlier GJS,
          * we treat it as if it were a real property, but warn about it. */
 
-        GjsAutoJSChar prop_name(cx);
-        if (!gjs_get_string_id(cx, id, &prop_name))
-            return false;
-
         g_warning("Some code accessed the property '%s' on the module '%s'. "
                   "That property was defined with 'let' or 'const' inside the "
                   "module. This was previously supported, but is not correct "
                   "according to the ES6 standard. Any symbols to be exported "
                   "from a module must be defined with 'var'. The property "
                   "access will work as previously for the time being, but "
-                  "please fix your code anyway.", prop_name.get(), m_name);
+                  "please fix your code anyway.",
+                  gjs_debug_id(id).c_str(), m_name);
 
         JS::Rooted<JS::PropertyDescriptor> desc(cx);
         return JS_GetPropertyDescriptorById(cx, lexical, id, &desc) &&

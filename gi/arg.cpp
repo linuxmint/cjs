@@ -428,13 +428,14 @@ value_to_ghashtable_key(JSContext      *cx,
     }
 
     case GI_TYPE_TAG_UTF8: {
-        GjsAutoJSChar cstr(cx);
-        JS::RootedValue str_val(cx, value);
-        if (!str_val.isString()) {
-            JS::RootedString str(cx, JS::ToString(cx, str_val));
-            str_val.setString(str);
-        }
-        if (!gjs_string_to_utf8(cx, str_val, &cstr))
+        JS::RootedString str(cx);
+        if (!value.isString())
+            str = JS::ToString(cx, value);
+        else
+            str = value.toString();
+
+        GjsAutoJSChar cstr = JS_EncodeStringToUTF8(cx, str);
+        if (!cstr)
             return false;
         *pointer_out = cstr.copy();
         break;
@@ -592,7 +593,7 @@ gjs_array_from_strv(JSContext             *context,
         if (!elems.growBy(1))
             g_error("Unable to grow vector");
 
-        if (!gjs_string_from_utf8(context, strv[i], -1, elems[i]))
+        if (!gjs_string_from_utf8(context, strv[i], elems[i]))
             return false;
     }
 
@@ -619,8 +620,6 @@ gjs_array_to_strv(JSContext   *context,
     result = g_new0(char *, length+1);
 
     for (i = 0; i < length; ++i) {
-        GjsAutoJSChar tmp_result(context);
-
         elem = JS::UndefinedValue();
         if (!JS_GetElement(context, array, i, &elem)) {
             g_free(result);
@@ -630,12 +629,7 @@ gjs_array_to_strv(JSContext   *context,
             return false;
         }
 
-        if (!elem.isString()) {
-            gjs_throw(context,
-                      "Invalid element in string array");
-            g_strfreev(result);
-            return false;
-        }
+        GjsAutoJSChar tmp_result;
         if (!gjs_string_to_utf8(context, elem, &tmp_result)) {
             g_strfreev(result);
             return false;
@@ -649,11 +643,11 @@ gjs_array_to_strv(JSContext   *context,
 }
 
 static bool
-gjs_string_to_intarray(JSContext   *context,
-                       JS::Value    string_val,
-                       GITypeInfo  *param_info,
-                       void       **arr_p,
-                       gsize       *length)
+gjs_string_to_intarray(JSContext       *context,
+                       JS::HandleString str,
+                       GITypeInfo      *param_info,
+                       void           **arr_p,
+                       size_t          *length)
 {
     GITypeTag element_type;
     char16_t *result16;
@@ -661,9 +655,8 @@ gjs_string_to_intarray(JSContext   *context,
     element_type = g_type_info_get_tag(param_info);
 
     if (element_type == GI_TYPE_TAG_INT8 || element_type == GI_TYPE_TAG_UINT8) {
-        GjsAutoJSChar result(context);
-
-        if (!gjs_string_to_utf8(context, string_val, &result))
+        GjsAutoJSChar result = JS_EncodeStringToUTF8(context, str);
+        if (!result)
             return false;
         *length = strlen(result);
         *arr_p = result.copy();
@@ -671,8 +664,7 @@ gjs_string_to_intarray(JSContext   *context,
     }
 
     if (element_type == GI_TYPE_TAG_INT16 || element_type == GI_TYPE_TAG_UINT16) {
-        if (!gjs_string_get_char16_data(context, string_val,
-                                        &result16, length))
+        if (!gjs_string_get_char16_data(context, str, &result16, length))
             return false;
         *arr_p = result16;
         return true;
@@ -680,8 +672,7 @@ gjs_string_to_intarray(JSContext   *context,
 
     if (element_type == GI_TYPE_TAG_UNICHAR) {
         gunichar *result_ucs4;
-        JS::RootedValue root(context, string_val);
-        if (!gjs_string_to_ucs4(context, root, &result_ucs4, length))
+        if (!gjs_string_to_ucs4(context, str, &result_ucs4, length))
             return false;
         *arr_p = result_ucs4;
         return true;
@@ -1253,7 +1244,7 @@ throw_invalid_argument(JSContext      *context,
 
     gjs_throw(context, "Expected type %s for %s but got type '%s'",
               type_tag_to_human_string(arginfo),
-              display_name, gjs_get_type_name(value));
+              display_name, JS::InformalValueTypeName(value));
     g_free(display_name);
 }
 
@@ -1286,8 +1277,8 @@ gjs_array_to_explicit_array_internal(JSContext       *context,
         *length_p = 0;
     } else if (value.isString()) {
         /* Allow strings as int8/uint8/int16/uint16 arrays */
-        if (!gjs_string_to_intarray(context, value, param_info,
-                                    contents, length_p))
+        JS::RootedString str(context, value.toString());
+        if (!gjs_string_to_intarray(context, str, param_info, contents, length_p))
             goto out;
     } else {
         JS::RootedObject array_obj(context, &value.toObject());
@@ -1321,6 +1312,38 @@ gjs_array_to_explicit_array_internal(JSContext       *context,
     g_base_info_unref((GIBaseInfo*) param_info);
 
     return ret;
+}
+
+static bool
+is_gdk_atom(GIBaseInfo *info)
+{
+    return (strcmp("Atom", g_base_info_get_name(info)) == 0 &&
+            strcmp("Gdk", g_base_info_get_namespace(info)) == 0);
+}
+
+static void
+intern_gdk_atom(const char *name,
+                GArgument  *ret)
+{
+    GIRepository *repo = g_irepository_get_default();
+    GIFunctionInfo *atom_intern_fun =
+        g_irepository_find_by_name(repo, "Gdk", "atom_intern");
+
+    GIArgument atom_intern_args[2];
+
+    /* Can only store char * in GIArgument. First argument to gdk_atom_intern
+     * is const char *, string isn't modified. */
+    atom_intern_args[0].v_string = const_cast<char *>(name);
+
+    atom_intern_args[1].v_boolean = false;
+
+    g_function_info_invoke(atom_intern_fun,
+                           atom_intern_args, 2,
+                           nullptr, 0,
+                           ret,
+                           nullptr);
+
+    g_base_info_unref(atom_intern_fun);
 }
 
 bool
@@ -1493,8 +1516,9 @@ gjs_value_to_g_argument(JSContext      *context,
         if (value.isNull()) {
             arg->v_pointer = NULL;
         } else if (value.isString()) {
-            GjsAutoJSChar utf8_str(context);
-            if (gjs_string_to_utf8(context, value, &utf8_str))
+            JS::RootedString str(context, value.toString());
+            GjsAutoJSChar utf8_str = JS_EncodeStringToUTF8(context, str);
+            if (utf8_str)
                 arg->v_pointer = utf8_str.copy();
             else
                 wrong = true;
@@ -1586,6 +1610,24 @@ gjs_value_to_g_argument(JSContext      *context,
                 } else {
                     arg->v_pointer = NULL;
                     wrong = true;
+                }
+            } else if (is_gdk_atom(interface_info)) {
+                if (!value.isNull() && !value.isString()) {
+                    wrong = true;
+                    report_type_mismatch = true;
+                } else if (value.isNull()) {
+                    intern_gdk_atom("NONE", arg);
+                } else {
+                    JS::RootedString str(context, value.toString());
+                    GjsAutoJSChar atom_name = JS_EncodeStringToUTF8(context, str);
+
+                    if (!atom_name) {
+                        wrong = true;
+                        g_base_info_unref(interface_info);
+                        break;
+                    }
+
+                    intern_gdk_atom(atom_name, arg);
                 }
             } else if (expect_object != value.isObjectOrNull()) {
                 wrong = true;
@@ -1754,7 +1796,7 @@ gjs_value_to_g_argument(JSContext      *context,
                 if (arg->v_pointer == NULL) {
                     gjs_debug(GJS_DEBUG_GFUNCTION,
                               "conversion of JSObject %p type %s to type %s failed",
-                              &value.toObject(), gjs_get_type_name(value),
+                              &value.toObject(), JS::InformalValueTypeName(value),
                               g_base_info_get_name ((GIBaseInfo *)interface_info));
 
                     /* gjs_throw should have been called already */
@@ -1794,7 +1836,7 @@ gjs_value_to_g_argument(JSContext      *context,
             } else {
                 gjs_debug(GJS_DEBUG_GFUNCTION,
                           "JSObject type '%s' is neither null nor an object",
-                          gjs_get_type_name(value));
+                          JS::InformalValueTypeName(value));
                 wrong = true;
                 report_type_mismatch = true;
             }
@@ -2569,8 +2611,8 @@ gjs_object_from_g_hash (JSContext             *context,
         if (!keystr)
             return false;
 
-        GjsAutoJSChar keyutf8(context);
-        if (!gjs_string_to_utf8(context, JS::StringValue(keystr), &keyutf8))
+        GjsAutoJSChar keyutf8 = JS_EncodeStringToUTF8(context, keystr);
+        if (!keyutf8)
             return false;
 
         if (!gjs_value_from_g_argument(context, &valjs,
@@ -2662,11 +2704,18 @@ gjs_value_from_g_argument (JSContext             *context,
         break;
 
     case GI_TYPE_TAG_GTYPE:
-        {
-            JSObject *obj;
-            obj = gjs_gtype_create_gtype_wrapper(context, arg->v_ssize);
-            value_p.setObjectOrNull(obj);
-        }
+    {
+        GType gtype = arg->v_ssize;
+        if (gtype == 0)
+            return true;  /* value_p is set to JS null */
+
+        JS::RootedObject obj(context, gjs_gtype_create_gtype_wrapper(context, gtype));
+        if (!obj)
+            return false;
+
+        value_p.setObject(*obj);
+        return true;
+    }
         break;
 
     case GI_TYPE_TAG_UNICHAR:
@@ -2676,7 +2725,8 @@ gjs_value_from_g_argument (JSContext             *context,
 
             /* Preserve the bidirectional mapping between 0 and "" */
             if (arg->v_uint32 == 0) {
-                return gjs_string_from_utf8 (context, "", 0, value_p);
+                value_p.set(JS_GetEmptyStringValue(context));
+                return true;
             } else if (!g_unichar_validate (arg->v_uint32)) {
                 gjs_throw(context,
                           "Invalid unicode codepoint %" G_GUINT32_FORMAT,
@@ -2684,7 +2734,7 @@ gjs_value_from_g_argument (JSContext             *context,
                 return false;
             } else {
                 bytes = g_unichar_to_utf8 (arg->v_uint32, utf8);
-                return gjs_string_from_utf8 (context, (char*)utf8, bytes, value_p);
+                return gjs_string_from_utf8_n(context, utf8, bytes, value_p);
             }
         }
 
@@ -2698,9 +2748,9 @@ gjs_value_from_g_argument (JSContext             *context,
             return true;
         }
     case GI_TYPE_TAG_UTF8:
-        if (arg->v_pointer)
-            return gjs_string_from_utf8(context, (const char *) arg->v_pointer, -1, value_p);
-        else {
+        if (arg->v_pointer) {
+            return gjs_string_from_utf8(context, reinterpret_cast<const char *>(arg->v_pointer), value_p);
+        } else {
             /* For NULL we'll return JS::NullValue(), which is already set
              * in *value_p
              */
@@ -2820,6 +2870,32 @@ gjs_value_from_g_argument (JSContext             *context,
             }
 
             if (interface_type == GI_INFO_TYPE_STRUCT || interface_type == GI_INFO_TYPE_BOXED) {
+                if (is_gdk_atom(interface_info)) {
+                    GIFunctionInfo *atom_name_fun = g_struct_info_find_method(interface_info, "name");
+                    GIArgument atom_name_ret;
+
+                    g_function_info_invoke(atom_name_fun,
+                            arg, 1,
+                            nullptr, 0,
+                            &atom_name_ret,
+                            nullptr);
+
+                    g_base_info_unref(atom_name_fun);
+                    g_base_info_unref(interface_info);
+
+                    if (strcmp("NONE", atom_name_ret.v_string) == 0) {
+                        g_free(atom_name_ret.v_string);
+                        value = JS::NullValue();
+
+                        return true;
+                    }
+
+                    bool atom_name_ok = gjs_string_from_utf8(context, atom_name_ret.v_string, value_p);
+                    g_free(atom_name_ret.v_string);
+
+                    return atom_name_ok;
+                }
+
                 JSObject *obj;
                 GjsBoxedCreationFlags flags;
 

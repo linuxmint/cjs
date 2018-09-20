@@ -2,10 +2,11 @@ const Regress = imports.gi.Regress;
 const WarnLib = imports.gi.WarnLib;
 
 // We use Gio to have some objects that we know exist
+imports.gi.versions.Gdk = '3.0';
+const Gdk = imports.gi.Gdk;
 const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
 const GObject = imports.gi.GObject;
-const Lang = imports.lang;
 
 describe('Life, the Universe and Everything', function () {
     it('includes booleans', function () {
@@ -414,6 +415,35 @@ describe('Life, the Universe and Everything', function () {
         expect(Regress.TestEnum.param(Regress.TestEnum.VALUE4)).toEqual('value4');
     });
 
+    describe('Object-valued GProperty', function () {
+        let o1, t1, t2;
+        beforeEach(function () {
+            o1 = new GObject.Object();
+            t1 = new Regress.TestObj({bare: o1});
+            t2 = new Regress.TestSubObj();
+            t2.bare = o1;
+        });
+
+        it('marshals correctly in the getter', function () {
+            expect(t1.bare).toBe(o1);
+        });
+
+        it('marshals correctly when inherited', function () {
+            expect(t2.bare).toBe(o1);
+        });
+
+        it('marshals into setter function', function () {
+            let o2 = new GObject.Object();
+            t2.set_bare(o2);
+            expect(t2.bare).toBe(o2);
+        });
+
+        it('marshals null', function () {
+            t2.unset_bare();
+            expect(t2.bare).toBeNull();
+        });
+    });
+
     describe('Signal connection', function () {
         let o;
         beforeEach(function () {
@@ -462,7 +492,7 @@ describe('Life, the Universe and Everything', function () {
             o.emit_sig_with_array_len_prop();
         });
 
-        xit('can pass parameter to signal with array len parameter via emit', function () {
+        xit('can pass parameter to signal with array len parameter via emit', function (done) {
             o.connect('sig-with-array-len-prop', (signalObj, signalArray) => {
                 expect(signalArray).toEqual([0, 1, 2, 3, 4]);
                 done();
@@ -476,6 +506,30 @@ describe('Life, the Universe and Everything', function () {
             o.emit('sig-with-array-len-prop', null);
             expect(handler).toHaveBeenCalledWith([jasmine.any(Object), null]);
         }).pend('Not yet implemented');
+    });
+
+    describe('Signal alternative syntax', function () {
+        let o, handler;
+        beforeEach(function () {
+            handler = jasmine.createSpy('handler');
+            o = new Regress.TestObj();
+            let handlerId = GObject.signal_connect(o, 'test', handler);
+            handler.and.callFake(() =>
+                GObject.signal_handler_disconnect(o, handlerId));
+
+            GObject.signal_emit_by_name(o, 'test');
+        });
+
+        it('handler is called with the right object', function () {
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(handler).toHaveBeenCalledWith(o);
+        });
+
+        it('disconnected handler is not called', function () {
+            handler.calls.reset();
+            GObject.signal_emit_by_name(o, 'test');
+            expect(handler).not.toHaveBeenCalled();
+        });
     });
 
     it('torture signature 0', function () {
@@ -692,5 +746,10 @@ describe('Life, the Universe and Everything', function () {
             expect(() => Regress.TestSimpleBoxedA.prototype.copy.call(simpleBoxed))
                 .not.toThrow();
         });
+    });
+
+    it('presents GdkAtom as string', function () {
+        expect(Gdk.Atom.intern('CLIPBOARD', false)).toBe('CLIPBOARD');
+        expect(Gdk.Atom.intern('NONE', false)).toBe(null);
     });
 });

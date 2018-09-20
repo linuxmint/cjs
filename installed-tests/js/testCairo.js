@@ -181,7 +181,7 @@ describe('Cairo', function () {
 
             cr = Gdk.cairo_create(da.window);
             expect(cr.save).toBeDefined();
-            expect(_ts(cr.getTarget())).toEqual('Surface');
+            expect(cr.getTarget()).toBeDefined();
         });
     });
 
@@ -226,5 +226,18 @@ describe('Cairo', function () {
             cr.setSource(p1);
             expect(_ts(cr.getSource())).toEqual('RadialGradient');
         });
+    });
+});
+
+describe('Cairo imported via GI', function () {
+    const giCairo = imports.gi.cairo;
+
+    it('has the same functionality as imports.cairo', function () {
+        const surface = new giCairo.ImageSurface(Cairo.Format.ARGB32, 1, 1);
+        void new giCairo.Context(surface);
+    });
+
+    it('has boxed types from the GIR file', function () {
+        void new giCairo.RectangleInt();
     });
 });
