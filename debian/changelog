@@ -1,3 +1,331 @@
+cjs (4.0.0) tessa; urgency=medium
+
+  [ Giovanni Campagna ]
+  * Add marshalling for native JS errors
+
+  [ Jason Hicks ]
+  * object: Associate callbacks with the object on which they're installed
+
+  [ Giovanni Campagna ]
+  * Use the GIVFuncInfo to hook up vfuncs instead of the GICallbackInfo
+  * Capture JS exceptions from invoked virtual functions
+
+  [ Jason Hicks ]
+  * global: Add a bootstrap system
+  * coverage: Use global bootstrap to add JS coverage code
+  * coverage: Don't error out on various files
+  * coverage: Scan ES6 classes for functions
+
+  [ Philip Chimento ]
+  * coverage: Correct AST walking for labelled statements
+  * coverage: Walk AST in more cases
+
+  [ Jason Hicks ]
+  * coverage: Refactor bootstrap code to use ES6 classes
+
+  [ Philip Chimento ]
+  * error: Use JSProtoKey to get Error constructor
+  * object: Remove hash-x32 implementation
+  * object: Merge weak_pointer_list and dissociate_list
+  * object: Remove vfunc list
+
+  [ Jason Hicks ]
+  * jsapi-util: Remove jsapi-private
+  * tests: Use assertions in coverage tests
+
+  [ Philip Chimento ]
+  * js: Convert scripts to UTF-16 before evaluating
+
+  [ Jason Hicks ]
+  * coverage: Use LCOV data from SpiderMonkey
+
+  [ Philip Chimento ]
+  * coverage: Propagate gjs_coverage_write_statistics() errors
+  * tests: Add regression test for vfunc crash avoidance
+  * jsapi-util-string: Use mozjs UTF8-to-JSString conversion
+  * jsapi-util-string: Missing error check
+  * importer: Missing error check
+  * jsapi-util: Improve check for SyntaxError
+  * js: Use JS_EncodeStringToUTF8() directly where advantageous
+  * param, importer: Spurious error when resolving non-string
+  * js: Don't convert to UTF-8 to compare ASCII names
+  * suppressions: Eliminate machine-dependent expressions
+
+  [ Marco Trevisan (Treviño) ]
+  * object: check in gjs_typecheck_object if the object has been finalized
+  * object: don't resolve or set,get properties on finalized elements
+  * object: add better logging when invalid access happens
+  * object: reset the keep alive flag on wrapper when object is disposed
+  * installed-tests/js: add testGObjectDestructionAccess to verify access to destryed objects
+
+  [ Philip Chimento ]
+  * object: Leave out param untouched on error
+
+  [ Jason Hicks ]
+  * maint: highlight the license
+  * release: Add NEWS for 1.51.3
+
+  [ Andy Holmes ]
+  * Amend gtk-application.js
+  * mv gtk-window.js to amend gtk.js, including suggestions
+
+  [ makepost ]
+  * arg: String as GdkAtom, and GdkAtom as string
+
+  [ Valentín Barros ]
+  * Test case improved in `installed-tests/js/testCairo.js` [fixes #27]
+
+  [ Marco Trevisan (Treviño) ]
+  * object: Only show critical errors on access to finalized objects
+    (Closes: #21)
+
+  [ Philip Chimento ]
+  * coverage: Remove unused JSCompartmentOptions
+  * js: Remove unnecessary property getters and setters
+
+  [ Marco Trevisan (Treviño) ]
+  * object: Show error when using proto functions (connect*, emit) on destroyed object
+  * object: make clear in toString() proto method when the object is finalized
+  * proxyutils: remove trailing spaces
+
+  [ Philip Chimento ]
+  * release: Prepare for 1.51.4
+  * arg: Marshal GType of 0 to null
+  * release: Include NEWS from 1.50.3
+
+  [ Jason Hicks ]
+  * profiler: add SPSProfiler implementation
+
+  [ Philip Chimento ]
+  * profiler: Implement --profile flag behaviour
+  * profiler: Allow enabling with GJS_ENABLE_PROFILER=1
+  * profiler: Disable profiler in interactive mode
+  * profiler: Disable SIGUSR2 start/stop
+
+  [ Jason Hicks ]
+  * profiler: Suppress cppcheck warning
+  * profiler: Allow configuring with --disable-profiler
+  * profiler: Always activate profiler if GJS_ENABLE_PROFILER=1
+
+  [ Philip Chimento ]
+  * foreign: Use gjs_eval_with_scope() instead of public API
+
+  [ Jason Hicks ]
+  * profiler: Reduce API surface
+
+  [ Philip Chimento ]
+  * object: Restore resolve return value
+  * tests: Don't compare Rooted<T> against NULL
+  * tests: Add pending test for composite template subclass
+  * maint: Fix obsolete comments on resolve hooks
+  * js: Remove context from GjsAutoJSChar
+
+  [ Jason Hicks ]
+  * Fix overwriting of libcjs_la_SOURCES
+
+  [ Philip Chimento ]
+  * jsapi-util-string: Fix return of gjs_get_string_id()
+  * Revert "object: reset the keep alive flag on wrapper when object is disposed"
+  * release: Include NEWS from 1.50.4
+  * maint: Update DOAP file
+
+  [ Jason Hicks ]
+  * Allow using GObject.signal_* functions in place of Object methods
+
+  [ Simon McVittie ]
+  * gjs_callback_closure: Log uncatchable exceptions, don't just exit
+  * gjs_callback_closure: Use g_error, not exit, on uncatchable exceptions
+  * _gjs_context_run_jobs: Log uncatchable exceptions, except System.exit()
+  * gjs_context_eval: Use different GError message for uncatchable exceptions
+  * gjs_context_eval: Log a critical on uncatchable exceptions
+
+  [ Philip Chimento ]
+  * build: Install suppressions files
+
+  [ Jason Hicks ]
+  * Rename gjs-1.0
+  * CI: use a more robuts test for profiling dumping
+
+  [ Philip Chimento ]
+  * release: Prepare for 1.51.90
+  * build: Ignore -Wcast-function-type in G_DEFINE_TYPE
+  * jsapi-dynamic-class: Use interned strings to link prototype
+
+  [ Giovanni Campagna ]
+  * function: move completed trampolines out of gjs_invoke_c_function
+
+  [ Philip Chimento ]
+  * function: Fix outdated comment
+
+  [ Giovanni Campagna ]
+  * tests: Add tests for GObject-valued properties
+
+  [ Philip Chimento ]
+  * profiler: Remove unused function in !ENABLE_PROFILER case
+
+  [ Ting-Wei Lan ]
+  * profiler: Don't include alloca.h when disabled
+
+  [ Philip Chimento ]
+  * toggle: Add debug logging
+  * context: Add more debug logging to dispose
+  * log: Allow logging thread ID of each message
+  * context: Shut down toggle queue before dispose notify
+
+  [ Jason Hicks ]
+  * context: Fix usage of g_idle_add for resolving promises
+
+  [ Philip Chimento ]
+  * release: Prepare for 1.51.91
+  * function: Refactor "callback blocked" message into helper function
+  * function: Don't call into JS if on the wrong thread
+
+  [ Jason Hicks ]
+  * Profiler: fix build on Debian/Ubuntu
+  * Revert "build: Install suppressions files"
+  * Remove test/travis-ci.sh
+  * Tests: Fix failures from gjs renaming
+
+  [ Philip Chimento ]
+  * console: Free profiler output path at different points
+  * sysprof: Initialize buffer in SpCaptureWriter
+  * tests: Reduce length of profiler start/stop test
+
+  [ Florian Müllner ]
+  * overrides/Gio: Add D-Bus convenience to more proxy methods
+
+  [ Philip Chimento ]
+  * context: Job queue should not swallow pending exceptions
+  * overrides: Add override for Cairo that merges in imports.cairo
+
+  [ James Cowgill ]
+  * profiler: Don't assume layout of struct sigaction
+
+  [ Philip Chimento ]
+  * context: Always import byteArray
+
+  [ Jason Hicks ]
+  * Remove dead code
+
+  [ Philip Chimento ]
+  * Gio: Remove obsolete code
+  * tests: Add missing async test parameter
+  * Remove unnecessary semicolons
+
+  [ Tommi Komulainen ]
+  * context: dump heaps on signal
+
+  [ Claudio André ]
+  * installed-tests/js: skip a test GTK dependent, if no GTK
+
+  [ Karen Medina ]
+  * Update tweener.js -- 48 eslint errors fixed
+
+  [ Philip Chimento ]
+  * log: Remove unused debug topics
+  * object: Improve lifecycle logging
+  * engine: Free Cairo static data on shutdown
+  * object: Ensure weak ref callback is removed on finalize
+
+  [ Andy Holmes ]
+  * initial commit of heapgraph scripts
+  * rename README.md to heapgraph.md
+  * tweak heapgraph.md
+  * heapdot.py: remove shape compression
+  * omit 'self-hosting-global' unless explicitly targetted
+
+  [ Jason Hicks ]
+  * release: Prepare for 1.52.1
+
+  [ Philip Chimento ]
+  * Merge branch 'jaszhix/gjs-tweener-fix'
+  * Revert "engine: Free Cairo static data on shutdown"
+
+  [ Andy Holmes ]
+  * heapgraph.py: adjust terminal output style * don't use colors in terminal output * remove unused label function
+
+  [ rockon999 ]
+  * Fix UTF8 encoding for some GJS string arrays. - The function that constructs string arrays for imports and argv utilized a JS_NewStringCopyZ call instead of the proper JS_NewStringCopyUTF8Z (the input is UTF8).
+  * Add testing for ARGV encoding changes.
+  * Automate testing for unicode encoding.
+  * Test new environment flag against pipeline.
+
+  [ Giovanni Campagna ]
+  * object: don't use toggle references unless necessary
+
+  [ Georges Basile Stavracas Neto ]
+  * object: properly disassociate wrappers
+  * context: Add API to force GC schedule
+  * object: Queue a forced GC when toggling down
+  * object: Only weak unref if GObject is still alive
+
+  [ Andy Holmes ]
+  * overrides: support Gtk template callbacks
+
+  [ Carlos Garnacho ]
+  * context: Ensure force_gc flag is not lost if the idle is scheduled
+    (Closes: #150)
+  * object: Embed wrapped object list into ObjectInstance (Closes: #142)
+
+  [ Philip Chimento ]
+  * jsapi-util-root: Add operator!=(nullptr_t)
+
+  [ Tomasz Miąsko ]
+  * Support interface signal handlers
+
+  [ Philip Chimento ]
+  * importer: Refactor awkward 'goto out' situation
+  * log: Add gjs_debug_id()
+  * js: Don't convert to UTF-8 just for debug logging
+
+  [ Jason Hicks ]
+  * console: --jsversion shell option
+
+  [ Philip Chimento ]
+  * object: Adjust arguments of method
+  * object: Upgrade severity of toggle warning to error
+  * jsapi-util: Remove gjs_get_type_name()
+  * mem: Remove unused counters
+
+  [ Ole Jørgen Brønner ]
+  * importer: Retrieve names while iterating search path (Closes: #154)
+
+  [ Philip Chimento ]
+  * function: Check for invalid closure
+
+  [ Emmanuele Bassi ]
+  * Remove unnecessary inline
+
+  [ Philip Chimento ]
+  * jsapi-util-string: Fix object logging
+
+  [ Carlos Garnacho ]
+  * util-root: Allow null notification functions when rooting (Closes: #144)
+  * object: Set up a single weak ref on the context (Closes: #144)
+
+  [ Philip Chimento ]
+  * object: Move context dispose notify to GjsContext
+  * object: Fix unused variable
+  * object: Change linked list size() to return size_t
+  * object: Fix logging statement
+
+  [ Carlos Garnacho ]
+  * js: Schedule a compacting GC on gjs_gc_if_needed() (Closes: #151)
+
+  [ Philip Chimento ]
+  * boxed: Update outdated comment
+  * boxed: Remove limitation of 256 fields
+  * tests: Debug-log coverage output
+  * tests: Remove unused length argument in coverage tests
+  * tests: Correct typo in test name
+  * jsapi-util-string: Avoid unnecessary root
+  * boxed: Remove unnecessary roots
+
+  [ Clement Lefebvre ]
+  * CI: Remove Mint 18
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 30 Oct 2018 13:45:13 +0000
+
 cjs (3.8.0) tara; urgency=medium
 
   [ Cosimo Cecchi ]
