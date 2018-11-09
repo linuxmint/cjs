@@ -34,9 +34,9 @@
 #include <js/GCAPI.h>
 #include <js/Printf.h>
 
-#include "gjs/context-private.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util.h"
 #include "util/error.h"
 #include "util/glib.h"
 #include "util/log.h"
