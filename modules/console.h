@@ -26,10 +26,13 @@
 
 #include <config.h>
 #include <glib.h>
+
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 G_BEGIN_DECLS
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_console_stuff(JSContext              *context,
                               JS::MutableHandleObject module);
 

@@ -25,7 +25,9 @@
 #define GI_PRIVATE_H_
 
 #include "cjs/jsapi-wrapper.h"
+#include "cjs/macros.h"
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_private_gi_stuff(JSContext* cx, JS::MutableHandleObject module);
 
 #endif  // GI_PRIVATE_H_

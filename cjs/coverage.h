@@ -30,6 +30,7 @@
 #include <gio/gio.h>
 
 #include "context.h"
+#include "cjs/macros.h"
 
 G_BEGIN_DECLS
 
@@ -67,10 +68,9 @@ GType gjs_coverage_get_type(void);
 GJS_EXPORT
 void gjs_coverage_write_statistics(GjsCoverage *self);
 
-GJS_EXPORT
-GjsCoverage * gjs_coverage_new(const char * const *coverage_prefixes,
-                               GjsContext         *coverage_context,
-                               GFile              *output_dir);
+GJS_EXPORT GJS_USE GjsCoverage* gjs_coverage_new(
+    const char* const* coverage_prefixes, GjsContext* coverage_context,
+    GFile* output_dir);
 
 G_END_DECLS
 

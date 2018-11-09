@@ -26,10 +26,13 @@
 
 #include <glib.h>
 #include <girepository.h>
+
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 G_BEGIN_DECLS
 
+GJS_JSAPI_RETURN_CONVENTION
 JSObject* gjs_create_ns(JSContext    *context,
                         const char   *ns_name);
 

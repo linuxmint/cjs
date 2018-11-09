@@ -28,20 +28,27 @@
 #include <stdbool.h>
 #include <glib.h>
 #include <girepository.h>
-#include "cjs/jsapi-util.h"
+
+#include "cjs/jsapi-wrapper.h"
+#include "cjs/macros.h"
 
 G_BEGIN_DECLS
 
+GJS_JSAPI_RETURN_CONVENTION
 JSObject * gjs_gtype_create_gtype_wrapper (JSContext *context,
                                            GType      gtype);
 
+/* FIXME: This should be GJS_JSAPI_RETURN_CONVENTION, but isn't */
+GJS_USE
 GType       gjs_gtype_get_actual_gtype(JSContext       *context,
                                        JS::HandleObject object);
 
+GJS_USE
 bool        gjs_typecheck_gtype         (JSContext             *context,
                                          JS::HandleObject       obj,
                                          bool                   throw_error);
 
+GJS_USE
 const char *gjs_get_names_from_gtype_and_gi_info(GType        gtype,
                                                  GIBaseInfo  *info,
                                                  const char **constructor_name);
