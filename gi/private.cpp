@@ -26,6 +26,7 @@
 
 #include <unordered_map>
 
+#include "cjs/context-private.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/jsapi-wrapper.h"
@@ -406,7 +407,8 @@ GJS_JSAPI_RETURN_CONVENTION
 static bool hook_up_vfunc_symbol_getter(JSContext* cx, unsigned argc,
                                         JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-    args.rval().setSymbol(ObjectInstance::hook_up_vfunc_symbol(cx));
+    const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
+    args.rval().setSymbol(JSID_TO_SYMBOL(atoms.hook_up_vfunc()));
     return true;
 }
 
