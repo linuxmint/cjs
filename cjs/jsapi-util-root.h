@@ -27,6 +27,7 @@
 #include <glib.h>
 #include <glib-object.h>
 
+#include "cjs/context-private.h"
 #include "cjs/context.h"
 #include "cjs/jsapi-wrapper.h"
 #include "util/log.h"
@@ -87,8 +88,16 @@ struct GjsHeapOperation<JSObject *> {
     }
 };
 
-template<>
-struct GjsHeapOperation<JS::Value> {};
+template <>
+struct GjsHeapOperation<JSFunction*> {
+    static void expose_to_js(const JS::Heap<JSFunction*>& thing) {
+        JSFunction* func = thing.unbarrieredGet();
+        if (!func || !js::gc::detail::GetGCThingZone(uintptr_t(func)))
+            return;
+        if (!JS::CurrentThreadIsHeapCollecting())
+            js::gc::ExposeGCThingToActiveJS(JS::GCCellPtr(func));
+    }
+};
 
 /* GjsMaybeOwned is intended only for use in heap allocation. Do not allocate it
  * on the stack, and do not allocate any instances of structures that have it as
@@ -149,8 +158,9 @@ private:
         if (!m_has_weakref)
             return;
 
-        auto gjs_cx = static_cast<GjsContext *>(JS_GetContextPrivate(m_cx));
-        g_object_weak_unref(G_OBJECT(gjs_cx), on_context_destroy, this);
+        GjsContextPrivate* gjs = GjsContextPrivate::from_cx(m_cx);
+        g_object_weak_unref(G_OBJECT(gjs->public_context()), on_context_destroy,
+                            this);
         m_has_weakref = false;
     }
 
@@ -255,9 +265,10 @@ public:
         m_thing.root = new JS::PersistentRooted<T>(m_cx, thing);
 
         if (notify) {
-            auto gjs_cx = static_cast<GjsContext *>(JS_GetContextPrivate(m_cx));
-            g_assert(GJS_IS_CONTEXT(gjs_cx));
-            g_object_weak_ref(G_OBJECT(gjs_cx), on_context_destroy, this);
+            GjsContextPrivate* gjs = GjsContextPrivate::from_cx(m_cx);
+            g_assert(GJS_IS_CONTEXT(gjs->public_context()));
+            g_object_weak_ref(G_OBJECT(gjs->public_context()),
+                              on_context_destroy, this);
             m_has_weakref = true;
         }
     }
