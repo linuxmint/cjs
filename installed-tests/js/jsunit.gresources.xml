@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/org/gjs/jsunit">
+  <gresource prefix="/org/cjs/jsunit">
     <file preprocess="xml-stripblanks">complex.ui</file>
     <file>jasmine.js</file>
     <file>minijasmine.js</file>

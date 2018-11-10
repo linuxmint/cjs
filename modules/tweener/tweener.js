@@ -7,7 +7,11 @@
  * @author              Zeh Fernando, Nate Chatellier, Arthur Debert
  * @version             1.31.71
  */
-
+/* exported addCaller, addTween, FrameTicker, getTweenCount, getTimeScale,
+pauseAllTweens, pauseTweens, PropertyList, registerSpecialProperty,
+registerSpecialPropertyModifier, registerSpecialPropertySplitter,
+removeAllTweens, removeTweens, restrictedWords, resumeAllTweens, resumeTweens,
+setFrameTicker, setTimeScale */
 /*
  Licensed under the MIT License
 
@@ -509,7 +513,6 @@ function _addTweenOrCaller(target, tweeningParameters, isCaller) {
                     if (scopes[i][istr] == undefined)
                         log('The property ' + istr + ' doesn\'t seem to be a normal object property of ' + scopes[i] + ' or a registered special property');
                 }
-                properties[istr].isSpecialProperty = false;
             }
         }
     }

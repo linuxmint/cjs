@@ -54,7 +54,7 @@ static GOptionEntry entries[] = {
     { "include-path", 'I', 0, G_OPTION_ARG_STRING_ARRAY, &include_path, "Add the directory DIR to the list of directories to search for js files.", "DIR" },
     { "profile", 0, G_OPTION_FLAG_OPTIONAL_ARG | G_OPTION_FLAG_FILENAME,
         G_OPTION_ARG_CALLBACK, reinterpret_cast<void *>(&parse_profile_arg),
-        "Enable the profiler and write output to FILE (default: gjs-$PID.syscap)",
+        "Enable the profiler and write output to FILE (default: cjs-$PID.syscap)",
         "FILE" },
     { "debugger", 'd', 0, G_OPTION_ARG_NONE, &debugging, "Start in debug mode" },
     { NULL }

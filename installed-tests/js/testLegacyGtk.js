@@ -7,7 +7,7 @@ const Lang = imports.lang;
 
 const template = `
 <interface>
-  <template class="Gjs_MyComplexGtkSubclass" parent="GtkGrid">
+  <template class="Cjs_MyComplexGtkSubclass" parent="GtkGrid">
     <property name="margin_top">10</property>
     <property name="margin_bottom">10</property>
     <property name="margin_start">10</property>
@@ -54,7 +54,7 @@ const MyComplexGtkSubclass = new Lang.Class({
 const MyComplexGtkSubclassFromResource = new Lang.Class({
     Name: 'MyComplexGtkSubclassFromResource',
     Extends: Gtk.Grid,
-    Template: 'resource:///org/gjs/jsunit/complex.ui',
+    Template: 'resource:///org/cjs/jsunit/complex.ui',
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
 

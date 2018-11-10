@@ -309,7 +309,7 @@ gjs_create_global_object(JSContext *cx)
  * @cx: a #JSContext
  * @global: a JS global object that has not yet been passed to this function
  * @bootstrap_script: (nullable): name of a bootstrap script (found at
- * resource://org/gnome/gjs/modules/_bootstrap/@bootstrap_script) or %NULL for
+ * resource://org/cinnamon/cjs/modules/_bootstrap/@bootstrap_script) or %NULL for
  * none
  *
  * Defines properties on the global object such as 'window' and 'imports', and

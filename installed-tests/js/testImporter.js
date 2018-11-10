@@ -6,11 +6,11 @@ describe('GI importer', function () {
 
     describe('on failure', function () {
         // For these tests, we provide special overrides files to sabotage the
-        // import, at the path resource:///org/gjs/jsunit/modules/overrides.
+        // import, at the path resource:///org/cjs/jsunit/modules/overrides.
         let oldSearchPath;
         beforeAll(function () {
             oldSearchPath = imports.overrides.searchPath.slice();
-            imports.overrides.searchPath = ['resource:///org/gjs/jsunit/modules/overrides'];
+            imports.overrides.searchPath = ['resource:///org/cjs/jsunit/modules/overrides'];
         });
 
         afterAll(function () {
@@ -41,7 +41,7 @@ describe('Importer', function () {
 
     beforeAll(function () {
         oldSearchPath = imports.searchPath.slice();
-        imports.searchPath = ['resource:///org/gjs/jsunit/modules'];
+        imports.searchPath = ['resource:///org/cjs/jsunit/modules'];
 
         foobar = imports.foobar;
         subA = imports.subA;
@@ -183,7 +183,7 @@ describe('Importer', function () {
             void LexicalScope.c;
 
             // g_test_assert_expected_messages() is a macro, not introspectable
-            GLib.test_assert_expected_messages_internal('Gjs',
+            GLib.test_assert_expected_messages_internal('Cjs',
                 'testImporter.js', 179, '');
         });*/
 

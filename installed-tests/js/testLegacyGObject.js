@@ -204,7 +204,7 @@ describe('GObject class', function () {
     });
 
     const ui = `<interface>
-                <object class="Gjs_MyObject" id="MyObject">
+                <object class="Cjs_MyObject" id="MyObject">
                   <property name="readwrite">baz</property>
                   <property name="construct">quz</property>
                 </object>
@@ -717,7 +717,7 @@ describe('GObject interface', function () {
             requiredG: function () {}
         });
         // g_test_assert_expected_messages() is a macro, not introspectable
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectInterface.js',
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectInterface.js',
             416, 'testGObjectMustOverrideInterfaceProperties');
     });
 

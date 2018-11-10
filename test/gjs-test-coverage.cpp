@@ -1304,87 +1304,87 @@ void gjs_test_add_tests_for_coverage()
         gjs_coverage_fixture_tear_down
     };
 
-    add_test_for_fixture("/gjs/coverage/file_duplicated_into_output_path",
+    add_test_for_fixture("/cjs/coverage/file_duplicated_into_output_path",
                          &coverage_fixture,
                          test_covered_file_is_duplicated_into_output_if_path,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/file_duplicated_full_resource_path",
+    add_test_for_fixture("/cjs/coverage/file_duplicated_full_resource_path",
                          &coverage_fixture,
                          test_covered_file_is_duplicated_into_output_if_resource,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/contents_preserved_accumulate_mode",
+    add_test_for_fixture("/cjs/coverage/contents_preserved_accumulate_mode",
                          &coverage_fixture,
                          test_previous_contents_preserved,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/new_contents_appended_accumulate_mode",
+    add_test_for_fixture("/cjs/coverage/new_contents_appended_accumulate_mode",
                          &coverage_fixture,
                          test_new_contents_written,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/expected_source_file_name_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/expected_source_file_name_written_to_coverage_data",
                          &coverage_fixture,
                          test_expected_source_file_name_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/entry_not_written_for_nonexistent_file",
+    add_test_for_fixture("/cjs/coverage/entry_not_written_for_nonexistent_file",
                          &coverage_fixture,
                          test_expected_entry_not_written_for_nonexistent_file,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/single_branch_coverage_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/single_branch_coverage_written_to_coverage_data",
                          &coverage_fixture,
                          test_single_branch_coverage_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/multiple_branch_coverage_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/multiple_branch_coverage_written_to_coverage_data",
                          &coverage_fixture,
                          test_multiple_branch_coverage_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/branches_for_multiple_case_statements_fallthrough",
+    add_test_for_fixture("/cjs/coverage/branches_for_multiple_case_statements_fallthrough",
                          &coverage_fixture,
                          test_branches_for_multiple_case_statements_fallthrough,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/not_hit_branch_point_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/not_hit_branch_point_written_to_coverage_data",
                          &coverage_fixture,
                          test_branch_not_hit_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/function_names_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/function_names_written_to_coverage_data",
                          &coverage_fixture,
                          test_function_names_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/function_lines_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/function_lines_written_to_coverage_data",
                          &coverage_fixture,
                          test_function_lines_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/function_hit_counts_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/function_hit_counts_written_to_coverage_data",
                          &coverage_fixture,
                          test_function_hit_counts_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/big_function_hit_counts_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/big_function_hit_counts_written_to_coverage_data",
                          &coverage_fixture,
                          test_function_hit_counts_for_big_functions_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/little_function_hit_counts_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/little_function_hit_counts_written_to_coverage_data",
                          &coverage_fixture,
                          test_function_hit_counts_for_little_functions_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/total_function_coverage_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/total_function_coverage_written_to_coverage_data",
                          &coverage_fixture,
                          test_total_function_coverage_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/single_line_hit_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/single_line_hit_written_to_coverage_data",
                          &coverage_fixture,
                          test_single_line_hit_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/hits_on_multiline_if_cond",
+    add_test_for_fixture("/cjs/coverage/hits_on_multiline_if_cond",
                          &coverage_fixture,
                          test_hits_on_multiline_if_cond,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/full_line_tally_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/full_line_tally_written_to_coverage_data",
                          &coverage_fixture,
                          test_full_line_tally_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/no_hits_for_unexecuted_file",
+    add_test_for_fixture("/cjs/coverage/no_hits_for_unexecuted_file",
                          &coverage_fixture,
                          test_no_hits_to_coverage_data_for_unexecuted,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/end_of_record_section_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/end_of_record_section_written_to_coverage_data",
                          &coverage_fixture,
                          test_end_of_record_section_written_to_coverage_data,
                          NULL);
@@ -1395,11 +1395,11 @@ void gjs_test_add_tests_for_coverage()
         gjs_coverage_multiple_source_files_to_single_output_fixture_tear_down
     };
 
-    add_test_for_fixture("/gjs/coverage/multiple_source_file_records_written_to_coverage_data",
+    add_test_for_fixture("/cjs/coverage/multiple_source_file_records_written_to_coverage_data",
                          &coverage_for_multiple_files_to_single_output_fixture,
                          test_multiple_source_file_records_written_to_coverage_data,
                          NULL);
-    add_test_for_fixture("/gjs/coverage/correct_line_coverage_data_written_for_both_sections",
+    add_test_for_fixture("/cjs/coverage/correct_line_coverage_data_written_for_both_sections",
                          &coverage_for_multiple_files_to_single_output_fixture,
                          test_correct_line_coverage_data_written_for_both_source_file_sections,
                          NULL);

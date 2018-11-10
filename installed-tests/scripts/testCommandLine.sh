@@ -88,10 +88,16 @@ test $? -eq 42
 report "System.exit(42) should exit with the correct exit code"
 
 # FIXME: should check -eq 42 specifically, but in debug mode we will be
-# hitting an assertion
-$gjs exit.js
-test $? -ne 0
-report "System.exit() should still exit across an FFI boundary"
+# hitting an assertion. For this reason, skip when running under valgrind
+# since nothing will be freed.
+echo "# VALGRIND = $VALGRIND"
+if test -z $VALGRIND; then
+    $gjs exit.js
+    test $? -ne 0
+    report "System.exit() should still exit across an FFI boundary"
+else
+    skip "System.exit() should still exit across an FFI boundary" "running under valgrind"
+fi
 
 # ensure the encoding of argv is being properly handled
 $gjs -c 'imports.system.exit((ARGV[0] !== "Valentín") ? 1 : 0)' "Valentín"
@@ -127,14 +133,14 @@ report "--help should print something before -c"
 # --help after a script file name is passed to the script
 $gjs -I sentinel help.js --help
 report "--help after script file should be passed to script"
-test -z "$("$gjs" -I sentinel help.js --help)"
+test -z "$($gjs -I sentinel help.js --help)"
 report "--help after script file should not print anything"
 
 # --help after a -c argument is passed to the script
 script='if(ARGV[0] !== "--help") imports.system.exit(1)'
 $gjs -c "$script" --help
 report "--help after -c should be passed to script"
-test -z "$("$gjs" -c "$script" --help)"
+test -z "$($gjs -c "$script" --help)"
 report "--help after -c should not print anything"
 
 # -I after a program is not consumed by GJS
@@ -149,9 +155,9 @@ report "--coverage-prefix after script should succeed but give a warning"
 $gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-output'
 report "--coverage-output after script should succeed but give a warning"
 rm -f foo/coverage.lcov
-$gjs -c 'imports.system.exit(0)' --profile=foo 2>&1 | grep -q 'Gjs-WARNING.*--profile'
+$gjs -c 'imports.system.exit(0)' --profile=foo 2>&1 | grep -q 'Cjs-WARNING.*--profile'
 report "--profile after script should succeed but give a warning"
-rm -f foo
+rm -rf foo
 
 for version_arg in --version --jsversion; do
     # --version and --jsversion work
@@ -169,26 +175,27 @@ for version_arg in --version --jsversion; do
 done
 
 # --profile
-rm -f gjs-*.syscap foo.syscap
-$gjs -c 'imports.system.exit(0)' && ! stat gjs-*.syscap &> /dev/null
+rm -f cjs-*.syscap foo.syscap
+$gjs -c 'imports.system.exit(0)' && ! stat cjs-*.syscap &> /dev/null
 report "no profiling data should be dumped without --profile"
 
 # Skip some tests if built without profiler support
-if gjs --profile -c 1 2>&1 | grep -q 'Cjs-Message.*Profiler is disabled'; then
+if $gjs --profile -c 1 2>&1 | grep -q 'Cjs-Message.*Profiler is disabled'; then
     reason="profiler is disabled"
     skip "--profile should dump profiling data to the default file name" "$reason"
     skip "--profile with argument should dump profiling data to the named file" "$reason"
     skip "GJS_ENABLE_PROFILER=1 should enable the profiler" "$reason"
 else
-    rm -f gjs-*.syscap
-    $gjs --profile -c 'imports.system.exit(0)' && stat gjs-*.syscap &> /dev/null
+    rm -f cjs-*.syscap
+    $gjs --profile -c 'imports.system.exit(0)' && stat cjs-*.syscap &> /dev/null
     report "--profile should dump profiling data to the default file name"
+    rm -f cjs-*.syscap
     $gjs --profile=foo.syscap -c 'imports.system.exit(0)' && test -f foo.syscap
     report "--profile with argument should dump profiling data to the named file"
-    rm -f gjs-*.syscap foo.syscap
-    GJS_ENABLE_PROFILER=1 $gjs -c 'imports.system.exit(0)' && test -f gjs-*.syscap
+    rm -f foo.syscap && rm -f cjs-*.syscap
+    GJS_ENABLE_PROFILER=1 $gjs -c 'imports.system.exit(0)' && stat cjs-*.syscap &> /dev/null
     report "GJS_ENABLE_PROFILER=1 should enable the profiler"
-    rm -f gjs-*.syscap
+    rm -f cjs-*.syscap
 fi
 
 # interpreter handles queued promise jobs correctly
@@ -202,7 +209,7 @@ report "interpreter should stop running jobs when one calls System.exit()"
 
 $gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Cjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
 report "unhandled promise rejection should be reported"
-test -z $($gjs awaitcatch.js)
+test -z "$($gjs awaitcatch.js)"
 report "catching an await expression should not cause unhandled rejection"
 # https://gitlab.gnome.org/GNOME/gjs/issues/18
 $gjs -c "(async () => await true)(); void foobar;" 2>&1 | grep -q 'Script .* threw an exception'

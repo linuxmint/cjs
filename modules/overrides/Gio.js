@@ -261,7 +261,7 @@ function _handleMethodCall(info, impl, method_name, parameters, invocation) {
                 let name = e.name;
                 if (name.indexOf('.') == -1) {
                     // likely to be a normal JS error
-                    name = 'org.gnome.gjs.JSError.' + name;
+                    name = 'org.cinnamon.cjs.JSError.' + name;
                 }
                 logError(e, "Exception in method call: " + method_name);
                 invocation.return_dbus_error(name, e.message);
@@ -288,7 +288,7 @@ function _handleMethodCall(info, impl, method_name, parameters, invocation) {
             invocation.return_value(retval);
         } catch(e) {
             // if we don't do this, the other side will never see a reply
-            invocation.return_dbus_error('org.gnome.gjs.JSError.ValueError',
+            invocation.return_dbus_error('org.cinnamon.cjs.JSError.ValueError',
                                          "Service implementation returned an incorrect value type");
         }
     } else if (this[method_name + 'Async']) {
@@ -346,7 +346,7 @@ function* _listModelIterator() {
 function _promisify(proto, asyncFunc, finishFunc) {
     proto[`_original_${asyncFunc}`] = proto[asyncFunc];
     proto[asyncFunc] = function(...args) {
-        if (!args.every(arg => typeof arg !== 'function')) 
+        if (!args.every(arg => typeof arg !== 'function'))
             return this[`_original_${asyncFunc}`](...args);
         return new Promise((resolve, reject) => {
             const callStack = new Error().stack.split('\n').filter(line => !line.match(/promisify/)).join('\n');
@@ -357,9 +357,9 @@ function _promisify(proto, asyncFunc, finishFunc) {
                         result.shift();
                     resolve(result);
                 } catch (error) {
-                    if (error.stack) 
+                    if (error.stack)
                         error.stack += `### Promise created here: ###\n${callStack}`;
-                    else 
+                    else
                         error.stack = callStack;
                     reject(error);
                 }
@@ -429,4 +429,7 @@ function _init() {
 
     // Promisify
     Gio._promisify = _promisify;
+
+    // Temporary Gio.File.prototype fix
+    Gio._LocalFilePrototype = Gio.File.new_for_path('').constructor.prototype;
 }

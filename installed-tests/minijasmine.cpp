@@ -63,7 +63,7 @@ main(int argc, char **argv)
 
     const char *coverage_prefix = g_getenv("GJS_UNIT_COVERAGE_PREFIX");
     const char *coverage_output_path = g_getenv("GJS_UNIT_COVERAGE_OUTPUT");
-    const char *search_path[] = { "resource:///org/cinnamon/jsunit", NULL };
+    const char *search_path[] = { "resource:///org/cjs/jsunit", NULL };
 
     GjsContext *cx = gjs_context_new_with_search_path((char **)search_path);
     GjsCoverage *coverage = NULL;

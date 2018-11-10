@@ -54,6 +54,9 @@ AX_CHECK_LINK_FLAG([-lgcov],, [
 	CODE_COVERAGE_LDFLAGS=
 ])
 
+export ENABLE_CAIRO=1
+export GJS_ENABLE_PROFILER=1
+
 # Checks for libraries.
 m4_define(glib_required_version, 2.54.0)
 

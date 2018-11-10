@@ -232,6 +232,10 @@ jasmine_tests += 				                \
 	installed-tests/js/testGObjectDestructionAccess.js	\
 	installed-tests/js/testLegacyGtk.js	                \
 	$(NULL)
+
+GTK_TESTS_ENVIRONMENT = export ENABLE_GTK=yes;
+else
+GTK_TESTS_ENVIRONMENT =
 endif
 
 if ENABLE_CAIRO
@@ -266,7 +270,7 @@ endif
 if CODE_COVERAGE_ENABLED
 COVERAGE_TESTS_ENVIRONMENT = 						\
 	export GJS_UNIT_COVERAGE_OUTPUT=lcov;				\
-	export GJS_UNIT_COVERAGE_PREFIX=resource:///org/gnome/gjs/;	\
+	export GJS_UNIT_COVERAGE_PREFIX=resource:///org/cinnamon/cjs/;	\
 	$(NULL)
 else
 COVERAGE_TESTS_ENVIRONMENT =
@@ -285,6 +289,7 @@ AM_TESTS_ENVIRONMENT =					\
 	export NO_AT_BRIDGE=1;				\
 	export LC_ALL=C.UTF-8;               \
 	$(COVERAGE_TESTS_ENVIRONMENT)			\
+	$(GTK_TESTS_ENVIRONMENT)			\
 	$(XVFB_START)					\
 	$(DBUS_SESSION_COMMAND)				\
 	$(NULL)
@@ -343,11 +348,11 @@ DEBUGGER_LOG_DRIVER = $(LOG_DRIVER)
 DEBUGGER_LOG_COMPILER = $(top_srcdir)/installed-tests/debugger-test.sh
 EXTRA_DIST += installed-tests/debugger-test.sh
 
-CODE_COVERAGE_IGNORE_PATTERN = */{include,mfbt,gjs/test}/*
+CODE_COVERAGE_IGNORE_PATTERN = */{include,mfbt,cjs,gjs/test}/*
 CODE_COVERAGE_GENHTML_OPTIONS = 			\
 	$(CODE_COVERAGE_GENHTML_OPTIONS_DEFAULT)	\
 	lcov/coverage.lcov 				\
-	--prefix $(abs_top_builddir)/lcov/org/gnome/gjs	\
+	--prefix $(abs_top_builddir)/lcov/org/cinnamon/cjs	\
 	--prefix $(abs_top_builddir) 			\
 	$(NULL)
 @CODE_COVERAGE_RULES@

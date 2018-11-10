@@ -22,7 +22,7 @@ describe('Access to destroyed GObject', () => {
 
         let title = destroyedWindow.title;
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertyGet');
     });
 
@@ -32,7 +32,7 @@ describe('Access to destroyed GObject', () => {
 
         destroyedWindow.title = 'I am dead';
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertySet');
     });
 
@@ -42,7 +42,7 @@ describe('Access to destroyed GObject', () => {
 
         let title = destroyedWindow.get_title();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodGet');
     });
 
@@ -52,7 +52,7 @@ describe('Access to destroyed GObject', () => {
 
         destroyedWindow.set_title('I am dead');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodSet');
     });
 
@@ -62,7 +62,7 @@ describe('Access to destroyed GObject', () => {
 
         destroyedWindow.connect('foo-signal', () => {});
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnect');
     });
 
@@ -72,7 +72,7 @@ describe('Access to destroyed GObject', () => {
 
         destroyedWindow.connect_after('foo-signal', () => {});
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnectAfter');
     });
 
@@ -82,7 +82,7 @@ describe('Access to destroyed GObject', () => {
 
         destroyedWindow.emit('foo-signal');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectEmit');
     });
 

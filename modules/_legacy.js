@@ -434,7 +434,7 @@ function defineGObjectLegacyObjects(GObject) {
         if (params.GTypeName)
             return params.GTypeName;
         else
-            return 'Gjs_' + params.Name.replace(/[^a-z0-9_+-]/gi, '_');
+            return 'Cjs_' + params.Name.replace(/[^a-z0-9_+-]/gi, '_');
     }
 
     function _getGObjectInterfaces(interfaces) {
@@ -671,7 +671,7 @@ function defineGtkLegacyObjects(GObject, Gtk) {
             this.parent(params);
 
             if (cssName)
-                //Gtk.Widget.set_css_name.call(this, cssName);
+                Gtk.Widget.set_css_name.call(this, cssName);
 
             if (template) {
                 if (typeof template == 'string' &&

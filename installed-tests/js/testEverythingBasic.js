@@ -97,7 +97,7 @@ describe('Life, the Universe and Everything', function () {
             expect(Regress[method_stem + bytes](val)).toBe(val);
 
             if (bytes === '64')
-                GLib.test_assert_expected_messages_internal('Gjs',
+                GLib.test_assert_expected_messages_internal('Cjs',
                     'testEverythingBasic.js', 0, 'Ignore message');
         }
         ['8', '16', '32', '64'].forEach(bytes => {
@@ -121,7 +121,7 @@ describe('Life, the Universe and Everything', function () {
                 "*cannot be safely stored*");
             void GLib.MAXINT64;
             void GLib.MAXUINT64;
-            GLib.test_assert_expected_messages_internal('Gjs',
+            GLib.test_assert_expected_messages_internal('Cjs',
                 'testEverythingBasic.js', 0,
                 'Limits warns when conversion is lossy');
         });

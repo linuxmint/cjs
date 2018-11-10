@@ -40,7 +40,7 @@ describe('Exceptions', function () {
 
         new Foo({ prop: 'bar' });
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js', 0,
             'testExceptionInPropertySetterFromConstructor');
     });
 
@@ -57,7 +57,7 @@ describe('Exceptions', function () {
         // wake up the binding so that g_object_set() is called on foo
         bar.notify('prop');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js', 0,
             'testExceptionInPropertySetterWithBinding');
     });
 
@@ -74,14 +74,14 @@ describe('Exceptions', function () {
         // wake up the binding so that g_object_get() is called on foo
         foo.notify('prop');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js', 0,
             'testExceptionInPropertyGetterWithBinding');
     });
 });
 
 describe('logError', function () {
     afterEach(function () {
-        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js',
+        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js',
             0, 'testGErrorMessages');
     });
 
@@ -125,7 +125,7 @@ describe('logError', function () {
     });
 
     it('logs with stack for a GError created from a C struct', function marker() {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: GLib.Error gi-marshalling-tests-gerror-domain: gi-marshalling-tests-gerror-message\nmarker@*');
         logError(GIMarshallingTests.gerror_return());
     });

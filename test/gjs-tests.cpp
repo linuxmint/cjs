@@ -105,7 +105,7 @@ gjstest_test_func_gjs_gobject_js_defined_type(void)
     g_assert_no_error(error);
     g_assert_true(ok);
 
-    GType foo_type = g_type_from_name("Gjs_FooBar");
+    GType foo_type = g_type_from_name("Cjs_FooBar");
     g_assert_cmpuint(foo_type, !=, G_TYPE_INVALID);
 
     gpointer foo = g_object_new(foo_type, NULL);
@@ -412,19 +412,19 @@ main(int    argc,
 
     g_test_init(&argc, &argv, NULL);
 
-    g_test_add_func("/gjs/context/construct/destroy", gjstest_test_func_gjs_context_construct_destroy);
-    g_test_add_func("/gjs/context/construct/eval", gjstest_test_func_gjs_context_construct_eval);
-    g_test_add_func("/gjs/context/exit", gjstest_test_func_gjs_context_exit);
-    g_test_add_func("/gjs/gobject/js_defined_type", gjstest_test_func_gjs_gobject_js_defined_type);
-    g_test_add_func("/gjs/jsutil/strip_shebang/no_shebang", gjstest_test_strip_shebang_no_advance_for_no_shebang);
-    g_test_add_func("/gjs/jsutil/strip_shebang/have_shebang", gjstest_test_strip_shebang_advance_for_shebang);
-    g_test_add_func("/gjs/jsutil/strip_shebang/only_shebang", gjstest_test_strip_shebang_return_null_for_just_shebang);
-    g_test_add_func("/gjs/profiler/start_stop", gjstest_test_profiler_start_stop);
+    g_test_add_func("/cjs/context/construct/destroy", gjstest_test_func_gjs_context_construct_destroy);
+    g_test_add_func("/cjs/context/construct/eval", gjstest_test_func_gjs_context_construct_eval);
+    g_test_add_func("/cjs/context/exit", gjstest_test_func_gjs_context_exit);
+    g_test_add_func("/cjs/gobject/js_defined_type", gjstest_test_func_gjs_gobject_js_defined_type);
+    g_test_add_func("/cjs/jsutil/strip_shebang/no_shebang", gjstest_test_strip_shebang_no_advance_for_no_shebang);
+    g_test_add_func("/cjs/jsutil/strip_shebang/have_shebang", gjstest_test_strip_shebang_advance_for_shebang);
+    g_test_add_func("/cjs/jsutil/strip_shebang/only_shebang", gjstest_test_strip_shebang_return_null_for_just_shebang);
+    g_test_add_func("/cjs/profiler/start_stop", gjstest_test_profiler_start_stop);
     g_test_add_func("/util/glib/strv/concat/null", gjstest_test_func_util_glib_strv_concat_null);
     g_test_add_func("/util/glib/strv/concat/pointers", gjstest_test_func_util_glib_strv_concat_pointers);
 
 #define ADD_JSAPI_UTIL_TEST(path, func)                            \
-    g_test_add("/gjs/jsapi/util/" path, GjsUnitTestFixture, NULL,  \
+    g_test_add("/cjs/jsapi/util/" path, GjsUnitTestFixture, NULL,  \
                gjs_unit_test_fixture_setup, func,                  \
                gjs_unit_test_fixture_teardown)
 

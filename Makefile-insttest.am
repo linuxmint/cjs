@@ -11,10 +11,10 @@ jstestsdir = $(gjsinsttestdir)/js
 jsscripttestsdir = $(gjsinsttestdir)/scripts
 debuggertestsdir = $(gjsinsttestdir)/debugger
 
-gjsinsttest_PROGRAMS = 
+gjsinsttest_PROGRAMS =
 gjsinsttest_DATA =
 gjsinsttest_SCRIPTS =
-installedtestmeta_DATA = 
+installedtestmeta_DATA =
 jstests_DATA =
 jsscripttests_DATA =
 debuggertests_DATA =
@@ -55,5 +55,7 @@ pkglib_LTLIBRARIES += libregress.la libwarnlib.la libgimarshallingtests.la
 		-e s,@name\@,$(notdir $<), \
 		< $(srcdir)/installed-tests/script.test.in > $@.tmp && \
 	mv $@.tmp $@
+
+CLEANFILES += $(installedtestmeta_DATA)
 
 endif BUILDOPT_INSTALL_TESTS

@@ -395,7 +395,7 @@ gjs_profiler_start(GjsProfiler *self)
 
     GjsAutoChar path = g_strdup(self->filename);
     if (!path)
-        path = g_strdup_printf("gjs-%jd.syscap", intmax_t(self->pid));
+        path = g_strdup_printf("cjs-%jd.syscap", intmax_t(self->pid));
 
     self->capture = sp_capture_writer_new(path, 0);
 
@@ -612,7 +612,7 @@ gjs_profiler_chain_signal(GjsContext *context,
  * @filename: string containing a filename
  *
  * Set the file to which profiling data is written when the @self is stopped.
- * By default, this is `gjs-$PID.syscap` in the current directory.
+ * By default, this is `cjs-$PID.syscap` in the current directory.
  */
 void
 gjs_profiler_set_filename(GjsProfiler *self,

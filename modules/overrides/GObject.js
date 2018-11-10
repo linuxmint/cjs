@@ -110,7 +110,7 @@ function _createSignals(gtype, signals) {
 function _createGTypeName(klass) {
     if (klass.hasOwnProperty(GTypeName))
         return klass[GTypeName];
-    return `Gjs_${klass.name.replace(/[^a-z0-9+_-]/gi, '_')}`;
+    return `Cjs_${klass.name.replace(/[^a-z0-9+_-]/gi, '_')}`;
 }
 
 function _propertiesAsArray(klass) {
@@ -482,5 +482,3 @@ function _init() {
         return GObject.Object.prototype.emit.apply(object, nameAndArgs);
     };
 }
-
-

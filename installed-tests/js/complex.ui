@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <template class="Gjs_MyComplexGtkSubclassFromResource" parent="GtkGrid">
+  <template class="Cjs_MyComplexGtkSubclassFromResource" parent="GtkGrid">
     <property name="margin_top">10</property>
     <property name="margin_bottom">10</property>
     <property name="margin_start">10</property>

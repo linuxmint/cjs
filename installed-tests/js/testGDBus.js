@@ -6,7 +6,7 @@ const GLib = imports.gi.GLib;
  * *** NOTE: If you add stuff here, you need to update testIntrospectReal
  */
 var TestIface = '<node> \
-<interface name="org.gnome.gjs.Test"> \
+<interface name="org.cinnamon.cjs.Test"> \
 <method name="nonJsonFrobateStuff"> \
     <arg type="i" direction="in"/> \
     <arg type="s" direction="out"/> \
@@ -91,7 +91,7 @@ class Test {
         this._propReadWrite = PROP_READ_WRITE_INITIAL_VALUE;
 
         this._impl = Gio.DBusExportedObject.wrapJSObject(TestIface, this);
-        this._impl.export(Gio.DBus.session, '/org/gnome/gjs/Test');
+        this._impl.export(Gio.DBus.session, '/org/cinnamon/cjs/Test');
     }
 
     frobateStuff(args) {
@@ -215,7 +215,7 @@ describe('Exported DBus object', function () {
         loop = new GLib.MainLoop(null, false);
 
         test = new Test();
-        own_name_id = Gio.DBus.session.own_name('org.gnome.gjs.Test',
+        own_name_id = Gio.DBus.session.own_name('org.cinnamon.cjs.Test',
             Gio.BusNameOwnerFlags.NONE,
             name => {
                 log("Acquired name " + name);
@@ -225,8 +225,8 @@ describe('Exported DBus object', function () {
                 log("Lost name " + name);
             });
         loop.run();
-        new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test',
+        new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test',
             (obj, error) => {
                 expect(error).toBeNull();
                 proxy = obj;
@@ -262,8 +262,8 @@ describe('Exported DBus object', function () {
         Gio.DBusProxy.new_for_bus(Gio.BusType.SESSION,
             Gio.DBusProxyFlags.DO_NOT_AUTO_START,
             iface,
-            'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test',
+            'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test',
             iface.name,
             null,
             (o, res) => {

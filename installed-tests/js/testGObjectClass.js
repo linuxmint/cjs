@@ -172,7 +172,7 @@ describe('GObject class with decorator', function () {
     });
 
     const ui = `<interface>
-                  <object class="Gjs_MyObject" id="MyObject">
+                  <object class="Cjs_MyObject" id="MyObject">
                     <property name="readwrite">baz</property>
                     <property name="construct">quz</property>
                   </object>
