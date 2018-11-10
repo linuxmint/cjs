@@ -326,9 +326,9 @@ class ObjectPrototype : public ObjectBase {
     GJS_JSAPI_RETURN_CONVENTION
     GIFieldInfo* find_field_info_from_id(JSContext* cx, JS::HandleString key);
     GJS_JSAPI_RETURN_CONVENTION
-    bool props_to_g_parameters(JSContext* cx, const JS::HandleValueArray& args,
-                               std::vector<const char*>* names,
-                               AutoGValueVector* values);
+    bool props_to_g_parameters(JSContext* context,
+                               const JS::HandleValueArray& args,
+                               std::vector<GParameter>&    gparams);
 
     /* These are currently only needed in the GObject base init and finalize
      * functions, for prototypes, even though m_closures is in ObjectBase. */

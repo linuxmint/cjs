@@ -58,7 +58,7 @@ export ENABLE_CAIRO=1
 export GJS_ENABLE_PROFILER=1
 
 # Checks for libraries.
-m4_define(glib_required_version, 2.54.0)
+m4_define(glib_required_version, 2.50.0)
 
 GOBJECT_INTROSPECTION_REQUIRE([1.41.4])
 

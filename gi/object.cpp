@@ -1087,8 +1087,7 @@ bool ObjectPrototype::new_enumerate_impl(JSContext* cx, JS::HandleObject obj,
  * a hash) */
 bool ObjectPrototype::props_to_g_parameters(JSContext* context,
                                             const JS::HandleValueArray& args,
-                                            std::vector<const char*>* names,
-                                            AutoGValueVector* values) {
+                                            std::vector<GParameter>&    gparams) {
     size_t ix, length;
 
     if (args.length() == 0 || args[0].isUndefined())
@@ -1109,7 +1108,7 @@ bool ObjectPrototype::props_to_g_parameters(JSContext* context,
     }
 
     for (ix = 0, length = ids.length(); ix < length; ix++) {
-        GValue gvalue = G_VALUE_INIT;
+        GParameter gparam = { NULL, { 0, }};
 
         /* ids[ix] is reachable because props is rooted, but require_property
          * doesn't know that */
@@ -1137,14 +1136,14 @@ bool ObjectPrototype::props_to_g_parameters(JSContext* context,
                                                     param_spec->name);
             /* prevent setting the prop even in JS */
 
-        g_value_init(&gvalue, G_PARAM_SPEC_VALUE_TYPE(param_spec));
-        if (!gjs_value_to_g_value(context, value, &gvalue)) {
-            g_value_unset(&gvalue);
+        gparam.name = param_spec->name;
+        g_value_init(&gparam.value, G_PARAM_SPEC_VALUE_TYPE(param_spec));
+        if (!gjs_value_to_g_value(context, value, &gparam.value)) {
+            g_value_unset(&gparam.value);
             return false;
         }
 
-        names->push_back(param_spec->name);  /* owned by GParamSpec in cache */
-        values->push_back(gvalue);
+        gparams.push_back(gparam);
     }
 
     return true;
@@ -1586,19 +1585,29 @@ ObjectInstance::disassociate_js_gobject(void)
     m_wrapper = nullptr;
 }
 
+static void
+clear_g_params(std::vector<GParameter>& params)
+{
+    for (GParameter param : params)
+        g_value_unset(&param.value);
+}
+
 bool
 ObjectInstance::init_impl(JSContext              *context,
                           const JS::CallArgs&     args,
                           JS::MutableHandleObject object)
 {
     GTypeQuery query;
+    std::vector<GParameter> params;
 
     g_assert(gtype() != G_TYPE_NONE);
 
     std::vector<const char *> names;
     AutoGValueVector values;
-    if (!m_proto->props_to_g_parameters(context, args, &names, &values))
+    if (!m_proto->props_to_g_parameters(context, args, params)) {
+        clear_g_params(params);
         return false;
+    }
 
     /* Mark this object in the construction stack, it
        will be popped in gjs_object_custom_init() later
@@ -1607,9 +1616,9 @@ ObjectInstance::init_impl(JSContext              *context,
     if (g_type_get_qdata(gtype(), ObjectInstance::custom_type_quark()))
         object_init_list.emplace(context, object);
 
-    g_assert(names.size() == values.size());
-    GObject* gobj = g_object_new_with_properties(gtype(), values.size(),
-                                                 names.data(), values.data());
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    GObject *gobj = (GObject*) g_object_newv(gtype(), params.size(), params.data());
+G_GNUC_END_IGNORE_DEPRECATIONS
 
     ObjectInstance *other_priv = ObjectInstance::for_gobject(gobj);
     if (other_priv && other_priv->m_wrapper != object.get()) {
