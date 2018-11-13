@@ -76,6 +76,25 @@ function _disconnect(id) {
     throw new Error("No signal connection " + id + " found");
 }
 
+function _signalHandlerIsConnected(id) {
+    if (!('_signalConnections' in this))
+        return false;
+
+    let i;
+    let length = this._signalConnections.length;
+    for (i = 0; i < length; ++i) {
+        let connection = this._signalConnections[i];
+        if (connection.id == id) {
+            if (connection.disconnected) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function _disconnectAll() {
     if ('_signalConnections' in this) {
         while (this._signalConnections.length > 0) {
@@ -152,6 +171,7 @@ function addSignalMethods(proto) {
     _addSignalMethod(proto, "connect", _connect);
     _addSignalMethod(proto, "disconnect", _disconnect);
     _addSignalMethod(proto, "emit", _emit);
+    _addSignalMethod(proto, 'signalHandlerIsConnected', _signalHandlerIsConnected)
     // this one is not in GObject, but useful
     _addSignalMethod(proto, "disconnectAll", _disconnectAll);
 }
@@ -161,5 +181,6 @@ var WithSignals = new Lang.Interface({
     connect: _connect,
     disconnect: _disconnect,
     emit: _emit,
+    signalHandlerIsConnected: _signalHandlerIsConnected,
     disconnectAll: _disconnectAll,
 });
