@@ -229,7 +229,7 @@ AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
 CPPFLAGS="$CPPFLAGS_save"
 
 dnl
-dnl Check for -fsanitize=address and -fsanitize=undefined support
+dnl Check for sanitizer support
 dnl
 AC_ARG_ENABLE([asan],
   [AS_HELP_STRING([--enable-asan], [Build with address sanitizer support @<:@default: no@:>@])])
@@ -241,12 +241,12 @@ AS_IF([test "x$enable_asan" = "xyes"], [
 ])
 
 AC_ARG_ENABLE([ubsan],
-  [AS_HELP_STRING([--enable-ubsan], [Build with undefined behavior sanitizer support @<:@default: no@:>@])])
+  [AS_HELP_STRING([--enable-ubsan], [Build with undefined behavior and integer overflow sanitizer support @<:@default: no@:>@])])
 
 AS_IF([test "x$enable_ubsan" = "xyes"], [
-  AX_CHECK_COMPILE_FLAG([-fsanitize=undefined -fno-sanitize=vptr -fno-omit-frame-pointer -g], [
-    AX_CHECK_LINK_FLAG([-fsanitize=undefined -fno-sanitize=vptr],
-      [SAN_FLAGS="$SAN_FLAGS -fsanitize=undefined -fno-sanitize=vptr"])
+  AX_CHECK_COMPILE_FLAG([-fsanitize=undefined -fsanitize=integer -fno-sanitize=vptr -fno-omit-frame-pointer -g], [
+    AX_CHECK_LINK_FLAG([-fsanitize=undefined -fsanitize=integer -fno-sanitize=vptr])
+    SAN_FLAGS="$SAN_FLAGS -fsanitize=undefined -fsanitize=integer -fno-sanitize=vptr"
   ])
 ])
 
