@@ -23,8 +23,8 @@
 
 #include <config.h>
 
-#include "gjs/mem-private.h"
-#include "gjs/mem.h"
+#include "cjs/mem-private.h"
+#include "cjs/mem.h"
 #include "util/log.h"
 
 #define GJS_DEFINE_COUNTER(name)             \
