@@ -33,7 +33,7 @@
 #include "function.h"
 #include "gi/gerror.h"
 #include "cjs/jsapi-class.h"
-#include "cjs/mem.h"
+#include "cjs/mem-private.h"
 #include "gtype.h"
 #include "object.h"
 #include "proxyutils.h"
@@ -222,7 +222,7 @@ boxed_new_direct(Boxed       *priv)
 
 /* When initializing a boxed object from a hash of properties, we don't want
  * to do n O(n) lookups, so put put the fields into a hash table and store it on proto->priv
- * for fast lookup. 
+ * for fast lookup.
  */
 GJS_JSAPI_RETURN_CONVENTION
 static Boxed::FieldMap* get_field_map(JSContext* cx,

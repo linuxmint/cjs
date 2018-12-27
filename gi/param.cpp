@@ -25,15 +25,15 @@
 
 #include <string.h>
 
-#include "param.h"
-#include "arg.h"
-#include "object.h"
-#include "repo.h"
-#include "gtype.h"
-#include "function.h"
+#include "gi/arg.h"
+#include "gi/function.h"
+#include "gi/gtype.h"
+#include "gi/object.h"
+#include "gi/param.h"
+#include "gi/repo.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-wrapper.h"
-#include "cjs/mem.h"
+#include "cjs/mem-private.h"
 
 #include <util/log.h>
 

@@ -42,12 +42,12 @@
 #include "toggle.h"
 #include "value.h"
 #include "closure.h"
-#include "gjs_gi_trace.h"
+#include "cjs_gi_trace.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util-root.h"
 #include "cjs/jsapi-wrapper.h"
 #include "cjs/context-private.h"
-#include "cjs/mem.h"
+#include "cjs/mem-private.h"
 
 #include <util/log.h>
 #include <girepository.h>

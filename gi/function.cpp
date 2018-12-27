@@ -23,20 +23,20 @@
 
 #include <config.h>
 
-#include "function.h"
-#include "arg.h"
-#include "object.h"
-#include "fundamental.h"
-#include "boxed.h"
-#include "union.h"
-#include "gerror.h"
-#include "closure.h"
-#include "gtype.h"
-#include "param.h"
+#include "gi/arg.h"
+#include "gi/boxed.h"
+#include "gi/closure.h"
+#include "gi/function.h"
+#include "gi/fundamental.h"
+#include "gi/gerror.h"
+#include "gi/gtype.h"
+#include "gi/object.h"
+#include "gi/param.h"
+#include "gi/union.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-wrapper.h"
-#include "cjs/mem.h"
+#include "cjs/mem-private.h"
 
 #include <util/log.h>
 
@@ -118,7 +118,7 @@ set_return_ffi_arg_from_giargument (GITypeInfo  *ret_type,
     case GI_TYPE_TAG_BOOLEAN:
     case GI_TYPE_TAG_UNICHAR:
         *(ffi_arg *) result = return_value->v_uint32;
-		
+
         break;
     case GI_TYPE_TAG_INT64:
         *(ffi_sarg *) result = return_value->v_int64;
@@ -1015,7 +1015,7 @@ gjs_invoke_c_function(JSContext                             *context,
                 }
                 /* Also handle the INOUT for the length here */
                 if (direction == GI_DIRECTION_INOUT) {
-                    if (in_value->v_pointer == NULL) { 
+                    if (in_value->v_pointer == NULL) {
                         /* Special case where we were given JS null to
                          * also pass null for length, and not a
                          * pointer to an integer that derefs to 0.

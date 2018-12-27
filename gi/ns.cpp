@@ -23,12 +23,12 @@
 
 #include <config.h>
 
-#include "ns.h"
-#include "repo.h"
-#include "param.h"
+#include "gi/ns.h"
+#include "gi/param.h"
+#include "gi/repo.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-wrapper.h"
-#include "cjs/mem.h"
+#include "cjs/mem-private.h"
 
 #include <util/log.h>
 #include <girepository.h>

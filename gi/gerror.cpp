@@ -31,7 +31,7 @@
 #include "cjs/context-private.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-wrapper.h"
-#include "cjs/mem.h"
+#include "cjs/mem-private.h"
 #include "repo.h"
 #include "util/error.h"
 
