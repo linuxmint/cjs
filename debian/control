@@ -21,7 +21,8 @@ Build-Depends: debhelper (>= 10),
                dbus,
                dbus-x11,
                at-spi2-core,
-               xvfb
+               xvfb,
+               libxml2-utils
 Standards-Version: 3.9.8
 
 Package: cjs
