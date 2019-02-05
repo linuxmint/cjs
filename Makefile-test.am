@@ -102,7 +102,7 @@ minijasmine_LDADD = $(GJS_LIBS) $(GJS_PRIVATE_LIBS) libcjs.la
 ### TEST GIRS ##########################################################
 
 TEST_INTROSPECTION_GIRS =
-common_test_ldflags = -avoid-version
+common_test_ldflags = $(AM_LDFLAGS) -avoid-version
 common_test_libadd = $(GJS_LIBS) $(GJS_PRIVATE_LIBS)
 
 if !BUILDOPT_INSTALL_TESTS
