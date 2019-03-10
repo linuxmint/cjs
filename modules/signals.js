@@ -76,22 +76,6 @@ function _disconnect(id) {
     throw new Error("No signal connection " + id + " found");
 }
 
-function _signalHandlerIsConnected(id) {
-    if (! '_signalConnections' in this)
-        return false;
-
-    for (let connection of this._signalConnections) {
-        if (connection.id == id) {
-            if (connection.disconnected)
-                return false;
-            else
-                return true;
-        }
-    }
-
-    return false;
-}
-
 function _disconnectAll() {
     if ('_signalConnections' in this) {
         while (this._signalConnections.length > 0) {
@@ -168,7 +152,6 @@ function addSignalMethods(proto) {
     _addSignalMethod(proto, "connect", _connect);
     _addSignalMethod(proto, "disconnect", _disconnect);
     _addSignalMethod(proto, "emit", _emit);
-    _addSignalMethod(proto, "signalHandlerIsConnected", _signalHandlerIsConnected)
     // this one is not in GObject, but useful
     _addSignalMethod(proto, "disconnectAll", _disconnectAll);
 }
