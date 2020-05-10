@@ -149,7 +149,7 @@ report "--coverage-prefix after script should succeed but give a warning"
 $gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-output'
 report "--coverage-output after script should succeed but give a warning"
 rm -f foo/coverage.lcov
-$gjs -c 'imports.system.exit(0)' --profile=foo 2>&1 | grep -q 'Gjs-WARNING.*--profile'
+$gjs -c 'imports.system.exit(0)' --profile=foo 2>&1 | grep -q 'Cjs-WARNING.*--profile'
 report "--profile after script should succeed but give a warning"
 rm -f foo
 
