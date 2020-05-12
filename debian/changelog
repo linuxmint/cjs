@@ -1,3 +1,10 @@
+cjs (4.6.0) ulyana; urgency=medium
+
+  [ Garry Filakhtov ]
+  * Fix two broken test cases
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 12 May 2020 13:45:37 +0100
+
 cjs (4.4.0) tricia; urgency=medium
 
   * 4.4.0
