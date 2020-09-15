@@ -23,55 +23,35 @@
  * Authored By: Sam Spilsbury <sam@endlessm.com>
  */
 
-#ifndef _GJS_COVERAGE_H
-#define _GJS_COVERAGE_H
+#ifndef GJS_COVERAGE_H_
+#define GJS_COVERAGE_H_
 
-#include <glib-object.h>
+#if !defined(INSIDE_GJS_H) && !defined(GJS_COMPILATION)
+#    error "Only <cjs/gjs.h> can be included directly."
+#endif
+
 #include <gio/gio.h>
+#include <glib-object.h>
+#include <glib.h> /* for G_BEGIN_DECLS, G_END_DECLS */
 
-#include "context.h"
+#include <cjs/context.h>
+#include <cjs/macros.h>
 
 G_BEGIN_DECLS
 
 #define GJS_TYPE_COVERAGE gjs_coverage_get_type()
 
-#define GJS_COVERAGE(obj) \
-    (G_TYPE_CHECK_INSTANCE_CAST((obj), \
-     GJS_TYPE_COVERAGE, GjsCoverage))
+G_DECLARE_FINAL_TYPE(GjsCoverage, gjs_coverage, GJS, COVERAGE, GObject);
 
-#define GJS_COVERAGE_CLASS(klass) \
-    (G_TYPE_CHECK_CLASS_CAST((klass), \
-     GJS_TYPE_COVERAGE, GjsCoverageClass))
-
-#define GJS_IS_COVERAGE(obj) \
-    (G_TYPE_CHECK_INSTANCE_TYPE((obj), \
-     GJS_TYPE_COVERAGE))
-
-#define GJS_IS_COVERAGE_CLASS(klass) \
-    (G_TYPE_CHECK_CLASS_TYPE ((klass), \
-     GJS_TYPE_COVERAGE))
-
-#define GJS_COVERAGE_GET_CLASS(obj) \
-    (G_TYPE_INSTANCE_GET_CLASS ((obj), \
-     GJS_TYPE_COVERAGE, GjsCoverageClass))
-
-typedef struct _GjsCoverage GjsCoverage;
-typedef struct _GjsCoverageClass GjsCoverageClass;
-
-struct _GjsCoverageClass {
-    GObjectClass parent_class;
-};
-
-GType gjs_coverage_get_type(void);
+GJS_EXPORT void gjs_coverage_enable(void);
 
 GJS_EXPORT
 void gjs_coverage_write_statistics(GjsCoverage *self);
 
-GJS_EXPORT
-GjsCoverage * gjs_coverage_new(const char * const *coverage_prefixes,
-                               GjsContext         *coverage_context,
-                               GFile              *output_dir);
+GJS_EXPORT GJS_USE GjsCoverage* gjs_coverage_new(
+    const char* const* coverage_prefixes, GjsContext* coverage_context,
+    GFile* output_dir);
 
 G_END_DECLS
 
-#endif
+#endif /* GJS_COVERAGE_H_ */

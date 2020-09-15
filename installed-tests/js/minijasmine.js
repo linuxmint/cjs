@@ -1,7 +1,6 @@
 #!/usr/bin/env gjs
 
 const GLib = imports.gi.GLib;
-const Lang = imports.lang;
 
 function _removeNewlines(str) {
     let allNewlines = /\n/g;
@@ -31,20 +30,20 @@ function _clearTimeoutInternal(id) {
 }
 
 // Install the browser setTimeout/setInterval API on the global object
-window.setTimeout = _setTimeoutInternal.bind(undefined, GLib.SOURCE_REMOVE);
-window.setInterval = _setTimeoutInternal.bind(undefined, GLib.SOURCE_CONTINUE);
-window.clearTimeout = window.clearInterval = _clearTimeoutInternal;
+globalThis.setTimeout = _setTimeoutInternal.bind(undefined, GLib.SOURCE_REMOVE);
+globalThis.setInterval = _setTimeoutInternal.bind(undefined, GLib.SOURCE_CONTINUE);
+globalThis.clearTimeout = globalThis.clearInterval = _clearTimeoutInternal;
 
 let jasmineRequire = imports.jasmine.getJasmineRequireObj();
 let jasmineCore = jasmineRequire.core(jasmineRequire);
-window._jasmineEnv = jasmineCore.getEnv();
+globalThis._jasmineEnv = jasmineCore.getEnv();
 
-window._jasmineMain = GLib.MainLoop.new(null, false);
-window._jasmineRetval = 0;
+globalThis._jasmineMain = GLib.MainLoop.new(null, false);
+globalThis._jasmineRetval = 0;
 
 // Install Jasmine API on the global object
-let jasmineInterface = jasmineRequire.interface(jasmineCore, window._jasmineEnv);
-Lang.copyProperties(jasmineInterface, window);
+let jasmineInterface = jasmineRequire.interface(jasmineCore, globalThis._jasmineEnv);
+Object.assign(globalThis, jasmineInterface);
 
 // Reporter that outputs according to the Test Anything Protocol
 // See http://testanything.org/tap-specification.html
@@ -55,29 +54,28 @@ class TapReporter {
     }
 
     jasmineStarted(info) {
-        print('1..' + info.totalSpecsDefined);
+        print(`1..${info.totalSpecsDefined}`);
     }
 
     jasmineDone() {
         this._failedSuites.forEach(failure => {
             failure.failedExpectations.forEach(result => {
                 print('not ok - An error was thrown outside a test');
-                print('# ' + result.message);
+                print(`# ${result.message}`);
             });
         });
 
-        window._jasmineMain.quit();
+        globalThis._jasmineMain.quit();
     }
 
     suiteDone(result) {
         if (result.failedExpectations && result.failedExpectations.length > 0) {
-            window._jasmineRetval = 1;
+            globalThis._jasmineRetval = 1;
             this._failedSuites.push(result);
         }
 
-        if (result.status === 'disabled') {
+        if (result.status === 'disabled')
             print('# Suite was disabled:', result.fullName);
-        }
     }
 
     specStarted() {
@@ -85,30 +83,37 @@ class TapReporter {
     }
 
     specDone(result) {
-        let tap_report;
+        let tapReport;
         if (result.status === 'failed') {
-            window._jasmineRetval = 1;
-            tap_report = 'not ok';
+            globalThis._jasmineRetval = 1;
+            tapReport = 'not ok';
         } else {
-            tap_report = 'ok';
+            tapReport = 'ok';
         }
-        tap_report += ' ' + this._specCount + ' ' + result.fullName;
+        tapReport += ` ${this._specCount} ${result.fullName}`;
         if (result.status === 'pending' || result.status === 'disabled') {
             let reason = result.pendingReason || result.status;
-            tap_report += ' # SKIP ' + reason;
+            tapReport += ` # SKIP ${reason}`;
         }
-        print(tap_report);
+        print(tapReport);
 
         // Print additional diagnostic info on failure
         if (result.status === 'failed' && result.failedExpectations) {
-            result.failedExpectations.forEach((failedExpectation) => {
+            result.failedExpectations.forEach(failedExpectation => {
                 print('# Message:', _removeNewlines(failedExpectation.message));
                 print('# Stack:');
                 let stackTrace = _filterStack(failedExpectation.stack).trim();
-                print(stackTrace.split('\n').map((str) => '#   ' + str).join('\n'));
+                print(stackTrace.split('\n').map(str => `#   ${str}`).join('\n'));
             });
         }
     }
 }
 
-window._jasmineEnv.addReporter(new TapReporter());
+globalThis._jasmineEnv.addReporter(new TapReporter());
+
+// If we're running the tests in certain JS_GC_ZEAL modes, then some will time
+// out if the CI machine is under a certain load. In that case increase the
+// default timeout.
+const gcZeal = GLib.getenv('JS_GC_ZEAL');
+if (gcZeal && (gcZeal === '2' || gcZeal.startsWith('2,') || gcZeal === '4'))
+    jasmine.DEFAULT_TIMEOUT_INTERVAL *= 5;

@@ -21,15 +21,18 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef GJS_MODULE_H
-#define GJS_MODULE_H
+#ifndef GJS_MODULE_H_
+#define GJS_MODULE_H_
+
+#include <config.h>
 
 #include <gio/gio.h>
 
-#include "jsapi-wrapper.h"
+#include <js/TypeDecls.h>
 
-G_BEGIN_DECLS
+#include "cjs/macros.h"
 
+GJS_JSAPI_RETURN_CONVENTION
 JSObject *
 gjs_module_import(JSContext       *cx,
                   JS::HandleObject importer,
@@ -37,6 +40,4 @@ gjs_module_import(JSContext       *cx,
                   const char      *name,
                   GFile           *file);
 
-G_END_DECLS
-
-#endif  /* GJS_MODULE_H */
+#endif  // GJS_MODULE_H_

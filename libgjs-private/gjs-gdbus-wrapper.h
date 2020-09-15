@@ -20,19 +20,17 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_UTIL_DBUS_H__
-#define __GJS_UTIL_DBUS_H__
+#ifndef LIBGJS_PRIVATE_GJS_GDBUS_WRAPPER_H_
+#define LIBGJS_PRIVATE_GJS_GDBUS_WRAPPER_H_
 
-#include <glib.h>
-#include <glib-object.h>
 #include <gio/gio.h>
+#include <glib-object.h>
+#include <glib.h>
 
-#include <cjs/macros.h>
+#include "cjs/macros.h"
 
 G_BEGIN_DECLS
 
-typedef struct _GjsDBusImplementation        GjsDBusImplementation;
-typedef struct _GjsDBusImplementationClass   GjsDBusImplementationClass;
 typedef struct _GjsDBusImplementationPrivate GjsDBusImplementationPrivate;
 
 #define GJS_TYPE_DBUS_IMPLEMENTATION              (gjs_dbus_implementation_get_type ())
@@ -47,17 +45,21 @@ struct _GjsDBusImplementation {
 
     GjsDBusImplementationPrivate *priv;
 };
+typedef struct _GjsDBusImplementation GjsDBusImplementation;
 
 struct _GjsDBusImplementationClass {
     GDBusInterfaceSkeletonClass parent_class;
 };
+typedef struct _GjsDBusImplementationClass GjsDBusImplementationClass;
 
 GJS_EXPORT
 GType                  gjs_dbus_implementation_get_type (void);
 
+GJS_EXPORT
 void                   gjs_dbus_implementation_emit_property_changed (GjsDBusImplementation *self, gchar *property, GVariant *newvalue);
+GJS_EXPORT
 void                   gjs_dbus_implementation_emit_signal           (GjsDBusImplementation *self, gchar *signal_name, GVariant *parameters);
 
 G_END_DECLS
 
-#endif  /* __GJS_UTIL_DBUS_H__ */
+#endif /* LIBGJS_PRIVATE_GJS_GDBUS_WRAPPER_H_ */

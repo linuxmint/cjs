@@ -21,17 +21,17 @@
  * IN THE SOFTWARE.
  */
 
-#include <config.h>
+#include <config.h>  // for ENABLE_CAIRO
 
 #include "cjs/native.h"
-#include "modules.h"
+#include "modules/console.h"
+#include "modules/modules.h"
+#include "modules/print.h"
+#include "modules/system.h"
 
 #ifdef ENABLE_CAIRO
-#include "cairo-module.h"
+#    include "modules/cairo-module.h"
 #endif
-
-#include "system.h"
-#include "console.h"
 
 void
 gjs_register_static_modules (void)
@@ -41,4 +41,5 @@ gjs_register_static_modules (void)
 #endif
     gjs_register_native_module("system", gjs_js_define_system_stuff);
     gjs_register_native_module("console", gjs_define_console_stuff);
+    gjs_register_native_module("_print", gjs_define_print_stuff);
 }

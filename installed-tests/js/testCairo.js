@@ -2,22 +2,16 @@ imports.gi.versions.Gdk = '3.0';
 imports.gi.versions.Gtk = '3.0';
 
 const Cairo = imports.cairo;
-const Gdk = imports.gi.Gdk;
-const Gtk = imports.gi.Gtk;
-const Regress = imports.gi.Regress;
+const {Gdk, GIMarshallingTests, GLib, Gtk, Regress} = imports.gi;
 
 function _ts(obj) {
     return obj.toString().slice(8, -1);
 }
 
 describe('Cairo', function () {
-    beforeAll(function () {
-        Gtk.init(null);
-    });
-
     let cr, surface;
     beforeEach(function () {
-        surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, 1, 1);
+        surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, 10, 10);
         cr = new Cairo.Context(surface);
     });
 
@@ -137,6 +131,8 @@ describe('Cairo', function () {
                 cr.paint();
                 cr.paintWithAlpha(1);
 
+                cr.setDash([1, 0.5], 1);
+
                 cr.stroke();
                 cr.strokePreserve();
 
@@ -150,10 +146,10 @@ describe('Cairo', function () {
                 cr.rotate(180);
                 cr.identityMatrix();
 
-                cr.showText("foobar");
+                cr.showText('foobar');
 
                 cr.moveTo(0, 0);
-                cr.setDash([1, 0.5], 1);
+                cr.setDash([], 1);
                 cr.lineTo(1, 0);
                 cr.lineTo(1, 1);
                 cr.lineTo(0, 1);
@@ -165,15 +161,12 @@ describe('Cairo', function () {
             }).not.toThrow();
         });
 
-        it('can be marshalled through a signal handler', function () {
-            let o = new Regress.TestObj();
-            let foreignSpy = jasmine.createSpy('sig-with-foreign-struct');
-            o.connect('sig-with-foreign-struct', foreignSpy);
-            o.emit_sig_with_foreign_struct();
-            expect(foreignSpy).toHaveBeenCalledWith(o, cr);
-        });
-
         it('has methods when created from a C function', function () {
+            if (GLib.getenv('ENABLE_GTK') !== 'yes') {
+                pending('GTK disabled');
+                return;
+            }
+            Gtk.init(null);
             let win = new Gtk.OffscreenWindow();
             let da = new Gtk.DrawingArea();
             win.add(da);
@@ -182,6 +175,13 @@ describe('Cairo', function () {
             cr = Gdk.cairo_create(da.window);
             expect(cr.save).toBeDefined();
             expect(cr.getTarget()).toBeDefined();
+        });
+    });
+
+    describe('pattern', function () {
+        it('has typechecks', function () {
+            expect(() => cr.setSource({})).toThrow();
+            expect(() => cr.setSource(surface)).toThrow();
         });
     });
 
@@ -225,6 +225,74 @@ describe('Cairo', function () {
             expect(_ts(p1)).toEqual('RadialGradient');
             cr.setSource(p1);
             expect(_ts(cr.getSource())).toEqual('RadialGradient');
+        });
+    });
+
+    describe('path', function () {
+        it('has typechecks', function () {
+            expect(() => cr.appendPath({})).toThrow();
+            expect(() => cr.appendPath(surface)).toThrow();
+        });
+    });
+
+    describe('surface', function () {
+        it('has typechecks', function () {
+            expect(() => new Cairo.Context({})).toThrow();
+            const pattern = new Cairo.SurfacePattern(surface);
+            expect(() => new Cairo.Context(pattern)).toThrow();
+        });
+    });
+
+    describe('GI test suite', function () {
+        describe('for context', function () {
+            it('can be marshalled as a return value', function () {
+                const outCr = Regress.test_cairo_context_full_return();
+                const outSurface = outCr.getTarget();
+                expect(outSurface.getFormat()).toEqual(Cairo.Format.ARGB32);
+                expect(outSurface.getWidth()).toEqual(10);
+                expect(outSurface.getHeight()).toEqual(10);
+            });
+
+            it('can be marshalled as an in parameter', function () {
+                expect(() => Regress.test_cairo_context_none_in(cr)).not.toThrow();
+            });
+        });
+
+        describe('for surface', function () {
+            ['none', 'full'].forEach(transfer => {
+                it(`can be marshalled as a transfer-${transfer} return value`, function () {
+                    const outSurface = Regress[`test_cairo_surface_${transfer}_return`]();
+                    expect(outSurface.getFormat()).toEqual(Cairo.Format.ARGB32);
+                    expect(outSurface.getWidth()).toEqual(10);
+                    expect(outSurface.getHeight()).toEqual(10);
+                });
+            });
+
+            it('can be marshalled as an in parameter', function () {
+                expect(() => Regress.test_cairo_surface_none_in(surface)).not.toThrow();
+            });
+
+            it('can be marshalled as an out parameter', function () {
+                const outSurface = Regress.test_cairo_surface_full_out();
+                expect(outSurface.getFormat()).toEqual(Cairo.Format.ARGB32);
+                expect(outSurface.getWidth()).toEqual(10);
+                expect(outSurface.getHeight()).toEqual(10);
+            });
+        });
+
+        it('can be marshalled through a signal handler', function () {
+            let o = new Regress.TestObj();
+            let foreignSpy = jasmine.createSpy('sig-with-foreign-struct');
+            o.connect('sig-with-foreign-struct', foreignSpy);
+            o.emit_sig_with_foreign_struct();
+            expect(foreignSpy).toHaveBeenCalledWith(o, cr);
+        });
+
+        it('can have its type inferred as a foreign struct', function () {
+            expect(() => GIMarshallingTests.gvalue_in_with_type(cr, Cairo.Context))
+                .not.toThrow();
+            expect(() => GIMarshallingTests.gvalue_in_with_type(surface, Cairo.Surface))
+                .not.toThrow();
         });
     });
 });

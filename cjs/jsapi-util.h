@@ -21,88 +21,180 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_JSAPI_UTIL_H__
-#define __GJS_JSAPI_UTIL_H__
+#ifndef GJS_JSAPI_UTIL_H_
+#define GJS_JSAPI_UTIL_H_
 
-#include <memory>
-#include <string>
-#include <stdbool.h>
+#include <config.h>
 
+#include <stddef.h>  // for size_t
+#include <stdint.h>
+#include <sys/types.h>  // for ssize_t
+
+#include <memory>  // for unique_ptr
+#include <string>  // for string, u16string
+#include <vector>
+
+#include <girepository.h>
 #include <glib-object.h>
+#include <glib.h>
 
-#include "jsapi-wrapper.h"
-#include "gi/gtype.h"
+#include <js/GCPolicyAPI.h>  // for IgnoreGCPolicy
+#include <js/Id.h>
+#include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
+#include <jspubtd.h>     // for JSProtoKey
 
-#ifdef __GNUC__
-#define GJS_ALWAYS_INLINE __attribute__((always_inline))
-#else
-#define GJS_ALWAYS_INLINE
-#endif
+#include "cjs/macros.h"
 
-class GjsAutoChar : public std::unique_ptr<char, decltype(&g_free)> {
-public:
-    GjsAutoChar(char *str = nullptr) : unique_ptr(str, g_free) {}
+class JSErrorReport;
+namespace JS {
+class CallArgs;
+}
 
-    operator const char *() {
-        return get();
+struct GjsAutoTakeOwnership {};
+
+template <typename T, typename F,
+          void (*free_func)(F*) = nullptr, F* (*ref_func)(F*) = nullptr>
+struct GjsAutoPointer : std::unique_ptr<T, decltype(free_func)> {
+    GjsAutoPointer(T* ptr = nullptr)  // NOLINT(runtime/explicit)
+        : GjsAutoPointer::unique_ptr(ptr, *free_func) {}
+    GjsAutoPointer(T* ptr, const GjsAutoTakeOwnership&)
+        : GjsAutoPointer(nullptr) {
+        // FIXME: should use if constexpr (...), but that doesn't work with
+        // ubsan, which generates a null pointer check making it not a constexpr
+        // anymore: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=71962 - Also a
+        // bogus warning, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=94554
+        auto ref = ref_func;
+        this->reset(ptr && ref ? reinterpret_cast<T*>(ref(ptr)) : ptr);
     }
 
-    void operator= (char *str) {
-        reset(str);
+    operator T*() const { return this->get(); }
+    T& operator[](size_t i) const { return static_cast<T*>(*this)[i]; }
+
+    [[nodiscard]] T* copy() const {
+        return reinterpret_cast<T*>(ref_func(this->get()));
     }
 
-    void operator= (const char *str) {
-        reset(g_strdup(str));
+    template <typename C>
+    [[nodiscard]] C* as() const {
+        return const_cast<C*>(reinterpret_cast<const C*>(this->get()));
     }
 };
 
 template <typename T>
-class GjsAutoUnref : public std::unique_ptr<T, decltype(&g_object_unref)> {
-public:
-    GjsAutoUnref(T *ptr = nullptr) : GjsAutoUnref::unique_ptr(ptr, g_object_unref) {}
+using GjsAutoFree = GjsAutoPointer<T, void, g_free>;
 
-    operator T *() {
-        return GjsAutoUnref::unique_ptr::get();
+struct GjsAutoCharFuncs {
+    static char* dup(char* str) { return g_strdup(str); }
+    static void free(char* str) { g_free(str); }
+};
+using GjsAutoChar =
+    GjsAutoPointer<char, char, GjsAutoCharFuncs::free, GjsAutoCharFuncs::dup>;
+
+using GjsAutoStrv = GjsAutoPointer<char*, char*, g_strfreev>;
+
+template <typename T>
+using GjsAutoUnref = GjsAutoPointer<T, void, g_object_unref, g_object_ref>;
+
+template <typename T = GTypeClass>
+struct GjsAutoTypeClass : GjsAutoPointer<T, void, &g_type_class_unref> {
+    GjsAutoTypeClass(gpointer ptr = nullptr)  // NOLINT(runtime/explicit)
+        : GjsAutoPointer<T, void, g_type_class_unref>(static_cast<T*>(ptr)) {}
+    explicit GjsAutoTypeClass(GType gtype)
+        : GjsAutoTypeClass(g_type_class_ref(gtype)) {}
+};
+
+// Use this class for owning a GIBaseInfo* of indeterminate type. Any type (e.g.
+// GIFunctionInfo*, GIObjectInfo*) will fit. If you know that the info is of a
+// certain type (e.g. you are storing the return value of a function that
+// returns GIFunctionInfo*,) use one of the derived classes below.
+struct GjsAutoBaseInfo : GjsAutoPointer<GIBaseInfo, GIBaseInfo,
+                                        g_base_info_unref, g_base_info_ref> {
+    GjsAutoBaseInfo(GIBaseInfo* ptr = nullptr)  // NOLINT(runtime/explicit)
+        : GjsAutoPointer(ptr) {}
+
+    [[nodiscard]] const char* name() const {
+        return g_base_info_get_name(*this);
+    }
+    [[nodiscard]] const char* ns() const {
+        return g_base_info_get_namespace(*this);
+    }
+    [[nodiscard]] GIInfoType type() const {
+        return g_base_info_get_type(*this);
     }
 };
 
-struct GjsJSFreeArgs {
-    void operator() (char *str) {
-        JS_free(nullptr, str);
+// Use GjsAutoInfo, preferably its typedefs below, when you know for sure that
+// the info is either of a certain type or null.
+template <GIInfoType TAG>
+struct GjsAutoInfo : GjsAutoBaseInfo {
+    // Normally one-argument constructors should be explicit, but we are trying
+    // to conform to the interface of std::unique_ptr here.
+    GjsAutoInfo(GIBaseInfo* ptr = nullptr)  // NOLINT(runtime/explicit)
+        : GjsAutoBaseInfo(ptr) {
+        validate();
+    }
+
+    void reset(GIBaseInfo* other = nullptr) {
+        GjsAutoBaseInfo::reset(other);
+        validate();
+    }
+
+    // You should not need this method, because you already know the answer.
+    GIInfoType type() = delete;
+
+ private:
+    void validate() const {
+        if (GIBaseInfo* base = *this)
+            g_assert(g_base_info_get_type(base) == TAG);
     }
 };
 
-class GjsAutoJSChar : public std::unique_ptr<char, GjsJSFreeArgs> {
-public:
-    GjsAutoJSChar(char *str = nullptr) : unique_ptr(str, GjsJSFreeArgs()) { }
+using GjsAutoEnumInfo = GjsAutoInfo<GI_INFO_TYPE_ENUM>;
+using GjsAutoFieldInfo = GjsAutoInfo<GI_INFO_TYPE_FIELD>;
+using GjsAutoFunctionInfo = GjsAutoInfo<GI_INFO_TYPE_FUNCTION>;
+using GjsAutoInterfaceInfo = GjsAutoInfo<GI_INFO_TYPE_INTERFACE>;
+using GjsAutoObjectInfo = GjsAutoInfo<GI_INFO_TYPE_OBJECT>;
+using GjsAutoPropertyInfo = GjsAutoInfo<GI_INFO_TYPE_PROPERTY>;
+using GjsAutoStructInfo = GjsAutoInfo<GI_INFO_TYPE_STRUCT>;
+using GjsAutoTypeInfo = GjsAutoInfo<GI_INFO_TYPE_TYPE>;
+using GjsAutoValueInfo = GjsAutoInfo<GI_INFO_TYPE_VALUE>;
+using GjsAutoVFuncInfo = GjsAutoInfo<GI_INFO_TYPE_VFUNC>;
 
-    operator const char*() {
-        return get();
+// GICallableInfo can be one of several tags, so we have to have a separate
+// class, and use GI_IS_CALLABLE_INFO() to validate.
+struct GjsAutoCallableInfo : GjsAutoBaseInfo {
+    GjsAutoCallableInfo(GIBaseInfo* ptr = nullptr)  // NOLINT(runtime/explicit)
+        : GjsAutoBaseInfo(ptr) {
+        validate();
     }
 
-    void operator=(char *str) {
-        reset(str);
+    void reset(GIBaseInfo* other = nullptr) {
+        GjsAutoBaseInfo::reset(other);
+        validate();
     }
 
-    char* copy() {
-        /* Strings acquired by this should be g_free()'ed */
-        return g_strdup(get());
+ private:
+    void validate() const {
+        if (GIBaseInfo* base = *this)
+            g_assert(GI_IS_CALLABLE_INFO(base));
     }
 };
 
-G_BEGIN_DECLS
+/* For use of GjsAutoInfo<TAG> in GC hash maps */
+namespace JS {
+template <GIInfoType TAG>
+struct GCPolicy<GjsAutoInfo<TAG>> : public IgnoreGCPolicy<GjsAutoInfo<TAG>> {};
+}  // namespace JS
 
-#define GJS_UTIL_ERROR gjs_util_error_quark ()
-GQuark gjs_util_error_quark (void);
-enum {
-  GJS_UTIL_ERROR_NONE,
-  GJS_UTIL_ERROR_ARGUMENT_INVALID,
-  GJS_UTIL_ERROR_ARGUMENT_UNDERFLOW,
-  GJS_UTIL_ERROR_ARGUMENT_OVERFLOW,
-  GJS_UTIL_ERROR_ARGUMENT_TYPE_MISMATCH
-};
+using GjsAutoParam = GjsAutoPointer<GParamSpec, GParamSpec, g_param_spec_unref,
+                                    g_param_spec_ref>;
 
-typedef struct GjsRootedArray GjsRootedArray;
+/* For use of GjsAutoParam in GC hash maps */
+namespace JS {
+template <>
+struct GCPolicy<GjsAutoParam> : public IgnoreGCPolicy<GjsAutoParam> {};
+}  // namespace JS
 
 /* Flags that should be set on properties exported from native code modules.
  * Basically set these on API, but do NOT set them on data.
@@ -123,27 +215,28 @@ typedef struct GjsRootedArray GjsRootedArray;
  * A convenience macro for getting the 'this' object a function was called with.
  * Use in any JSNative function.
  */
-#define GJS_GET_THIS(cx, argc, vp, args, to)                   \
-    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);          \
-    JS::RootedObject to(cx, &args.computeThis(cx).toObject())
+#define GJS_GET_THIS(cx, argc, vp, args, to)          \
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp); \
+    JS::RootedObject to(cx);                          \
+    if (!args.computeThis(cx, &to))                   \
+        return false;
 
-JSObject*   gjs_get_import_global            (JSContext       *context);
+[[nodiscard]] JSObject* gjs_get_import_global(JSContext* cx);
 
 void gjs_throw_constructor_error             (JSContext       *context);
 
 void gjs_throw_abstract_constructor_error(JSContext    *context,
                                           JS::CallArgs& args);
 
-JSObject*   gjs_build_string_array           (JSContext       *context,
-                                              gssize           array_length,
-                                              char           **array_values);
+GJS_JSAPI_RETURN_CONVENTION
+JSObject* gjs_build_string_array(JSContext* cx,
+                                 const std::vector<std::string>& strings);
 
-JSObject *gjs_define_string_array(JSContext       *context,
-                                  JS::HandleObject obj,
-                                  const char      *array_name,
-                                  ssize_t          array_length,
-                                  const char     **array_values,
-                                  unsigned         attrs);
+GJS_JSAPI_RETURN_CONVENTION
+JSObject* gjs_define_string_array(JSContext* cx, JS::HandleObject obj,
+                                  const char* array_name,
+                                  const std::vector<std::string>& strings,
+                                  unsigned attrs);
 
 void        gjs_throw                        (JSContext       *context,
                                               const char      *format,
@@ -155,67 +248,67 @@ void        gjs_throw_custom                 (JSContext       *context,
                                               ...)  G_GNUC_PRINTF (4, 5);
 void        gjs_throw_literal                (JSContext       *context,
                                               const char      *string);
-void        gjs_throw_g_error                (JSContext       *context,
-                                              GError          *error);
+bool gjs_throw_gerror_message(JSContext* cx, GError* error);
 
 bool        gjs_log_exception                (JSContext       *context);
 
-bool gjs_log_exception_full(JSContext       *context,
-                            JS::HandleValue  exc,
-                            JS::HandleString message);
+bool gjs_log_exception_uncaught(JSContext* cx);
 
-char *gjs_value_debug_string(JSContext      *context,
-                             JS::HandleValue value);
+bool gjs_log_exception_full(JSContext* cx, JS::HandleValue exc,
+                            JS::HandleString message, GLogLevelFlags level);
 
-bool gjs_call_function_value(JSContext                  *context,
-                             JS::HandleObject            obj,
-                             JS::HandleValue             fval,
-                             const JS::HandleValueArray& args,
-                             JS::MutableHandleValue      rval);
+[[nodiscard]] char* gjs_value_debug_string(JSContext* cx,
+                                           JS::HandleValue value);
 
-void gjs_warning_reporter(JSContext     *cx,
-                          JSErrorReport *report);
+void gjs_warning_reporter(JSContext*, JSErrorReport* report);
 
-bool        gjs_string_to_utf8               (JSContext       *context,
-                                              const JS::Value  string_val,
-                                              GjsAutoJSChar   *utf8_string_p);
+GJS_JSAPI_RETURN_CONVENTION
+JS::UniqueChars gjs_string_to_utf8(JSContext* cx, const JS::Value string_val);
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_string_from_utf8(JSContext             *context,
                           const char            *utf8_string,
                           JS::MutableHandleValue value_p);
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_string_from_utf8_n(JSContext             *cx,
                             const char            *utf8_chars,
                             size_t                 len,
                             JS::MutableHandleValue out);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_string_to_filename(JSContext       *cx,
                             const JS::Value  string_val,
                             GjsAutoChar     *filename_string);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_string_from_filename(JSContext             *context,
                               const char            *filename_string,
                               ssize_t                n_bytes,
                               JS::MutableHandleValue value_p);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_string_get_char16_data(JSContext       *cx,
                                 JS::HandleString str,
                                 char16_t       **data_p,
                                 size_t          *len_p);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_string_to_ucs4(JSContext       *cx,
                         JS::HandleString value,
                         gunichar       **ucs4_string_p,
                         size_t          *len_p);
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_string_from_ucs4(JSContext             *cx,
                           const gunichar        *ucs4_string,
                           ssize_t                n_chars,
                           JS::MutableHandleValue value_p);
 
-bool        gjs_get_string_id                (JSContext       *context,
-                                              jsid             id,
-                                              GjsAutoJSChar   *name_p);
+GJS_JSAPI_RETURN_CONVENTION
+bool gjs_get_string_id(JSContext* cx, jsid id, JS::UniqueChars* name_p);
+GJS_JSAPI_RETURN_CONVENTION
 jsid        gjs_intern_string_to_id          (JSContext       *context,
                                               const char      *string);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool        gjs_unichar_from_string          (JSContext       *context,
                                               JS::Value        string,
                                               gunichar        *result);
@@ -223,171 +316,69 @@ bool        gjs_unichar_from_string          (JSContext       *context,
 /* Functions intended for more "internal" use */
 
 void gjs_maybe_gc (JSContext *context);
-void gjs_schedule_gc_if_needed(JSContext *cx);
 void gjs_gc_if_needed(JSContext *cx);
 
-bool gjs_eval_with_scope(JSContext             *context,
-                         JS::HandleObject       object,
-                         const char            *script,
-                         ssize_t                script_len,
-                         const char            *filename,
-                         JS::MutableHandleValue retval);
+[[nodiscard]] std::u16string gjs_utf8_script_to_utf16(const char* script,
+                                                      ssize_t len);
 
-typedef enum {
-  GJS_STRING_CONSTRUCTOR,
-  GJS_STRING_PROTOTYPE,
-  GJS_STRING_LENGTH,
-  GJS_STRING_IMPORTS,
-  GJS_STRING_PARENT_MODULE,
-  GJS_STRING_MODULE_INIT,
-  GJS_STRING_SEARCH_PATH,
-  GJS_STRING_KEEP_ALIVE_MARKER,
-  GJS_STRING_PRIVATE_NS_MARKER,
-  GJS_STRING_GI_MODULE,
-  GJS_STRING_GI_VERSIONS,
-  GJS_STRING_GI_OVERRIDES,
-  GJS_STRING_GOBJECT_INIT,
-  GJS_STRING_INSTANCE_INIT,
-  GJS_STRING_NEW_INTERNAL,
-  GJS_STRING_NEW,
-  GJS_STRING_MESSAGE,
-  GJS_STRING_CODE,
-  GJS_STRING_STACK,
-  GJS_STRING_FILENAME,
-  GJS_STRING_LINE_NUMBER,
-  GJS_STRING_COLUMN_NUMBER,
-  GJS_STRING_NAME,
-  GJS_STRING_X,
-  GJS_STRING_Y,
-  GJS_STRING_WIDTH,
-  GJS_STRING_HEIGHT,
-  GJS_STRING_MODULE_PATH,
-  GJS_STRING_LAST
-} GjsConstString;
-
-const char * gjs_strip_unix_shebang(const char *script,
-                                    size_t     *script_len,
-                                    int        *new_start_line_number);
-
-/* These four functions wrap JS_GetPropertyById(), etc., but with a
- * GjsConstString constant instead of a jsid. */
-
-bool gjs_object_get_property(JSContext             *cx,
-                             JS::HandleObject       obj,
-                             GjsConstString         property_name,
-                             JS::MutableHandleValue value_p);
-
-bool gjs_object_set_property(JSContext       *cx,
-                             JS::HandleObject obj,
-                             GjsConstString   property_name,
-                             JS::HandleValue  value);
-
-bool gjs_object_has_property(JSContext       *cx,
-                             JS::HandleObject obj,
-                             GjsConstString   property_name,
-                             bool            *found);
-
-G_END_DECLS
-
+GJS_JSAPI_RETURN_CONVENTION
 GjsAutoChar gjs_format_stack_trace(JSContext       *cx,
                                    JS::HandleObject saved_frame);
-
-bool gjs_object_define_property(JSContext       *cx,
-                                JS::HandleObject obj,
-                                GjsConstString   property_name,
-                                JS::HandleValue  value,
-                                unsigned         flags);
-
-bool gjs_object_define_property(JSContext       *cx,
-                                JS::HandleObject obj,
-                                GjsConstString   property_name,
-                                JS::HandleObject value,
-                                unsigned         flags);
-
-bool gjs_object_define_property(JSContext       *cx,
-                                JS::HandleObject obj,
-                                GjsConstString   property_name,
-                                JS::HandleString value,
-                                unsigned         flags);
-
-bool gjs_object_define_property(JSContext       *cx,
-                                JS::HandleObject obj,
-                                GjsConstString   property_name,
-                                uint32_t         value,
-                                unsigned         flags);
-
-JS::HandleId gjs_context_get_const_string(JSContext     *cx,
-                                          GjsConstString string);
 
 /* Overloaded functions, must be outside G_DECLS. More types are intended to be
  * added as the opportunity arises. */
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_object_require_property(JSContext             *context,
                                  JS::HandleObject       obj,
                                  const char            *obj_description,
                                  JS::HandleId           property_name,
                                  JS::MutableHandleValue value);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_object_require_property(JSContext       *cx,
                                  JS::HandleObject obj,
                                  const char      *description,
                                  JS::HandleId     property_name,
                                  bool            *value);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_object_require_property(JSContext       *cx,
                                  JS::HandleObject obj,
                                  const char      *description,
                                  JS::HandleId     property_name,
                                  int32_t         *value);
 
-bool gjs_object_require_property(JSContext       *cx,
-                                 JS::HandleObject obj,
-                                 const char      *description,
-                                 JS::HandleId     property_name,
-                                 GjsAutoJSChar   *value);
+GJS_JSAPI_RETURN_CONVENTION
+bool gjs_object_require_property(JSContext* cx, JS::HandleObject obj,
+                                 const char* description,
+                                 JS::HandleId property_name,
+                                 JS::UniqueChars* value);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_object_require_property(JSContext              *cx,
                                  JS::HandleObject        obj,
                                  const char             *description,
                                  JS::HandleId            property_name,
                                  JS::MutableHandleObject value);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_object_require_converted_property(JSContext       *context,
                                            JS::HandleObject obj,
                                            const char      *description,
                                            JS::HandleId     property_name,
                                            uint32_t        *value);
 
-/* Here, too, we have wrappers that take a GjsConstString. */
+[[nodiscard]] std::string gjs_debug_string(JSString* str);
+[[nodiscard]] std::string gjs_debug_symbol(JS::Symbol* const sym);
+[[nodiscard]] std::string gjs_debug_object(JSObject* obj);
+[[nodiscard]] std::string gjs_debug_value(JS::Value v);
+[[nodiscard]] std::string gjs_debug_id(jsid id);
 
-template<typename T>
-bool gjs_object_require_property(JSContext        *cx,
-                                 JS::HandleObject  obj,
-                                 const char       *description,
-                                 GjsConstString    property_name,
-                                 T                 value)
-{
-    return gjs_object_require_property(cx, obj, description,
-                                       gjs_context_get_const_string(cx, property_name),
-                                       value);
-}
+[[nodiscard]] char* gjs_hyphen_to_underscore(const char* str);
 
-template<typename T>
-bool gjs_object_require_converted_property(JSContext       *cx,
-                                           JS::HandleObject obj,
-                                           const char      *description,
-                                           GjsConstString   property_name,
-                                           T                value)
-{
-    return gjs_object_require_converted_property(cx, obj, description,
-                                                 gjs_context_get_const_string(cx, property_name),
-                                                 value);
-}
+#if defined(G_OS_WIN32) && (defined(_MSC_VER) && (_MSC_VER >= 1900))
+[[nodiscard]] std::wstring gjs_win32_vc140_utf8_to_utf16(const char* str);
+#endif
 
-std::string gjs_debug_string(JSString *str);
-std::string gjs_debug_symbol(JS::Symbol * const sym);
-std::string gjs_debug_object(JSObject *obj);
-std::string gjs_debug_value(JS::Value v);
-std::string gjs_debug_id(jsid id);
-
-#endif  /* __GJS_JSAPI_UTIL_H__ */
+#endif  // GJS_JSAPI_UTIL_H_

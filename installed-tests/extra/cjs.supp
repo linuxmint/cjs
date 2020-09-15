@@ -1,0 +1,127 @@
+# Valgrind suppressions file for GJS
+# This is intended to be used in addition to GLib's glib.supp file.
+
+# SpiderMonkey leaks
+
+{
+   mozjs-thread-stack-init
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:_dl_allocate_tls
+   fun:pthread_create@@GLIBC_2.2.5
+   fun:_ZN7mozilla9TimeStamp20ComputeProcessUptimeEv
+   fun:_ZN7mozilla9TimeStamp15ProcessCreationEPb
+   fun:_ZN2JS6detail25InitWithFailureDiagnosticEb
+   fun:_Z7JS_Initv
+}
+
+# Various things that I don't believe are related to GJS
+
+{
+   gtk-style-context
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:g_malloc
+   ...
+   fun:gtk_css_node_declaration_make_writable
+   ...
+   fun:gtk_style_constructed
+}
+
+{
+   gtk-style-context2
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:g_malloc
+   ...
+   fun:gtk_css_node_declaration_make_writable_resize
+   ...
+   fun:gtk_style_constructed
+}
+
+# https://bugs.freedesktop.org/show_bug.cgi?id=105466
+{
+   freedesktop-bug-105466
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:FcConfigSubstituteWithPat
+   fun:_cairo_ft_resolve_pattern
+   fun:_cairo_ft_font_face_get_implementation
+   fun:cairo_scaled_font_create
+   fun:_cairo_gstate_ensure_scaled_font
+   fun:_cairo_gstate_get_scaled_font
+   fun:_cairo_default_context_get_scaled_font
+   fun:cairo_show_text
+}
+
+# Data that Cairo keeps around for the process lifetime
+# This could be freed by calling cairo_debug_reset_static_data(), but it's
+# not a good idea to call that function in production, because certain versions
+# of Cairo have bugs that cause it to fail assertions and crash.
+{
+   cairo-static-data
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:FcPatternDuplicate
+   fun:_cairo_ft_font_face_create_for_pattern
+   fun:_cairo_ft_font_face_create_for_toy
+   fun:_cairo_toy_font_face_create_impl_face
+   fun:_cairo_toy_font_face_init
+   fun:cairo_toy_font_face_create
+   ...
+   fun:_cairo_gstate_ensure_font_face
+   fun:_cairo_gstate_ensure_scaled_font
+   fun:_cairo_gstate_get_scaled_font
+   fun:_cairo_default_context_get_scaled_font
+   ...
+   fun:cairo_show_text
+}
+
+# https://gitlab.gnome.org/GNOME/gobject-introspection/issues/265
+{
+   gobject-introspection-default-repository
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:realloc
+   ...
+   fun:build_typelib_key
+   fun:register_internal
+}
+
+# Workaround for https://github.com/mesonbuild/meson/issues/4427
+# When fixed, valgrind should already not trace bash
+{
+   bash-workaround
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:xmalloc
+   fun:set_default_locale
+   fun:main
+}
+
+# https://gitlab.gnome.org/GNOME/glib/-/issues/1911
+{
+   g-type-register-static
+   Memcheck:Leak
+   match-leak-kinds:possible
+   fun:malloc
+   ...
+   fun:g_type_register_static
+}
+
+{
+   g-type-register-static-calloc
+   Memcheck:Leak
+   match-leak-kinds:possible
+   fun:calloc
+   ...
+   fun:g_type_register_static
+}

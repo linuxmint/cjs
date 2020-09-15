@@ -22,13 +22,23 @@
 
 #include <config.h>
 
+#include <cairo.h>
+#include <glib.h>
+
+#include <js/Class.h>
+#include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
+#include <js/PropertySpec.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <jsapi.h>  // for JS_NewObjectWithGivenProto
+
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util-args.h"
-#include "cjs/jsapi-wrapper.h"
-#include <cairo.h>
-#include "cairo-private.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
+#include "modules/cairo-private.h"
 
-static JSObject *gjs_cairo_linear_gradient_get_proto(JSContext *);
+[[nodiscard]] static JSObject* gjs_cairo_linear_gradient_get_proto(JSContext*);
 
 GJS_DEFINE_PROTO_WITH_PARENT("LinearGradient", cairo_linear_gradient,
                              cairo_gradient, JSCLASS_BACKGROUND_FINALIZE)
@@ -53,7 +63,7 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(cairo_linear_gradient)
     if (!gjs_cairo_check_status(context, cairo_pattern_status(pattern), "pattern"))
         return false;
 
-    gjs_cairo_pattern_construct(context, object, pattern);
+    gjs_cairo_pattern_construct(object, pattern);
     cairo_pattern_destroy(pattern);
 
     GJS_NATIVE_CONSTRUCTOR_FINISH(cairo_linear_gradient);
@@ -69,8 +79,8 @@ gjs_cairo_linear_gradient_finalize(JSFreeOp *fop,
 }
 
 JSPropertySpec gjs_cairo_linear_gradient_proto_props[] = {
-    JS_PS_END
-};
+    JS_STRING_SYM_PS(toStringTag, "LinearGradient", JSPROP_READONLY),
+    JS_PS_END};
 
 JSFunctionSpec gjs_cairo_linear_gradient_proto_funcs[] = {
     // getLinearPoints
@@ -83,9 +93,10 @@ JSObject *
 gjs_cairo_linear_gradient_from_pattern(JSContext       *context,
                                        cairo_pattern_t *pattern)
 {
-    g_return_val_if_fail(context != NULL, NULL);
-    g_return_val_if_fail(pattern != NULL, NULL);
-    g_return_val_if_fail(cairo_pattern_get_type(pattern) == CAIRO_PATTERN_TYPE_LINEAR, NULL);
+    g_return_val_if_fail(context, nullptr);
+    g_return_val_if_fail(pattern, nullptr);
+    g_return_val_if_fail(
+        cairo_pattern_get_type(pattern) == CAIRO_PATTERN_TYPE_LINEAR, nullptr);
 
     JS::RootedObject proto(context,
                            gjs_cairo_linear_gradient_get_proto(context));
@@ -94,10 +105,10 @@ gjs_cairo_linear_gradient_from_pattern(JSContext       *context,
                                    proto));
     if (!object) {
         gjs_throw(context, "failed to create linear gradient pattern");
-        return NULL;
+        return nullptr;
     }
 
-    gjs_cairo_pattern_construct(context, object, pattern);
+    gjs_cairo_pattern_construct(object, pattern);
 
     return object;
 }

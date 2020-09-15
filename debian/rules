@@ -6,7 +6,7 @@ include /usr/share/gnome-pkg-tools/1/rules/gnome-get-source.mk
 # files have been installed.
 #LIBMOZJS = $(shell objdump -p debian/tmp/usr/lib/libgjs.so | awk '$$1=="NEEDED" && $$2~/^libmozjs/ { print $$2 }' | sed s/\\.so\\./-/ )
 # Hard code the mozjs version here since the above line didn't seem to work
-LIBMOZJS = libmozjs-52-0
+LIBMOZJS = libmozjs-78-0
 
 %:
 	dh $@ --with gnome,gir
@@ -15,9 +15,7 @@ override_dh_auto_configure:
 	dh_auto_configure -- \
 		--libdir=\$${prefix}/lib \
 		--libexecdir=\$${prefix}/lib/cjs \
-		--disable-Werror \
-		--with-xvfb-tests \
-		--with-dbus-tests
+		-Dprofiler=disabled
 
 override_dh_girepository:
 	dh_girepository -l $(CURDIR) /usr/lib/cjs/girepository-1.0

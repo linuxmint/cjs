@@ -62,7 +62,7 @@ describe('Package module', function () {
     });
 
     it('doesn\'t find a non-existent interface method', function () {
-        expect(Pkg.checkSymbol('GIMarshallingTests', '1.0', 'Interface.test_int42_291in342')).toEqual(false);
+        expect(Pkg.checkSymbol('GIMarshallingTests', '1.0', 'Interface.test_int42_in')).toEqual(false);
     });
 
     it('finds an enum value', function () {

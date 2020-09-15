@@ -21,13 +21,18 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_GJS_H__
-#define __GJS_GJS_H__
+#ifndef GJS_GJS_H_
+#define GJS_GJS_H_
 
-#include <cjs/macros.h>
+#define INSIDE_GJS_H
+
 #include <cjs/context.h>
 #include <cjs/coverage.h>
+#include <cjs/error-types.h>
+#include <cjs/macros.h>
+#include <cjs/mem.h>
 #include <cjs/profiler.h>
-#include <util/error.h>
 
-#endif /* __GJS_GJS_H__ */
+#undef INSIDE_GJS_H
+
+#endif /* GJS_GJS_H_ */

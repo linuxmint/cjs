@@ -22,51 +22,47 @@
 
 #include <config.h>
 
+#include <cairo-gobject.h>
+#include <cairo.h>
+#include <glib.h>
+
+#include <js/CallArgs.h>
+#include <js/Class.h>
+#include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
+#include <js/PropertySpec.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <jsapi.h>  // for JS_GetPrivate, JS_GetClass, ...
+
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util.h"
-#include "cjs/jsapi-wrapper.h"
-#include <cairo.h>
-#include <cairo-gobject.h>
-#include "cairo-private.h"
-
-typedef struct {
-    void            *dummy;
-    JSContext       *context;
-    JSObject        *object;
-    cairo_pattern_t *pattern;
-} GjsCairoPattern;
+#include "cjs/macros.h"
+#include "modules/cairo-private.h"
 
 GJS_DEFINE_PROTO_ABSTRACT_WITH_GTYPE("Pattern", cairo_pattern,
                                      CAIRO_GOBJECT_TYPE_PATTERN,
                                      JSCLASS_BACKGROUND_FINALIZE)
-GJS_DEFINE_PRIV_FROM_JS(GjsCairoPattern, gjs_cairo_pattern_class)
 
-static void
-gjs_cairo_pattern_finalize(JSFreeOp *fop,
-                           JSObject *obj)
-{
-    GjsCairoPattern *priv;
-    priv = (GjsCairoPattern*) JS_GetPrivate(obj);
-    if (priv == NULL)
-        return;
-    cairo_pattern_destroy(priv->pattern);
-    g_slice_free(GjsCairoPattern, priv);
+static void gjs_cairo_pattern_finalize(JSFreeOp*, JSObject* obj) {
+    using AutoPattern =
+        GjsAutoPointer<cairo_pattern_t, cairo_pattern_t, cairo_pattern_destroy>;
+    AutoPattern pattern = static_cast<cairo_pattern_t*>(JS_GetPrivate(obj));
+    JS_SetPrivate(obj, nullptr);
 }
 
 /* Properties */
 JSPropertySpec gjs_cairo_pattern_proto_props[] = {
-    JS_PS_END
-};
+    JS_STRING_SYM_PS(toStringTag, "Pattern", JSPROP_READONLY), JS_PS_END};
 
 /* Methods */
 
+GJS_JSAPI_RETURN_CONVENTION
 static bool
 getType_func(JSContext *context,
              unsigned   argc,
              JS::Value *vp)
 {
     GJS_GET_THIS(context, argc, vp, rec, obj);
-    cairo_pattern_t *pattern;
     cairo_pattern_type_t type;
 
     if (argc > 1) {
@@ -74,7 +70,10 @@ getType_func(JSContext *context,
         return false;
     }
 
-    pattern = gjs_cairo_pattern_get_pattern(context, obj);
+    cairo_pattern_t* pattern = gjs_cairo_pattern_get_pattern(context, obj);
+    if (!pattern)
+        return false;
+
     type = cairo_pattern_get_type(pattern);
 
     if (!gjs_cairo_check_status(context, cairo_pattern_status(pattern), "pattern"))
@@ -86,10 +85,9 @@ getType_func(JSContext *context,
 
 JSFunctionSpec gjs_cairo_pattern_proto_funcs[] = {
     // getMatrix
-    JS_FS("getType", getType_func, 0, 0),
+    JS_FN("getType", getType_func, 0, 0),
     // setMatrix
-    JS_FS_END
-};
+    JS_FS_END};
 
 JSFunctionSpec gjs_cairo_pattern_static_funcs[] = { JS_FS_END };
 
@@ -97,7 +95,6 @@ JSFunctionSpec gjs_cairo_pattern_static_funcs[] = { JS_FS_END };
 
 /**
  * gjs_cairo_pattern_construct:
- * @context: the context
  * @object: object to construct
  * @pattern: cairo_pattern to attach to the object
  *
@@ -106,25 +103,12 @@ JSFunctionSpec gjs_cairo_pattern_static_funcs[] = { JS_FS_END };
  *
  * This is mainly used for subclasses where object is already created.
  */
-void
-gjs_cairo_pattern_construct(JSContext       *context,
-                            JS::HandleObject object,
-                            cairo_pattern_t *pattern)
-{
-    GjsCairoPattern *priv;
+void gjs_cairo_pattern_construct(JSObject* object, cairo_pattern_t* pattern) {
+    g_return_if_fail(object);
+    g_return_if_fail(pattern);
 
-    g_return_if_fail(context != NULL);
-    g_return_if_fail(object != nullptr);
-    g_return_if_fail(pattern != NULL);
-
-    priv = g_slice_new0(GjsCairoPattern);
-
-    g_assert(priv_from_js(context, object) == NULL);
-    JS_SetPrivate(object, priv);
-
-    priv->context = context;
-    priv->object = object;
-    priv->pattern = cairo_pattern_reference(pattern);
+    g_assert(!JS_GetPrivate(object));
+    JS_SetPrivate(object, cairo_pattern_reference(pattern));
 }
 
 /**
@@ -141,8 +125,8 @@ void
 gjs_cairo_pattern_finalize_pattern(JSFreeOp *fop,
                                    JSObject *object)
 {
-    g_return_if_fail(fop != NULL);
-    g_return_if_fail(object != NULL);
+    g_return_if_fail(fop);
+    g_return_if_fail(object);
 
     gjs_cairo_pattern_finalize(fop, object);
 }
@@ -160,8 +144,8 @@ JSObject *
 gjs_cairo_pattern_from_pattern(JSContext       *context,
                                cairo_pattern_t *pattern)
 {
-    g_return_val_if_fail(context != NULL, NULL);
-    g_return_val_if_fail(pattern != NULL, NULL);
+    g_return_val_if_fail(context, nullptr);
+    g_return_val_if_fail(pattern, nullptr);
 
     switch (cairo_pattern_get_type(pattern)) {
         case CAIRO_PATTERN_TYPE_SOLID:
@@ -178,31 +162,33 @@ gjs_cairo_pattern_from_pattern(JSContext       *context,
             gjs_throw(context,
                       "failed to create pattern, unsupported pattern type %d",
                       cairo_pattern_get_type(pattern));
-            return NULL;
+            return nullptr;
     }
 }
 
 /**
  * gjs_cairo_pattern_get_pattern:
- * @context: the context
- * @object: pattern wrapper
+ * @cx: the context
+ * @pattern_wrapper: pattern wrapper
  *
- * Returns: the pattern attaches to the wrapper.
- *
+ * Returns: the pattern attached to the wrapper.
  */
-cairo_pattern_t *
-gjs_cairo_pattern_get_pattern(JSContext *context,
-                              JSObject  *object)
-{
-    GjsCairoPattern *priv;
+cairo_pattern_t* gjs_cairo_pattern_get_pattern(
+    JSContext* cx, JS::HandleObject pattern_wrapper) {
+    g_return_val_if_fail(cx, nullptr);
+    g_return_val_if_fail(pattern_wrapper, nullptr);
 
-    g_return_val_if_fail(context != NULL, NULL);
-    g_return_val_if_fail(object != NULL, NULL);
+    JS::RootedObject proto(cx, gjs_cairo_pattern_get_proto(cx));
 
-    priv = (GjsCairoPattern*) JS_GetPrivate(object);
-    if (priv == NULL)
-        return NULL;
+    bool is_pattern_subclass = false;
+    if (!gjs_object_in_prototype_chain(cx, proto, pattern_wrapper,
+                                       &is_pattern_subclass))
+        return nullptr;
+    if (!is_pattern_subclass) {
+        gjs_throw(cx, "Expected Cairo.Pattern but got %s",
+                  JS_GetClass(pattern_wrapper)->name);
+        return nullptr;
+    }
 
-    return priv->pattern;
+    return static_cast<cairo_pattern_t*>(JS_GetPrivate(pattern_wrapper));
 }
-

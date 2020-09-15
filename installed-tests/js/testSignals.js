@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-properties */
+
 const GLib = imports.gi.GLib;
 const Lang = imports.lang;
 const Signals = imports.signals;
@@ -5,7 +7,7 @@ const Signals = imports.signals;
 const Foo = new Lang.Class({
     Name: 'Foo',
     Implements: [Signals.WithSignals],
-    _init: function () {},
+    _init() {},
 });
 
 describe('Legacy object with signals', function () {
@@ -28,17 +30,17 @@ function testSignals(klass) {
 
     it('calls a signal handler when a signal is emitted', function () {
         foo.connect('bar', bar);
-        foo.emit('bar', "This is a", "This is b");
+        foo.emit('bar', 'This is a', 'This is b');
         expect(bar).toHaveBeenCalledWith(foo, 'This is a', 'This is b');
     });
 
     it('does not call a signal handler after the signal is disconnected', function () {
         let id = foo.connect('bar', bar);
-        foo.emit('bar', "This is a", "This is b");
+        foo.emit('bar', 'This is a', 'This is b');
         bar.calls.reset();
         foo.disconnect(id);
         // this emission should do nothing
-        foo.emit('bar', "Another a", "Another b");
+        foo.emit('bar', 'Another a', 'Another b');
         expect(bar).not.toHaveBeenCalled();
     });
 
@@ -92,6 +94,13 @@ function testSignals(klass) {
         expect(bonk).not.toHaveBeenCalled();
     });
 
+    it('determines if a signal is connected on a JS object', function () {
+        let id = foo.connect('bar', bar);
+        expect(foo.signalHandlerIsConnected(id)).toEqual(true);
+        foo.disconnect(id);
+        expect(foo.signalHandlerIsConnected(id)).toEqual(false);
+    });
+
     describe('with exception in signal handler', function () {
         let bar2;
         beforeEach(function () {
@@ -99,8 +108,8 @@ function testSignals(klass) {
             bar2 = jasmine.createSpy('bar');
             foo.connect('bar', bar);
             foo.connect('bar', bar2);
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
-                                     'JS ERROR: Exception in callback for signal: *');
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                'JS ERROR: Exception in callback for signal: *');
             foo.emit('bar');
         });
 
@@ -110,8 +119,8 @@ function testSignals(klass) {
         });
 
         it('does not disconnect the callback', function () {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
-                                     'JS ERROR: Exception in callback for signal: *');
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                'JS ERROR: Exception in callback for signal: *');
             foo.emit('bar');
             expect(bar).toHaveBeenCalledTimes(2);
             expect(bar2).toHaveBeenCalledTimes(2);

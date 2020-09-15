@@ -21,30 +21,25 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_ENUMERATION_H__
-#define __GJS_ENUMERATION_H__
+#ifndef GI_ENUMERATION_H_
+#define GI_ENUMERATION_H_
 
-#include <stdbool.h>
-#include <glib.h>
-
-#include "cjs/jsapi-util.h"
+#include <config.h>
 
 #include <girepository.h>
 
-G_BEGIN_DECLS
+#include <js/TypeDecls.h>
 
+#include "cjs/macros.h"
+
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_enum_values(JSContext       *context,
                             JS::HandleObject in_object,
                             GIEnumInfo      *info);
 
-bool gjs_define_enum_static_methods(JSContext       *context,
-                                    JS::HandleObject constructor,
-                                    GIEnumInfo      *enum_info);
-
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_enumeration(JSContext       *context,
                             JS::HandleObject in_object,
                             GIEnumInfo      *info);
 
-G_END_DECLS
-
-#endif  /* __GJS_ENUMERATION_H__ */
+#endif  // GI_ENUMERATION_H_

@@ -22,16 +22,29 @@
 
 #include <config.h>
 
-#include "cjs/jsapi-class.h"
-#include "cjs/jsapi-util-args.h"
-#include "cjs/jsapi-wrapper.h"
+#include <cairo-features.h>  // for CAIRO_HAS_SVG_SURFACE
 #include <cairo.h>
-#include "cairo-private.h"
+
+#include <js/TypeDecls.h>
+
+#include "cjs/jsapi-util.h"
 
 #if CAIRO_HAS_SVG_SURFACE
-#include <cairo-svg.h>
+#    include <cairo-svg.h>
+#    include <glib.h>
 
-static JSObject *gjs_cairo_svg_surface_get_proto(JSContext *);
+#    include <js/Class.h>
+#    include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
+#    include <js/PropertySpec.h>
+#    include <js/RootingAPI.h>
+#    include <jsapi.h>  // for JS_NewObjectWithGivenProto
+
+#    include "cjs/jsapi-class.h"
+#    include "cjs/jsapi-util-args.h"
+#    include "cjs/macros.h"
+#    include "modules/cairo-private.h"
+
+[[nodiscard]] static JSObject* gjs_cairo_svg_surface_get_proto(JSContext*);
 
 GJS_DEFINE_PROTO_WITH_PARENT("SVGSurface", cairo_svg_surface,
                              cairo_surface, JSCLASS_BACKGROUND_FINALIZE)
@@ -57,7 +70,7 @@ GJS_NATIVE_CONSTRUCTOR_DECLARE(cairo_svg_surface)
                                 "surface"))
         return false;
 
-    gjs_cairo_surface_construct(context, object, surface);
+    gjs_cairo_surface_construct(object, surface);
     cairo_surface_destroy(surface);
 
     GJS_NATIVE_CONSTRUCTOR_FINISH(cairo_svg_surface);
@@ -72,9 +85,11 @@ gjs_cairo_svg_surface_finalize(JSFreeOp *fop,
     gjs_cairo_surface_finalize_surface(fop, obj);
 }
 
+// clang-format off
 JSPropertySpec gjs_cairo_svg_surface_proto_props[] = {
-    JS_PS_END
-};
+    JS_STRING_SYM_PS(toStringTag, "SVGSurface", JSPROP_READONLY),
+    JS_PS_END};
+// clang-format on
 
 JSFunctionSpec gjs_cairo_svg_surface_proto_funcs[] = {
     JS_FS_END
@@ -86,9 +101,10 @@ JSObject *
 gjs_cairo_svg_surface_from_surface(JSContext       *context,
                                    cairo_surface_t *surface)
 {
-    g_return_val_if_fail(context != NULL, NULL);
-    g_return_val_if_fail(surface != NULL, NULL);
-    g_return_val_if_fail(cairo_surface_get_type(surface) == CAIRO_SURFACE_TYPE_SVG, NULL);
+    g_return_val_if_fail(context, nullptr);
+    g_return_val_if_fail(surface, nullptr);
+    g_return_val_if_fail(
+        cairo_surface_get_type(surface) == CAIRO_SURFACE_TYPE_SVG, nullptr);
 
     JS::RootedObject proto(context, gjs_cairo_svg_surface_get_proto(context));
     JS::RootedObject object(context,
@@ -96,10 +112,10 @@ gjs_cairo_svg_surface_from_surface(JSContext       *context,
                                    proto));
     if (!object) {
         gjs_throw(context, "failed to create svg surface");
-        return NULL;
+        return nullptr;
     }
 
-    gjs_cairo_surface_construct(context, object, surface);
+    gjs_cairo_surface_construct(object, surface);
 
     return object;
 }
@@ -111,6 +127,6 @@ gjs_cairo_svg_surface_from_surface(JSContext       *context,
     gjs_throw(context,
         "could not create SVG surface, recompile cairo and gjs with "
         "SVG support.");
-    return NULL;
+    return nullptr;
 }
 #endif /* CAIRO_HAS_SVG_SURFACE */

@@ -1,92 +1,110 @@
-const Gio = imports.gi.Gio;
-const GLib = imports.gi.GLib;
+const ByteArray = imports.byteArray;
+const {Gio, GjsPrivate, GLib} = imports.gi;
 
 /* The methods list with their signatures.
  *
- * *** NOTE: If you add stuff here, you need to update testIntrospectReal
+ * *** NOTE: If you add stuff here, you need to update the Test class below.
  */
-var TestIface = '<node> \
-<interface name="org.gnome.gjs.Test"> \
-<method name="nonJsonFrobateStuff"> \
-    <arg type="i" direction="in"/> \
-    <arg type="s" direction="out"/> \
-</method> \
-<method name="frobateStuff"> \
-    <arg type="a{sv}" direction="in"/> \
-    <arg type="a{sv}" direction="out"/> \
-</method> \
-<method name="alwaysThrowException"> \
-    <arg type="a{sv}" direction="in"/> \
-    <arg type="a{sv}" direction="out"/> \
-</method> \
-<method name="thisDoesNotExist"/> \
-<method name="noInParameter"> \
-    <arg type="s" direction="out"/> \
-</method> \
-<method name="multipleInArgs"> \
-    <arg type="i" direction="in"/> \
-    <arg type="i" direction="in"/> \
-    <arg type="i" direction="in"/> \
-    <arg type="i" direction="in"/> \
-    <arg type="i" direction="in"/> \
-    <arg type="s" direction="out"/> \
-</method> \
-<method name="noReturnValue"/> \
-<method name="emitSignal"/> \
-<method name="multipleOutValues"> \
-    <arg type="s" direction="out"/> \
-    <arg type="s" direction="out"/> \
-    <arg type="s" direction="out"/> \
-</method> \
-<method name="oneArrayOut"> \
-    <arg type="as" direction="out"/> \
-</method> \
-<method name="arrayOfArrayOut"> \
-    <arg type="aas" direction="out"/> \
-</method> \
-<method name="multipleArrayOut"> \
-    <arg type="as" direction="out"/> \
-    <arg type="as" direction="out"/> \
-</method> \
-<method name="arrayOutBadSig"> \
-    <arg type="i" direction="out"/> \
-</method> \
-<method name="byteArrayEcho"> \
-    <arg type="ay" direction="in"/> \
-    <arg type="ay" direction="out"/> \
-</method> \
-<method name="byteEcho"> \
-    <arg type="y" direction="in"/> \
-    <arg type="y" direction="out"/> \
-</method> \
-<method name="dictEcho"> \
-    <arg type="a{sv}" direction="in"/> \
-    <arg type="a{sv}" direction="out"/> \
-</method> \
-<method name="echo"> \
-    <arg type="s" direction="in"/> \
-    <arg type="i" direction="in"/> \
-    <arg type="s" direction="out"/> \
-    <arg type="i" direction="out"/> \
-</method> \
-<method name="structArray"> \
-    <arg type="a(ii)" direction="out"/> \
-</method> \
-<signal name="signalFoo"> \
-    <arg type="s" direction="out"/> \
-</signal> \
-<property name="PropReadOnly" type="b" access="read" /> \
-<property name="PropWriteOnly" type="s" access="write" /> \
-<property name="PropReadWrite" type="v" access="readwrite" /> \
-</interface> \
-</node>';
+var TestIface = `<node>
+<interface name="org.gnome.gjs.Test">
+<method name="nonJsonFrobateStuff">
+    <arg type="i" direction="in"/>
+    <arg type="s" direction="out"/>
+</method>
+<method name="frobateStuff">
+    <arg type="a{sv}" direction="in"/>
+    <arg type="a{sv}" direction="out"/>
+</method>
+<method name="alwaysThrowException">
+    <arg type="a{sv}" direction="in"/>
+    <arg type="a{sv}" direction="out"/>
+</method>
+<method name="thisDoesNotExist"/>
+<method name="noInParameter">
+    <arg type="s" direction="out"/>
+</method>
+<method name="multipleInArgs">
+    <arg type="i" direction="in"/>
+    <arg type="i" direction="in"/>
+    <arg type="i" direction="in"/>
+    <arg type="i" direction="in"/>
+    <arg type="i" direction="in"/>
+    <arg type="s" direction="out"/>
+</method>
+<method name="noReturnValue"/>
+<method name="emitSignal"/>
+<method name="multipleOutValues">
+    <arg type="s" direction="out"/>
+    <arg type="s" direction="out"/>
+    <arg type="s" direction="out"/>
+</method>
+<method name="oneArrayOut">
+    <arg type="as" direction="out"/>
+</method>
+<method name="arrayOfArrayOut">
+    <arg type="aas" direction="out"/>
+</method>
+<method name="multipleArrayOut">
+    <arg type="as" direction="out"/>
+    <arg type="as" direction="out"/>
+</method>
+<method name="arrayOutBadSig">
+    <arg type="i" direction="out"/>
+</method>
+<method name="byteArrayEcho">
+    <arg type="ay" direction="in"/>
+    <arg type="ay" direction="out"/>
+</method>
+<method name="byteEcho">
+    <arg type="y" direction="in"/>
+    <arg type="y" direction="out"/>
+</method>
+<method name="dictEcho">
+    <arg type="a{sv}" direction="in"/>
+    <arg type="a{sv}" direction="out"/>
+</method>
+<method name="echo">
+    <arg type="s" direction="in"/>
+    <arg type="i" direction="in"/>
+    <arg type="s" direction="out"/>
+    <arg type="i" direction="out"/>
+</method>
+<method name="structArray">
+    <arg type="a(ii)" direction="out"/>
+</method>
+<method name="fdIn">
+    <arg type="h" direction="in"/>
+    <arg type="ay" direction="out"/>
+</method>
+<method name="fdIn2">
+    <arg type="h" direction="in"/>
+    <arg type="ay" direction="out"/>
+</method>
+<method name="fdOut">
+    <arg type="ay" direction="in"/>
+    <arg type="h" direction="out"/>
+</method>
+<method name="fdOut2">
+    <arg type="ay" direction="in"/>
+    <arg type="h" direction="out"/>
+</method>
+<signal name="signalFoo">
+    <arg type="s" direction="out"/>
+</signal>
+<property name="PropReadOnly" type="d" access="read" />
+<property name="PropWriteOnly" type="s" access="write" />
+<property name="PropReadWrite" type="v" access="readwrite" />
+</interface>
+</node>`;
 
+const PROP_READ_ONLY_INITIAL_VALUE = Math.random();
 const PROP_READ_WRITE_INITIAL_VALUE = 58;
-const PROP_WRITE_ONLY_INITIAL_VALUE = "Initial value";
+const PROP_WRITE_ONLY_INITIAL_VALUE = 'Initial value';
 
 /* Test is the actual object exporting the dbus methods */
 class Test {
     constructor() {
+        this._propReadOnly = PROP_READ_ONLY_INITIAL_VALUE;
         this._propWriteOnly = PROP_WRITE_ONLY_INITIAL_VALUE;
         this._propReadWrite = PROP_READ_WRITE_INITIAL_VALUE;
 
@@ -94,20 +112,19 @@ class Test {
         this._impl.export(Gio.DBus.session, '/org/gnome/gjs/Test');
     }
 
-    frobateStuff(args) {
-        return { hello: new GLib.Variant('s', 'world') };
+    frobateStuff() {
+        return {hello: new GLib.Variant('s', 'world')};
     }
 
     nonJsonFrobateStuff(i) {
-        if (i == 42) {
-            return "42 it is!";
-        } else {
-            return "Oops";
-        }
+        if (i === 42)
+            return '42 it is!';
+        else
+            return 'Oops';
     }
 
     alwaysThrowException() {
-        throw Error("Exception!");
+        throw Error('Exception!');
     }
 
     thisDoesNotExist() {
@@ -115,15 +132,15 @@ class Test {
     }
 
     noInParameter() {
-        return "Yes!";
+        return 'Yes!';
     }
 
     multipleInArgs(a, b, c, d, e) {
-        return a + " " + b + " " + c + " " + d + " " + e;
+        return `${a} ${b} ${c} ${d} ${e}`;
     }
 
     emitSignal() {
-        this._impl.emit_signal('signalFoo', GLib.Variant.new('(s)', [ "foobar" ]));
+        this._impl.emit_signal('signalFoo', GLib.Variant.new('(s)', ['foobar']));
     }
 
     noReturnValue() {
@@ -135,22 +152,22 @@ class Test {
      * multipleOutValues is "sss", while oneArrayOut is "as"
      */
     multipleOutValues() {
-        return [ "Hello", "World", "!" ];
+        return ['Hello', 'World', '!'];
     }
 
     oneArrayOut() {
-        return [ "Hello", "World", "!" ];
+        return ['Hello', 'World', '!'];
     }
 
     /* Same thing again. In this case multipleArrayOut is "asas",
      * while arrayOfArrayOut is "aas".
      */
     multipleArrayOut() {
-        return [[ "Hello", "World" ], [ "World", "Hello" ]];
+        return [['Hello', 'World'], ['World', 'Hello']];
     }
 
     arrayOfArrayOut() {
-        return [[ "Hello", "World" ], [ "World", "Hello" ]];
+        return [['Hello', 'World'], ['World', 'Hello']];
     }
 
     arrayOutBadSig() {
@@ -173,15 +190,15 @@ class Test {
      * the input arguments */
     echoAsync(parameters, invocation) {
         var [someString, someInt] = parameters;
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, function() {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, function () {
             invocation.return_value(new GLib.Variant('(si)', [someString, someInt]));
             return false;
         });
     }
 
-    // boolean
+    // double
     get PropReadOnly() {
-        return true;
+        return this._propReadOnly;
     }
 
     // string
@@ -195,34 +212,84 @@ class Test {
     }
 
     set PropReadWrite(value) {
-        this._propReadWrite = value.deep_unpack();
+        this._propReadWrite = value.deepUnpack();
     }
 
     structArray() {
         return [[128, 123456], [42, 654321]];
+    }
+
+    fdIn(fdIndex, fdList) {
+        const fd = fdList.get(fdIndex);
+        const stream = new Gio.UnixInputStream({fd, closeFd: true});
+        const bytes = stream.read_bytes(4096, null);
+        return bytes;
+    }
+
+    // Same as fdIn(), but implemented asynchronously
+    fdIn2Async([fdIndex], invocation, fdList) {
+        const fd = fdList.get(fdIndex);
+        const stream = new Gio.UnixInputStream({fd, closeFd: true});
+        stream.read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null, (obj, res) => {
+            const bytes = obj.read_bytes_finish(res);
+            invocation.return_value(new GLib.Variant('(ay)', [bytes]));
+        });
+    }
+
+    fdOut(bytes) {
+        const fd = GjsPrivate.open_bytes(bytes);
+        const fdList = Gio.UnixFDList.new_from_array([fd]);
+        return [0, fdList];
+    }
+
+    fdOut2Async([bytes], invocation) {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, function () {
+            const fd = GjsPrivate.open_bytes(bytes);
+            const fdList = Gio.UnixFDList.new_from_array([fd]);
+            invocation.return_value_with_unix_fd_list(new GLib.Variant('(h)', [0]),
+                fdList);
+            return GLib.SOURCE_REMOVE;
+        });
     }
 }
 
 const ProxyClass = Gio.DBusProxy.makeProxyWrapper(TestIface);
 
 describe('Exported DBus object', function () {
-    var own_name_id;
+    let ownNameID;
     var test;
     var proxy;
     let loop;
+
+    function waitForServerProperty(property, value = undefined, timeout = 500) {
+        let waitId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeout, () => {
+            waitId = 0;
+            throw new Error(`Timeout waiting for property ${property} expired`);
+        });
+
+        while (waitId && (!test[property] ||
+                          value !== undefined && test[property] !== value))
+            loop.get_context().iteration(true);
+
+        if (waitId)
+            GLib.source_remove(waitId);
+
+        expect(waitId).not.toBe(0);
+        return test[property];
+    }
 
     beforeAll(function () {
         loop = new GLib.MainLoop(null, false);
 
         test = new Test();
-        own_name_id = Gio.DBus.session.own_name('org.gnome.gjs.Test',
+        ownNameID = Gio.DBus.session.own_name('org.gnome.gjs.Test',
             Gio.BusNameOwnerFlags.NONE,
             name => {
-                log("Acquired name " + name);
+                log(`Acquired name ${name}`);
                 loop.quit();
             },
             name => {
-                log("Lost name " + name);
+                log(`Lost name ${name}`);
             });
         loop.run();
         new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
@@ -232,14 +299,15 @@ describe('Exported DBus object', function () {
                 proxy = obj;
                 expect(proxy).not.toBeNull();
                 loop.quit();
-            });
+            },
+            Gio.DBusProxyFlags.NONE);
         loop.run();
     });
 
     afterAll(function () {
         // Not really needed, but if we don't cleanup
         // memory checking will complain
-        Gio.DBus.session.unown_name(own_name_id);
+        Gio.DBus.session.unown_name(ownNameID);
     });
 
     beforeEach(function () {
@@ -249,7 +317,7 @@ describe('Exported DBus object', function () {
     it('can call a remote method', function () {
         proxy.frobateStuffRemote({}, ([result], excp) => {
             expect(excp).toBeNull();
-            expect(result.hello.deep_unpack()).toEqual('world');
+            expect(result.hello.deepUnpack()).toEqual('world');
             loop.quit();
         });
         loop.run();
@@ -274,7 +342,7 @@ describe('Exported DBus object', function () {
 
         otherProxy.frobateStuffRemote({}, ([result], excp) => {
             expect(excp).toBeNull();
-            expect(result.hello.deep_unpack()).toEqual('world');
+            expect(result.hello.deepUnpack()).toEqual('world');
             loop.quit();
         });
         loop.run();
@@ -283,10 +351,10 @@ describe('Exported DBus object', function () {
     /* excp must be exactly the exception thrown by the remote method
        (more or less) */
     it('can handle an exception thrown by a remote method', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
-        proxy.alwaysThrowExceptionRemote({}, function(result, excp) {
+        proxy.alwaysThrowExceptionRemote({}, function (result, excp) {
             expect(excp).not.toBeNull();
             loop.quit();
         });
@@ -294,7 +362,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can still destructure the return value when an exception is thrown', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         // This test will not fail, but instead if the functionality is not
@@ -302,7 +370,7 @@ describe('Exported DBus object', function () {
         // argument destructuring will not propagate across the FFI boundary
         // and the main loop will never quit.
         // https://bugzilla.gnome.org/show_bug.cgi?id=729015
-        proxy.alwaysThrowExceptionRemote({}, function([a, b, c], excp) {
+        proxy.alwaysThrowExceptionRemote({}, function ([a, b, c], excp) {
             expect(a).not.toBeDefined();
             expect(b).not.toBeDefined();
             expect(c).not.toBeDefined();
@@ -376,7 +444,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call a remote method with multiple return values', function () {
-        proxy.multipleOutValuesRemote(function(result, excp) {
+        proxy.multipleOutValuesRemote(function (result, excp) {
             expect(result).toEqual(['Hello', 'World', '!']);
             expect(excp).toBeNull();
             loop.quit();
@@ -414,7 +482,7 @@ describe('Exported DBus object', function () {
     });
 
     it('handles a bad signature by throwing an exception', function () {
-        proxy.arrayOutBadSigRemote(function(result, excp) {
+        proxy.arrayOutBadSigRemote(function (result, excp) {
             expect(excp).not.toBeNull();
             loop.quit();
         });
@@ -422,11 +490,11 @@ describe('Exported DBus object', function () {
     });
 
     it('can call a remote method that is implemented asynchronously', function () {
-        let someString = "Hello world!";
+        let someString = 'Hello world!';
         let someInt = 42;
 
         proxy.echoRemote(someString, someInt,
-            function(result, excp) {
+            function (result, excp) {
                 expect(excp).toBeNull();
                 expect(result).toEqual([someString, someInt]);
                 loop.quit();
@@ -435,9 +503,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can send and receive bytes from a remote method', function () {
-        let loop = GLib.MainLoop.new(null, false);
-
-        let someBytes = [ 0, 63, 234 ];
+        let someBytes = [0, 63, 234];
         someBytes.forEach(b => {
             proxy.byteEchoRemote(b, ([result], excp) => {
                 expect(excp).toBeNull();
@@ -472,16 +538,124 @@ describe('Exported DBus object', function () {
             expect(result).not.toBeNull();
 
             // verify the fractional part was dropped off int
-            expect(result['anInteger'].deep_unpack()).toEqual(10);
+            expect(result['anInteger'].deepUnpack()).toEqual(10);
 
             // and not dropped off a double
-            expect(result['aDoubleBeforeAndAfter'].deep_unpack()).toEqual(10.5);
+            expect(result['aDoubleBeforeAndAfter'].deepUnpack()).toEqual(10.5);
 
             // check without type conversion
-            expect(result['aDouble'].deep_unpack()).toBe(10.0);
+            expect(result['aDouble'].deepUnpack()).toBe(10.0);
 
             loop.quit();
         });
         loop.run();
+    });
+
+    it('can call a remote method with a Unix FD', function (done) {
+        const expectedBytes = ByteArray.fromString('some bytes');
+        const fd = GjsPrivate.open_bytes(expectedBytes);
+        const fdList = Gio.UnixFDList.new_from_array([fd]);
+        proxy.fdInRemote(0, fdList, ([bytes], exc, outFdList) => {
+            expect(exc).toBeNull();
+            expect(outFdList).toBeNull();
+            expect(bytes).toEqual(expectedBytes);
+            done();
+        });
+    });
+
+    it('can call an asynchronously implemented remote method with a Unix FD', function (done) {
+        const expectedBytes = ByteArray.fromString('some bytes');
+        const fd = GjsPrivate.open_bytes(expectedBytes);
+        const fdList = Gio.UnixFDList.new_from_array([fd]);
+        proxy.fdIn2Remote(0, fdList, ([bytes], exc, outFdList) => {
+            expect(exc).toBeNull();
+            expect(outFdList).toBeNull();
+            expect(bytes).toEqual(expectedBytes);
+            done();
+        });
+    });
+
+    function readBytesFromFdSync(fd) {
+        const stream = new Gio.UnixInputStream({fd, closeFd: true});
+        const bytes = stream.read_bytes(4096, null);
+        return ByteArray.fromGBytes(bytes);
+    }
+
+    it('can call a remote method that returns a Unix FD', function (done) {
+        const expectedBytes = ByteArray.fromString('some bytes');
+        proxy.fdOutRemote(expectedBytes, ([fdIndex], exc, outFdList) => {
+            expect(exc).toBeNull();
+            const bytes = readBytesFromFdSync(outFdList.get(fdIndex));
+            expect(bytes).toEqual(expectedBytes);
+            done();
+        });
+    });
+
+    it('can call an asynchronously implemented remote method that returns a Unix FD', function (done) {
+        const expectedBytes = ByteArray.fromString('some bytes');
+        proxy.fdOut2Remote(expectedBytes, ([fdIndex], exc, outFdList) => {
+            expect(exc).toBeNull();
+            const bytes = readBytesFromFdSync(outFdList.get(fdIndex));
+            expect(bytes).toEqual(expectedBytes);
+            done();
+        });
+    });
+
+    it('throws an exception when not passing a Gio.UnixFDList to a method that requires one', function () {
+        expect(() => proxy.fdInRemote(0, () => {})).toThrow();
+    });
+
+    it('throws an exception when passing a handle out of range of a Gio.UnixFDList', function () {
+        const fdList = new Gio.UnixFDList();
+        expect(() => proxy.fdInRemote(0, fdList, () => {})).toThrow();
+    });
+
+    it('Has defined properties', function () {
+        expect(proxy.hasOwnProperty('PropReadWrite')).toBeTruthy();
+        expect(proxy.hasOwnProperty('PropReadOnly')).toBeTruthy();
+        expect(proxy.hasOwnProperty('PropWriteOnly')).toBeTruthy();
+    });
+
+    it('reading readonly property works', function () {
+        expect(proxy.PropReadOnly).toEqual(PROP_READ_ONLY_INITIAL_VALUE);
+    });
+
+    it('reading readwrite property works', function () {
+        expect(proxy.PropReadWrite).toEqual(
+            GLib.Variant.new_string(PROP_READ_WRITE_INITIAL_VALUE.toString()));
+    });
+
+    it('reading writeonly throws an error', function () {
+        expect(() => proxy.PropWriteOnly).toThrowError('Property PropWriteOnly is not readable');
+    });
+
+    it('Setting a readwrite property works', function () {
+        let testStr = 'GjsVariantValue';
+        expect(() => {
+            proxy.PropReadWrite = GLib.Variant.new_string(testStr);
+        }).not.toThrow();
+
+        expect(proxy.PropReadWrite.deepUnpack()).toEqual(testStr);
+
+        expect(waitForServerProperty('_propReadWrite', testStr)).toEqual(testStr);
+    });
+
+    it('Setting a writeonly property works', function () {
+        let testValue = Math.random().toString();
+        expect(() => {
+            proxy.PropWriteOnly = testValue;
+        }).not.toThrow();
+
+        expect(() => proxy.PropWriteOnly).toThrow();
+        expect(waitForServerProperty('_propWriteOnly', testValue)).toEqual(testValue);
+    });
+
+    it('Setting a readonly property throws an error', function () {
+        let testValue = Math.random().toString();
+        expect(() => {
+            proxy.PropReadOnly = testValue;
+        }).toThrowError('Property PropReadOnly is not writable');
+
+        expect(proxy.PropReadOnly).toBe(PROP_READ_ONLY_INITIAL_VALUE);
     });
 });

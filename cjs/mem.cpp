@@ -21,10 +21,11 @@
  * IN THE SOFTWARE.
  */
 
-#include <config.h>
+#include <glib.h>
 
-#include "mem.h"
-#include <util/log.h>
+#include "cjs/mem-private.h"
+#include "cjs/mem.h"
+#include "util/log.h"
 
 #define GJS_DEFINE_COUNTER(name)             \
     GjsMemCounter gjs_counter_ ## name = { \
@@ -33,35 +34,11 @@
 
 
 GJS_DEFINE_COUNTER(everything)
+GJS_FOR_EACH_COUNTER(GJS_DEFINE_COUNTER)
 
-GJS_DEFINE_COUNTER(boxed)
-GJS_DEFINE_COUNTER(closure)
-GJS_DEFINE_COUNTER(function)
-GJS_DEFINE_COUNTER(fundamental)
-GJS_DEFINE_COUNTER(gerror)
-GJS_DEFINE_COUNTER(importer)
-GJS_DEFINE_COUNTER(interface)
-GJS_DEFINE_COUNTER(ns)
-GJS_DEFINE_COUNTER(object)
-GJS_DEFINE_COUNTER(param)
-GJS_DEFINE_COUNTER(repo)
+#define GJS_LIST_COUNTER(name) &gjs_counter_##name,
 
-#define GJS_LIST_COUNTER(name) \
-    & gjs_counter_ ## name
-
-static GjsMemCounter* counters[] = {
-    GJS_LIST_COUNTER(boxed),
-    GJS_LIST_COUNTER(closure),
-    GJS_LIST_COUNTER(function),
-    GJS_LIST_COUNTER(fundamental),
-    GJS_LIST_COUNTER(gerror),
-    GJS_LIST_COUNTER(importer),
-    GJS_LIST_COUNTER(interface),
-    GJS_LIST_COUNTER(ns),
-    GJS_LIST_COUNTER(object),
-    GJS_LIST_COUNTER(param),
-    GJS_LIST_COUNTER(repo),
-};
+static GjsMemCounter* counters[] = {GJS_FOR_EACH_COUNTER(GJS_LIST_COUNTER)};
 
 void
 gjs_memory_report(const char *where,
@@ -91,14 +68,13 @@ gjs_memory_report(const char *where,
               "  %d objects currently alive",
               GJS_GET_COUNTER(everything));
 
-    for (i = 0; i < n_counters; ++i) {
-        gjs_debug(GJS_DEBUG_MEMORY,
-                  "    %12s = %d",
-                  counters[i]->name,
-                  counters[i]->value);
-    }
+    if (GJS_GET_COUNTER(everything) != 0) {
+        for (i = 0; i < n_counters; ++i) {
+            gjs_debug(GJS_DEBUG_MEMORY, "    %24s = %d", counters[i]->name,
+                      counters[i]->value);
+        }
 
-    if (die_if_leaks && GJS_GET_COUNTER(everything) > 0) {
-        g_error("%s: JavaScript objects were leaked.", where);
+        if (die_if_leaks)
+            g_error("%s: JavaScript objects were leaked.", where);
     }
 }
