@@ -5,7 +5,7 @@
 
 set -e
 
-export XDG_RUNTIME_DIR=$ADTTMP
+export XDG_RUNTIME_DIR=$AUTOPKGTEST_TMP
 export LC_ALL=C
 
 # dbus outputs activation messages to stderr which fails the test
