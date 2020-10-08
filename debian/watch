@@ -1,3 +1,0 @@
-version=4
-https://download.gnome.org/sources/@PACKAGE@/([0-9.]+)/ \
-	@PACKAGE@@ANY_VERSION@\.tar\.xz

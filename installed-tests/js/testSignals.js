@@ -108,7 +108,7 @@ function testSignals(klass) {
             bar2 = jasmine.createSpy('bar');
             foo.connect('bar', bar);
             foo.connect('bar', bar2);
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 'JS ERROR: Exception in callback for signal: *');
             foo.emit('bar');
         });
@@ -119,7 +119,7 @@ function testSignals(klass) {
         });
 
         it('does not disconnect the callback', function () {
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 'JS ERROR: Exception in callback for signal: *');
             foo.emit('bar');
             expect(bar).toHaveBeenCalledTimes(2);

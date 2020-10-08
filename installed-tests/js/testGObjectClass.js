@@ -182,12 +182,12 @@ describe('GObject class with decorator', function () {
     });
 
     it('warns if more than one argument passed to the default constructor', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_MESSAGE,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_MESSAGE,
             '*Too many arguments*');
 
         new MyObject({readwrite: 'baz'}, 'this is ignored', 123);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
             'testGObjectClassTooManyArguments');
     });
 
@@ -391,7 +391,7 @@ describe('GObject class with decorator', function () {
         expect(() => (obj.anchors = 'foo')).not.toThrow();
         expect(obj.anchors).toEqual('foo');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
             'testGObjectClassForgottenOverride');
     });
 
@@ -593,7 +593,7 @@ describe('Register GType name', function () {
         let gtypeName = 'GType$Test/WithLòt\'s of*bad§chars!';
         let expectedSanitized = 'GType_Test_WithL_t_s_of_bad_chars_';
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             `*RangeError: Provided GType name '${gtypeName}' is not valid; ` +
             `automatically sanitized to '${expectedSanitized}'*`);
 
@@ -601,7 +601,7 @@ describe('Register GType name', function () {
             GTypeName: gtypeName,
         }, class extends GObject.Object {});
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
             'testGObjectRegisterClassSanitize');
 
         expect(GtypeClass.$gtype.name).toEqual(expectedSanitized);

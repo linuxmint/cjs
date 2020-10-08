@@ -17,76 +17,76 @@ describe('Access to destroyed GObject', function () {
     });
 
     it('Get property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         void destroyedWindow.title;
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertyGet');
     });
 
     it('Set property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.title = 'I am dead';
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertySet');
     });
 
     it('Access to getter method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
         GLib.test_expect_message('Gtk', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*GTK_IS_WINDOW*');
 
         void destroyedWindow.get_title();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodGet');
     });
 
     it('Access to setter method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
         GLib.test_expect_message('Gtk', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*GTK_IS_WINDOW*');
 
         destroyedWindow.set_title('I am dead');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodSet');
     });
 
     it('Proto function connect', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.connect('foo-signal', () => {});
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnect');
     });
 
     it('Proto function connect_after', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.connect_after('foo-signal', () => {});
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnectAfter');
     });
 
     it('Proto function emit', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x*');
 
         destroyedWindow.emit('foo-signal');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectEmit');
     });
 

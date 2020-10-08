@@ -59,6 +59,7 @@ warnlib_sources = [
 libwarnlib = library('warnlib', warnlib_sources,
     c_args: test_gir_warning_c_args + test_gir_extra_c_args,
     dependencies: [glib, gobject, gio], install: get_option('installed_tests'),
+    include_directories: top_include,
     install_dir: installed_tests_execdir)
 # This should have --warn-all turned off, but there is currently no way to do so
 # in gnome.generate_gir(). See https://github.com/mesonbuild/meson/issues/5876

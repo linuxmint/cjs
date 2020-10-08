@@ -1,4 +1,5 @@
 Tests: build
+Restrictions: superficial
 Depends: libgjs-dev, build-essential
 
 Tests: installed-tests

@@ -72,7 +72,7 @@ describe('Byte array', function () {
 
     describe('legacy toString() behavior', function () {
         beforeEach(function () {
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 'Some code called array.toString()*');
         });
 
@@ -87,7 +87,7 @@ describe('Byte array', function () {
         });
 
         afterEach(function () {
-            GLib.test_assert_expected_messages_internal('Gjs',
+            GLib.test_assert_expected_messages_internal('Cjs',
                 'testByteArray.js', 0, 'testToStringCompatibility');
         });
     });
