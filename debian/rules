@@ -31,3 +31,6 @@ endif
 
 override_dh_makeshlibs:
 	dh_makeshlibs -Xusr/lib/$(DEB_HOST_MULTIARCH)/cjs-1.0 -- -c4
+
+override_dh_strip:
+	dh_strip --dbg-package=libcjs-dbg
