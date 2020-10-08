@@ -1,5 +1,5 @@
 project('cjs', 'cpp', 'c', version: '4.6.0', license: ['MIT', 'LGPL2+'],
-    meson_version: '>= 0.52.0',
+    meson_version: '>= 0.49.2',
     default_options: ['cpp_std=c++17', 'c_std=c99', 'warning_level=2'])
 
 api_version = '1.0'
@@ -85,8 +85,7 @@ else
     if cxx.has_argument('-fno-rtti')
         add_project_arguments('-fno-rtti', language: 'cpp')
         # -fno-rtti is not compatible with the vptr sanitizer (part of ubsan)
-        if get_option('b_sanitize') != 'none' and \
-            cxx.has_argument('-fno-sanitize=vptr')
+        if get_option('b_sanitize') != 'none' and cxx.has_argument('-fno-sanitize=vptr')
             add_project_arguments('-fno-sanitize=vptr', language: 'cpp')
         endif
     endif
@@ -119,7 +118,7 @@ gobject = dependency('gobject-2.0', version: glib_required_version,
 gio = dependency('gio-2.0', version: glib_required_version,
     fallback: ['glib', 'libgio_dep'])
 ffi = dependency('libffi', fallback: ['libffi', 'ffi_dep'])
-gi = dependency('gobject-introspection-1.0', version: '>= 1.61.2',
+gi = dependency('gobject-introspection-1.0', version: '>= 1.58.3',
     fallback: ['gobject-introspection', 'girepo_dep'])
 spidermonkey = dependency('mozjs-78')
 

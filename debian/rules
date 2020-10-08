@@ -2,7 +2,7 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,-z,defs -Wl,--as-needed
-export DEB_BUILD_OPTIONS = nocheck
+# export DEB_BUILD_OPTIONS = nocheck
 
 include /usr/share/dpkg/default.mk
 
