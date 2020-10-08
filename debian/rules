@@ -2,7 +2,7 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,-z,defs -Wl,--as-needed
-# export DEB_BUILD_OPTIONS = nocheck
+export DEB_BUILD_OPTIONS = nocheck
 
 include /usr/share/dpkg/default.mk
 
@@ -15,6 +15,7 @@ override_dh_auto_configure:
 	dh_auto_configure -- \
 		-Dauto_features=enabled \
 		-Dprofiler=disabled \
+		-Dinstalled_tests=false \
 		$(NULL)
 
 override_dh_girepository:
@@ -31,6 +32,3 @@ endif
 
 override_dh_makeshlibs:
 	dh_makeshlibs -Xusr/lib/$(DEB_HOST_MULTIARCH)/cjs-1.0 -- -c4
-
-override_dh_strip:
-	dh_strip --dbg-package=libcjs-dbg
