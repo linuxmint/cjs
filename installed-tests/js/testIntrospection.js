@@ -16,16 +16,16 @@ describe('GLib.DestroyNotify parameter', function () {
 
 describe('Unsafe integer marshalling', function () {
     it('warns when conversion is lossy', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
         void GLib.MININT64;
         void GLib.MAXINT64;
         void GLib.MAXUINT64;
-        GLib.test_assert_expected_messages_internal('Gjs',
+        GLib.test_assert_expected_messages_internal('Cjs',
             'testEverythingBasic.js', 0,
             'Limits warns when conversion is lossy');
     });

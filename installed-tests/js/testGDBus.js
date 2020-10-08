@@ -1,5 +1,5 @@
 const ByteArray = imports.byteArray;
-const {Gio, GjsPrivate, GLib} = imports.gi;
+const {Gio, CjsPrivate, GLib} = imports.gi;
 
 /* The methods list with their signatures.
  *
@@ -237,14 +237,14 @@ class Test {
     }
 
     fdOut(bytes) {
-        const fd = GjsPrivate.open_bytes(bytes);
+        const fd = CjsPrivate.open_bytes(bytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         return [0, fdList];
     }
 
     fdOut2Async([bytes], invocation) {
         GLib.idle_add(GLib.PRIORITY_DEFAULT, function () {
-            const fd = GjsPrivate.open_bytes(bytes);
+            const fd = CjsPrivate.open_bytes(bytes);
             const fdList = Gio.UnixFDList.new_from_array([fd]);
             invocation.return_value_with_unix_fd_list(new GLib.Variant('(h)', [0]),
                 fdList);
@@ -351,7 +351,7 @@ describe('Exported DBus object', function () {
     /* excp must be exactly the exception thrown by the remote method
        (more or less) */
     it('can handle an exception thrown by a remote method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         proxy.alwaysThrowExceptionRemote({}, function (result, excp) {
@@ -362,7 +362,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can still destructure the return value when an exception is thrown', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         // This test will not fail, but instead if the functionality is not
@@ -553,7 +553,7 @@ describe('Exported DBus object', function () {
 
     it('can call a remote method with a Unix FD', function (done) {
         const expectedBytes = ByteArray.fromString('some bytes');
-        const fd = GjsPrivate.open_bytes(expectedBytes);
+        const fd = CjsPrivate.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         proxy.fdInRemote(0, fdList, ([bytes], exc, outFdList) => {
             expect(exc).toBeNull();
@@ -565,7 +565,7 @@ describe('Exported DBus object', function () {
 
     it('can call an asynchronously implemented remote method with a Unix FD', function (done) {
         const expectedBytes = ByteArray.fromString('some bytes');
-        const fd = GjsPrivate.open_bytes(expectedBytes);
+        const fd = CjsPrivate.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         proxy.fdIn2Remote(0, fdList, ([bytes], exc, outFdList) => {
             expect(exc).toBeNull();
