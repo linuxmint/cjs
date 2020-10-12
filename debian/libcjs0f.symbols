@@ -1,4 +1,4 @@
-libcjs.so.0 libcjs0g #MINVER#
+libcjs.so.0 libcjs0f #MINVER#
 * Build-Depends-Package: libcjs-dev
  gjs_bindtextdomain@Base 1.63.90
  gjs_context_define_string_array@Base 1.63.90

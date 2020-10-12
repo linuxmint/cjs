@@ -37,7 +37,7 @@ Description: Mozilla-based javascript bindings for the GNOME platform
  .
  This package contains the interactive console application.
 
-Package: libcjs0g
+Package: libcjs0f
 Architecture: any
 Multi-Arch: same
 Section: libs
@@ -58,7 +58,7 @@ Architecture: any
 Section: libdevel
 Depends: ${misc:Depends},
          cjs,
-         libcjs0g (= ${binary:Version}),
+         libcjs0f (= ${binary:Version}),
          libgirepository1.0-dev (>= 1.58.3),
          libcairo2-dev,
          libmozjs-78-dev
@@ -74,7 +74,7 @@ Package: libcjs-dbg
 Section: debug
 Architecture: any
 Priority: extra
-Depends: libcjs0g (= ${binary:Version}),
+Depends: libcjs0f (= ${binary:Version}),
          ${misc:Depends}
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon's platform
