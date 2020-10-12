@@ -1,6 +1,6 @@
-cjs (4.6.1) ulyana; urgency=medium
+cjs (4.7.0) UNRELEASED; urgency=medium
 
-  * Bump for abi change
+  * Bump for moz78
 
  -- Clement Lefebvre <root@linuxmint.com>  Wed, 7 Oct 2020 13:45:37 +0100
 
