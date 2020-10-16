@@ -30,8 +30,8 @@ Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          gir1.2-gtk-3.0
-Description: Mozilla-based javascript bindings for the GNOME platform
- Makes it possible for applications to use all of GNOME's platform
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
  libraries using the JavaScript language. It's mainly based on the
  Mozilla JavaScript engine and the GObject introspection framework.
  .
@@ -44,10 +44,11 @@ Section: libs
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${gir:Depends}
-Conflicts: libcjs0, libcjs0a, libcjs0b, libcjs0c, libcjs0d, libcjs0e, libcjs0f
-Replaces: libcjs0, libcjs0a, libcjs0b, libcjs0c, libcjs0d, libcjs0e, libcjs0f
-Description: Mozilla-based javascript bindings for the GNOME platform
- Makes it possible for applications to use all of GNOME's platform
+Conflicts: libcjs0, libcjs0a, libcjs0c, libcjs0e
+Replaces: libcjs0, libcjs0a, libcjs0c, libcjs0e
+Provides: ${cjs:Provides}
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
  libraries using the JavaScript language. It's mainly based on the
  Mozilla JavaScript engine and the GObject introspection framework.
  .
@@ -62,8 +63,8 @@ Depends: ${misc:Depends},
          libgirepository1.0-dev (>= 1.58.3),
          libcairo2-dev,
          libmozjs-78-dev
-Description: Mozilla-based javascript bindings for the GNOME platform
- Makes it possible for applications to use all of GNOME's platform
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
  libraries using the JavaScript language. It's mainly based on the
  Mozilla JavaScript engine and the GObject introspection framework.
  .
