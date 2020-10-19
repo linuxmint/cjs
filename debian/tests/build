@@ -6,11 +6,18 @@
 
 set -e
 
-WORKDIR=$(mktemp -d)
-trap "rm -rf $WORKDIR" 0 INT QUIT ABRT PIPE TERM
-cd $WORKDIR
+WORKDIR="$(mktemp -d)"
+trap 'rm -rf "$WORKDIR"' 0 INT QUIT ABRT PIPE TERM
+cd "$WORKDIR"
+
+if [ -n "${DEB_HOST_GNU_TYPE:-}" ]; then
+    CROSS_COMPILE="$DEB_HOST_GNU_TYPE-"
+else
+    CROSS_COMPILE=
+fi
+
 cat <<EOF > gjstest.c
-#include <cjs/gjs.h>
+#include <gjs/gjs.h>
 
 int main()
 {
@@ -20,7 +27,9 @@ int main()
 }
 EOF
 
-gcc -o gjstest gjstest.c `pkg-config --cflags --libs cjs-1.0`
+# Deliberately word-splitting, that's how pkg-config works:
+# shellcheck disable=SC2046
+"${CROSS_COMPILE}gcc" -o gjstest gjstest.c $("${CROSS_COMPILE}pkg-config" --cflags --libs gjs-1.0)
 echo "build: OK"
 [ -x gjstest ]
 ./gjstest

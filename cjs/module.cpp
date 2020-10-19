@@ -21,53 +21,65 @@
  * IN THE SOFTWARE.
  */
 
-#include <codecvt>
-#include <locale>
+#include <config.h>
+
+#include <stddef.h>     // for size_t
+#include <sys/types.h>  // for ssize_t
+
+#include <string>  // for u16string
 
 #include <gio/gio.h>
+#include <glib.h>
 
-#include "jsapi-util.h"
-#include "jsapi-wrapper.h"
-#include "module.h"
+#include <js/Class.h>
+#include <js/CompilationAndEvaluation.h>
+#include <js/CompileOptions.h>
+#include <js/GCVector.h>  // for RootedVector
+#include <js/PropertyDescriptor.h>
+#include <js/RootingAPI.h>
+#include <js/SourceText.h>
+#include <js/TypeDecls.h>
+#include <jsapi.h>  // for JS_DefinePropertyById, ...
+
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/mem-private.h"
+#include "cjs/module.h"
 #include "util/log.h"
 
-class GjsModule {
+class GjsScriptModule {
     char *m_name;
 
-    GjsModule(const char *name)
-    {
+    GjsScriptModule(const char* name) {
         m_name = g_strdup(name);
+        GJS_INC_COUNTER(module);
     }
 
-    ~GjsModule()
-    {
+    ~GjsScriptModule() {
         g_free(m_name);
+        GJS_DEC_COUNTER(module);
     }
 
     /* Private data accessors */
 
-    static inline GjsModule *
-    priv(JSObject *module)
-    {
-        return static_cast<GjsModule *>(JS_GetPrivate(module));
+    [[nodiscard]] static inline GjsScriptModule* priv(JSObject* module) {
+        return static_cast<GjsScriptModule*>(JS_GetPrivate(module));
     }
 
     /* Creates a JS module object. Use instead of the class's constructor */
-    static JSObject *
-    create(JSContext  *cx,
-           const char *name)
-    {
-        JSObject *module = JS_NewObject(cx, &GjsModule::klass);
-        JS_SetPrivate(module, new GjsModule(name));
+    [[nodiscard]] static JSObject* create(JSContext* cx, const char* name) {
+        JSObject* module = JS_NewObject(cx, &GjsScriptModule::klass);
+        JS_SetPrivate(module, new GjsScriptModule(name));
         return module;
     }
 
     /* Defines the empty module as a property on the importer */
+    GJS_JSAPI_RETURN_CONVENTION
     bool
     define_import(JSContext       *cx,
                   JS::HandleObject module,
                   JS::HandleObject importer,
-                  JS::HandleId     name)
+                  JS::HandleId     name) const
     {
         if (!JS_DefinePropertyById(cx, importer, name, module,
                                    GJS_MODULE_PROP_FLAGS & ~JSPROP_PERMANENT)) {
@@ -80,32 +92,35 @@ class GjsModule {
     }
 
     /* Carries out the actual execution of the module code */
-    bool
-    evaluate_import(JSContext       *cx,
-                    JS::HandleObject module,
-                    const char      *script,
-                    size_t           script_len,
-                    const char      *filename,
-                    int              line_number)
-    {
+    GJS_JSAPI_RETURN_CONVENTION
+    bool evaluate_import(JSContext* cx, JS::HandleObject module,
+                         const char* script, ssize_t script_len,
+                         const char* filename) {
+        std::u16string utf16_string =
+            gjs_utf8_script_to_utf16(script, script_len);
+        // COMPAT: This could use JS::SourceText<mozilla::Utf8Unit> directly,
+        // but that messes up code coverage. See bug
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1404784
+        JS::SourceText<char16_t> buf;
+        if (!buf.init(cx, utf16_string.c_str(), utf16_string.size(),
+                      JS::SourceOwnership::Borrowed))
+            return false;
+
+        JS::RootedObjectVector scope_chain(cx);
+        if (!scope_chain.append(module)) {
+            JS_ReportOutOfMemory(cx);
+            return false;
+        }
+
         JS::CompileOptions options(cx);
-        options.setFileAndLine(filename, line_number)
-               .setSourceIsLazy(true);
-
-        std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
-        std::u16string utf16_string = convert.from_bytes(script);
-        JS::SourceBufferHolder buf(utf16_string.c_str(), utf16_string.size(),
-                                   JS::SourceBufferHolder::NoOwnership);
-
-        JS::AutoObjectVector scope_chain(cx);
-        if (!scope_chain.append(module))
-            g_error("Unable to append to vector");
+        options.setFileAndLine(filename, 1);
 
         JS::RootedValue ignored_retval(cx);
         if (!JS::Evaluate(cx, scope_chain, options, buf, &ignored_retval))
             return false;
 
-        gjs_schedule_gc_if_needed(cx);
+        GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
+        gjs->schedule_gc_if_needed();
 
         gjs_debug(GJS_DEBUG_IMPORTER, "Importing module %s succeeded", m_name);
 
@@ -113,6 +128,7 @@ class GjsModule {
     }
 
     /* Loads JS code from a file and imports it */
+    GJS_JSAPI_RETURN_CONVENTION
     bool
     import_file(JSContext       *cx,
                 JS::HandleObject module,
@@ -121,27 +137,21 @@ class GjsModule {
         GError *error = nullptr;
         char *unowned_script;
         size_t script_len = 0;
-        int start_line_number = 1;
 
         if (!(g_file_load_contents(file, nullptr, &unowned_script, &script_len,
-                                   nullptr, &error))) {
-            gjs_throw_g_error(cx, error);
-            return false;
-        }
+                                   nullptr, &error)))
+            return gjs_throw_gerror_message(cx, error);
 
         GjsAutoChar script = unowned_script;  /* steals ownership */
-        g_assert(script != nullptr);
-
-        const char *stripped_script =
-            gjs_strip_unix_shebang(script, &script_len, &start_line_number);
+        g_assert(script);
 
         GjsAutoChar full_path = g_file_get_parse_name(file);
-        return evaluate_import(cx, module, stripped_script, script_len,
-                               full_path, start_line_number);
+        return evaluate_import(cx, module, script, script_len, full_path);
     }
 
     /* JSClass operations */
 
+    GJS_JSAPI_RETURN_CONVENTION
     bool
     resolve_impl(JSContext       *cx,
                  JS::HandleObject module,
@@ -177,6 +187,7 @@ class GjsModule {
             JS_DefinePropertyById(cx, module, id, desc);
     }
 
+    GJS_JSAPI_RETURN_CONVENTION
     static bool
     resolve(JSContext       *cx,
             JS::HandleObject module,
@@ -186,33 +197,27 @@ class GjsModule {
         return priv(module)->resolve_impl(cx, module, id, resolved);
     }
 
-    static void
-    finalize(JSFreeOp *op,
-             JSObject *module)
-    {
-        delete priv(module);
-    }
+    static void finalize(JSFreeOp*, JSObject* module) { delete priv(module); }
 
     static constexpr JSClassOps class_ops = {
-        nullptr,  /* addProperty */
-        nullptr,  /* deleteProperty */
-        nullptr,  /* getProperty */
-        nullptr,  /* setProperty */
-        nullptr,  /* enumerate */
-        &GjsModule::resolve,
-        nullptr,  /* mayResolve */
-        &GjsModule::finalize,
+        nullptr,  // addProperty
+        nullptr,  // deleteProperty
+        nullptr,  // enumerate
+        nullptr,  // newEnumerate
+        &GjsScriptModule::resolve,
+        nullptr,  // mayResolve
+        &GjsScriptModule::finalize,
     };
 
     static constexpr JSClass klass = {
-        "GjsModule",
+        "GjsScriptModule",
         JSCLASS_HAS_PRIVATE | JSCLASS_BACKGROUND_FINALIZE,
-        &GjsModule::class_ops,
+        &GjsScriptModule::class_ops,
     };
 
-public:
-
+ public:
     /* Carries out the import operation */
+    GJS_JSAPI_RETURN_CONVENTION
     static JSObject *
     import(JSContext       *cx,
            JS::HandleObject importer,
@@ -220,7 +225,7 @@ public:
            const char      *name,
            GFile           *file)
     {
-        JS::RootedObject module(cx, GjsModule::create(cx, name));
+        JS::RootedObject module(cx, GjsScriptModule::create(cx, name));
         if (!module ||
             !priv(module)->define_import(cx, module, importer, id) ||
             !priv(module)->import_file(cx, module, file))
@@ -253,8 +258,8 @@ gjs_module_import(JSContext       *cx,
                   const char      *name,
                   GFile           *file)
 {
-    return GjsModule::import(cx, importer, id, name, file);
+    return GjsScriptModule::import(cx, importer, id, name, file);
 }
 
-decltype(GjsModule::klass) constexpr GjsModule::klass;
-decltype(GjsModule::class_ops) constexpr GjsModule::class_ops;
+decltype(GjsScriptModule::klass) constexpr GjsScriptModule::klass;
+decltype(GjsScriptModule::class_ops) constexpr GjsScriptModule::class_ops;

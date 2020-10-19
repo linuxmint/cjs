@@ -21,48 +21,53 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_REPO_H__
-#define __GJS_REPO_H__
+#ifndef GI_REPO_H_
+#define GI_REPO_H_
 
-#include <stdbool.h>
-#include <glib.h>
+#include <config.h>
 
 #include <girepository.h>
 
-#include "cjs/jsapi-wrapper.h"
-#include <util/log.h>
+#include <js/TypeDecls.h>
 
-G_BEGIN_DECLS
+#include "cjs/macros.h"
+#include "util/log.h"
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_repo(JSContext              *cx,
                      JS::MutableHandleObject repo);
 
-const char* gjs_info_type_name                  (GIInfoType      type);
+[[nodiscard]] const char* gjs_info_type_name(GIInfoType type);
+GJS_JSAPI_RETURN_CONVENTION
 JSObject*   gjs_lookup_private_namespace        (JSContext      *context);
+GJS_JSAPI_RETURN_CONVENTION
 JSObject*   gjs_lookup_namespace_object         (JSContext      *context,
                                                  GIBaseInfo     *info);
 
+GJS_JSAPI_RETURN_CONVENTION
 JSObject *gjs_lookup_namespace_object_by_name(JSContext   *context,
                                               JS::HandleId name);
 
+GJS_JSAPI_RETURN_CONVENTION
 JSObject *  gjs_lookup_generic_constructor      (JSContext      *context,
                                                  GIBaseInfo     *info);
+GJS_JSAPI_RETURN_CONVENTION
 JSObject *  gjs_lookup_generic_prototype        (JSContext      *context,
                                                  GIBaseInfo     *info);
+GJS_JSAPI_RETURN_CONVENTION
+JSObject* gjs_new_object_with_generic_prototype(JSContext* cx,
+                                                GIBaseInfo* info);
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_info(JSContext       *context,
                      JS::HandleObject in_object,
                      GIBaseInfo      *info,
                      bool            *defined);
 
-char*       gjs_camel_from_hyphen               (const char     *hyphen_name);
-char*       gjs_hyphen_from_camel               (const char     *camel_name);
-
+[[nodiscard]] char* gjs_hyphen_from_camel(const char* camel_name);
 
 #if GJS_VERBOSE_ENABLE_GI_USAGE
 void _gjs_log_info_usage(GIBaseInfo *info);
 #endif
 
-G_END_DECLS
-
-#endif  /* __GJS_REPO_H__ */
+#endif  // GI_REPO_H_

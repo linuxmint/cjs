@@ -23,20 +23,57 @@
 
 #include <config.h>
 
-#include <algorithm>
-#include <iomanip>
-#include <sstream>
-#include <string>
-#include <string.h>
+#include <stdint.h>
+#include <string.h>     // for size_t, strlen
+#include <sys/types.h>  // for ssize_t
 
-#include "jsapi-util.h"
-#include "jsapi-wrapper.h"
+#include <algorithm>  // for copy
+#include <iomanip>    // for operator<<, setfill, setw
+#include <sstream>    // for operator<<, basic_ostream, ostring...
+#include <string>     // for allocator, char_traits
+
+#include <glib.h>
+
+#include <js/CharacterEncoding.h>
+#include <js/Class.h>
+#include <js/ComparisonOperators.h>
+#include <js/GCAPI.h>  // for AutoCheckCannotGC
+#include <js/Id.h>     // for JSID_IS_STRING...
+#include <js/RootingAPI.h>
+#include <js/Symbol.h>
+#include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
+#include <js/Value.h>
+#include <jsapi.h>        // for JSID_TO_FLAT_STRING, JS_GetTwoByte...
+#include <jsfriendapi.h>  // for FlatStringToLinearString, GetLatin...
+
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
+
+// Avoid static_assert in MSVC builds
+namespace JS {
+template <typename T> struct GCPolicy;
+
+template <>
+struct GCPolicy<void*> : public IgnoreGCPolicy<void*> {};
+}
+
+class JSLinearString;
+
+char* gjs_hyphen_to_underscore(const char* str) {
+    char *s = g_strdup(str);
+    char *retval = s;
+    while (*(s++) != '\0') {
+        if (*s == '-')
+            *s = '_';
+    }
+    return retval;
+}
 
 /**
  * gjs_string_to_utf8:
  * @cx: JSContext
  * @value: a JS::Value containing a string
- * @utf8_string_p: return location for a unique JS chars pointer
  *
  * Converts the JSString in @value to UTF-8 and puts it in @utf8_string_p.
  *
@@ -44,22 +81,17 @@
  * typechecks the JS::Value and throws an exception if it's the wrong type.
  * Don't use this function if you already have a JS::RootedString, or if you
  * know the value already holds a string; use JS_EncodeStringToUTF8() instead.
+ *
+ * Returns: Unique UTF8 chars, empty on exception throw.
  */
-bool
-gjs_string_to_utf8(JSContext      *cx,
-                   const JS::Value value,
-                   GjsAutoJSChar  *utf8_string_p)
-{
-    JSAutoRequest ar(cx);
-
+JS::UniqueChars gjs_string_to_utf8(JSContext* cx, const JS::Value value) {
     if (!value.isString()) {
         gjs_throw(cx, "Value is not a string, cannot convert to UTF-8");
-        return false;
+        return nullptr;
     }
 
     JS::RootedString str(cx, value.toString());
-    utf8_string_p->reset(JS_EncodeStringToUTF8(cx, str));
-    return !!*utf8_string_p;
+    return JS_EncodeStringToUTF8(cx, str);
 }
 
 bool
@@ -67,14 +99,11 @@ gjs_string_from_utf8(JSContext             *context,
                      const char            *utf8_string,
                      JS::MutableHandleValue value_p)
 {
-    JS_BeginRequest(context);
-
     JS::ConstUTF8CharsZ chars(utf8_string, strlen(utf8_string));
     JS::RootedString str(context, JS_NewStringCopyUTF8Z(context, chars));
     if (str)
         value_p.setString(str);
 
-    JS_EndRequest(context);
     return str != nullptr;
 }
 
@@ -84,8 +113,6 @@ gjs_string_from_utf8_n(JSContext             *cx,
                        size_t                 len,
                        JS::MutableHandleValue out)
 {
-    JSAutoRequest ar(cx);
-
     JS::UTF8Chars chars(utf8_chars, len);
     JS::RootedString str(cx, JS_NewStringCopyUTF8N(cx, chars));
     if (str)
@@ -100,21 +127,18 @@ gjs_string_to_filename(JSContext      *context,
                        GjsAutoChar    *filename_string)
 {
     GError *error;
-    GjsAutoJSChar tmp;
 
     /* gjs_string_to_filename verifies that filename_val is a string */
 
-    if (!gjs_string_to_utf8(context, filename_val, &tmp)) {
-        /* exception already set */
+    JS::UniqueChars tmp = gjs_string_to_utf8(context, filename_val);
+    if (!tmp)
         return false;
-    }
 
     error = NULL;
-    *filename_string = g_filename_from_utf8(tmp, -1, NULL, NULL, &error);
-    if (!*filename_string) {
-        gjs_throw_g_error(context, error);
-        return false;
-    }
+    *filename_string =
+        g_filename_from_utf8(tmp.get(), -1, nullptr, nullptr, &error);
+    if (!*filename_string)
+        return gjs_throw_gerror_message(context, error);
 
     return true;
 }
@@ -145,13 +169,10 @@ gjs_string_from_filename(JSContext             *context,
 
 /* Converts a JSString's array of Latin-1 chars to an array of a wider integer
  * type, by what the compiler believes is the most efficient method possible */
-template<typename T>
-static bool
-from_latin1(JSContext *cx,
-            JSString  *str,
-            T        **data_p,
-            size_t    *len_p)
-{
+template <typename T>
+GJS_JSAPI_RETURN_CONVENTION static bool from_latin1(JSContext* cx,
+                                                    JSString* str, T** data_p,
+                                                    size_t* len_p) {
     /* No garbage collection should be triggered while we are using the string's
      * chars. Crash if that happens. */
     JS::AutoCheckCannotGC nogc;
@@ -189,8 +210,6 @@ gjs_string_get_char16_data(JSContext       *context,
                            char16_t       **data_p,
                            size_t          *len_p)
 {
-    JSAutoRequest ar(context);
-
     if (JS_StringHasLatin1Chars(str))
         return from_latin1(context, str, data_p, len_p);
 
@@ -227,7 +246,6 @@ gjs_string_to_ucs4(JSContext       *cx,
     if (ucs4_string_p == NULL)
         return true;
 
-    JSAutoRequest ar(cx);
     size_t len;
     GError *error = NULL;
 
@@ -278,12 +296,17 @@ gjs_string_from_ucs4(JSContext             *cx,
                      ssize_t                n_chars,
                      JS::MutableHandleValue value_p)
 {
+    // a null array pointer takes precedence over whatever `n_chars` says
+    if (!ucs4_string) {
+        value_p.setString(JS_GetEmptyString(cx));
+        return true;
+    }
+
     long u16_string_length;
     GError *error = NULL;
 
-    char16_t *u16_string =
-        reinterpret_cast<char16_t *>(g_ucs4_to_utf16(ucs4_string, n_chars, NULL,
-                                                     &u16_string_length, &error));
+    gunichar2* u16_string = g_ucs4_to_utf16(ucs4_string, n_chars, nullptr,
+                                            &u16_string_length, &error);
     if (!u16_string) {
         gjs_throw(cx, "Failed to convert UCS-4 string to UTF-16: %s",
                   error->message);
@@ -291,9 +314,13 @@ gjs_string_from_ucs4(JSContext             *cx,
         return false;
     }
 
-    JSAutoRequest ar(cx);
-    /* Avoid a copy - assumes that g_malloc == js_malloc == malloc */
-    JS::RootedString str(cx, JS_NewUCString(cx, u16_string, u16_string_length));
+    // Sadly, must copy, because js::UniquePtr forces that chars passed to
+    // JS_NewUCString() must have been allocated by the JS engine.
+    JS::RootedString str(
+        cx, JS_NewUCStringCopyN(cx, reinterpret_cast<char16_t*>(u16_string),
+                                u16_string_length));
+
+    g_free(u16_string);
 
     if (!str) {
         gjs_throw(cx, "Failed to convert UCS-4 string to UTF-16");
@@ -306,32 +333,25 @@ gjs_string_from_ucs4(JSContext             *cx,
 
 /**
  * gjs_get_string_id:
- * @context: a #JSContext
+ * @cx: a #JSContext
  * @id: a jsid that is an object hash key (could be an int or string)
  * @name_p place to store ASCII string version of key
  *
- * If the id is not a string ID, return false and set *name_p to %NULL.
+ * If the id is not a string ID, return true and set *name_p to nullptr.
  * Otherwise, return true and fill in *name_p with ASCII name of id.
  *
- * Returns: true if *name_p is non-%NULL
+ * Returns: false on error, otherwise true
  **/
-bool
-gjs_get_string_id (JSContext       *context,
-                   jsid             id,
-                   GjsAutoJSChar   *name_p)
-{
-    JS::RootedValue id_val(context);
-
-    if (!JS_IdToValue(context, id, &id_val))
-        return false;
-
-    if (id_val.isString()) {
-        JS::RootedString str(context, id_val.toString());
-        name_p->reset(JS_EncodeStringToUTF8(context, str));
-        return !!*name_p;
-    } else {
-        return false;
+bool gjs_get_string_id(JSContext* cx, jsid id, JS::UniqueChars* name_p) {
+    if (!JSID_IS_STRING(id)) {
+        name_p->reset();
+        return true;
     }
+
+    JSLinearString* lstr = JSID_TO_LINEAR_STRING(id);
+    JS::RootedString s(cx, JS_FORGET_STRING_LINEARNESS(lstr));
+    *name_p = JS_EncodeStringToUTF8(cx, s);
+    return !!*name_p;
 }
 
 /**
@@ -351,9 +371,9 @@ gjs_unichar_from_string (JSContext *context,
                          JS::Value  value,
                          gunichar  *result)
 {
-    GjsAutoJSChar utf8_str;
-    if (gjs_string_to_utf8(context, value, &utf8_str)) {
-        *result = g_utf8_get_char(utf8_str);
+    JS::UniqueChars utf8_str = gjs_string_to_utf8(context, value);
+    if (utf8_str) {
+        *result = g_utf8_get_char(utf8_str.get());
         return true;
     }
     return false;
@@ -363,15 +383,13 @@ jsid
 gjs_intern_string_to_id(JSContext  *cx,
                         const char *string)
 {
-    JSAutoRequest ar(cx);
     JS::RootedString str(cx, JS_AtomizeAndPinString(cx, string));
-    return INTERNED_STRING_TO_JSID(cx, str);
+    if (!str)
+        return JSID_VOID;
+    return JS::PropertyKey::fromPinnedString(str);
 }
 
-static std::string
-gjs_debug_flat_string(JSFlatString *fstr)
-{
-    JSLinearString *str = js::FlatStringToLinearString(fstr);
+[[nodiscard]] static std::string gjs_debug_linear_string(JSLinearString* str) {
     size_t len = js::GetLinearStringLength(str);
 
     JS::AutoCheckCannotGC nogc;
@@ -401,17 +419,22 @@ gjs_debug_flat_string(JSFlatString *fstr)
 std::string
 gjs_debug_string(JSString *str)
 {
-    if (!JS_StringIsFlat(str)) {
+    if (!str)
+        return "<null string>";
+    if (!JS_StringIsLinear(str)) {
         std::ostringstream out("<non-flat string of length ");
         out << JS_GetStringLength(str) << '>';
         return out.str();
     }
-    return gjs_debug_flat_string(JS_ASSERT_STRING_IS_FLAT(str));
+    return gjs_debug_linear_string(JS_ASSERT_STRING_IS_LINEAR(str));
 }
 
 std::string
 gjs_debug_symbol(JS::Symbol * const sym)
 {
+    if (!sym)
+        return "<null symbol>";
+
     /* This is OK because JS::GetSymbolCode() and JS::GetSymbolDescription()
      * can't cause a garbage collection */
     JS::HandleSymbol handle = JS::HandleSymbol::fromMarkedLocation(&sym);
@@ -446,6 +469,9 @@ gjs_debug_symbol(JS::Symbol * const sym)
 std::string
 gjs_debug_object(JSObject * const obj)
 {
+    if (!obj)
+        return "<null object>";
+
     std::ostringstream out;
     const JSClass* clasp = JS_GetClass(obj);
     out << "<object " << clasp->name << " at " << obj <<  '>';
@@ -501,6 +527,6 @@ std::string
 gjs_debug_id(jsid id)
 {
     if (JSID_IS_STRING(id))
-        return gjs_debug_flat_string(JSID_TO_FLAT_STRING(id));
+        return gjs_debug_linear_string(JSID_TO_LINEAR_STRING(id));
     return gjs_debug_value(js::IdToValue(id));
 }

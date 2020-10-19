@@ -24,39 +24,45 @@
 
 #include <config.h>
 
-#include <util/log.h>
-#include <util/glib.h>
-#include <util/misc.h>
+#include <string.h>  // for strlen
 
-#include "jsapi-class.h"
-#include "jsapi-util.h"
-#include "jsapi-wrapper.h"
+#include <glib.h>
 
-#include <string.h>
-#include <math.h>
+#include <js/CallArgs.h>  // for JSNative
+#include <js/Class.h>
+#include <js/ComparisonOperators.h>
+#include <js/PropertyDescriptor.h>  // for JSPROP_GETTER
+#include <js/Realm.h>  // for GetRealmObjectPrototype
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <js/Value.h>
+#include <js/ValueArray.h>
+#include <jsapi.h>        // for JS_DefineFunctions, JS_DefineProp...
+#include <jsfriendapi.h>  // for GetFunctionNativeReserved, NewFun...
+#include <jspubtd.h>      // for JSProto_TypeError
 
-bool
-gjs_init_class_dynamic(JSContext              *context,
-                       JS::HandleObject        in_object,
-                       JS::HandleObject        parent_proto,
-                       const char             *ns_name,
-                       const char             *class_name,
-                       JSClass                *clasp,
-                       JSNative                constructor_native,
-                       unsigned                nargs,
-                       JSPropertySpec         *proto_ps,
-                       JSFunctionSpec         *proto_fs,
-                       JSPropertySpec         *static_ps,
-                       JSFunctionSpec         *static_fs,
-                       JS::MutableHandleObject prototype,
-                       JS::MutableHandleObject constructor)
-{
-    /* Force these variables on the stack, so the conservative GC will
-       find them */
-    JSFunction * volatile constructor_fun;
-    char *full_function_name = NULL;
-    bool res = false;
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
+struct JSFunctionSpec;
+struct JSPropertySpec;
+
+/* Reserved slots of JSNative accessor wrappers */
+enum {
+    DYNAMIC_PROPERTY_PRIVATE_SLOT,
+};
+
+bool gjs_init_class_dynamic(JSContext* context, JS::HandleObject in_object,
+                            JS::HandleObject parent_proto, const char* ns_name,
+                            const char* class_name, const JSClass* clasp,
+                            JSNative constructor_native, unsigned nargs,
+                            JSPropertySpec* proto_ps, JSFunctionSpec* proto_fs,
+                            JSPropertySpec* static_ps,
+                            JSFunctionSpec* static_fs,
+                            JS::MutableHandleObject prototype,
+                            JS::MutableHandleObject constructor) {
     /* Without a name, JS_NewObject fails */
     g_assert (clasp->name != NULL);
 
@@ -64,9 +70,7 @@ gjs_init_class_dynamic(JSContext              *context,
        use JS_InitClass for static classes like Math */
     g_assert (constructor_native != NULL);
 
-    JS_BeginRequest(context);
-
-    /* Class initalization consists of three parts:
+    /* Class initalization consists of five parts:
        - building a prototype
        - defining prototype properties and functions
        - building a constructor and definining it on the right object
@@ -84,72 +88,38 @@ gjs_init_class_dynamic(JSContext              *context,
         prototype.set(JS_NewObject(context, clasp));
     }
     if (!prototype)
-        goto out;
-
-    /* Bypass resolve hooks when defining the initial properties */
-    if (clasp->cOps->resolve) {
-        JSPropertySpec *ps_iter;
-        JSFunctionSpec *fs_iter;
-        for (ps_iter = proto_ps; ps_iter && ps_iter->name; ps_iter++)
-            ps_iter->flags |= JSPROP_RESOLVING;
-        for (fs_iter = proto_fs; fs_iter && fs_iter->name; fs_iter++)
-            fs_iter->flags |= JSPROP_RESOLVING;
-    }
+        return false;
 
     if (proto_ps && !JS_DefineProperties(context, prototype, proto_ps))
-        goto out;
+        return false;
     if (proto_fs && !JS_DefineFunctions(context, prototype, proto_fs))
-        goto out;
+        return false;
 
-    full_function_name = g_strdup_printf("%s_%s", ns_name, class_name);
-    constructor_fun = JS_NewFunction(context, constructor_native, nargs, JSFUN_CONSTRUCTOR,
-                                     full_function_name);
+    GjsAutoChar full_function_name =
+        g_strdup_printf("%s_%s", ns_name, class_name);
+    JSFunction* constructor_fun =
+        JS_NewFunction(context, constructor_native, nargs, JSFUN_CONSTRUCTOR,
+                       full_function_name);
     if (!constructor_fun)
-        goto out;
+        return false;
 
     constructor.set(JS_GetFunctionObject(constructor_fun));
 
     if (static_ps && !JS_DefineProperties(context, constructor, static_ps))
-        goto out;
+        return false;
     if (static_fs && !JS_DefineFunctions(context, constructor, static_fs))
-        goto out;
+        return false;
 
-    if (!clasp->cOps->resolve) {
-        if (!JS_LinkConstructorAndPrototype(context, constructor, prototype))
-            goto out;
-    } else {
-        /* Have to fake it with JSPROP_RESOLVING, otherwise it will trigger
-         * the resolve hook */
-        if (!gjs_object_define_property(context, constructor,
-                                        GJS_STRING_PROTOTYPE, prototype,
-                                        JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_RESOLVING))
-            goto out;
-        if (!gjs_object_define_property(context, prototype,
-                                        GJS_STRING_CONSTRUCTOR, constructor,
-                                        JSPROP_RESOLVING))
-            goto out;
-    }
+    if (!JS_LinkConstructorAndPrototype(context, constructor, prototype))
+        return false;
 
     /* The constructor defined by JS_InitClass has no property attributes, but this
        is a more useful default for gjs */
-    if (!JS_DefineProperty(context, in_object, class_name, constructor,
-                           GJS_MODULE_PROP_FLAGS))
-        goto out;
-
-    res = true;
-
-    constructor_fun = NULL;
-
- out:
-    JS_EndRequest(context);
-    g_free(full_function_name);
-
-    return res;
+    return JS_DefineProperty(context, in_object, class_name, constructor,
+                             GJS_MODULE_PROP_FLAGS);
 }
 
-static const char*
-format_dynamic_class_name (const char *name)
-{
+[[nodiscard]] static const char* format_dynamic_class_name(const char* name) {
     if (g_str_has_prefix(name, "_private_"))
         return name + strlen("_private_");
     else
@@ -183,14 +153,134 @@ gjs_construct_object_dynamic(JSContext                  *context,
                              JS::HandleObject            proto,
                              const JS::HandleValueArray& args)
 {
-    JSAutoRequest ar(context);
-
+    const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
     JS::RootedObject constructor(context);
 
     if (!gjs_object_require_property(context, proto, "prototype",
-                                     GJS_STRING_CONSTRUCTOR,
-                                     &constructor))
+                                     atoms.constructor(), &constructor))
         return NULL;
 
     return JS_New(context, constructor, args);
+}
+
+GJS_JSAPI_RETURN_CONVENTION
+static JSObject *
+define_native_accessor_wrapper(JSContext      *cx,
+                               JSNative        call,
+                               unsigned        nargs,
+                               const char     *func_name,
+                               JS::HandleValue private_slot)
+{
+    JSFunction *func = js::NewFunctionWithReserved(cx, call, nargs, 0, func_name);
+    if (!func)
+        return nullptr;
+
+    JSObject *func_obj = JS_GetFunctionObject(func);
+    js::SetFunctionNativeReserved(func_obj, DYNAMIC_PROPERTY_PRIVATE_SLOT,
+                                  private_slot);
+    return func_obj;
+}
+
+/**
+ * gjs_define_property_dynamic:
+ * @cx: the #JSContext
+ * @proto: the prototype of the object, on which to define the property
+ * @prop_name: name of the property or field in GObject, visible to JS code
+ * @func_namespace: string from which the internal names for the getter and
+ *   setter functions are built, not visible to JS code
+ * @getter: getter function
+ * @setter: setter function
+ * @private_slot: private data in the form of a #JS::Value that the getter and
+ *   setter will have access to
+ * @flags: additional flags to define the property with (other than the ones
+ *   required for a property with native getter/setter)
+ *
+ * When defining properties in a GBoxed or GObject, we can't have a separate
+ * getter and setter for each one, since the properties are defined dynamically.
+ * Therefore we must have one getter and setter for all the properties we define
+ * on all the types. In order to have that, we must provide the getter and
+ * setter with private data, e.g. the field index for GBoxed, in a "reserved
+ * slot" for which we must unfortunately use the jsfriendapi.
+ *
+ * Returns: %true on success, %false if an exception is pending on @cx.
+ */
+bool
+gjs_define_property_dynamic(JSContext       *cx,
+                            JS::HandleObject proto,
+                            const char      *prop_name,
+                            const char      *func_namespace,
+                            JSNative         getter,
+                            JSNative         setter,
+                            JS::HandleValue  private_slot,
+                            unsigned         flags)
+{
+    GjsAutoChar getter_name = g_strconcat(func_namespace, "_get::", prop_name, nullptr);
+    GjsAutoChar setter_name = g_strconcat(func_namespace, "_set::", prop_name, nullptr);
+
+    JS::RootedObject getter_obj(cx,
+        define_native_accessor_wrapper(cx, getter, 0, getter_name, private_slot));
+    if (!getter_obj)
+        return false;
+
+    JS::RootedObject setter_obj(cx,
+        define_native_accessor_wrapper(cx, setter, 1, setter_name, private_slot));
+    if (!setter_obj)
+        return false;
+
+    flags |= JSPROP_GETTER | JSPROP_SETTER;
+
+    return JS_DefineProperty(cx, proto, prop_name, getter_obj, setter_obj,
+                             flags);
+}
+
+/**
+ * gjs_dynamic_property_private_slot:
+ * @accessor_obj: the getter or setter as a function object, i.e.
+ *   `&args.callee()` in the #JSNative function
+ *
+ * For use in dynamic property getters and setters (see
+ * gjs_define_property_dynamic()) to retrieve the private data passed there.
+ *
+ * Returns: the JS::Value that was passed to gjs_define_property_dynamic().
+ */
+JS::Value
+gjs_dynamic_property_private_slot(JSObject *accessor_obj)
+{
+    return js::GetFunctionNativeReserved(accessor_obj,
+                                         DYNAMIC_PROPERTY_PRIVATE_SLOT);
+}
+
+/**
+ * gjs_object_in_prototype_chain:
+ * @cx:
+ * @proto: The prototype which we are checking if @check_obj has in its chain
+ * @check_obj: The object to check
+ * @is_in_chain: (out): Whether @check_obj has @proto in its prototype chain
+ *
+ * Similar to JS_HasInstance() but takes into account abstract classes defined
+ * with JS_InitClass(), which JS_HasInstance() does not. Abstract classes don't
+ * have constructors, and JS_HasInstance() requires a constructor.
+ *
+ * Returns: false if an exception was thrown, true otherwise.
+ */
+bool gjs_object_in_prototype_chain(JSContext* cx, JS::HandleObject proto,
+                                   JS::HandleObject check_obj,
+                                   bool* is_in_chain) {
+    JS::RootedObject object_prototype(cx, JS::GetRealmObjectPrototype(cx));
+    if (!object_prototype)
+        return false;
+
+    JS::RootedObject proto_iter(cx);
+    if (!JS_GetPrototype(cx, check_obj, &proto_iter))
+        return false;
+    while (proto_iter != object_prototype) {
+        if (proto_iter == proto) {
+            *is_in_chain = true;
+            return true;
+        }
+        if (!JS_GetPrototype(cx, proto_iter, &proto_iter))
+            return false;
+    }
+    *is_in_chain = false;
+    return true;
 }

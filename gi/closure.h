@@ -21,34 +21,35 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_CLOSURE_H__
-#define __GJS_CLOSURE_H__
+#ifndef GI_CLOSURE_H_
+#define GI_CLOSURE_H_
 
-#include <stdbool.h>
+#include <config.h>
+
 #include <glib-object.h>
 
-#include "cjs/jsapi-util.h"
+#include <js/TypeDecls.h>
 
-G_BEGIN_DECLS
+class JSTracer;
+namespace JS {
+class HandleValueArray;
+}
 
-GClosure*  gjs_closure_new           (JSContext    *context,
-                                      JSObject     *callable,
-                                      const char   *description,
-                                      bool          root_function);
+[[nodiscard]] GClosure* gjs_closure_new(JSContext* cx, JSFunction* callable,
+                                        const char* description,
+                                        bool root_function);
 
-bool gjs_closure_invoke(GClosure                   *closure,
-                        JS::HandleObject            this_obj,
-                        const JS::HandleValueArray& args,
-                        JS::MutableHandleValue      retval,
-                        bool                        return_exception);
+[[nodiscard]] bool gjs_closure_invoke(GClosure* closure,
+                                      JS::HandleObject this_obj,
+                                      const JS::HandleValueArray& args,
+                                      JS::MutableHandleValue retval,
+                                      bool return_exception);
 
-JSContext* gjs_closure_get_context   (GClosure     *closure);
-bool       gjs_closure_is_valid      (GClosure     *closure);
-JSObject*  gjs_closure_get_callable  (GClosure     *closure);
+[[nodiscard]] JSContext* gjs_closure_get_context(GClosure* closure);
+[[nodiscard]] bool gjs_closure_is_valid(GClosure* closure);
+[[nodiscard]] JSFunction* gjs_closure_get_callable(GClosure* closure);
 
 void       gjs_closure_trace         (GClosure     *closure,
                                       JSTracer     *tracer);
 
-G_END_DECLS
-
-#endif  /* __GJS_CLOSURE_H__ */
+#endif  // GI_CLOSURE_H_

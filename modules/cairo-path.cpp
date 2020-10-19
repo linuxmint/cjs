@@ -22,39 +22,36 @@
 
 #include <config.h>
 
+#include <cairo.h>
+#include <glib.h>
+
+#include <js/Class.h>
+#include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
+#include <js/PropertySpec.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <jsapi.h>  // for JS_GetClass, JS_GetInstancePrivate
+
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util.h"
-#include "cjs/jsapi-wrapper.h"
-#include <cairo.h>
-#include "cairo-private.h"
 
-typedef struct {
-    JSContext       *context;
-    JSObject        *object;
-    cairo_path_t    *path;
-} GjsCairoPath;
-
-static JSObject *gjs_cairo_path_get_proto(JSContext *);
+[[nodiscard]] static JSObject* gjs_cairo_path_get_proto(JSContext*);
 
 GJS_DEFINE_PROTO_ABSTRACT("Path", cairo_path, JSCLASS_BACKGROUND_FINALIZE)
-GJS_DEFINE_PRIV_FROM_JS(GjsCairoPath, gjs_cairo_path_class)
 
-static void
-gjs_cairo_path_finalize(JSFreeOp *fop,
-                        JSObject *obj)
-{
-    GjsCairoPath *priv;
-    priv = (GjsCairoPath*) JS_GetPrivate(obj);
-    if (priv == NULL)
-        return;
-    cairo_path_destroy(priv->path);
-    g_slice_free(GjsCairoPath, priv);
+static void gjs_cairo_path_finalize(JSFreeOp*, JSObject* obj) {
+    using AutoCairoPath =
+        GjsAutoPointer<cairo_path_t, cairo_path_t, cairo_path_destroy>;
+    AutoCairoPath path = static_cast<cairo_path_t*>(JS_GetPrivate(obj));
+    JS_SetPrivate(obj, nullptr);
 }
 
 /* Properties */
+// clang-format off
 JSPropertySpec gjs_cairo_path_proto_props[] = {
-    JS_PS_END
-};
+    JS_STRING_SYM_PS(toStringTag, "Path", JSPROP_READONLY),
+    JS_PS_END};
+// clang-format on
 
 JSFunctionSpec gjs_cairo_path_proto_funcs[] = {
     JS_FS_END
@@ -74,51 +71,42 @@ JSObject *
 gjs_cairo_path_from_path(JSContext    *context,
                          cairo_path_t *path)
 {
-    GjsCairoPath *priv;
-
-    g_return_val_if_fail(context != NULL, NULL);
-    g_return_val_if_fail(path != NULL, NULL);
+    g_return_val_if_fail(context, nullptr);
+    g_return_val_if_fail(path, nullptr);
 
     JS::RootedObject proto(context, gjs_cairo_path_get_proto(context));
     JS::RootedObject object(context,
         JS_NewObjectWithGivenProto(context, &gjs_cairo_path_class, proto));
     if (!object) {
         gjs_throw(context, "failed to create path");
-        return NULL;
+        return nullptr;
     }
 
-    priv = g_slice_new0(GjsCairoPath);
-
-    g_assert(priv_from_js(context, object) == NULL);
-    JS_SetPrivate(object, priv);
-
-    priv->context = context;
-    priv->object = object;
-    priv->path = path;
+    g_assert(!JS_GetPrivate(object));
+    JS_SetPrivate(object, path);
 
     return object;
 }
 
-
 /**
  * gjs_cairo_path_get_path:
- * @context: the context
- * @object: path wrapper
+ * @cx: the context
+ * @path_wrapper: path wrapper
  *
  * Returns: the path attached to the wrapper.
- *
  */
-cairo_path_t *
-gjs_cairo_path_get_path(JSContext *context,
-                        JSObject  *object)
-{
-    GjsCairoPath *priv;
+cairo_path_t* gjs_cairo_path_get_path(JSContext* cx,
+                                      JS::HandleObject path_wrapper) {
+    g_return_val_if_fail(cx, nullptr);
+    g_return_val_if_fail(path_wrapper, nullptr);
 
-    g_return_val_if_fail(context != NULL, NULL);
-    g_return_val_if_fail(object != NULL, NULL);
+    auto* path = static_cast<cairo_path_t*>(JS_GetInstancePrivate(
+        cx, path_wrapper, &gjs_cairo_path_class, nullptr));
+    if (!path) {
+        gjs_throw(cx, "Expected Cairo.Path but got %s",
+                  JS_GetClass(path_wrapper)->name);
+        return nullptr;
+    }
 
-    priv = (GjsCairoPath*) JS_GetPrivate(object);
-    if (priv == NULL)
-        return NULL;
-    return priv->path;
+    return path;
 }

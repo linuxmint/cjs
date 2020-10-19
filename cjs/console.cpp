@@ -21,12 +21,21 @@
  * IN THE SOFTWARE.
  */
 
-#include <config.h>
-#include <string.h>
-#include <stdlib.h>
-#include <locale.h>
+#include <config.h>  // for PACKAGE_STRING
+
+#include <locale.h>  // for setlocale, LC_ALL
+#include <stdlib.h>  // for exit
+#include <string.h>  // for strcmp, strlen
+
+#ifdef HAVE_UNISTD_H
+#    include <unistd.h>  // for close
+#elif defined (_WIN32)
+#    include <io.h>
+#endif
 
 #include <gio/gio.h>
+#include <glib-object.h>
+#include <glib.h>
 
 #include <cjs/gjs.h>
 
@@ -37,11 +46,12 @@ static char *profile_output_path = nullptr;
 static char *command = NULL;
 static gboolean print_version = false;
 static gboolean print_js_version = false;
+static gboolean debugging = false;
 static bool enable_profiler = false;
 
 static gboolean parse_profile_arg(const char *, const char *, void *, GError **);
 
-/* Keep in sync with entries in check_script_args_for_stray_gjs_args() */
+// clang-format off
 static GOptionEntry entries[] = {
     { "version", 0, 0, G_OPTION_ARG_NONE, &print_version, "Print GJS version and exit" },
     { "jsversion", 0, 0, G_OPTION_ARG_NONE, &print_js_version,
@@ -54,13 +64,12 @@ static GOptionEntry entries[] = {
         G_OPTION_ARG_CALLBACK, reinterpret_cast<void *>(&parse_profile_arg),
         "Enable the profiler and write output to FILE (default: gjs-$PID.syscap)",
         "FILE" },
+    { "debugger", 'd', 0, G_OPTION_ARG_NONE, &debugging, "Start in debug mode" },
     { NULL }
 };
+// clang-format on
 
-static char **
-strndupv(int           n,
-         char * const *strv)
-{
+[[nodiscard]] static char** strndupv(int n, char* const* strv) {
     int ix;
     if (n == 0)
         return NULL;
@@ -71,10 +80,7 @@ strndupv(int           n,
     return retval;
 }
 
-static char **
-strcatv(char **strv1,
-        char **strv2)
-{
+[[nodiscard]] static char** strcatv(char** strv1, char** strv2) {
     if (strv1 == NULL && strv2 == NULL)
         return NULL;
     if (strv1 == NULL)
@@ -96,30 +102,12 @@ strcatv(char **strv1,
     return retval;
 }
 
-static gboolean
-parse_profile_arg(const char *option_name,
-                  const char *value,
-                  void       *data,
-                  GError    **error_out)
-{
+static gboolean parse_profile_arg(const char* option_name [[maybe_unused]],
+                                  const char* value, void*, GError**) {
     enable_profiler = true;
     g_free(profile_output_path);
-    if (value)
-        profile_output_path = g_strdup(value);
+    profile_output_path = g_strdup(value);
     return true;
-}
-
-static gboolean
-check_stray_profile_arg(const char *option_name,
-                        const char *value,
-                        void       *data,
-                        GError    **error_out)
-{
-    g_warning("You used the --profile option after the script on the GJS "
-              "command line. Support for this will be removed in a future "
-              "version. Place the option before the script or use the "
-              "GJS_ENABLE_PROFILER environment variable.");
-    return parse_profile_arg(option_name, value, data, error_out);
 }
 
 static void
@@ -130,13 +118,13 @@ check_script_args_for_stray_gjs_args(int           argc,
     char **new_coverage_prefixes = NULL;
     char *new_coverage_output_path = NULL;
     char **new_include_paths = NULL;
-    /* Keep in sync with entries[] at the top */
-    static GOptionEntry script_check_entries[] = {
+    // Don't add new entries here. This is only for arguments that were
+    // previously accepted after the script name on the command line, for
+    // backwards compatibility.
+    GOptionEntry script_check_entries[] = {
         { "coverage-prefix", 'C', 0, G_OPTION_ARG_STRING_ARRAY, &new_coverage_prefixes },
         { "coverage-output", 0, 0, G_OPTION_ARG_STRING, &new_coverage_output_path },
         { "include-path", 'I', 0, G_OPTION_ARG_STRING_ARRAY, &new_include_paths },
-        { "profile", 0, G_OPTION_FLAG_OPTIONAL_ARG | G_OPTION_FLAG_FILENAME,
-          G_OPTION_ARG_CALLBACK, reinterpret_cast<void *>(&check_stray_profile_arg) },
         { NULL }
     };
     char **argv_copy = g_new(char *, argc + 2);
@@ -189,6 +177,29 @@ check_script_args_for_stray_gjs_args(int           argc,
     g_strfreev(argv_copy);
 }
 
+int define_argv_and_eval_script(GjsContext* js_context, int argc,
+                                char* const* argv, const char* script,
+                                size_t len, const char* filename) {
+    GError* error = nullptr;
+
+    /* prepare command line arguments */
+    if (!gjs_context_define_string_array(
+            js_context, "ARGV", argc, const_cast<const char**>(argv), &error)) {
+        g_critical("Failed to define ARGV: %s", error->message);
+        g_clear_error(&error);
+        return 1;
+    }
+
+    /* evaluate the script */
+    int code;
+    if (!gjs_context_eval(js_context, script, len, filename, &code, &error)) {
+        if (!g_error_matches(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT))
+            g_critical("%s", error->message);
+        g_clear_error(&error);
+    }
+    return code;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -200,12 +211,11 @@ main(int argc, char **argv)
     const char *filename;
     const char *program_name;
     gsize len;
-    int code, gjs_argc = argc, script_argc, ix;
+    int gjs_argc = argc, script_argc, ix;
     char **argv_copy = g_strdupv(argv), **argv_copy_addr = argv_copy;
     char **gjs_argv, **gjs_argv_addr;
     char * const *script_argv;
     const char *env_coverage_output_path;
-    const char *env_coverage_prefixes;
     bool interactive_mode = false;
 
     setlocale(LC_ALL, "");
@@ -248,10 +258,16 @@ main(int argc, char **argv)
     command = NULL;
     print_version = false;
     print_js_version = false;
+    debugging = false;
     g_option_context_set_ignore_unknown_options(context, false);
     g_option_context_set_help_enabled(context, true);
-    if (!g_option_context_parse_strv(context, &gjs_argv, &error))
-        g_error("option parsing failed: %s", error->message);
+    if (!g_option_context_parse_strv(context, &gjs_argv, &error)) {
+        char* help_text = g_option_context_get_help(context, true, nullptr);
+        g_printerr("%s\n\n%s\n", error->message, help_text);
+        g_free(help_text);
+        g_option_context_free(context);
+        exit(1);
+    }
 
     g_option_context_free (context);
 
@@ -292,11 +308,31 @@ main(int argc, char **argv)
     /* This should be removed after a suitable time has passed */
     check_script_args_for_stray_gjs_args(script_argc, script_argv);
 
+    /* Check for GJS_TRACE_FD for sysprof profiling */
+    const char* env_tracefd = g_getenv("GJS_TRACE_FD");
+    int tracefd = -1;
+    if (env_tracefd) {
+        tracefd = g_ascii_strtoll(env_tracefd, nullptr, 10);
+        g_setenv("GJS_TRACE_FD", "", true);
+        if (tracefd > 0)
+            enable_profiler = true;
+    }
+
     if (interactive_mode && enable_profiler) {
         g_message("Profiler disabled in interactive mode.");
         enable_profiler = false;
         g_unsetenv("GJS_ENABLE_PROFILER");  /* ignore env var in eval() */
+        g_unsetenv("GJS_TRACE_FD");         /* ignore env var in eval() */
     }
+
+    const char* env_coverage_prefixes = g_getenv("GJS_COVERAGE_PREFIXES");
+    if (env_coverage_prefixes) {
+        if (coverage_prefixes)
+            g_strfreev(coverage_prefixes);
+        coverage_prefixes = g_strsplit(env_coverage_prefixes, ":", -1);
+    }
+    if (coverage_prefixes)
+        gjs_coverage_enable();
 
     js_context = (GjsContext*) g_object_new(GJS_TYPE_CONTEXT,
                                             "search-path", include_path,
@@ -308,13 +344,6 @@ main(int argc, char **argv)
     if (env_coverage_output_path != NULL) {
         g_free(coverage_output_path);
         coverage_output_path = g_strdup(env_coverage_output_path);
-    }
-
-    env_coverage_prefixes = g_getenv("GJS_COVERAGE_PREFIXES");
-    if (env_coverage_prefixes != NULL) {
-        if (coverage_prefixes != NULL)
-            g_strfreev(coverage_prefixes);
-        coverage_prefixes = g_strsplit(env_coverage_prefixes, ":", -1);
     }
 
     if (coverage_prefixes) {
@@ -329,28 +358,25 @@ main(int argc, char **argv)
     if (enable_profiler && profile_output_path) {
         GjsProfiler *profiler = gjs_context_get_profiler(js_context);
         gjs_profiler_set_filename(profiler, profile_output_path);
+    } else if (enable_profiler && tracefd > -1) {
+        GjsProfiler* profiler = gjs_context_get_profiler(js_context);
+        gjs_profiler_set_fd(profiler, tracefd);
+        tracefd = -1;
     }
 
-    /* prepare command line arguments */
-    if (!gjs_context_define_string_array(js_context, "ARGV",
-                                         script_argc, (const char **) script_argv,
-                                         &error)) {
-        code = 1;
-        g_printerr("Failed to defined ARGV: %s", error->message);
-        g_clear_error(&error);
-        goto out;
+    if (tracefd != -1) {
+        close(tracefd);
+        tracefd = -1;
     }
 
-    /* evaluate the script */
-    if (!gjs_context_eval(js_context, script, len,
-                          filename, &code, &error)) {
-        if (!g_error_matches(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT))
-            g_printerr("%s\n", error->message);
-        g_clear_error(&error);
-        goto out;
-    }
+    /* If we're debugging, set up the debugger. It will break on the first
+     * frame. */
+    if (debugging)
+        gjs_context_setup_debugger_console(js_context);
 
- out:
+    int code = define_argv_and_eval_script(js_context, script_argc, script_argv,
+                                           script, len, filename);
+
     g_strfreev(gjs_argv_addr);
 
     /* Probably doesn't make sense to write statistics on failure */
@@ -364,5 +390,8 @@ main(int argc, char **argv)
         g_object_unref(coverage);
     g_object_unref(js_context);
     g_free(script);
+
+    if (debugging)
+        g_print("Program exited with code %d\n", code);
     exit(code);
 }

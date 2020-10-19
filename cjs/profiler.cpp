@@ -21,28 +21,42 @@
  * IN THE SOFTWARE.
  */
 
-#include <config.h>
+#include <config.h>  // for ENABLE_PROFILER, HAVE_SYS_SYSCALL_H, HAVE_UNISTD_H
 
-#include <algorithm>
-#include <errno.h>
-#include <memory>
-#include <signal.h>
-#include <sys/syscall.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <glib-unix.h>
-
-#include "jsapi-wrapper.h"
-#include <js/ProfilingStack.h>
-
-#include "context.h"
-#include "jsapi-util.h"
-#include "profiler-private.h"
-#ifdef ENABLE_PROFILER
-# include <alloca.h>
-# include "util/sp-capture-writer.h"
+#ifndef HAVE_SIGNAL_H
+#    include <signal.h>  // for siginfo_t, sigevent, sigaction, SIGPROF, ...
 #endif
+
+#include <glib-object.h>
+#include <glib.h>
+
+#ifdef ENABLE_PROFILER
+#    include <alloca.h>
+#    include <errno.h>
+#    include <stddef.h>  // for size_t
+#    include <stdint.h>
+#    include <stdio.h>      // for sscanf
+#    include <string.h>     // for memcpy, strlen
+#    include <sys/time.h>   // for CLOCK_MONOTONIC
+#    include <sys/types.h>  // for timer_t
+#    include <syscall.h>    // for __NR_gettid
+#    include <time.h>       // for itimerspec, timer_delete, ...
+#    ifdef HAVE_UNISTD_H
+#        include <unistd.h>  // for getpid, syscall
+#    endif
+#    ifdef G_OS_UNIX
+#        include <glib-unix.h>
+#    endif
+#    include <sysprof-capture.h>
+#endif
+
+#include <js/ProfilingStack.h>  // for EnableContextProfilingStack, ...
+
+#include "cjs/context.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/profiler.h"
+
+#define FLUSH_DELAY_SECONDS 3
 
 /*
  * This is mostly non-exciting code wrapping the builtin Profiler in
@@ -83,27 +97,25 @@ struct _GjsProfiler {
      * information while executing. We will look into this during our
      * SIGPROF handler.
      */
-    js::ProfileEntry stack[1024];
+    ProfilingStack stack;
 
     /* The context being profiled */
     JSContext *cx;
 
     /* Buffers and writes our sampled stacks */
-    SpCaptureWriter *capture;
+    SysprofCaptureWriter* capture;
+    GSource* periodic_flush;
 #endif  /* ENABLE_PROFILER */
 
     /* The filename to write to */
     char *filename;
 
+    /* An FD to capture to */
+    int fd;
+
 #ifdef ENABLE_PROFILER
     /* Our POSIX timer to wakeup SIGPROF */
     timer_t timer;
-
-    /* The depth of @stack. This value may be larger than the
-     * number of elements in stack, and so you MUST ensure you
-     * don't walk past the end of stack[] when iterating.
-     */
-    uint32_t stack_depth;
 
     /* Cached copy of our pid */
     GPid pid;
@@ -129,11 +141,7 @@ static GjsContext *profiling_context;
  * Returns: %TRUE if successful; otherwise %FALSE and the profile
  *   should abort.
  */
-static bool
-gjs_profiler_extract_maps(GjsProfiler *self)
-{
-    using AutoStrv = std::unique_ptr<char *, decltype(&g_strfreev)>;
-
+[[nodiscard]] static bool gjs_profiler_extract_maps(GjsProfiler* self) {
     int64_t now = g_get_monotonic_time() * 1000L;
 
     g_assert(((void) "Profiler must be set up before extracting maps", self));
@@ -146,9 +154,9 @@ gjs_profiler_extract_maps(GjsProfiler *self)
       return false;
     GjsAutoChar content = content_tmp;
 
-    AutoStrv lines(g_strsplit(content, "\n", 0), g_strfreev);
+    GjsAutoStrv lines = g_strsplit(content, "\n", 0);
 
-    for (size_t ix = 0; lines.get()[ix]; ix++) {
+    for (size_t ix = 0; lines[ix]; ix++) {
         char file[256];
         unsigned long start;
         unsigned long end;
@@ -157,7 +165,7 @@ gjs_profiler_extract_maps(GjsProfiler *self)
 
         file[sizeof file - 1] = '\0';
 
-        int r = sscanf(lines.get()[ix], "%lx-%lx %*15s %lx %*x:%*x %lu %255s",
+        int r = sscanf(lines[ix], "%lx-%lx %*15s %lx %*x:%*x %lu %255s",
                        &start, &end, &offset, &inode, file);
         if (r != 5)
             continue;
@@ -167,8 +175,8 @@ gjs_profiler_extract_maps(GjsProfiler *self)
             inode = 0;
         }
 
-        if (!sp_capture_writer_add_map(self->capture, now, -1, self->pid, start,
-                                       end, offset, inode, file))
+        if (!sysprof_capture_writer_add_map(self->capture, now, -1, self->pid,
+                                            start, end, offset, inode, file))
             return false;
     }
 
@@ -220,6 +228,7 @@ _gjs_profiler_new(GjsContext *context)
     self->cx = static_cast<JSContext *>(gjs_context_get_native_context(context));
     self->pid = getpid();
 #endif
+    self->fd = -1;
 
     profiling_context = context;
 
@@ -248,7 +257,13 @@ _gjs_profiler_free(GjsProfiler *self)
 
     g_clear_pointer(&self->filename, g_free);
 #ifdef ENABLE_PROFILER
-    g_clear_pointer(&self->capture, sp_capture_writer_unref);
+    g_clear_pointer(&self->capture, sysprof_capture_writer_unref);
+    g_clear_pointer(&self->periodic_flush, g_source_destroy);
+
+    if (self->fd != -1)
+        close(self->fd);
+
+    self->stack.~ProfilingStack();
 #endif
     g_free(self);
 }
@@ -272,26 +287,8 @@ _gjs_profiler_is_running(GjsProfiler *self)
 
 #ifdef ENABLE_PROFILER
 
-/* Run from a signal handler */
-static inline unsigned
-gjs_profiler_get_stack_size(GjsProfiler *self)
-{
-    g_assert(((void) "Profiler must be set up before getting stack size", self));
-
-    /*
-     * Note that stack_depth could be larger than the number of
-     * items we have in our stack space. We must protect ourselves
-     * against overflowing by discarding anything after that depth
-     * of the stack.
-     */
-    return std::min(self->stack_depth, uint32_t(G_N_ELEMENTS(self->stack)));
-}
-
-static void
-gjs_profiler_sigprof(int        signum,
-                     siginfo_t *info,
-                     void      *unused)
-{
+static void gjs_profiler_sigprof(int signum [[maybe_unused]], siginfo_t* info,
+                                 void*) {
     GjsProfiler *self = gjs_context_get_profiler(profiling_context);
 
     g_assert(((void) "SIGPROF handler called with invalid signal info", info));
@@ -309,44 +306,94 @@ gjs_profiler_sigprof(int        signum,
     if (!self || info->si_code != SI_TIMER)
         return;
 
-    size_t depth = gjs_profiler_get_stack_size(self);
+    uint32_t depth = self->stack.stackSize();
     if (depth == 0)
         return;
-
-    static_assert(G_N_ELEMENTS(self->stack) < G_MAXUSHORT,
-                  "Number of elements in profiler stack should be expressible"
-                  "in an unsigned short");
 
     int64_t now = g_get_monotonic_time() * 1000L;
 
     /* NOTE: cppcheck warns that alloca() is not recommended since it can
      * easily overflow the stack; however, dynamic allocation is not an option
      * here since we are in a signal handler.
-     * Another option would be to always allocate G_N_ELEMENTS(self->stack),
-     * but that is by definition at least as large of an allocation and
-     * therefore is more likely to overflow.
      */
-    // cppcheck-suppress allocaCalled
-    SpCaptureAddress *addrs = static_cast<SpCaptureAddress *>(alloca(sizeof *addrs * depth));
+    SysprofCaptureAddress* addrs =
+        // cppcheck-suppress allocaCalled
+        static_cast<SysprofCaptureAddress*>(alloca(sizeof *addrs * depth));
 
-    for (size_t ix = 0; ix < depth; ix++) {
-        js::ProfileEntry& entry = self->stack[ix];
+    for (uint32_t ix = 0; ix < depth; ix++) {
+        js::ProfilingStackFrame& entry = self->stack.frames[ix];
         const char *label = entry.label();
-        size_t flipped = depth - 1 - ix;
+        const char *dynamic_string = entry.dynamicString();
+        uint32_t flipped = depth - 1 - ix;
+        size_t label_length = strlen(label);
 
         /*
-         * SPSProfiler will put "js::RunScript" on the stack, but it has
+         * 512 is an arbitrarily large size, very likely to be enough to
+         * hold the final string.
+         */
+        char final_string[512];
+        char *position = final_string;
+        size_t available_length = sizeof (final_string) - 1;
+
+        if (label_length > 0) {
+            label_length = MIN(label_length, available_length);
+
+            /* Start copying the label to the final string */
+            memcpy(position, label, label_length);
+            available_length -= label_length;
+            position += label_length;
+
+            /*
+             * Add a space in between the label and the dynamic string,
+             * if there is one.
+             */
+            if (dynamic_string && available_length > 0) {
+                *position++ = ' ';
+                available_length--;
+            }
+        }
+
+        /* Now append the dynamic string at the end of the final string.
+         * The string is cut in case it doesn't fit the remaining space.
+         */
+        if (dynamic_string) {
+            size_t dynamic_string_length = strlen(dynamic_string);
+
+            if (dynamic_string_length > 0) {
+                size_t remaining_length = MIN(available_length, dynamic_string_length);
+                memcpy(position, dynamic_string, remaining_length);
+                position += remaining_length;
+            }
+        }
+
+        *position = 0;
+
+        /*
+         * GeckoProfiler will put "js::RunScript" on the stack, but it has
          * a stack address of "this", which is not terribly useful since
          * everything will show up as [stack] when building callgraphs.
          */
-        if (label)
-            addrs[flipped] = sp_capture_writer_add_jitmap(self->capture, label);
+        if (final_string[0] != '\0')
+            addrs[flipped] =
+                sysprof_capture_writer_add_jitmap(self->capture, final_string);
         else
-            addrs[flipped] = SpCaptureAddress(entry.stackAddress());
+            addrs[flipped] = SysprofCaptureAddress(entry.stackAddress());
     }
 
-    if (!sp_capture_writer_add_sample(self->capture, now, -1, self->pid, addrs, depth))
+    if (!sysprof_capture_writer_add_sample(self->capture, now, -1, self->pid,
+                                           -1, addrs, depth))
         gjs_profiler_stop(self);
+}
+
+static gboolean profiler_auto_flush_cb(void* user_data) {
+    auto* self = static_cast<GjsProfiler*>(user_data);
+
+    if (!self->running)
+        return G_SOURCE_REMOVE;
+
+    sysprof_capture_writer_flush(self->capture);
+
+    return G_SOURCE_CONTINUE;
 }
 
 #endif  /* ENABLE_PROFILER */
@@ -382,24 +429,42 @@ gjs_profiler_start(GjsProfiler *self)
     struct itimerspec its = { 0 };
     struct itimerspec old_its;
 
-    GjsAutoChar path = g_strdup(self->filename);
-    if (!path)
-        path = g_strdup_printf("gjs-%jd.syscap", intmax_t(self->pid));
+    if (self->fd != -1) {
+        self->capture = sysprof_capture_writer_new_from_fd(self->fd, 0);
+        self->fd = -1;
+    } else {
+        GjsAutoChar path = g_strdup(self->filename);
+        if (!path)
+            path = g_strdup_printf("gjs-%jd.syscap", intmax_t(self->pid));
 
-    self->capture = sp_capture_writer_new(path, 0);
+        self->capture = sysprof_capture_writer_new(path, 0);
+    }
 
     if (!self->capture) {
         g_warning("Failed to open profile capture");
         return;
     }
 
-    if (!gjs_profiler_extract_maps(self)) {
-        g_warning("Failed to extract proc maps");
-        g_clear_pointer(&self->capture, sp_capture_writer_unref);
-        return;
+    /* Automatically flush to be resilient against SIGINT, etc */
+    if (!self->periodic_flush) {
+        self->periodic_flush =
+            g_timeout_source_new_seconds(FLUSH_DELAY_SECONDS);
+        g_source_set_name(self->periodic_flush,
+                          "[sysprof-capture-writer-flush]");
+        g_source_set_priority(self->periodic_flush, G_PRIORITY_LOW + 100);
+        g_source_set_callback(self->periodic_flush,
+                              (GSourceFunc)profiler_auto_flush_cb, self,
+                              nullptr);
+        g_source_attach(self->periodic_flush,
+                        g_main_context_get_thread_default());
     }
 
-    self->stack_depth = 0;
+    if (!gjs_profiler_extract_maps(self)) {
+        g_warning("Failed to extract proc maps");
+        g_clear_pointer(&self->capture, sysprof_capture_writer_unref);
+        g_clear_pointer(&self->periodic_flush, g_source_destroy);
+        return;
+    }
 
     /* Setup our signal handler for SIGPROF delivery */
     sa.sa_flags = SA_RESTART | SA_SIGINFO;
@@ -408,7 +473,8 @@ gjs_profiler_start(GjsProfiler *self)
 
     if (sigaction(SIGPROF, &sa, nullptr) == -1) {
         g_warning("Failed to register sigaction handler: %s", g_strerror(errno));
-        g_clear_pointer(&self->capture, sp_capture_writer_unref);
+        g_clear_pointer(&self->capture, sysprof_capture_writer_unref);
+        g_clear_pointer(&self->periodic_flush, g_source_destroy);
         return;
     }
 
@@ -428,7 +494,8 @@ gjs_profiler_start(GjsProfiler *self)
 
     if (timer_create(CLOCK_MONOTONIC, &sev, &self->timer) == -1) {
         g_warning("Failed to create profiler timer: %s", g_strerror(errno));
-        g_clear_pointer(&self->capture, sp_capture_writer_unref);
+        g_clear_pointer(&self->capture, sysprof_capture_writer_unref);
+        g_clear_pointer(&self->periodic_flush, g_source_destroy);
         return;
     }
 
@@ -442,15 +509,15 @@ gjs_profiler_start(GjsProfiler *self)
     if (timer_settime(self->timer, 0, &its, &old_its) != 0) {
         g_warning("Failed to enable profiler timer: %s", g_strerror(errno));
         timer_delete(self->timer);
-        g_clear_pointer(&self->capture, sp_capture_writer_unref);
+        g_clear_pointer(&self->capture, sysprof_capture_writer_unref);
+        g_clear_pointer(&self->periodic_flush, g_source_destroy);
         return;
     }
 
     self->running = true;
 
     /* Notify the JS runtime of where to put stack info */
-    js::SetContextProfilingStack(self->cx, self->stack, &self->stack_depth,
-                                 G_N_ELEMENTS(self->stack));
+    js::SetContextProfilingStack(self->cx, &self->stack);
 
     /* Start recording stack info */
     js::EnableContextProfilingStack(self->cx, true);
@@ -460,7 +527,7 @@ gjs_profiler_start(GjsProfiler *self)
 #else  /* !ENABLE_PROFILER */
 
     self->running = true;
-    g_message("Profiler is disabled. Recompile with --enable-profiler to use.");
+    g_message("Profiler is disabled. Recompile with it enabled to use.");
 
 #endif  /* ENABLE_PROFILER */
 }
@@ -496,13 +563,13 @@ gjs_profiler_stop(GjsProfiler *self)
     timer_delete(self->timer);
 
     js::EnableContextProfilingStack(self->cx, false);
-    js::SetContextProfilingStack(self->cx, nullptr, nullptr, 0);
+    js::SetContextProfilingStack(self->cx, nullptr);
 
-    sp_capture_writer_flush(self->capture);
+    sysprof_capture_writer_flush(self->capture);
 
-    g_clear_pointer(&self->capture, sp_capture_writer_unref);
+    g_clear_pointer(&self->capture, sysprof_capture_writer_unref);
+    g_clear_pointer(&self->periodic_flush, g_source_destroy);
 
-    self->stack_depth = 0;
     g_message("Profiler stopped");
 
 #endif  /* ENABLE_PROFILER */
@@ -559,6 +626,7 @@ _gjs_profiler_setup_signals(GjsProfiler *self,
 #else  /* !ENABLE_PROFILER */
 
     g_message("Profiler is disabled. Not setting up signals.");
+    (void)self;
 
 #endif  /* ENABLE_PROFILER */
 }
@@ -594,6 +662,11 @@ gjs_profiler_chain_signal(GjsContext *context,
         }
     }
 
+#else  // !ENABLE_PROFILER
+
+    (void)context;
+    (void)info;
+
 #endif  /* ENABLE_PROFILER */
 
     return false;
@@ -616,4 +689,40 @@ gjs_profiler_set_filename(GjsProfiler *self,
 
     g_free(self->filename);
     self->filename = g_strdup(filename);
+}
+
+void _gjs_profiler_add_mark(GjsProfiler* self, gint64 time_nsec,
+                            gint64 duration_nsec, const char* group,
+                            const char* name, const char* message) {
+    g_return_if_fail(self);
+    g_return_if_fail(group);
+    g_return_if_fail(name);
+
+#ifdef ENABLE_PROFILER
+    if (self->running && self->capture != nullptr) {
+        sysprof_capture_writer_add_mark(self->capture, time_nsec, -1, self->pid,
+                                        duration_nsec, group, name, message);
+    }
+#else
+    // Unused in the no-profiler case
+    (void)time_nsec;
+    (void)duration_nsec;
+    (void)message;
+#endif
+}
+
+void gjs_profiler_set_fd(GjsProfiler* self, int fd) {
+    g_return_if_fail(self);
+    g_return_if_fail(!self->filename);
+    g_return_if_fail(!self->running);
+
+#ifdef ENABLE_PROFILER
+    if (self->fd != fd) {
+        if (self->fd != -1)
+            close(self->fd);
+        self->fd = fd;
+    }
+#else
+    (void)fd;  // Unused in the no-profiler case
+#endif
 }

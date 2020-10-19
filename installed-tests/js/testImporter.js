@@ -6,11 +6,11 @@ describe('GI importer', function () {
 
     describe('on failure', function () {
         // For these tests, we provide special overrides files to sabotage the
-        // import, at the path resource:///org/gjs/jsunit/modules/overrides.
+        // import, at the path resource:///org/gjs/jsunit/modules/badOverrides.
         let oldSearchPath;
         beforeAll(function () {
             oldSearchPath = imports.overrides.searchPath.slice();
-            imports.overrides.searchPath = ['resource:///org/gjs/jsunit/modules/overrides'];
+            imports.overrides.searchPath = ['resource:///org/gjs/jsunit/modules/badOverrides'];
         });
 
         afterAll(function () {
@@ -64,7 +64,7 @@ describe('Importer', function () {
 
     it('throws an import error when trying to import a nonexistent module', function () {
         expect(() => imports.nonexistentModuleName)
-            .toThrow(jasmine.objectContaining({ name: 'ImportError' }));
+            .toThrow(jasmine.objectContaining({name: 'ImportError'}));
     });
 
     it('throws an error when evaluating the module file throws an error', function () {
@@ -166,11 +166,11 @@ describe('Importer', function () {
         let LexicalScope;
 
         beforeAll(function () {
-            window.expectMe = true;
+            globalThis.expectMe = true;
             LexicalScope = imports.lexicalScope;
         });
 
-        /*it('will log a compatibility warning when accessed', function () {
+        it('will log a compatibility warning when accessed', function () {
             const GLib = imports.gi.GLib;
             GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 "Some code accessed the property 'b' on the module " +
@@ -183,9 +183,9 @@ describe('Importer', function () {
             void LexicalScope.c;
 
             // g_test_assert_expected_messages() is a macro, not introspectable
-            GLib.test_assert_expected_messages_internal('Gjs',
+            GLib.test_assert_expected_messages_internal('Cjs',
                 'testImporter.js', 179, '');
-        });*/
+        });
 
         it('can be accessed', function () {
             expect(LexicalScope.a).toEqual(1);
@@ -195,7 +195,7 @@ describe('Importer', function () {
         });
 
         it('does not leak module properties into the global scope', function () {
-            expect(window.d).not.toBeDefined();
+            expect(globalThis.d).not.toBeDefined();
         });
     });
 

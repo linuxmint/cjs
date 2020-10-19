@@ -23,16 +23,34 @@
  * Authored By: Sam Spilsbury <sam@endlessm.com>
  */
 
-#include <sys/stat.h>
+#include <config.h>
+
+#include <stdlib.h>  // for free, size_t
+#include <string.h>  // for strcmp, strlen
+
+#include <new>
+
 #include <gio/gio.h>
+#include <glib-object.h>
 
-#include <cjs/context.h>
+#include <js/GCAPI.h>  // for JS_AddExtraGCRootsTracer, JS_Remove...
+#include <js/RootingAPI.h>
+#include <js/TracingAPI.h>
+#include <js/TypeDecls.h>
+#include <js/Value.h>
+#include <js/experimental/CodeCoverage.h>  // for EnableCodeCoverage
+#include <jsapi.h>        // for JSAutoRealm, JS_SetPropertyById
+#include <jsfriendapi.h>  // for GetCodeCoverageSummary
 
-#include "coverage.h"
-#include "global.h"
-#include "importer.h"
-#include "jsapi-util-args.h"
-#include "util/error.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/coverage.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
+
+static bool s_coverage_enabled = false;
 
 struct _GjsCoverage {
     GObject parent;
@@ -41,21 +59,14 @@ struct _GjsCoverage {
 typedef struct {
     gchar **prefixes;
     GjsContext *context;
-    JS::Heap<JSObject *> compartment;
+    JS::Heap<JSObject*> global;
 
     GFile *output_dir;
 } GjsCoveragePrivate;
 
-#if __GNUC__ >= 8
-_Pragma("GCC diagnostic push")
-_Pragma("GCC diagnostic ignored \"-Wcast-function-type\"")
-#endif
 G_DEFINE_TYPE_WITH_PRIVATE(GjsCoverage,
                            gjs_coverage,
                            G_TYPE_OBJECT)
-#if __GNUC__ >= 8
-_Pragma("GCC diagnostic pop")
-#endif
 
 enum {
     PROP_0,
@@ -68,28 +79,22 @@ enum {
 
 static GParamSpec *properties[PROP_N] = { NULL, };
 
-static char *
-get_file_identifier(GFile *source_file) {
+[[nodiscard]] static char* get_file_identifier(GFile* source_file) {
     char *path = g_file_get_path(source_file);
     if (!path)
         path = g_file_get_uri(source_file);
     return path;
 }
 
-static bool
-write_source_file_header(GOutputStream *stream,
-                         GFile         *source_file,
-                         GError       **error)
-{
+[[nodiscard]] static bool write_source_file_header(GOutputStream* stream,
+                                                   GFile* source_file,
+                                                   GError** error) {
     GjsAutoChar path = get_file_identifier(source_file);
     return g_output_stream_printf(stream, NULL, NULL, error, "SF:%s\n", path.get());
 }
 
-static bool
-copy_source_file_to_coverage_output(GFile   *source_file,
-                                    GFile   *destination_file,
-                                    GError **error)
-{
+[[nodiscard]] static bool copy_source_file_to_coverage_output(
+    GFile* source_file, GFile* destination_file, GError** error) {
     /* We need to recursively make the directory we
      * want to copy to, as g_file_copy doesn't do that */
     GjsAutoUnref<GFile> destination_dir = g_file_get_parent(destination_file);
@@ -107,9 +112,7 @@ copy_source_file_to_coverage_output(GFile   *source_file,
  * the string with the URI scheme stripped or NULL
  * if the path was not a valid URI
  */
-static char *
-strip_uri_scheme(const char *potential_uri)
-{
+[[nodiscard]] static char* strip_uri_scheme(const char* potential_uri) {
     char *uri_header = g_uri_parse_scheme(potential_uri);
 
     if (uri_header) {
@@ -142,10 +145,8 @@ strip_uri_scheme(const char *potential_uri)
  * automatically return the full URI path with
  * the URI scheme and leading slash stripped out.
  */
-static char *
-find_diverging_child_components(GFile *child,
-                                GFile *parent)
-{
+[[nodiscard]] static char* find_diverging_child_components(GFile* child,
+                                                           GFile* parent) {
     g_object_ref(parent);
     GFile *ancestor = parent;
     while (ancestor != NULL) {
@@ -174,13 +175,15 @@ find_diverging_child_components(GFile *child,
     return stripped_uri;
 }
 
-static bool
-filename_has_coverage_prefixes(GjsCoverage *self, const char *filename)
-{
+[[nodiscard]] static bool filename_has_coverage_prefixes(GjsCoverage* self,
+                                                         const char* filename) {
     auto priv = static_cast<GjsCoveragePrivate *>(gjs_coverage_get_instance_private(self));
+    GjsAutoChar workdir = g_get_current_dir();
+    GjsAutoChar abs_filename = g_canonicalize_filename(filename, workdir);
 
     for (const char * const *prefix = priv->prefixes; *prefix; prefix++) {
-        if (g_str_has_prefix(filename, *prefix))
+        GjsAutoChar abs_prefix = g_canonicalize_filename(*prefix, workdir);
+        if (g_str_has_prefix(abs_filename, abs_prefix))
             return true;
     }
     return false;
@@ -194,13 +197,14 @@ write_line(GOutputStream *out,
     return g_output_stream_printf(out, nullptr, nullptr, error, "%s\n", line);
 }
 
-static GjsAutoUnref<GFile>
-write_statistics_internal(GjsCoverage *coverage,
-                          JSContext   *cx,
-                          GError     **error)
-{
-    using AutoCChar = std::unique_ptr<char, decltype(&free)>;
-    using AutoStrv = std::unique_ptr<char *, decltype(&g_strfreev)>;
+[[nodiscard]] static GjsAutoUnref<GFile> write_statistics_internal(
+    GjsCoverage* coverage, JSContext* cx, GError** error) {
+    if (!s_coverage_enabled) {
+        g_critical(
+            "Code coverage requested, but gjs_coverage_enable() was not called."
+            " You must call this function before creating any GjsContext.");
+        return nullptr;
+    }
 
     GjsCoveragePrivate *priv = (GjsCoveragePrivate *) gjs_coverage_get_instance_private(coverage);
 
@@ -214,7 +218,7 @@ write_statistics_internal(GjsCoverage *coverage,
     GFile *output_file = g_file_get_child(priv->output_dir, "coverage.lcov");
 
     size_t lcov_length;
-    AutoCChar lcov(js::GetCodeCoverageSummary(cx, &lcov_length), free);
+    JS::UniqueChars lcov = js::GetCodeCoverageSummary(cx, &lcov_length);
 
     GjsAutoUnref<GOutputStream> ostream =
         G_OUTPUT_STREAM(g_file_append_to(output_file,
@@ -224,8 +228,8 @@ write_statistics_internal(GjsCoverage *coverage,
     if (!ostream)
         return nullptr;
 
-    AutoStrv lcov_lines(g_strsplit(lcov.get(), "\n", -1), g_strfreev);
-    GjsAutoChar test_name;
+    GjsAutoStrv lcov_lines = g_strsplit(lcov.get(), "\n", -1);
+    const char* test_name = NULL;
     bool ignoring_file = false;
 
     for (const char * const *iter = lcov_lines.get(); *iter; iter++) {
@@ -248,7 +252,7 @@ write_statistics_internal(GjsCoverage *coverage,
             }
 
             /* Now we can write the test name before writing the source file */
-            if (!write_line(ostream, test_name.get(), error))
+            if (!write_line(ostream, test_name, error))
                 return nullptr;
 
             /* The source file could be a resource, so we must use
@@ -297,8 +301,7 @@ gjs_coverage_write_statistics(GjsCoverage *coverage)
     GError *error = nullptr;
 
     auto cx = static_cast<JSContext *>(gjs_context_get_native_context(priv->context));
-    JSAutoCompartment ac(cx, gjs_get_import_global(cx));
-    JSAutoRequest ar(cx);
+    JSAutoRealm ar(cx, gjs_get_import_global(cx));
 
     GjsAutoUnref<GFile> output_file = write_statistics_internal(coverage, cx, &error);
     if (!output_file) {
@@ -311,9 +314,11 @@ gjs_coverage_write_statistics(GjsCoverage *coverage)
     g_message("Wrote coverage statistics to %s", output_file_path.get());
 }
 
-static void
-gjs_coverage_init(GjsCoverage *self)
-{
+static void gjs_coverage_init(GjsCoverage*) {
+    if (!s_coverage_enabled)
+        g_critical(
+            "Code coverage requested, but gjs_coverage_enable() was not called."
+            " You must call this function before creating any GjsContext.");
 }
 
 static void
@@ -322,37 +327,39 @@ coverage_tracer(JSTracer *trc, void *data)
     GjsCoverage *coverage = (GjsCoverage *) data;
     GjsCoveragePrivate *priv = (GjsCoveragePrivate *) gjs_coverage_get_instance_private(coverage);
 
-    JS::TraceEdge<JSObject *>(trc, &priv->compartment, "Coverage compartment");
+    JS::TraceEdge<JSObject*>(trc, &priv->global, "Coverage global object");
 }
 
+GJS_JSAPI_RETURN_CONVENTION
 static bool
 bootstrap_coverage(GjsCoverage *coverage)
 {
     GjsCoveragePrivate *priv = (GjsCoveragePrivate *) gjs_coverage_get_instance_private(coverage);
 
     JSContext *context = (JSContext *) gjs_context_get_native_context(priv->context);
-    JSAutoRequest ar(context);
 
     JSObject *debuggee = gjs_get_import_global(context);
-    JS::RootedObject debugger_compartment(context,
-                                          gjs_create_global_object(context));
+    JS::RootedObject debugger_global(
+        context, gjs_create_global_object(context, GjsGlobalType::DEBUGGER));
     {
-        JSAutoCompartment compartment(context, debugger_compartment);
+        JSAutoRealm ar(context, debugger_global);
         JS::RootedObject debuggeeWrapper(context, debuggee);
         if (!JS_WrapObject(context, &debuggeeWrapper))
             return false;
 
+        const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
         JS::RootedValue debuggeeWrapperValue(context, JS::ObjectValue(*debuggeeWrapper));
-        if (!JS_SetProperty(context, debugger_compartment, "debuggee",
-                            debuggeeWrapperValue) ||
-            !gjs_define_global_properties(context, debugger_compartment,
-                                          "coverage"))
+        if (!JS_SetPropertyById(context, debugger_global, atoms.debuggee(),
+                                debuggeeWrapperValue) ||
+            !gjs_define_global_properties(context, debugger_global,
+                                          GjsGlobalType::DEBUGGER,
+                                          "GJS coverage", "coverage"))
             return false;
 
         /* Add a tracer, as suggested by jdm on #jsapi */
         JS_AddExtraGCRootsTracer(context, coverage_tracer, coverage);
 
-        priv->compartment = debugger_compartment;
+        priv->global = debugger_global;
     }
 
     return true;
@@ -365,11 +372,11 @@ gjs_coverage_constructed(GObject *object)
 
     GjsCoverage *coverage = GJS_COVERAGE(object);
     GjsCoveragePrivate *priv = (GjsCoveragePrivate *) gjs_coverage_get_instance_private(coverage);
-    new (&priv->compartment) JS::Heap<JSObject *>();
+    new (&priv->global) JS::Heap<JSObject*>();
 
     if (!bootstrap_coverage(coverage)) {
         JSContext *context = static_cast<JSContext *>(gjs_context_get_native_context(priv->context));
-        JSAutoCompartment compartment(context, gjs_get_import_global(context));
+        JSAutoRealm ar(context, gjs_get_import_global(context));
         gjs_log_exception(context);
     }
 }
@@ -411,7 +418,7 @@ gjs_coverage_dispose(GObject *object)
      * disposing of the context */
     auto cx = static_cast<JSContext *>(gjs_context_get_native_context(priv->context));
     JS_RemoveExtraGCRootsTracer(cx, coverage_tracer, coverage);
-    priv->compartment = nullptr;
+    priv->global = nullptr;
 
     g_clear_object(&priv->context);
 
@@ -426,7 +433,7 @@ gjs_coverage_finalize (GObject *object)
 
     g_strfreev(priv->prefixes);
     g_clear_object(&priv->output_dir);
-    priv->compartment.~Heap();
+    priv->global.~Heap();
 
     G_OBJECT_CLASS(gjs_coverage_parent_class)->finalize(object);
 }
@@ -497,4 +504,17 @@ gjs_coverage_new (const char * const *prefixes,
                                   NULL));
 
     return coverage;
+}
+
+/**
+ * gjs_coverage_enable:
+ *
+ * This function must be called before creating any #GjsContext, if you intend
+ * to use any #GjsCoverage APIs.
+ *
+ * Since: 1.66
+ */
+void gjs_coverage_enable() {
+    js::EnableCodeCoverage();
+    s_coverage_enabled = true;
 }

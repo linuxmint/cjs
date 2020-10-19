@@ -41,11 +41,24 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <config.h>
+
+#include <stdio.h>  // for stderr
+
+#include <glib-object.h>
 #include <glib.h>
-#include <string.h>
-#include "context.h"
-#include "jsapi-util.h"
-#include "jsapi-wrapper.h"
+
+#include <js/TypeDecls.h>
+#include <jsfriendapi.h>  // for DumpBacktrace
+
+#include "cjs/context.h"
+
+// Avoid static_assert in MSVC builds
+namespace JS {
+template <typename T> struct GCPolicy;
+
+template <>
+struct GCPolicy<void*> : public IgnoreGCPolicy<void*> {};
+}
 
 void
 gjs_context_print_stack_stderr(GjsContext *context)

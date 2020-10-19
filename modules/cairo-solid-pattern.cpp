@@ -22,13 +22,24 @@
 
 #include <config.h>
 
+#include <cairo.h>
+#include <glib.h>
+
+#include <js/CallArgs.h>
+#include <js/Class.h>
+#include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
+#include <js/PropertySpec.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <jsapi.h>  // for JS_NewObjectWithGivenProto
+
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util-args.h"
-#include "cjs/jsapi-wrapper.h"
-#include <cairo.h>
-#include "cairo-private.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
+#include "modules/cairo-private.h"
 
-static JSObject *gjs_cairo_solid_pattern_get_proto(JSContext *);
+[[nodiscard]] static JSObject* gjs_cairo_solid_pattern_get_proto(JSContext*);
 
 GJS_DEFINE_PROTO_ABSTRACT_WITH_PARENT("SolidPattern", cairo_solid_pattern,
                                       cairo_pattern,
@@ -41,10 +52,13 @@ gjs_cairo_solid_pattern_finalize(JSFreeOp *fop,
     gjs_cairo_pattern_finalize_pattern(fop, obj);
 }
 
+// clang-format off
 JSPropertySpec gjs_cairo_solid_pattern_proto_props[] = {
-    JS_PS_END
-};
+    JS_STRING_SYM_PS(toStringTag, "SolidPattern", JSPROP_READONLY),
+    JS_PS_END};
+// clang-format on
 
+GJS_JSAPI_RETURN_CONVENTION
 static bool
 createRGB_func(JSContext *context,
                unsigned   argc,
@@ -73,6 +87,7 @@ createRGB_func(JSContext *context,
     return true;
 }
 
+GJS_JSAPI_RETURN_CONVENTION
 static bool
 createRGBA_func(JSContext *context,
                 unsigned   argc,
@@ -103,10 +118,9 @@ createRGBA_func(JSContext *context,
 }
 
 JSFunctionSpec gjs_cairo_solid_pattern_proto_funcs[] = {
-    JS_FS("createRGB", createRGB_func, 0, 0),
-    JS_FS("createRGBA", createRGBA_func, 0, 0),
-    JS_FS_END
-};
+    JS_FN("createRGB", createRGB_func, 0, 0),
+    JS_FN("createRGBA", createRGBA_func, 0, 0),
+    JS_FS_END};
 
 JSFunctionSpec gjs_cairo_solid_pattern_static_funcs[] = { JS_FS_END };
 
@@ -114,9 +128,10 @@ JSObject *
 gjs_cairo_solid_pattern_from_pattern(JSContext       *context,
                                      cairo_pattern_t *pattern)
 {
-    g_return_val_if_fail(context != NULL, NULL);
-    g_return_val_if_fail(pattern != NULL, NULL);
-    g_return_val_if_fail(cairo_pattern_get_type(pattern) == CAIRO_PATTERN_TYPE_SOLID, NULL);
+    g_return_val_if_fail(context, nullptr);
+    g_return_val_if_fail(pattern, nullptr);
+    g_return_val_if_fail(
+        cairo_pattern_get_type(pattern) == CAIRO_PATTERN_TYPE_SOLID, nullptr);
 
     JS::RootedObject proto(context, gjs_cairo_solid_pattern_get_proto(context));
     JS::RootedObject object(context,
@@ -124,10 +139,10 @@ gjs_cairo_solid_pattern_from_pattern(JSContext       *context,
                                    proto));
     if (!object) {
         gjs_throw(context, "failed to create solid pattern");
-        return NULL;
+        return nullptr;
     }
 
-    gjs_cairo_pattern_construct(context, object, pattern);
+    gjs_cairo_pattern_construct(object, pattern);
 
     return object;
 }

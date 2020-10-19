@@ -23,105 +23,38 @@
 
 #include <config.h>
 
-#include "jsapi-wrapper.h"
-#include <js/Initialization.h>
+#include <stdint.h>
 
-#include "context-private.h"
-#include "engine.h"
-#include "gi/object.h"
-#include "jsapi-util.h"
-#include "util/log.h"
-
-#ifdef G_OS_WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#ifdef _WIN32
+#    define WIN32_LEAN_AND_MEAN
+#    include <windows.h>
 #endif
 
-/* Implementations of locale-specific operations; these are used
- * in the implementation of String.localeCompare(), Date.toLocaleDateString(),
- * and so forth. We take the straight-forward approach of converting
- * to UTF-8, using the appropriate GLib functions, and converting
- * back if necessary.
- */
-static bool
-gjs_locale_to_upper_case (JSContext *context,
-                          JS::HandleString src,
-                          JS::MutableHandleValue retval)
-{
-    GjsAutoJSChar utf8 = JS_EncodeStringToUTF8(context, src);
-    if (!utf8)
-        return false;
+#include <utility>  // for move
 
-    GjsAutoChar upper_case_utf8 = g_utf8_strup(utf8, -1);
-    return gjs_string_from_utf8(context, upper_case_utf8, retval);
-}
+#include <gio/gio.h>
+#include <glib.h>
 
-static bool
-gjs_locale_to_lower_case (JSContext *context,
-                          JS::HandleString src,
-                          JS::MutableHandleValue retval)
-{
-    GjsAutoJSChar utf8 = JS_EncodeStringToUTF8(context, src);
-    if (!utf8)
-        return false;
+#include <js/ContextOptions.h>
+#include <js/GCAPI.h>           // for JS_SetGCParameter, JS_AddFin...
+#include <js/Initialization.h>  // for JS_Init, JS_ShutDown
+#include <js/Promise.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <js/Warnings.h>
+#include <js/experimental/SourceHook.h>
+#include <jsapi.h>  // for InitSelfHostedCode, JS_Destr...
+#include <mozilla/UniquePtr.h>
 
-    GjsAutoChar lower_case_utf8 = g_utf8_strdown(utf8, -1);
-    return gjs_string_from_utf8(context, lower_case_utf8, retval);
-}
+#include "gi/object.h"
+#include "cjs/context-private.h"
+#include "cjs/engine.h"
+#include "cjs/jsapi-util.h"
+#include "util/log.h"
 
-static bool
-gjs_locale_compare (JSContext *context,
-                    JS::HandleString src_1,
-                    JS::HandleString src_2,
-                    JS::MutableHandleValue retval)
-{
-    GjsAutoJSChar utf8_1 = JS_EncodeStringToUTF8(context, src_1);
-    if (!utf8_1)
-        return false;
-
-    GjsAutoJSChar utf8_2 = JS_EncodeStringToUTF8(context, src_2);
-    if (!utf8_2)
-        return false;
-
-    retval.setInt32(g_utf8_collate(utf8_1, utf8_2));
-
-    return true;
-}
-
-static bool
-gjs_locale_to_unicode (JSContext  *context,
-                       const char *src,
-                       JS::MutableHandleValue retval)
-{
-    GError *error = NULL;
-
-    GjsAutoChar utf8 = g_locale_to_utf8(src, -1, NULL, NULL, &error);
-    if (!utf8) {
-        gjs_throw(context,
-                  "Failed to convert locale string to UTF8: %s",
-                  error->message);
-        g_error_free(error);
-        return false;
-    }
-
-    return gjs_string_from_utf8(context, utf8, retval);
-}
-
-static JSLocaleCallbacks gjs_locale_callbacks =
-{
-    gjs_locale_to_upper_case,
-    gjs_locale_to_lower_case,
-    gjs_locale_compare,
-    gjs_locale_to_unicode
-};
-
-static void
-gjs_finalize_callback(JSFreeOp         *fop,
-                      JSFinalizeStatus  status,
-                      bool              isCompartment,
-                      void             *data)
-{
-    auto js_context = static_cast<GjsContext *>(data);
+static void gjs_finalize_callback(JSFreeOp*, JSFinalizeStatus status,
+                                  void* data) {
+    auto* gjs = static_cast<GjsContextPrivate*>(data);
 
   /* Implementation note for mozjs 24:
      sweeping happens in two phases, in the first phase all
@@ -163,56 +96,64 @@ gjs_finalize_callback(JSFreeOp         *fop,
      code, so we can probably rely on this behavior.
   */
 
-  if (status == JSFINALIZE_GROUP_START)
-        _gjs_context_set_sweeping(js_context, true);
+  if (status == JSFINALIZE_GROUP_PREPARE)
+        gjs->set_sweeping(true);
   else if (status == JSFINALIZE_GROUP_END)
-        _gjs_context_set_sweeping(js_context, false);
+        gjs->set_sweeping(false);
 }
 
-static void
-on_garbage_collect(JSContext *cx,
-                   JSGCStatus status,
-                   void      *data)
-{
+static void on_garbage_collect(JSContext*, JSGCStatus status, JS::GCReason,
+                               void*) {
     /* We finalize any pending toggle refs before doing any garbage collection,
      * so that we can collect the JS wrapper objects, and in order to minimize
      * the chances of objects having a pending toggle up queued when they are
      * garbage collected. */
-    if (status == JSGC_BEGIN)
+    if (status == JSGC_BEGIN) {
+        gjs_debug_lifecycle(GJS_DEBUG_CONTEXT, "Begin garbage collection");
         gjs_object_clear_toggles();
+    } else if (status == JSGC_END) {
+        gjs_debug_lifecycle(GJS_DEBUG_CONTEXT, "End garbage collection");
+    }
 }
 
-static bool
-on_enqueue_promise_job(JSContext       *cx,
-                       JS::HandleObject callback,
-                       JS::HandleObject allocation_site,
-                       JS::HandleObject global,
-                       void            *data)
-{
-    auto gjs_context = static_cast<GjsContext *>(data);
-    return _gjs_context_enqueue_job(gjs_context, callback);
-}
-
-static void
-on_promise_unhandled_rejection(JSContext                    *cx,
-                               JS::HandleObject              promise,
-                               PromiseRejectionHandlingState state,
-                               void                         *data)
-{
-    auto gjs_context = static_cast<GjsContext *>(data);
+static void on_promise_unhandled_rejection(
+    JSContext* cx, bool mutedErrors [[maybe_unused]], JS::HandleObject promise,
+    JS::PromiseRejectionHandlingState state, void* data) {
+    auto gjs = static_cast<GjsContextPrivate*>(data);
     uint64_t id = JS::GetPromiseID(promise);
 
-    if (state == PromiseRejectionHandlingState::Handled) {
+    if (state == JS::PromiseRejectionHandlingState::Handled) {
         /* This happens when catching an exception from an await expression. */
-        _gjs_context_unregister_unhandled_promise_rejection(gjs_context, id);
+        gjs->unregister_unhandled_promise_rejection(id);
         return;
     }
 
     JS::RootedObject allocation_site(cx, JS::GetPromiseAllocationSite(promise));
     GjsAutoChar stack = gjs_format_stack_trace(cx, allocation_site);
-    _gjs_context_register_unhandled_promise_rejection(gjs_context, id,
-                                                      std::move(stack));
+    gjs->register_unhandled_promise_rejection(id, std::move(stack));
 }
+
+bool gjs_load_internal_source(JSContext* cx, const char* filename, char** src,
+                              size_t* length) {
+    GError* error = nullptr;
+    const char* path = filename + 11;  // len("resource://")
+    GBytes* script_bytes =
+        g_resources_lookup_data(path, G_RESOURCE_LOOKUP_FLAGS_NONE, &error);
+    if (!script_bytes)
+        return gjs_throw_gerror_message(cx, error);
+
+    *src = static_cast<char*>(g_bytes_unref_to_data(script_bytes, length));
+    return true;
+}
+
+class GjsSourceHook : public js::SourceHook {
+    bool load(JSContext* cx, const char* filename,
+              char16_t** two_byte_source [[maybe_unused]], char** utf8_source,
+              size_t* length) {
+        // caller owns the source, per documentation of SourceHook
+        return gjs_load_internal_source(cx, filename, utf8_source, length);
+    }
+};
 
 #ifdef G_OS_WIN32
 HMODULE gjs_dll;
@@ -254,34 +195,29 @@ public:
         JS_ShutDown();
     }
 
-    operator bool() {
-        return true;
-    }
+    explicit operator bool() const { return true; }
 };
 
 static GjsInit gjs_is_inited;
 #endif
 
-JSContext *
-gjs_create_js_context(GjsContext *js_context)
-{
+JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
     g_assert(gjs_is_inited);
     JSContext *cx = JS_NewContext(32 * 1024 * 1024 /* max bytes */);
     if (!cx)
         return nullptr;
 
-    if (!JS::InitSelfHostedCode(cx))
+    if (!JS::InitSelfHostedCode(cx)) {
+        JS_DestroyContext(cx);
         return nullptr;
+    }
 
     // commented are defaults in moz-24
     JS_SetNativeStackQuota(cx, 1024 * 1024);
-    JS_SetGCParameter(cx, JSGC_MAX_MALLOC_BYTES, 128 * 1024 * 1024);
     JS_SetGCParameter(cx, JSGC_MAX_BYTES, -1);
     JS_SetGCParameter(cx, JSGC_MODE, JSGC_MODE_INCREMENTAL);
-    JS_SetGCParameter(cx, JSGC_SLICE_TIME_BUDGET, 10); /* ms */
+    JS_SetGCParameter(cx, JSGC_SLICE_TIME_BUDGET_MS, 10); /* ms */
     // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_TIME_LIMIT, 1000); /* ms */
-    JS_SetGCParameter(cx, JSGC_DYNAMIC_MARK_SLICE, true);
-    JS_SetGCParameter(cx, JSGC_DYNAMIC_HEAP_GROWTH, true);
     // JS_SetGCParameter(cx, JSGC_LOW_FREQUENCY_HEAP_GROWTH, 150);
     // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MIN, 150);
     // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX, 300);
@@ -291,30 +227,41 @@ gjs_create_js_context(GjsContext *js_context)
     // JS_SetGCParameter(cx, JSGC_DECOMMIT_THRESHOLD, 32);
 
     /* set ourselves as the private data */
-    JS_SetContextPrivate(cx, js_context);
+    JS_SetContextPrivate(cx, uninitialized_gjs);
 
-    JS_AddFinalizeCallback(cx, gjs_finalize_callback, js_context);
-    JS_SetGCCallback(cx, on_garbage_collect, js_context);
-    JS_SetLocaleCallbacks(cx, &gjs_locale_callbacks);
+    JS_AddFinalizeCallback(cx, gjs_finalize_callback, uninitialized_gjs);
+    JS_SetGCCallback(cx, on_garbage_collect, uninitialized_gjs);
     JS::SetWarningReporter(cx, gjs_warning_reporter);
-    JS::SetGetIncumbentGlobalCallback(cx, gjs_get_import_global);
-    JS::SetEnqueuePromiseJobCallback(cx, on_enqueue_promise_job, js_context);
+    JS::SetJobQueue(cx, dynamic_cast<JS::JobQueue*>(uninitialized_gjs));
     JS::SetPromiseRejectionTrackerCallback(cx, on_promise_unhandled_rejection,
-                                           js_context);
+                                           uninitialized_gjs);
 
-    /* setExtraWarnings: Be extra strict about code that might hide a bug */
-    if (!g_getenv("GJS_DISABLE_EXTRA_WARNINGS")) {
-        gjs_debug(GJS_DEBUG_CONTEXT, "Enabling extra warnings");
-        JS::ContextOptionsRef(cx).setExtraWarnings(true);
+    // We use this to handle "lazy sources" that SpiderMonkey doesn't need to
+    // keep in memory. Most sources should be kept in memory, but we can skip
+    // doing that for the realm bootstrap code, as it is already in memory in
+    // the form of a GResource. Instead we use the "source hook" to retrieve it.
+    auto hook = mozilla::MakeUnique<GjsSourceHook>();
+    js::SetSourceHook(cx, std::move(hook));
+
+    if (g_getenv("GJS_DISABLE_EXTRA_WARNINGS")) {
+        g_warning(
+            "GJS_DISABLE_EXTRA_WARNINGS has been removed, GJS no longer logs "
+            "extra warnings.");
     }
 
-    if (!g_getenv("GJS_DISABLE_JIT")) {
+    bool enable_jit = !(g_getenv("GJS_DISABLE_JIT"));
+    if (enable_jit) {
         gjs_debug(GJS_DEBUG_CONTEXT, "Enabling JIT");
-        JS::ContextOptionsRef(cx)
-            .setIon(true)
-            .setBaseline(true)
-            .setAsmJS(true);
     }
+    JS::ContextOptionsRef(cx)
+        .setAsmJS(enable_jit);
+
+    uint32_t value = enable_jit ? 1 : 0;
+
+    JS_SetGlobalJitCompilerOption(
+        cx, JSJitCompilerOption::JSJITCOMPILER_ION_ENABLE, value);
+    JS_SetGlobalJitCompilerOption(
+        cx, JSJitCompilerOption::JSJITCOMPILER_BASELINE_ENABLE, value);
 
     return cx;
 }

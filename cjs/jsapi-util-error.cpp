@@ -23,14 +23,24 @@
 
 #include <config.h>
 
-#include "jsapi-util.h"
-#include "jsapi-wrapper.h"
-#include "gi/gerror.h"
+#include <stdarg.h>
+
+#include <glib.h>
+
+#include <js/CharacterEncoding.h>
+#include <js/ErrorReport.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
+#include <js/ValueArray.h>
+#include <jsapi.h>       // for JS_ReportErrorUTF8, BuildStackString
+#include <jspubtd.h>     // for JSProtoKey, JSProto_Error, JSProto...
+
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
+#include "util/log.h"
 #include "util/misc.h"
-
-#include <util/log.h>
-
-#include <string.h>
 
 /*
  * See:
@@ -55,10 +65,6 @@ gjs_throw_valist(JSContext       *context,
 
     s = g_strdup_vprintf(format, args);
 
-    JSAutoCompartment compartment(context, gjs_get_import_global(context));
-
-    JS_BeginRequest(context);
-
     if (JS_IsExceptionPending(context)) {
         /* Often it's unclear whether a given jsapi.h function
          * will throw an exception, so we will throw ourselves
@@ -72,15 +78,13 @@ gjs_throw_valist(JSContext       *context,
                   "Ignoring second exception: '%s'",
                   s);
         g_free(s);
-        JS_EndRequest(context);
         return;
     }
 
     JS::RootedObject constructor(context);
-    JS::RootedObject global(context, JS::CurrentGlobalOrNull(context));
     JS::RootedValue v_constructor(context), exc_val(context);
     JS::RootedObject new_exc(context);
-    JS::AutoValueArray<1> error_args(context);
+    JS::RootedValueArray<1> error_args(context);
     result = false;
 
     if (!gjs_string_from_utf8(context, s, error_args[0])) {
@@ -97,11 +101,11 @@ gjs_throw_valist(JSContext       *context,
     if (!new_exc)
         goto out;
 
-    if (error_name != NULL) {
+    if (error_name) {
+        const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
         JS::RootedValue name_value(context);
         if (!gjs_string_from_utf8(context, error_name, &name_value) ||
-            !gjs_object_set_property(context, new_exc, GJS_STRING_NAME,
-                                     name_value))
+            !JS_SetPropertyById(context, new_exc, atoms.name(), name_value))
             goto out;
     }
 
@@ -119,8 +123,6 @@ gjs_throw_valist(JSContext       *context,
         JS_ReportErrorUTF8(context, "Failed to throw exception '%s'", s);
     }
     g_free(s);
-
-    JS_EndRequest(context);
 }
 
 /* Throws an exception, like "throw new Error(message)"
@@ -156,10 +158,10 @@ gjs_throw_custom(JSContext  *cx,
 {
     va_list args;
     g_return_if_fail(kind == JSProto_Error || kind == JSProto_InternalError ||
-        kind == JSProto_EvalError || kind == JSProto_RangeError ||
-        kind == JSProto_ReferenceError || kind == JSProto_SyntaxError ||
-        kind == JSProto_TypeError || kind == JSProto_URIError ||
-        kind == JSProto_StopIteration);
+                     kind == JSProto_EvalError || kind == JSProto_RangeError ||
+                     kind == JSProto_ReferenceError ||
+                     kind == JSProto_SyntaxError || kind == JSProto_TypeError ||
+                     kind == JSProto_URIError);
 
     va_start(args, format);
     gjs_throw_valist(cx, kind, error_name, format, args);
@@ -180,29 +182,23 @@ gjs_throw_literal(JSContext       *context,
 }
 
 /**
- * gjs_throw_g_error:
+ * gjs_throw_gerror_message:
  *
- * Convert a GError into a JavaScript Exception, and
- * frees the GError. Differently from gjs_throw(), it
- * will overwrite an existing exception, as it is used
- * to report errors from C functions.
+ * Similar to gjs_throw_gerror(), but does not marshal the GError structure into
+ * JavaScript. Instead, it creates a regular JavaScript Error object and copies
+ * the GError's message into it.
+ *
+ * Use this when handling a GError in an internal function, where the error code
+ * and domain don't matter. So, for example, don't use it to throw errors
+ * around calling from JS into C code.
+ *
+ * Frees the GError.
  */
-void
-gjs_throw_g_error (JSContext       *context,
-                   GError          *error)
-{
-    if (error == NULL)
-        return;
-
-    JS_BeginRequest(context);
-
-    JS::RootedValue err(context,
-        JS::ObjectOrNullValue(gjs_error_from_gerror(context, error, true)));
-    g_error_free (error);
-    if (!err.isNull())
-        JS_SetPendingException(context, err);
-
-    JS_EndRequest(context);
+bool gjs_throw_gerror_message(JSContext* cx, GError* error) {
+    g_return_val_if_fail(error, false);
+    gjs_throw_literal(cx, error->message);
+    g_error_free(error);
+    return false;
 }
 
 /**
@@ -222,8 +218,8 @@ gjs_format_stack_trace(JSContext       *cx,
     JS::AutoSaveExceptionState saved_exc(cx);
 
     JS::RootedString stack_trace(cx);
-    GjsAutoJSChar stack_utf8;
-    if (JS::BuildStackString(cx, saved_frame, &stack_trace, 2))
+    JS::UniqueChars stack_utf8;
+    if (JS::BuildStackString(cx, nullptr, saved_frame, &stack_trace, 2))
         stack_utf8 = JS_EncodeStringToUTF8(cx, stack_trace);
 
     saved_exc.restore();
@@ -231,28 +227,25 @@ gjs_format_stack_trace(JSContext       *cx,
     if (!stack_utf8)
         return nullptr;
 
-    return g_filename_from_utf8(stack_utf8, -1, nullptr, nullptr, nullptr);
+    return g_filename_from_utf8(stack_utf8.get(), -1, nullptr, nullptr,
+                                nullptr);
 }
 
-void
-gjs_warning_reporter(JSContext     *context,
-                     JSErrorReport *report)
-{
+void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
     const char *warning;
     GLogLevelFlags level;
 
     g_assert(report);
 
     if (gjs_environment_variable_is_set("GJS_ABORT_ON_OOM") &&
-        report->flags == JSREPORT_ERROR &&
-        report->errorNumber == 137) {
+        !report->isWarning() && report->errorNumber == 137) {
         /* 137, JSMSG_OUT_OF_MEMORY */
         g_error("GJS ran out of memory at %s: %i.",
                 report->filename,
                 report->lineno);
     }
 
-    if ((report->flags & JSREPORT_WARNING) != 0) {
+    if (report->isWarning()) {
         warning = "WARNING";
         level = G_LOG_LEVEL_MESSAGE;
 

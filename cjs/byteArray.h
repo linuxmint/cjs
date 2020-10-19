@@ -21,36 +21,31 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __GJS_BYTE_ARRAY_H__
-#define __GJS_BYTE_ARRAY_H__
+#ifndef GJS_BYTEARRAY_H_
+#define GJS_BYTEARRAY_H_
 
-#include <stdbool.h>
+#include <config.h>
+
+#include <stddef.h>  // for size_t
+
 #include <glib.h>
-#include "cjs/jsapi-util.h"
 
-G_BEGIN_DECLS
+#include <js/TypeDecls.h>
 
-bool        gjs_typecheck_bytearray(JSContext       *context,
-                                    JS::HandleObject obj,
-                                    bool             throw_error);
+#include "cjs/macros.h"
 
+GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_byte_array_stuff(JSContext              *context,
                                  JS::MutableHandleObject module);
 
+GJS_JSAPI_RETURN_CONVENTION
+JSObject* gjs_byte_array_from_data(JSContext* cx, size_t nbytes, void* data);
+
+GJS_JSAPI_RETURN_CONVENTION
 JSObject *    gjs_byte_array_from_byte_array (JSContext  *context,
                                               GByteArray *array);
 
-GByteArray *gjs_byte_array_get_byte_array(JSContext       *context,
-                                          JS::HandleObject object);
+[[nodiscard]] GByteArray* gjs_byte_array_get_byte_array(JSObject* obj);
+[[nodiscard]] GBytes* gjs_byte_array_get_bytes(JSObject* obj);
 
-GBytes     *gjs_byte_array_get_bytes(JSContext       *context,
-                                     JS::HandleObject object);
-
-void        gjs_byte_array_peek_data(JSContext       *context,
-                                     JS::HandleObject object,
-                                     guint8         **out_data,
-                                     gsize           *out_len);
-
-G_END_DECLS
-
-#endif  /* __GJS_BYTE_ARRAY_H__ */
+#endif  // GJS_BYTEARRAY_H_

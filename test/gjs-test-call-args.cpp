@@ -1,20 +1,45 @@
-#include <string.h>
+#include <config.h>
+
+#include <stdint.h>
+#include <string.h>  // for strlen, strstr
 
 #include <glib.h>
 
-#include "cjs/context.h"
+#include <js/CallArgs.h>
+#include <js/CompilationAndEvaluation.h>
+#include <js/CompileOptions.h>
+#include <js/PropertySpec.h>
+#include <js/RootingAPI.h>
+#include <js/SourceText.h>
+#include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
+#include <jsapi.h>       // for JS_DefineFunctions
+
 #include "cjs/jsapi-util-args.h"
-#include "cjs/jsapi-wrapper.h"
+#include "cjs/jsapi-util.h"
+#include "test/gjs-test-common.h"
 #include "test/gjs-test-utils.h"
 
-#define assert_match(str, pattern)                                            \
-    G_STMT_START {                                                            \
-        const char *__s1 = (str), *__s2 = (pattern);                          \
-        if (!g_pattern_match_simple(__s2, __s1)) {                            \
-            g_printerr("**\nExpected \"%s\" to match \"%s\"\n", __s1, __s2);  \
-            g_assert_not_reached();                                           \
-        }                                                                     \
-    } G_STMT_END
+namespace mozilla {
+union Utf8Unit;
+}
+
+// COMPAT: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1553
+#ifdef __clang_analyzer__
+void g_assertion_message(const char*, const char*, int, const char*,
+                         const char*) __attribute__((analyzer_noreturn));
+#endif
+
+#define assert_match(str, pattern)                                           \
+    G_STMT_START {                                                           \
+        const char *__s1 = (str), *__s2 = (pattern);                         \
+        if (!g_pattern_match_simple(__s2, __s1)) {                           \
+            g_assertion_message(G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                "assertion failed (\"" #str                  \
+                                "\" matches \"" #pattern "\")");             \
+        }                                                                    \
+    }                                                                        \
+    G_STMT_END
 
 typedef enum _test_enum {
     ZERO,
@@ -85,7 +110,7 @@ JSNATIVE_TEST_FUNC_END
 
 JSNATIVE_TEST_FUNC_BEGIN(one_of_each_type)
     bool boolval;
-    GjsAutoJSChar strval;
+    JS::UniqueChars strval;
     GjsAutoChar fileval;
     int intval;
     unsigned uintval;
@@ -102,7 +127,7 @@ JSNATIVE_TEST_FUNC_BEGIN(one_of_each_type)
                                  "dbl", &dblval,
                                  "obj", &objval);
     g_assert_cmpint(boolval, ==, true);
-    g_assert_cmpstr(strval, ==, "foo");
+    g_assert_cmpstr(strval.get(), ==, "foo");
     g_assert_cmpstr(fileval, ==, "foo");
     g_assert_cmpint(intval, ==, 1);
     g_assert_cmpint(uintval, ==, 1);
@@ -155,7 +180,7 @@ JSNATIVE_TEST_FUNC_BEGIN(signed_enum_arg)
 JSNATIVE_TEST_FUNC_END
 
 JSNATIVE_TEST_FUNC_BEGIN(one_of_each_nullable_type)
-    GjsAutoJSChar strval;
+    JS::UniqueChars strval;
     GjsAutoChar fileval;
     JS::RootedObject objval(cx);
     retval = gjs_parse_call_args(cx, "oneOfEachNullableType", args, "?s?F?o",
@@ -207,9 +232,14 @@ JSNATIVE_BAD_TYPE_TEST_FUNC(unsigned, "t");
 JSNATIVE_BAD_TYPE_TEST_FUNC(int64_t, "f");
 JSNATIVE_BAD_TYPE_TEST_FUNC(double, "b");
 JSNATIVE_BAD_TYPE_TEST_FUNC(GjsAutoChar, "i");
-JSNATIVE_BAD_TYPE_TEST_FUNC(GjsAutoJSChar, "i");
 
 #undef JSNATIVE_BAD_TYPE_TEST_FUNC
+
+JSNATIVE_TEST_FUNC_BEGIN(UniqueChars_invalid_type)
+    JS::UniqueChars value;
+    retval = gjs_parse_call_args(cx, "UniqueCharsInvalidType", args, "i",
+                                 "value", &value);
+JSNATIVE_TEST_FUNC_END
 
 JSNATIVE_TEST_FUNC_BEGIN(object_invalid_type)
     JS::RootedObject val(cx);
@@ -218,36 +248,35 @@ JSNATIVE_TEST_FUNC_BEGIN(object_invalid_type)
 JSNATIVE_TEST_FUNC_END
 
 static JSFunctionSpec native_test_funcs[] = {
-    JS_FS("noArgs", no_args, 0, 0),
-    JS_FS("noArgsIgnoreTrailing", no_args_ignore_trailing, 0, 0),
-    JS_FS("boolArgNoAssert", bool_arg_no_assert, 0, 0),
-    JS_FS("intArgNoAssert", int_arg_no_assert, 0, 0),
-    JS_FS("objectArgNoAssert", object_arg_no_assert, 0, 0),
-    JS_FS("optionalIntArgsNoAssert", optional_int_args_no_assert, 0, 0),
-    JS_FS("argsIgnoreTrailing", args_ignore_trailing, 0, 0),
-    JS_FS("oneOfEachType", one_of_each_type, 0, 0),
-    JS_FS("optionalArgsAll", optional_args_all, 0, 0),
-    JS_FS("optionalArgsOnlyRequired", optional_args_only_required, 0, 0),
-    JS_FS("onlyOptionalArgs", only_optional_args, 0, 0),
-    JS_FS("unsignedEnumArg", unsigned_enum_arg, 0, 0),
-    JS_FS("signedEnumArg", signed_enum_arg, 0, 0),
-    JS_FS("oneOfEachNullableType", one_of_each_nullable_type, 0, 0),
-    JS_FS("unwindFreeTest", unwind_free_test, 0, 0),
-    JS_FS("boolInvalidNullable", bool_invalid_nullable, 0, 0),
-    JS_FS("intInvalidNullable", int_invalid_nullable, 0, 0),
-    JS_FS("unsignedInvalidNullable", unsigned_invalid_nullable, 0, 0),
-    JS_FS("int64_tInvalidNullable", int64_t_invalid_nullable, 0, 0),
-    JS_FS("doubleInvalidNullable", double_invalid_nullable, 0, 0),
-    JS_FS("boolInvalidType", bool_invalid_type, 0, 0),
-    JS_FS("intInvalidType", int_invalid_type, 0, 0),
-    JS_FS("unsignedInvalidType", unsigned_invalid_type, 0, 0),
-    JS_FS("int64_tInvalidType", int64_t_invalid_type, 0, 0),
-    JS_FS("doubleInvalidType", double_invalid_type, 0, 0),
-    JS_FS("GjsAutoCharInvalidType", GjsAutoChar_invalid_type, 0, 0),
-    JS_FS("GjsAutoJSCharInvalidType", GjsAutoJSChar_invalid_type, 0, 0),
-    JS_FS("objectInvalidType", object_invalid_type, 0, 0),
-    JS_FS_END
-};
+    JS_FN("noArgs", no_args, 0, 0),
+    JS_FN("noArgsIgnoreTrailing", no_args_ignore_trailing, 0, 0),
+    JS_FN("boolArgNoAssert", bool_arg_no_assert, 0, 0),
+    JS_FN("intArgNoAssert", int_arg_no_assert, 0, 0),
+    JS_FN("objectArgNoAssert", object_arg_no_assert, 0, 0),
+    JS_FN("optionalIntArgsNoAssert", optional_int_args_no_assert, 0, 0),
+    JS_FN("argsIgnoreTrailing", args_ignore_trailing, 0, 0),
+    JS_FN("oneOfEachType", one_of_each_type, 0, 0),
+    JS_FN("optionalArgsAll", optional_args_all, 0, 0),
+    JS_FN("optionalArgsOnlyRequired", optional_args_only_required, 0, 0),
+    JS_FN("onlyOptionalArgs", only_optional_args, 0, 0),
+    JS_FN("unsignedEnumArg", unsigned_enum_arg, 0, 0),
+    JS_FN("signedEnumArg", signed_enum_arg, 0, 0),
+    JS_FN("oneOfEachNullableType", one_of_each_nullable_type, 0, 0),
+    JS_FN("unwindFreeTest", unwind_free_test, 0, 0),
+    JS_FN("boolInvalidNullable", bool_invalid_nullable, 0, 0),
+    JS_FN("intInvalidNullable", int_invalid_nullable, 0, 0),
+    JS_FN("unsignedInvalidNullable", unsigned_invalid_nullable, 0, 0),
+    JS_FN("int64_tInvalidNullable", int64_t_invalid_nullable, 0, 0),
+    JS_FN("doubleInvalidNullable", double_invalid_nullable, 0, 0),
+    JS_FN("boolInvalidType", bool_invalid_type, 0, 0),
+    JS_FN("intInvalidType", int_invalid_type, 0, 0),
+    JS_FN("unsignedInvalidType", unsigned_invalid_type, 0, 0),
+    JS_FN("int64_tInvalidType", int64_t_invalid_type, 0, 0),
+    JS_FN("doubleInvalidType", double_invalid_type, 0, 0),
+    JS_FN("GjsAutoCharInvalidType", GjsAutoChar_invalid_type, 0, 0),
+    JS_FN("UniqueCharsInvalidType", UniqueChars_invalid_type, 0, 0),
+    JS_FN("objectInvalidType", object_invalid_type, 0, 0),
+    JS_FS_END};
 
 static void
 setup(GjsUnitTestFixture *fx,
@@ -266,13 +295,18 @@ run_code(GjsUnitTestFixture *fx,
 {
     const char *script = (const char *) code;
 
-    JS::CompileOptions options(fx->cx, JSVERSION_UNKNOWN);
+    JS::SourceText<mozilla::Utf8Unit> source;
+    bool ok = source.init(fx->cx, script, strlen(script),
+                          JS::SourceOwnership::Borrowed);
+    g_assert_true(ok);
+
+    JS::CompileOptions options(fx->cx);
     options.setFileAndLine("unit test", 1);
 
     JS::RootedValue ignored(fx->cx);
-    bool ok = JS::Evaluate(fx->cx, options, script, strlen(script), &ignored);
+    ok = JS::Evaluate(fx->cx, options, source, &ignored);
 
-    g_assert_null(gjs_unit_test_exception_message(fx));
+    g_assert_null(gjs_test_get_exception_message(fx->cx));
     g_assert_true(ok);
 }
 
@@ -282,13 +316,18 @@ run_code_expect_exception(GjsUnitTestFixture *fx,
 {
     const char *script = (const char *) code;
 
-    JS::CompileOptions options(fx->cx, JSVERSION_UNKNOWN);
+    JS::SourceText<mozilla::Utf8Unit> source;
+    bool ok = source.init(fx->cx, script, strlen(script),
+                          JS::SourceOwnership::Borrowed);
+    g_assert_true(ok);
+
+    JS::CompileOptions options(fx->cx);
     options.setFileAndLine("unit test", 1);
 
     JS::RootedValue ignored(fx->cx);
-    bool ok = JS::Evaluate(fx->cx, options, script, strlen(script), &ignored);
+    ok = JS::Evaluate(fx->cx, options, source, &ignored);
     g_assert_false(ok);
-    GjsAutoChar message = gjs_unit_test_exception_message(fx);
+    GjsAutoChar message = gjs_test_get_exception_message(fx->cx);
     g_assert_nonnull(message);
 
     /* Cheap way to shove an expected exception message into the data argument */
@@ -322,10 +361,11 @@ gjs_test_add_tests_for_parse_call_args(void)
                              "optionalIntArgsNoAssert(1, 2, 3)"
                              "//*Expected minimum 1 arguments (and 1 optional), got 3");
     ADD_CALL_ARGS_TEST_XFAIL("too-few-args-fails",
-                             "intArgNoAssert()//*Expected 1 arguments, got 0");
+                             "intArgNoAssert()//*At least 1 argument required, "
+                             "but only 0 passed");
     ADD_CALL_ARGS_TEST_XFAIL("too-few-args-fails-with-optional",
-                             "optionalIntArgsNoAssert()"
-                             "//*Expected minimum 1 arguments (and 1 optional), got 0");
+                             "optionalIntArgsNoAssert()//*At least 1 argument "
+                             "required, but only 0 passed");
     ADD_CALL_ARGS_TEST("args-ignores-trailing", "argsIgnoreTrailing(1, 2, 3)");
     ADD_CALL_ARGS_TEST("one-of-each-type-works",
                        "oneOfEachType(true, 'foo', 'foo', 1, 1, 1, 1, {})");
@@ -380,8 +420,8 @@ gjs_test_add_tests_for_parse_call_args(void)
                              "GjsAutoCharInvalidType(1)"
                              "//*Wrong type for i, got GjsAutoChar?");
     ADD_CALL_ARGS_TEST_XFAIL("invalid-autojschar-type",
-                             "GjsAutoJSCharInvalidType(1)"
-                             "//*Wrong type for i, got GjsAutoJSChar?");
+                             "UniqueCharsInvalidType(1)"
+                             "//*Wrong type for i, got JS::UniqueChars?");
     ADD_CALL_ARGS_TEST_XFAIL("invalid-object-type",
                              "objectInvalidType(1)"
                              "//*Wrong type for i, got JS::MutableHandleObject");

@@ -22,20 +22,33 @@
  * IN THE SOFTWARE.
  */
 
-#include <config.h>
+#include <config.h>  // for GJS_VERSION
 
-#include <sys/types.h>
-#include <time.h>
+#include <errno.h>
+#include <stdio.h>   // for FILE, fclose, stdout
+#include <string.h>  // for strerror
+#include <time.h>    // for tzset
 
-#include "cjs/jsapi-wrapper.h"
-#include <js/Date.h>
+#include <glib-object.h>
+#include <glib.h>
 
-#include <cjs/context.h>
+#include <js/CallArgs.h>
+#include <js/Date.h>                // for ResetTimeZone
+#include <js/GCAPI.h>               // for JS_GC
+#include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
+#include <js/PropertySpec.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <jsapi.h>        // for JS_DefinePropertyById, JS_DefineF...
+#include <jsfriendapi.h>  // for DumpHeap, IgnoreNurseryObjects
 
 #include "gi/object.h"
+#include "cjs/atoms.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util-args.h"
-#include "system.h"
+#include "cjs/jsapi-util.h"
+#include "modules/system.h"
+#include "util/log.h"
 
 /* Note that this cannot be relied on to test whether two objects are the same!
  * SpiderMonkey can move objects around in memory during garbage collection,
@@ -56,6 +69,26 @@ gjs_address_of(JSContext *context,
     return gjs_string_from_utf8(context, pointer_string, argv.rval());
 }
 
+GJS_JSAPI_RETURN_CONVENTION
+static bool gjs_address_of_gobject(JSContext* cx, unsigned argc,
+                                   JS::Value* vp) {
+    JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);
+    JS::RootedObject target_obj(cx);
+    GObject *obj;
+
+    if (!gjs_parse_call_args(cx, "addressOfGObject", argv, "o", "object",
+                             &target_obj))
+        return false;
+
+    if (!ObjectBase::to_c_ptr(cx, target_obj, &obj)) {
+        gjs_throw(cx, "Object %p is not a GObject", &target_obj);
+        return false;
+    }
+
+    GjsAutoChar pointer_string = g_strdup_printf("%p", obj);
+    return gjs_string_from_utf8(cx, pointer_string, argv.rval());
+}
+
 static bool
 gjs_refcount(JSContext *context,
              unsigned   argc,
@@ -69,12 +102,13 @@ gjs_refcount(JSContext *context,
                              "object", &target_obj))
         return false;
 
-    if (!gjs_typecheck_object(context, target_obj, G_TYPE_OBJECT, true))
+    if (!ObjectBase::to_c_ptr(context, target_obj, &obj))
         return false;
-
-    obj = gjs_g_object_from_object(context, target_obj);
-    if (obj == NULL)
-        return false;
+    if (!obj) {
+        // Object already disposed, treat as refcount 0
+        argv.rval().setInt32(0);
+        return true;
+    }
 
     argv.rval().setInt32(obj->ref_count);
     return true;
@@ -106,11 +140,19 @@ gjs_dump_heap(JSContext *cx,
 
     if (filename) {
         FILE *fp = fopen(filename, "a");
+        if (!fp) {
+            gjs_throw(cx, "Cannot dump heap to %s: %s", filename.get(),
+                      strerror(errno));
+            return false;
+        }
         js::DumpHeap(cx, fp, js::IgnoreNurseryObjects);
         fclose(fp);
     } else {
         js::DumpHeap(cx, stdout, js::IgnoreNurseryObjects);
     }
+
+    gjs_debug(GJS_DEBUG_CONTEXT, "Heap dumped to %s",
+              filename ? filename.get() : "stdout");
 
     args.rval().setUndefined();
     return true;
@@ -140,81 +182,55 @@ gjs_exit(JSContext *context,
                              "ecode", &ecode))
         return false;
 
-    GjsContext *gjs_context = static_cast<GjsContext *>(JS_GetContextPrivate(context));
-    _gjs_context_exit(gjs_context, ecode);
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(context);
+    gjs->exit(ecode);
     return false;  /* without gjs_throw() == "throw uncatchable exception" */
 }
 
-static bool
-gjs_clear_date_caches(JSContext *context,
-                      unsigned   argc,
-                      JS::Value *vp)
-{
+static bool gjs_clear_date_caches(JSContext*, unsigned argc, JS::Value* vp) {
     JS::CallArgs rec = JS::CallArgsFromVp(argc, vp);
-    JS_BeginRequest(context);
 
     // Workaround for a bug in SpiderMonkey where tzset is not called before
     // localtime_r, see https://bugzilla.mozilla.org/show_bug.cgi?id=1004706
     tzset();
 
     JS::ResetTimeZone();
-    JS_EndRequest(context);
 
     rec.rval().setUndefined();
     return true;
 }
 
 static JSFunctionSpec module_funcs[] = {
-    JS_FS("addressOf", gjs_address_of, 1, GJS_MODULE_PROP_FLAGS),
-    JS_FS("refcount", gjs_refcount, 1, GJS_MODULE_PROP_FLAGS),
-    JS_FS("breakpoint", gjs_breakpoint, 0, GJS_MODULE_PROP_FLAGS),
-    JS_FS("dumpHeap", gjs_dump_heap, 1, GJS_MODULE_PROP_FLAGS),
-    JS_FS("gc", gjs_gc, 0, GJS_MODULE_PROP_FLAGS),
-    JS_FS("exit", gjs_exit, 0, GJS_MODULE_PROP_FLAGS),
-    JS_FS("clearDateCaches", gjs_clear_date_caches, 0, GJS_MODULE_PROP_FLAGS),
-    JS_FS_END
-};
+    JS_FN("addressOf", gjs_address_of, 1, GJS_MODULE_PROP_FLAGS),
+    JS_FN("addressOfGObject", gjs_address_of_gobject, 1, GJS_MODULE_PROP_FLAGS),
+    JS_FN("refcount", gjs_refcount, 1, GJS_MODULE_PROP_FLAGS),
+    JS_FN("breakpoint", gjs_breakpoint, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FN("dumpHeap", gjs_dump_heap, 1, GJS_MODULE_PROP_FLAGS),
+    JS_FN("gc", gjs_gc, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FN("exit", gjs_exit, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FN("clearDateCaches", gjs_clear_date_caches, 0, GJS_MODULE_PROP_FLAGS),
+    JS_FS_END};
 
 bool
 gjs_js_define_system_stuff(JSContext              *context,
                            JS::MutableHandleObject module)
 {
-    GjsContext *gjs_context;
-    char *program_name;
-    bool retval;
-
     module.set(JS_NewPlainObject(context));
 
     if (!JS_DefineFunctions(context, module, &module_funcs[0]))
         return false;
 
-    retval = false;
-
-    gjs_context = (GjsContext*) JS_GetContextPrivate(context);
-    g_object_get(gjs_context,
-                 "program-name", &program_name,
-                 NULL);
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(context);
+    const char* program_name = gjs->program_name();
 
     JS::RootedValue value(context);
-    if (!gjs_string_from_utf8(context, program_name, &value))
-        goto out;
-
-    /* The name is modeled after program_invocation_name,
-       part of the glibc */
-    if (!JS_DefineProperty(context, module,
-                           "programInvocationName",
-                           value,
-                           GJS_MODULE_PROP_FLAGS | JSPROP_READONLY))
-        goto out;
-
-    if (!JS_DefineProperty(context, module,
-                           "version", GJS_VERSION,
-                           GJS_MODULE_PROP_FLAGS | JSPROP_READONLY))
-        goto out;
-
-    retval = true;
-
- out:
-    g_free(program_name);
-    return retval;
+    return gjs_string_from_utf8(context, program_name, &value) &&
+           /* The name is modeled after program_invocation_name, part of glibc
+            */
+           JS_DefinePropertyById(context, module,
+                                 gjs->atoms().program_invocation_name(), value,
+                                 GJS_MODULE_PROP_FLAGS | JSPROP_READONLY) &&
+           JS_DefinePropertyById(context, module, gjs->atoms().version(),
+                                 GJS_VERSION,
+                                 GJS_MODULE_PROP_FLAGS | JSPROP_READONLY);
 }

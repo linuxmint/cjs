@@ -21,23 +21,17 @@
  * IN THE SOFTWARE.
  */
 
-#include "config.h"
+#include <locale.h>  // for setlocale, LC_ALL
+#include <stdlib.h>  // for exit
 
-#include <locale.h>
-#include <unistd.h>
-
-#include <glib.h>
-#include <glib/gstdio.h>
 #include <gio/gio.h>
+#include <girepository.h>
+#include <glib-object.h>
+#include <glib.h>
 
-#include "cjs/gjs.h"
-#include "cjs/mem.h"
+#include <cjs/gjs.h>
 
-G_GNUC_NORETURN
-static void
-bail_out(GjsContext *gjs_context,
-         const char *msg)
-{
+[[noreturn]] static void bail_out(GjsContext* gjs_context, const char* msg) {
     g_object_unref(gjs_context);
     g_print("Bail out! %s\n", msg);
     exit(1);
@@ -51,8 +45,6 @@ main(int argc, char **argv)
 
     /* The fact that this isn't the default is kind of lame... */
     g_setenv("GJS_DEBUG_OUTPUT", "stderr", false);
-    /* Jasmine library has some code style nits that trip this */
-    g_setenv("GJS_DISABLE_EXTRA_WARNINGS", "1", false);
 
     setlocale(LC_ALL, "");
 
@@ -60,12 +52,15 @@ main(int argc, char **argv)
         g_irepository_prepend_search_path(g_getenv("TOP_BUILDDIR"));
     } else {
         g_irepository_prepend_search_path(INSTTESTDIR);
-        g_irepository_prepend_library_path(PKGLIBDIR);
+        g_irepository_prepend_library_path(INSTTESTDIR);
     }
 
     const char *coverage_prefix = g_getenv("GJS_UNIT_COVERAGE_PREFIX");
     const char *coverage_output_path = g_getenv("GJS_UNIT_COVERAGE_OUTPUT");
     const char *search_path[] = { "resource:///org/gjs/jsunit", NULL };
+
+    if (coverage_prefix)
+        gjs_coverage_enable();
 
     GjsContext *cx = gjs_context_new_with_search_path((char **)search_path);
     GjsCoverage *coverage = NULL;

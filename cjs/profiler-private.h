@@ -21,21 +21,24 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef GJS_PROFILER_PRIVATE_H
-#define GJS_PROFILER_PRIVATE_H
+#ifndef GJS_PROFILER_PRIVATE_H_
+#define GJS_PROFILER_PRIVATE_H_
 
-#include "context.h"
-#include "profiler.h"
+#include <stdint.h>
 
-G_BEGIN_DECLS
+#include "cjs/context.h"
+#include "cjs/macros.h"
+#include "cjs/profiler.h"
 
 GjsProfiler *_gjs_profiler_new(GjsContext *context);
 void _gjs_profiler_free(GjsProfiler *self);
 
-bool _gjs_profiler_is_running(GjsProfiler *self);
+void _gjs_profiler_add_mark(GjsProfiler* self, int64_t time, int64_t duration,
+                            const char* group, const char* name,
+                            const char* message);
+
+[[nodiscard]] bool _gjs_profiler_is_running(GjsProfiler* self);
 
 void _gjs_profiler_setup_signals(GjsProfiler *self, GjsContext *context);
 
-G_END_DECLS
-
-#endif  /* GJS_PROFILER_PRIVATE_H */
+#endif  // GJS_PROFILER_PRIVATE_H_

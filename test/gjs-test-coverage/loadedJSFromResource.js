@@ -1,1 +1,2 @@
-function mock_function() {}
+/* exported mockFunction */
+function mockFunction() {}

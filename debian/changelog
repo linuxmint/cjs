@@ -1,3 +1,9 @@
+cjs (4.7.0) UNRELEASED; urgency=medium
+
+  * Bump for moz78
+
+ -- Clement Lefebvre <root@linuxmint.com>  Wed, 7 Oct 2020 13:45:37 +0100
+
 cjs (4.6.0) ulyana; urgency=medium
 
   [ Garry Filakhtov ]
@@ -837,4 +843,3 @@ cjs (1.9.1) petra; urgency=low
   * Based on 1.34.0-0ubuntu1 quantal
 
  -- Clement Lefebvre <root@linuxmint.com>  Mon, 30 Sep 2013 13:31:38 +0100
-

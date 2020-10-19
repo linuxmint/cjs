@@ -21,12 +21,17 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef GJS_ENGINE_H
-#define GJS_ENGINE_H
+#ifndef GJS_ENGINE_H_
+#define GJS_ENGINE_H_
 
-#include "context.h"
-#include "jsapi-wrapper.h"
+#include <stddef.h>  // for size_t
 
-JSContext *gjs_create_js_context(GjsContext *js_context);
+class GjsContextPrivate;
+struct JSContext;
 
-#endif  /* GJS_ENGINE_H */
+JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs);
+
+bool gjs_load_internal_source(JSContext* cx, const char* filename, char** src,
+                              size_t* length);
+
+#endif  // GJS_ENGINE_H_
