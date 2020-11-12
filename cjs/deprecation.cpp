@@ -60,8 +60,13 @@ const char* messages[] = {
     "is nonstandard. In the future this will return the bytes as "
     "comma-separated digits. For the time being, the old behavior has been "
     "preserved, but please fix your code anyway to explicitly call ByteArray"
-    ".toString(array).\n"
-    "(Note that array.toString() may have been called implicitly.)",
+    ".toString(array). (Note that array.toString() may have been called implicitly.)\n\n"
+    "ByteArray.toString(array) is *not* backward compatible with previous (< 4.8) "
+    "versions of Cinnamon. You will have add versioning support to your applet "
+    "if it does not already have it, so that compatibility can be maintained for "
+    "users on older Cinnamon versions.\n\n"
+    "See:\n"
+    "https://projects.linuxmint.com/reference/git/cinnamon-tutorials/xlet-versioning.html\n",
 
     // DeprecatedGObjectProperty:
     "Some code tried to set a deprecated GObject property.",
