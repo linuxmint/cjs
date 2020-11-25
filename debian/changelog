@@ -1,8 +1,13 @@
-cjs (4.7.0) UNRELEASED; urgency=medium
+cjs (4.8.0) ulyssa; urgency=medium
 
-  * Bump for moz78
+  [ Leigh Scott ]
+  * Rebase on GJS 1.66 and Mozjs78 (#84)
+  * Fix tests (#85)
 
- -- Clement Lefebvre <root@linuxmint.com>  Wed, 7 Oct 2020 13:45:37 +0100
+  [ Michael Webster ]
+  * deprecation.cpp: Add additional info to ByteArray deprecation warning, and link to the xlet versioning tutorial page.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Wed, 25 Nov 2020 12:17:50 +0000
 
 cjs (4.6.0) ulyana; urgency=medium
 
