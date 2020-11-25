@@ -31,7 +31,7 @@ G_DEFINE_QUARK(gjs-js-error-quark, gjs_js_error)
 // clang-format on
 
 GType gjs_js_error_get_type(void) {
-    static volatile GType g_type_id;
+    static GType g_type_id;
 
     if (g_once_init_enter(&g_type_id)) {
         static GEnumValue errors[] = {
