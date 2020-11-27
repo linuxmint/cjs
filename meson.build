@@ -138,7 +138,7 @@ if cxx.get_argument_syntax() == 'msvc'
 endif
 
 sysprof_capture = dependency('sysprof-capture-4',
-    required: get_option('profiler'), include_type: 'system',
+    required: get_option('profiler'),
     fallback: ['sysprof', 'libsysprof_capture_dep'],
     default_options: [
         'enable_examples=false',
@@ -297,15 +297,18 @@ header_conf.set('HAVE_DTRACE', get_option('dtrace'),
     description: 'Using dtrace probes')
 header_conf.set('HAVE_PRINTF_ALTERNATIVE_INT', have_printf_alternative_int,
     description: 'printf() accepts "%Id" for alternative integer output')
-if build_readline
-    header_conf.set('HAVE_READLINE_READLINE_H',
-        cxx.check_header('readline/readline.h', prefix: '#include <cstdio>',
-            required: readline.found()))
+
+if build_readline and readline.found()
+        header_conf.set('HAVE_READLINE_READLINE_H',
+                        cxx.check_header('readline/readline.h', prefix: '#include <cstdio>'))
 endif
+
 header_conf.set('HAVE_SYS_SYSCALL_H', cxx.check_header('sys/syscall.h'))
 header_conf.set('HAVE_UNISTD_H', cxx.check_header('unistd.h'))
-header_conf.set('HAVE_SIGNAL_H', cxx.check_header('signal.h',
-    required: build_profiler))
+
+if build_profiler
+    header_conf.set('HAVE_SIGNAL_H', cxx.check_header('signal.h'))
+endif
 
 # enable GNU extensions on systems that have them
 header_conf.set('_GNU_SOURCE', 1)

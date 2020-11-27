@@ -1,7 +1,12 @@
 ### Installed tests ############################################################
 
 installed_tests_execdir = get_option('prefix') / get_option('libexecdir') / 'installed-tests' / meson.project_name()
-installed_tests_metadir = abs_datadir / 'installed-tests' / meson.project_name()
+
+if get_option('installed_tests')
+    installed_tests_metadir = abs_datadir / 'installed-tests' / meson.project_name()
+else
+    installed_tests_metadir = ''
+endif
 
 # Simple shell script tests #
 
@@ -28,7 +33,6 @@ foreach test : simple_tests
     }
     test_description = configure_file(configuration: test_description_subst,
         input: 'script.test.in', output: 'test@0@.sh.test'.format(test),
-        install: get_option('installed_tests'),
         install_dir: installed_tests_metadir)
 
     if get_option('installed_tests')
@@ -81,7 +85,6 @@ foreach test : debugger_tests
     test_description = configure_file(configuration: test_description_subst,
         input: 'debugger.test.in',
         output: '@0@.test'.format(test),
-        install: get_option('installed_tests'),
         install_dir: installed_tests_metadir)
 
     if get_option('installed_tests')

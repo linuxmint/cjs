@@ -158,7 +158,6 @@ foreach test : jasmine_tests
     test_description = configure_file(configuration: test_description_subst,
         input: '../minijasmine.test.in',
         output: 'test@0@.test'.format(test),
-        install: get_option('installed_tests'),
         install_dir: installed_tests_metadir)
 
     if get_option('installed_tests')
@@ -184,7 +183,6 @@ gdbus_test_description_subst = {
 gdbus_test_description = configure_file(
     configuration: gdbus_test_description_subst,
     input: '../minijasmine.test.in', output: 'testGDBus.test',
-    install: get_option('installed_tests'),
     install_dir: installed_tests_metadir)
 
 if get_option('installed_tests')
