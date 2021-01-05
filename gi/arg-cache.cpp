@@ -47,6 +47,7 @@
 #include "gi/boxed.h"
 #include "gi/foreign.h"
 #include "gi/function.h"
+#include "gi/fundamental.h"
 #include "gi/gerror.h"
 #include "gi/gtype.h"
 #include "gi/object.h"
@@ -369,11 +370,10 @@ static bool gjs_marshal_caller_allocates_in(JSContext*, GjsArgumentCache* self,
 }
 
 GJS_JSAPI_RETURN_CONVENTION
-static bool gjs_marshal_null_in_in(JSContext*, GjsArgumentCache*,
+static bool gjs_marshal_null_in_in(JSContext* cx, GjsArgumentCache* self,
                                    GjsFunctionCallState*, GIArgument* arg,
                                    JS::HandleValue) {
-    gjs_arg_unset<void*>(arg);
-    return true;
+    return self->handle_nullable(cx, arg);
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -688,6 +688,35 @@ static bool gjs_marshal_gbytes_in_in(JSContext* cx, GjsArgumentCache* self,
 }
 
 GJS_JSAPI_RETURN_CONVENTION
+static bool gjs_marshal_interface_in_in(JSContext* cx, GjsArgumentCache* self,
+                                        GjsFunctionCallState*, GIArgument* arg,
+                                        JS::HandleValue value) {
+    if (value.isNull())
+        return self->handle_nullable(cx, arg);
+
+    GType gtype = g_registered_type_info_get_g_type(self->contents.info);
+    g_assert(gtype != G_TYPE_NONE);
+
+    if (!value.isObject())
+        return report_gtype_mismatch(cx, self->arg_name, value, gtype);
+
+    JS::RootedObject object(cx, &value.toObject());
+
+    // Could be a GObject interface that's missing a prerequisite,
+    // or could be a fundamental
+    if (ObjectBase::typecheck(cx, object, nullptr, gtype,
+                              GjsTypecheckNoThrow())) {
+        return ObjectBase::transfer_to_gi_argument(
+                        cx, object, arg, GI_DIRECTION_IN, self->transfer, gtype);
+    }
+
+    // If this typecheck fails, then it's neither an object nor a
+    // fundamental
+    return FundamentalBase::transfer_to_gi_argument(
+            cx, object, arg, GI_DIRECTION_IN, self->transfer, gtype);
+}
+
+GJS_JSAPI_RETURN_CONVENTION
 static bool gjs_marshal_object_in_in(JSContext* cx, GjsArgumentCache* self,
                                      GjsFunctionCallState*, GIArgument* arg,
                                      JS::HandleValue value) {
@@ -703,6 +732,25 @@ static bool gjs_marshal_object_in_in(JSContext* cx, GjsArgumentCache* self,
     JS::RootedObject object(cx, &value.toObject());
     return ObjectBase::transfer_to_gi_argument(cx, object, arg, GI_DIRECTION_IN,
                                                self->transfer, gtype);
+}
+
+GJS_JSAPI_RETURN_CONVENTION
+static bool gjs_marshal_fundamental_in_in(JSContext* cx, GjsArgumentCache* self,
+                                          GjsFunctionCallState*,
+                                          GIArgument* arg,
+                                          JS::HandleValue value) {
+    if (value.isNull())
+        return self->handle_nullable(cx, arg);
+
+    GType gtype = g_registered_type_info_get_g_type(self->contents.info);
+    g_assert(gtype != G_TYPE_NONE);
+
+    if (!value.isObject())
+        return report_gtype_mismatch(cx, self->arg_name, value, gtype);
+
+    JS::RootedObject object(cx, &value.toObject());
+    return FundamentalBase::transfer_to_gi_argument(
+        cx, object, arg, GI_DIRECTION_IN, self->transfer, gtype);
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -1092,6 +1140,22 @@ static const GjsArgumentMarshallers object_in_marshallers = {
     gjs_arg_cache_interface_free,  // free
 };
 
+static const GjsArgumentMarshallers interface_in_marshallers = {
+    gjs_marshal_interface_in_in,  // in
+    gjs_marshal_skipped_out,  // out
+    // This is a smart marshaller, no release needed
+    gjs_marshal_skipped_release,  // release
+    gjs_arg_cache_interface_free,  // free
+};
+
+static const GjsArgumentMarshallers fundamental_in_marshallers = {
+    gjs_marshal_fundamental_in_in,  // in
+    gjs_marshal_skipped_out,        // out
+    // This is a smart marshaller, no release needed
+    gjs_marshal_skipped_release,   // release
+    gjs_arg_cache_interface_free,  // free
+};
+
 static const GjsArgumentMarshallers union_in_marshallers = {
     gjs_marshal_union_in_in,  // in
     gjs_marshal_skipped_out,  // out
@@ -1374,8 +1438,7 @@ static bool gjs_arg_cache_build_interface_in_arg(JSContext* cx,
                 return true;
             }
 
-            if (g_type_is_a(gtype, G_TYPE_OBJECT) ||
-                g_type_is_a(gtype, G_TYPE_INTERFACE)) {
+            if (g_type_is_a(gtype, G_TYPE_OBJECT)) {
                 self->marshallers = &object_in_marshallers;
                 return true;
             }
@@ -1394,6 +1457,16 @@ static bool gjs_arg_cache_build_interface_in_arg(JSContext* cx,
                 }
 
                 self->marshallers = &union_in_marshallers;
+                return true;
+            }
+
+            if (G_TYPE_IS_INSTANTIATABLE(gtype)) {
+                self->marshallers = &fundamental_in_marshallers;
+                return true;
+            }
+
+            if (g_type_is_a(gtype, G_TYPE_INTERFACE)) {
+                self->marshallers = &interface_in_marshallers;
                 return true;
             }
 
@@ -1576,8 +1649,15 @@ bool gjs_arg_cache_build_arg(JSContext* cx, GjsArgumentCache* self,
     *inc_counter_out = true;
 
     GITypeTag type_tag = g_type_info_get_tag(&self->type_info);
-    if (direction == GI_DIRECTION_OUT && type_tag == GI_TYPE_TAG_INTERFACE &&
-        g_arg_info_is_caller_allocates(arg)) {
+    if (direction == GI_DIRECTION_OUT && g_arg_info_is_caller_allocates(arg)) {
+        if (type_tag != GI_TYPE_TAG_INTERFACE) {
+            gjs_throw(cx,
+                      "Unsupported type %s for argument %s with (out "
+                      "caller-allocates)",
+                      g_type_tag_to_string(type_tag), self->arg_name);
+            return false;
+        }
+
         GjsAutoBaseInfo interface_info =
             g_type_info_get_interface(&self->type_info);
         g_assert(interface_info);
