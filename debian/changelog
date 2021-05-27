@@ -1,3 +1,16 @@
+cjs (5.0.0) uma; urgency=medium
+
+  [ Leigh Scott ]
+  * fix readline build on certain systems
+  * overrides/Gtk: Set BuilderScope in class init
+  * gi/wrapperutils: Move gjs_get_string_id() into resolve() implementations
+  * Revert "arg-cache: Save space by not caching GType"
+  * Fixed error in _init() that prevented GType objects from being created. Improved the regression test, implementing Marco T's feedback.
+  * Update NEWS for 1.66.1
+  * Update NEWS for 1.66.2
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 27 May 2021 15:00:53 +0100
+
 cjs (4.8.2) ulyssa; urgency=medium
 
   [ Leigh Scott ]

@@ -1,4 +1,4 @@
-project('cjs', 'cpp', 'c', version: '4.8.2', license: ['MIT', 'LGPL2+'],
+project('cjs', 'cpp', 'c', version: '5.0.0', license: ['MIT', 'LGPL2+'],
     meson_version: '>= 0.49.2',
     default_options: ['cpp_std=c++17', 'c_std=c99', 'warning_level=2'])
 
