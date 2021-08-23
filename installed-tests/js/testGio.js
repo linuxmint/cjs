@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2017 Patrick Griffis <tingping@tingping.se>
+// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+
 const {GLib, Gio, GObject} = imports.gi;
 
 const Foo = GObject.registerClass({
@@ -39,13 +43,13 @@ describe('Gio.Settings overrides', function () {
     });
 
     it("doesn't crash when forgetting to specify a schema path", function () {
-        expect(() => new Gio.Settings({schema: 'org.cinnamon.CjsTest.Sub'}))
+        expect(() => new Gio.Settings({schema: 'org.gnome.GjsTest.Sub'}))
             .toThrowError(/schema/);
     });
 
     it("doesn't crash when specifying conflicting schema paths", function () {
         expect(() => new Gio.Settings({
-            schema: 'org.cinnamon.CjsTest',
+            schema: 'org.gnome.GjsTest',
             path: '/conflicting/path/',
         })).toThrowError(/schema/);
     });
@@ -56,7 +60,7 @@ describe('Gio.Settings overrides', function () {
         let settings;
 
         beforeEach(function () {
-            settings = new Gio.Settings({schema: 'org.cinnamon.CjsTest'});
+            settings = new Gio.Settings({schema: 'org.gnome.GjsTest'});
         });
 
         it("doesn't crash when resetting a nonexistent key", function () {

@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #include <config.h>
 
@@ -45,11 +26,11 @@
 #include "gi/enumeration.h"
 #include "gi/gerror.h"
 #include "gi/repo.h"
-#include "cjs/atoms.h"
-#include "cjs/context-private.h"
-#include "cjs/error-types.h"
-#include "cjs/jsapi-util.h"
-#include "cjs/mem-private.h"
+#include "gjs/atoms.h"
+#include "gjs/context-private.h"
+#include "gjs/error-types.h"
+#include "gjs/jsapi-util.h"
+#include "gjs/mem-private.h"
 #include "util/log.h"
 
 ErrorPrototype::ErrorPrototype(GIEnumInfo* info, GType gtype)
@@ -66,7 +47,6 @@ ErrorInstance::ErrorInstance(JSContext* cx, JS::HandleObject obj)
 }
 
 ErrorInstance::~ErrorInstance(void) {
-    g_clear_error(&m_ptr);
     GJS_DEC_COUNTER(gerror_instance);
 }
 
@@ -111,14 +91,14 @@ bool ErrorInstance::constructor_impl(JSContext* context,
  * well as instances.
  */
 bool ErrorBase::get_domain(JSContext* cx, unsigned argc, JS::Value* vp) {
-    GJS_GET_WRAPPER_PRIV(cx, argc, vp, args, obj, ErrorBase, priv);
+    GJS_CHECK_WRAPPER_PRIV(cx, argc, vp, args, obj, ErrorBase, priv);
     args.rval().setInt32(priv->domain());
     return true;
 }
 
 // JSNative property getter for `message`.
 bool ErrorBase::get_message(JSContext* cx, unsigned argc, JS::Value* vp) {
-    GJS_GET_WRAPPER_PRIV(cx, argc, vp, args, obj, ErrorBase, priv);
+    GJS_CHECK_WRAPPER_PRIV(cx, argc, vp, args, obj, ErrorBase, priv);
     if (!priv->check_is_instance(cx, "get a field"))
         return false;
 
@@ -128,7 +108,7 @@ bool ErrorBase::get_message(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 // JSNative property getter for `code`.
 bool ErrorBase::get_code(JSContext* cx, unsigned argc, JS::Value* vp) {
-    GJS_GET_WRAPPER_PRIV(cx, argc, vp, args, obj, ErrorBase, priv);
+    GJS_CHECK_WRAPPER_PRIV(cx, argc, vp, args, obj, ErrorBase, priv);
     if (!priv->check_is_instance(cx, "get a field"))
         return false;
 
@@ -156,8 +136,8 @@ bool ErrorBase::to_string(JSContext* context, unsigned argc, JS::Value* vp) {
         return gjs_string_from_utf8(context, descr, rec.rval());
     }
 
-    ErrorBase* priv = ErrorBase::for_js_typecheck(context, self, rec);
-    if (!priv)
+    ErrorBase* priv;
+    if (!for_js_typecheck(context, self, &priv, &rec))
         return false;
 
     /* We follow the same pattern as standard JS errors, at the expense of
@@ -188,8 +168,8 @@ bool ErrorBase::value_of(JSContext* context, unsigned argc, JS::Value* vp) {
         return false;
     }
 
-    ErrorBase* priv = ErrorBase::for_js_typecheck(context, prototype, rec);
-    if (!priv)
+    ErrorBase* priv;
+    if (!for_js_typecheck(context, prototype, &priv, &rec))
         return false;
 
     rec.rval().setInt32(priv->domain());
@@ -371,14 +351,9 @@ JSObject* ErrorInstance::object_for_c_ptr(JSContext* context, GError* gerror) {
     if (!info) {
         /* We don't have error domain metadata */
         /* Marshal the error as a plain GError */
-        GIBaseInfo *glib_boxed;
-        JSObject *retval;
-
-        glib_boxed = g_irepository_find_by_name(nullptr, "GLib", "Error");
-        retval = BoxedInstance::new_for_c_struct(context, glib_boxed, gerror);
-
-        g_base_info_unref(glib_boxed);
-        return retval;
+        GjsAutoBaseInfo glib_boxed =
+            g_irepository_find_by_name(nullptr, "GLib", "Error");
+        return BoxedInstance::new_for_c_struct(context, glib_boxed, gerror);
     }
 
     gjs_debug_marshal(GJS_DEBUG_GBOXED,

@@ -42,13 +42,14 @@ accepted.
 Your responsibilities as a contributor:
 
 - Be welcoming and encouraging to newcomers.
-- Conduct yourself professionally; rude, abusive, harrassing, or
+- Conduct yourself professionally; rude, abusive, harassing, or
   discriminatory behaviour is not tolerated.
 - For any major changes and enhancements you want to make, first create
   an issue in the [bugtracker], discuss things transparently, and get
   community feedback.
 - Ensure all jobs are green on GitLab CI for your merge requests.
-- Your code must pass the tests.
+- Your code must pass the tests. Sometimes you can experience a runner
+  system failure which can be fixed by re-running the job.
 - Your code must pass the linters; code should not introduce any new
   linting errors.
 - Your code should not cause any compiler warnings.
@@ -82,11 +83,6 @@ To contribute to tutorials, go to [GJS Guide][gjsguide].
 Next, read the [workflow guide to contributing to GNOME][workflow].
 (In short, create a fork of the repository, make your changes on a
 branch, push them to your fork, and create a merge request.)
-
-If your contribution fixes an existing issue, please refer to the issue
-in your commit message with `Closes #123` (for issue 123).
-Otherwise, creating a separate issue is not required.
-See the section on "Commit messages" below.
 
 When you submit your merge request, make sure to click "Allow commits
 from contributors with push access".
@@ -318,7 +314,7 @@ For further guidelines about line length and commit messages, read
 If the commit is related to an open issue in the issue tracker, note
 that on the last line of the commit message. For example, `See #153`, or
 `Closes #277` if the issue should be automatically closed when the merge
-request is accepted.
+request is accepted. Otherwise, creating a separate issue is not required.
 
 ## Thanks ##
 
@@ -335,10 +331,10 @@ this guide!
 [devdocs]: https://github.com/ptomato/devdocs
 [gjsguide]: https://gitlab.gnome.org/rockon999/gjs-guide
 [workflow]: https://wiki.gnome.org/GitLab#Using_a_fork_-_Non_GNOME_developer
-[hacking]: https://gitlab.gnome.org/GNOME/gjs/blob/master/doc/Hacking.md
-[doap]: https://gitlab.gnome.org/GNOME/gjs/blob/master/gjs.doap
+[hacking]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/doc/Hacking.md
+[doap]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/gjs.doap
 [googlestyle]: https://google.github.io/styleguide/cppguide.html
-[cppstyle]: https://gitlab.gnome.org/GNOME/gjs/blob/master/doc/CPP_Style_Guide.md
+[cppstyle]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/doc/CPP_Style_Guide.md
 [eslint]: https://eslint.org/
 [commitmessages]: https://chris.beams.io/posts/git-commit/
 [contributingtemplate]: https://github.com/nayafia/contributing-template

@@ -1,3 +1,11 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2010 Collabora, Ltd.
+// SPDX-FileCopyrightText: 2010 litl, LLC
+// SPDX-FileCopyrightText: 2010 Giovanni Campagna <gcampagna@src.gnome.org>
+// SPDX-FileCopyrightText: 2011 Red Hat, Inc.
+// SPDX-FileCopyrightText: 2016 Endless Mobile, Inc.
+// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+
 // Load overrides for GIMarshallingTests
 imports.overrides.searchPath.unshift('resource:///org/gjs/jsunit/modules/overrides');
 
@@ -146,12 +154,12 @@ else
 // each other. That's fine for now. Then we just have to suppress the warnings.
 function warn64(is64bit, func, ...args) {
     if (is64bit) {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
     }
     const retval = func(...args);
     if (is64bit) {
-        GLib.test_assert_expected_messages_internal('Cjs',
+        GLib.test_assert_expected_messages_internal('Gjs',
             'testGIMarshalling.js', 0, 'Ignore message');
     }
     return retval;
@@ -442,6 +450,14 @@ describe('C array with length', function () {
         ]);
     });
 
+    describe('of flags', function () {
+        testInParameter('array_flags', [
+            GIMarshallingTests.Flags.VALUE1,
+            GIMarshallingTests.Flags.VALUE2,
+            GIMarshallingTests.Flags.VALUE3,
+        ]);
+    });
+
     it('marshals an array with a 64-bit length parameter', function () {
         expect(() => GIMarshallingTests.array_in_guint64_len([-1, 0, 1, 2])).not.toThrow();
     });
@@ -498,11 +514,11 @@ describe('Zero-terminated C array', function () {
         });
 
         ['none', 'container', 'full'].forEach(transfer => {
-            xit(`marshals as a transfer-${transfer} in and out parameter`, function () {
+            it(`marshals as a transfer-${transfer} in and out parameter`, function () {
                 const returnedArray =
                     GIMarshallingTests[`array_gvariant_${transfer}_in`](variantArray);
                 expect(returnedArray.map(v => v.deepUnpack())).toEqual([27, 'Hello']);
-            }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/269');
+            });
         });
     });
 });
@@ -530,15 +546,17 @@ describe('GArray', function () {
         // the test should be replaced with the one above when issue
         // https://gitlab.gnome.org/GNOME/gjs/issues/106 is fixed.
         it('marshals as a transfer-full caller-allocated out parameter throws errors', function () {
+            // should throw when called, not when the function object is created
+            expect(() => GIMarshallingTests.garray_utf8_full_out_caller_allocated).not.toThrow();
             expect(() => GIMarshallingTests.garray_utf8_full_out_caller_allocated())
-                .toThrowError(/Unsupported type array.*\(out caller-allocates\)/);
+                .toThrowError(/type array.*\(out caller-allocates\)/);
         });
     });
 
-    // it('marshals boxed structs as a transfer-full return value', function () {
-    //     expect(GIMarshallingTests.garray_boxed_struct_full_return().map(e => e.long_))
-    //         .toEqual([42, 43, 44]);
-    // });
+    it('marshals boxed structs as a transfer-full return value', function () {
+        expect(GIMarshallingTests.garray_boxed_struct_full_return().map(e => e.long_))
+            .toEqual([42, 43, 44]);
+    });
 
     describe('of booleans with transfer none', function () {
         testInParameter('garray_bool_none', [-1, 0, 1, 2]);
@@ -556,15 +574,15 @@ describe('GArray', function () {
 
 describe('GPtrArray', function () {
     describe('of strings', function () {
-        testContainerMarshalling('garray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1']);
+        testContainerMarshalling('gptrarray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1']);
     });
 
-    // describe('of structs', function () {
-    //     it('can be returned with transfer full', function () {
-    //         expect(GIMarshallingTests.gptrarray_boxed_struct_full_return().map(e => e.long_))
-    //             .toEqual([42, 43, 44]);
-    //     });
-    // });
+    describe('of structs', function () {
+        it('can be returned with transfer full', function () {
+            expect(GIMarshallingTests.gptrarray_boxed_struct_full_return().map(e => e.long_))
+                .toEqual([42, 43, 44]);
+        });
+    });
 });
 
 describe('GByteArray', function () {
@@ -750,6 +768,11 @@ describe('GValue', function () {
             .not.toThrow();
     }).pend("GJS doesn't support native enum types");
 
+    xit('flags can be passed into a function and packed', function () {
+        expect(() => GIMarshallingTests.gvalue_in_flags(GIMarshallingTests.Flags.VALUE3))
+            .not.toThrow();
+    }).pend("we don't know to pack flags in a GValue as flags and not gint");
+
     it('marshals as an int64 out parameter', function () {
         expect(GIMarshallingTests.gvalue_int64_out()).toEqual(Limits.int64.max);
     });
@@ -823,11 +846,11 @@ describe('GValue', function () {
             .not.toThrow();
     });
 
-    // it('can have its type inferred as a union type', function () {
-    //     let union = GIMarshallingTests.union_returnv();
-    //     expect(() => GIMarshallingTests.gvalue_in_with_type(union, GIMarshallingTests.Union))
-    //         .not.toThrow();
-    // });
+    it('can have its type inferred as a union type', function () {
+        let union = GIMarshallingTests.union_returnv();
+        expect(() => GIMarshallingTests.gvalue_in_with_type(union, GIMarshallingTests.Union))
+            .not.toThrow();
+    });
 
     it('can have its type inferred as a GParamSpec', function () {
         let paramSpec = GObject.ParamSpec.string('my-param', '', '',
@@ -885,6 +908,10 @@ describe('Callback', function () {
 });
 
 describe('Raw pointers', function () {
+    it('gets an allocated return value', function () {
+        expect(GIMarshallingTests.pointer_in_return(null)).toBeFalsy();
+    });
+
     xit('can be roundtripped at least if the pointer is null', function () {
         expect(GIMarshallingTests.pointer_in_return(null)).toBeNull();
     }).pend('https://gitlab.gnome.org/GNOME/gjs/merge_requests/46');
@@ -1001,10 +1028,10 @@ describe('Union', function () {
         expect(union.long_).toEqual(42);
     }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/273');
 
-    // it('marshals as the this-argument of a method', function () {
-    //     expect(() => union.inv()).not.toThrow();  // was this supposed to be static?
-    //     expect(() => union.method()).not.toThrow();
-    // });
+    it('marshals as the this-argument of a method', function () {
+        expect(() => union.inv()).not.toThrow();  // was this supposed to be static?
+        expect(() => union.method()).not.toThrow();
+    });
 });
 
 describe('GObject', function () {
@@ -1139,6 +1166,14 @@ let VFuncTester = GObject.registerClass(class VFuncTester extends GIMarshallingT
         return GIMarshallingTests.Enum.VALUE3;
     }
 
+    vfunc_vfunc_return_flags() {
+        return GIMarshallingTests.Flags.VALUE2;
+    }
+
+    vfunc_vfunc_out_flags() {
+        return GIMarshallingTests.Flags.VALUE3;
+    }
+
     vfunc_vfunc_return_object_transfer_none() {
         if (!this._returnObject)
             this._returnObject = new GIMarshallingTests.Object({int: 53});
@@ -1248,7 +1283,7 @@ describe('Virtual function', function () {
 
     it('marshals a caller-allocated GValue out parameter', function () {
         expect(tester.vfunc_caller_allocated_out_parameter()).toEqual(52);
-    }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/74');
+    });
 
     it('marshals an error out parameter when no error', function () {
         expect(tester.vfunc_meth_with_error(-1)).toBeTruthy();
@@ -1285,6 +1320,14 @@ describe('Virtual function', function () {
         expect(tester.vfunc_out_enum()).toEqual(GIMarshallingTests.Enum.VALUE3);
     });
 
+    it('marshals a flags return value', function () {
+        expect(tester.vfunc_return_flags()).toEqual(GIMarshallingTests.Flags.VALUE2);
+    });
+
+    it('marshals a flags out parameter', function () {
+        expect(tester.vfunc_out_flags()).toEqual(GIMarshallingTests.Flags.VALUE3);
+    });
+
     // These tests check what the refcount is of the returned objects; see
     // comments in gimarshallingtests.c.
     // Objects that are exposed in JS always have at least one reference (the
@@ -1302,13 +1345,21 @@ describe('Virtual function', function () {
             expect(refcount).toEqual(expectedRefcount);
         });
     }
+    // Running in extra-gc mode can drop the JS reference, since it is not
+    // actually stored anywhere reachable from user code. However, we cannot
+    // force the extra GC under normal conditions because it occurs in the
+    // middle of C++ code.
+    const skipExtraGC = {};
+    const zeal = GLib.getenv('JS_GC_ZEAL');
+    if (zeal && zeal.startsWith('2,'))
+        skipExtraGC.skip = 'Skip during extra-gc.';
     // 1 reference = the object is owned only by JS.
     // 2 references = the object is owned by JS and the vfunc caller.
     testVfuncRefcount('return', 'none', 1);
-    testVfuncRefcount('return', 'full', 2);
+    testVfuncRefcount('return', 'full', 2, skipExtraGC);
     testVfuncRefcount('out', 'none', 1);
-    testVfuncRefcount('out', 'full', 2);
-    testVfuncRefcount('in', 'none', 2, {}, GIMarshallingTests.Object);
+    testVfuncRefcount('out', 'full', 2, skipExtraGC);
+    testVfuncRefcount('in', 'none', 2, skipExtraGC, GIMarshallingTests.Object);
     testVfuncRefcount('in', 'full', 1, {
         skip: 'https://gitlab.gnome.org/GNOME/gjs/issues/275',
     }, GIMarshallingTests.Object);
@@ -1342,6 +1393,12 @@ const WrongVFuncTester = GObject.registerClass(class WrongVFuncTester extends GI
     vfunc_vfunc_out_enum() {
     }
 
+    vfunc_vfunc_return_flags() {
+    }
+
+    vfunc_vfunc_out_flags() {
+    }
+
     vfunc_vfunc_return_object_transfer_none() {
     }
 
@@ -1373,62 +1430,82 @@ describe('Wrong virtual functions', function () {
     }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/311');
 
     it('marshals multiple out parameters', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Function *vfunc_vfunc_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_multiple_out_parameters()).toEqual([0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a return value and one out parameter', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Function *vfunc_return_value_and_one_out_parameter*Array*');
 
         expect(tester.vfunc_return_value_and_one_out_parameter()).toEqual([0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a return value and multiple out parameters', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Function *vfunc_return_value_and_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_return_value_and_multiple_out_parameters()).toEqual([0, 0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an array out parameter', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type gfloat for Argument*undefined*');
 
         expect(tester.vfunc_array_out_parameter()).toEqual(null);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an enum return value', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type enum for Return*undefined*');
 
         expect(tester.vfunc_return_enum()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an enum out parameter', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type enum for Argument*undefined*');
 
         expect(tester.vfunc_out_enum()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+            'testVFuncReturnWrongValue');
+    });
+
+    it('marshals a flags return value', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            'JS ERROR: Error: Expected type flags for Return*undefined*');
+
+        expect(tester.vfunc_return_flags()).toEqual(0);
+
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+            'testVFuncReturnWrongValue');
+    });
+
+    it('marshals a flags out parameter', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            'JS ERROR: Error: Expected type flags for Argument*undefined*');
+
+        expect(tester.vfunc_out_flags()).toEqual(0);
+
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 });
@@ -1695,4 +1772,35 @@ describe('GObject properties', function () {
     it('throws when setting a read-only property', function () {
         expect(() => (obj.some_readonly = 35)).toThrow();
     });
+});
+
+xdescribe('GObject signals', function () {
+    let obj;
+    beforeEach(function () {
+        obj = new GIMarshallingTests.SignalsObject();
+    });
+
+    function testSignalEmission(type, value, skip = false) {
+        it(`checks emission of signal with ${type} argument`, function () {
+            if (skip)
+                pending(skip);
+
+            function signalCallback(o, arg) {
+                expect(value).toEqual(arg);
+            }
+
+            const signalName = `some_${type}`;
+            const funcName = `emit_${type}`.replace(/-/g, '_');
+            const signalId = obj.connect(signalName, signalCallback);
+            obj[funcName]();
+            obj.disconnect(signalId);
+        }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/259');
+    }
+
+    testSignalEmission('boxed-gptrarray-utf8', ['0', '1', '2']);
+    testSignalEmission('boxed-gptrarray-boxed-struct', [
+        new GIMarshallingTests.BoxedStruct({long_: 42}),
+        new GIMarshallingTests.BoxedStruct({long_: 43}),
+        new GIMarshallingTests.BoxedStruct({long_: 44}),
+    ]);
 });

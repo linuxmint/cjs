@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
 
 #ifndef GI_ARG_CACHE_H_
 #define GI_ARG_CACHE_H_
@@ -36,10 +17,24 @@
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 
-#include "cjs/macros.h"
+#include "gi/arg.h"
+#include "gjs/enum-utils.h"
+#include "gjs/macros.h"
 
 struct GjsFunctionCallState;
 struct GjsArgumentCache;
+
+enum NotIntrospectableReason : uint8_t {
+    CALLBACK_OUT,
+    DESTROY_NOTIFY_NO_CALLBACK,
+    DESTROY_NOTIFY_NO_USER_DATA,
+    INTERFACE_TRANSFER_CONTAINER,
+    OUT_CALLER_ALLOCATES_NON_STRUCT,
+    UNREGISTERED_BOXED_WITH_TRANSFER,
+    UNREGISTERED_UNION,
+    UNSUPPORTED_TYPE,
+    LAST_REASON
+};
 
 struct GjsArgumentMarshallers {
     bool (*in)(JSContext* cx, GjsArgumentCache* cache,
@@ -60,11 +55,8 @@ struct GjsArgumentCache {
     GITypeInfo type_info;
 
     uint8_t arg_pos;
-    bool skip_in : 1;
-    bool skip_out : 1;
     GITransfer transfer : 2;
-    bool nullable : 1;
-    bool is_unsigned : 1;  // number and enum only
+    GjsArgumentFlags flags : 5;
 
     union {
         // for explicit array only
@@ -99,11 +91,11 @@ struct GjsArgumentCache {
         } enum_type;
         unsigned flags_mask;
 
-        // string / filename
-        bool string_is_filename : 1;
-
         // out caller allocates (FIXME: should be in object)
         size_t caller_allocates_size;
+
+        // not introspectable
+        NotIntrospectableReason reason;
     } contents;
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -145,16 +137,24 @@ struct GjsArgumentCache {
         arg_name = "instance parameter";
         // Some calls accept null for the instance, but generally in an object
         // oriented language it's wrong to call a method on null
-        nullable = false;
-        skip_out = true;
+        flags = static_cast<GjsArgumentFlags>(GjsArgumentFlags::NONE | GjsArgumentFlags::SKIP_OUT);
     }
 
     void set_return_value() {
         arg_pos = RETURN_VALUE;
         arg_name = "return value";
-        nullable = false;  // We don't really care for return values
+        flags =
+            GjsArgumentFlags::NONE;  // We don't really care for return values
     }
     [[nodiscard]] bool is_return_value() { return arg_pos == RETURN_VALUE; }
+
+    constexpr bool skip_in() const {
+        return (flags & GjsArgumentFlags::SKIP_IN);
+    }
+
+    constexpr bool skip_out() const {
+        return (flags & GjsArgumentFlags::SKIP_OUT);
+    }
 };
 
 // This is a trick to print out the sizes of the structs at compile time, in
@@ -173,20 +173,20 @@ static_assert(sizeof(GjsArgumentCache) <= 112,
               "function.");
 #endif  // x86-64 clang
 
-GJS_JSAPI_RETURN_CONVENTION
-bool gjs_arg_cache_build_arg(JSContext* cx, GjsArgumentCache* self,
+void gjs_arg_cache_build_arg(GjsArgumentCache* self,
                              GjsArgumentCache* arguments, uint8_t gi_index,
                              GIDirection direction, GIArgInfo* arg,
                              GICallableInfo* callable, bool* inc_counter_out);
 
-GJS_JSAPI_RETURN_CONVENTION
-bool gjs_arg_cache_build_return(JSContext* cx, GjsArgumentCache* self,
+void gjs_arg_cache_build_return(GjsArgumentCache* self,
                                 GjsArgumentCache* arguments,
                                 GICallableInfo* callable,
                                 bool* inc_counter_out);
 
-GJS_JSAPI_RETURN_CONVENTION
-bool gjs_arg_cache_build_instance(JSContext* cx, GjsArgumentCache* self,
+void gjs_arg_cache_build_instance(GjsArgumentCache* self,
                                   GICallableInfo* callable);
+
+[[nodiscard]] size_t gjs_g_argument_get_array_length(GITypeTag tag,
+                                                     GIArgument* arg);
 
 #endif  // GI_ARG_CACHE_H_

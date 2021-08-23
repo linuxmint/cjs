@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2011 Giovanni Campagna <gcampagna@src.gnome.org>
+// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+
 const ByteArray = imports.byteArray;
 const GLib = imports.gi.GLib;
 
@@ -116,14 +120,14 @@ describe('GLib string function overrides', function () {
     function expectWarnings(count) {
         numExpectedWarnings = count;
         for (let c = 0; c < count; c++) {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 '*not introspectable*');
         }
     }
 
     function assertWarnings(testName) {
         for (let c = 0; c < numExpectedWarnings; c++) {
-            GLib.test_assert_expected_messages_internal('Cjs', 'testGLib.js', 0,
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGLib.js', 0,
                 `test GLib.${testName}`);
         }
         numExpectedWarnings = 0;

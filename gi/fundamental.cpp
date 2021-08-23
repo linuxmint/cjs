@@ -1,26 +1,7 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2013       Intel Corporation
- * Copyright (c) 2008-2010  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Intel Corporation
+// SPDX-FileCopyrightText: 2008-2010 litl, LLC
 
 #include <config.h>
 
@@ -32,6 +13,7 @@
 #include <js/GCHashTable.h>  // for WeakCache
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>  // for InformalValueTypeName, JS_GetClass
 #include <mozilla/HashTable.h>
 
@@ -41,10 +23,10 @@
 #include "gi/fundamental.h"
 #include "gi/repo.h"
 #include "gi/wrapperutils.h"
-#include "cjs/atoms.h"
-#include "cjs/context-private.h"
-#include "cjs/jsapi-util.h"
-#include "cjs/mem-private.h"
+#include "gjs/atoms.h"
+#include "gjs/context-private.h"
+#include "gjs/jsapi-util.h"
+#include "gjs/mem-private.h"
 #include "util/log.h"
 
 namespace JS {
@@ -89,16 +71,14 @@ bool FundamentalInstance::associate_js_instance(JSContext* cx, JSObject* object,
     n_methods = g_object_info_get_n_methods(info);
 
     for (i = 0; i < n_methods; ++i) {
-        GIFunctionInfo *func_info;
+        GjsAutoFunctionInfo func_info;
         GIFunctionInfoFlags flags;
 
         func_info = g_object_info_get_method(info, i);
 
         flags = g_function_info_get_flags(func_info);
         if ((flags & GI_FUNCTION_IS_CONSTRUCTOR) != 0)
-            return func_info;
-
-        g_base_info_unref((GIBaseInfo *) func_info);
+            return func_info.release();
     }
 
     return nullptr;
@@ -242,15 +222,10 @@ FundamentalPrototype::FundamentalPrototype(GIObjectInfo* info, GType gtype)
       m_get_value_function(g_object_info_get_get_value_function_pointer(info)),
       m_set_value_function(g_object_info_get_set_value_function_pointer(info)),
       m_constructor_info(find_fundamental_constructor(info)) {
-    g_assert(m_ref_function);
-    g_assert(m_unref_function);
-    g_assert(m_set_value_function);
-    g_assert(m_get_value_function);
     GJS_INC_COUNTER(fundamental_prototype);
 }
 
 FundamentalPrototype::~FundamentalPrototype(void) {
-    g_clear_pointer(&m_constructor_info, g_base_info_unref);
     GJS_DEC_COUNTER(fundamental_prototype);
 }
 
@@ -296,8 +271,12 @@ gjs_lookup_fundamental_prototype(JSContext    *context,
     if (G_UNLIKELY (!in_object))
         return nullptr;
 
+    bool found;
+    if (!JS_HasProperty(context, in_object, constructor_name, &found))
+        return nullptr;
+
     JS::RootedValue value(context);
-    if (!JS_GetProperty(context, in_object, constructor_name, &value))
+    if (found && !JS_GetProperty(context, in_object, constructor_name, &value))
         return nullptr;
 
     JS::RootedObject constructor(context);
@@ -458,26 +437,52 @@ FundamentalPrototype* FundamentalPrototype::for_gtype(JSContext* cx,
     return FundamentalPrototype::for_js(cx, proto);
 }
 
-JSObject* FundamentalInstance::object_for_gvalue(JSContext* cx,
-                                                 const GValue* value,
-                                                 GType gtype) {
+bool FundamentalInstance::object_for_gvalue(
+    JSContext* cx, const GValue* value, GType gtype,
+    JS::MutableHandleObject object_out) {
     auto* proto_priv = FundamentalPrototype::for_gtype(cx, gtype);
-    void* fobj = proto_priv->call_get_value_function(value);
-    if (!fobj) {
-        gjs_throw(cx, "Failed to convert GValue to a fundamental instance");
-        return nullptr;
+    void* fobj = nullptr;
+
+    if (!proto_priv->call_get_value_function(value, &fobj)) {
+        if (!G_VALUE_HOLDS(value, gtype) || !g_value_fits_pointer(value)) {
+            gjs_throw(cx,
+                      "Failed to convert GValue of type %s to a fundamental %s "
+                      "instance",
+                      G_VALUE_TYPE_NAME(value), g_type_name(gtype));
+            return false;
+        }
+
+        fobj = g_value_peek_pointer(value);
     }
 
-    return FundamentalInstance::object_for_c_ptr(cx, fobj);
+    if (!fobj) {
+        object_out.set(nullptr);
+        return true;
+    }
+
+    object_out.set(FundamentalInstance::object_for_c_ptr(cx, fobj));
+    return object_out.get() != nullptr;
 }
 
 bool FundamentalBase::to_gvalue(JSContext* cx, JS::HandleObject obj,
                                 GValue* gvalue) {
-    auto* priv = FundamentalBase::for_js_typecheck(cx, obj);
-    if (!priv || !priv->check_is_instance(cx, "convert to GValue"))
+    FundamentalBase* priv;
+    if (!for_js_typecheck(cx, obj, &priv) ||
+        !priv->check_is_instance(cx, "convert to GValue"))
         return false;
 
-    priv->to_instance()->set_value(gvalue);
+    auto* instance = priv->to_instance();
+    if (!instance->set_value(gvalue)) {
+        if (g_value_type_compatible(instance->gtype(), G_VALUE_TYPE(gvalue))) {
+            g_value_set_instance(gvalue, instance->m_ptr);
+            return true;
+        }
+
+        gjs_throw(cx,
+                  "Fundamental object does not support conversion to a GValue");
+        return false;
+    }
+
     return true;
 }
 

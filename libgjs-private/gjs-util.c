@@ -1,23 +1,7 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/* Copyright 2012 Giovanni Campagna <scampa.giovanni@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
+/*
+ * SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+ * SPDX-FileCopyrightText: 2012 Giovanni Campagna <scampa.giovanni@gmail.com>
  */
 
 #include <config.h>
@@ -53,27 +37,28 @@ gjs_format_int_alternative_output(int n)
 #endif
 }
 
-GType
-gjs_locale_category_get_type(void)
-{
-  static volatile size_t g_define_type_id__volatile = 0;
-  if (g_once_init_enter(&g_define_type_id__volatile)) {
-      static const GEnumValue v[] = {
-          { GJS_LOCALE_CATEGORY_ALL, "GJS_LOCALE_CATEGORY_ALL", "all" },
-          { GJS_LOCALE_CATEGORY_COLLATE, "GJS_LOCALE_CATEGORY_COLLATE", "collate" },
-          { GJS_LOCALE_CATEGORY_CTYPE, "GJS_LOCALE_CATEGORY_CTYPE", "ctype" },
-          { GJS_LOCALE_CATEGORY_MESSAGES, "GJS_LOCALE_CATEGORY_MESSAGES", "messages" },
-          { GJS_LOCALE_CATEGORY_MONETARY, "GJS_LOCALE_CATEGORY_MONETARY", "monetary" },
-          { GJS_LOCALE_CATEGORY_NUMERIC, "GJS_LOCALE_CATEGORY_NUMERIC", "numeric" },
-          { GJS_LOCALE_CATEGORY_TIME, "GJS_LOCALE_CATEGORY_TIME", "time" },
-          { 0, NULL, NULL }
-      };
-      GType g_define_type_id =
-        g_enum_register_static(g_intern_static_string("GjsLocaleCategory"), v);
+GType gjs_locale_category_get_type(void) {
+    static size_t gjs_locale_category_get_type = 0;
+    if (g_once_init_enter(&gjs_locale_category_get_type)) {
+        static const GEnumValue v[] = {
+            {GJS_LOCALE_CATEGORY_ALL, "GJS_LOCALE_CATEGORY_ALL", "all"},
+            {GJS_LOCALE_CATEGORY_COLLATE, "GJS_LOCALE_CATEGORY_COLLATE",
+             "collate"},
+            {GJS_LOCALE_CATEGORY_CTYPE, "GJS_LOCALE_CATEGORY_CTYPE", "ctype"},
+            {GJS_LOCALE_CATEGORY_MESSAGES, "GJS_LOCALE_CATEGORY_MESSAGES",
+             "messages"},
+            {GJS_LOCALE_CATEGORY_MONETARY, "GJS_LOCALE_CATEGORY_MONETARY",
+             "monetary"},
+            {GJS_LOCALE_CATEGORY_NUMERIC, "GJS_LOCALE_CATEGORY_NUMERIC",
+             "numeric"},
+            {GJS_LOCALE_CATEGORY_TIME, "GJS_LOCALE_CATEGORY_TIME", "time"},
+            {0, NULL, NULL}};
+        GType g_define_type_id = g_enum_register_static(
+            g_intern_static_string("GjsLocaleCategory"), v);
 
-      g_once_init_leave(&g_define_type_id__volatile, g_define_type_id);
-  }
-  return g_define_type_id__volatile;
+        g_once_init_leave(&gjs_locale_category_get_type, g_define_type_id);
+    }
+    return gjs_locale_category_get_type;
 }
 
 /**
@@ -191,7 +176,7 @@ int gjs_open_bytes(GBytes* bytes, GError** error) {
     }
 
     if ((size_t)bytes_written != count)
-        g_warning("%s: %zd bytes sent, only %zu bytes written", __func__, count,
+        g_warning("%s: %zu bytes sent, only %zd bytes written", __func__, count,
                   bytes_written);
 
     result = close(pipefd[1]);

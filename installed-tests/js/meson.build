@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+# SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
+
 ### Jasmine tests ##############################################################
 
 jsunit_resources_files = gnome.compile_resources('jsunit-resources',
@@ -59,7 +63,6 @@ warnlib_sources = [
 libwarnlib = library('warnlib', warnlib_sources,
     c_args: test_gir_warning_c_args + test_gir_extra_c_args,
     dependencies: [glib, gobject, gio], install: get_option('installed_tests'),
-    include_directories: top_include,
     install_dir: installed_tests_execdir)
 # This should have --warn-all turned off, but there is currently no way to do so
 # in gnome.generate_gir(). See https://github.com/mesonbuild/meson/issues/5876
@@ -86,6 +89,8 @@ gimarshallingtests_gir = gnome.generate_gir(libgimarshallingtests,
     install_dir_typelib: installed_tests_execdir)
 gimarshallingtests_typelib = gimarshallingtests_gir[1]
 
+subdir('libgjstesttools')
+
 jasmine_tests = [
     'self',
     'ByteArray',
@@ -99,6 +104,7 @@ jasmine_tests = [
     'GObject',
     'GObjectClass',
     'GObjectInterface',
+    'GObjectValue',
     'GTypeClass',
     'Importer',
     'Introspection',
@@ -137,7 +143,7 @@ endif
 installed_js_tests_dir = installed_tests_execdir / 'js'
 
 gschemas_compiled = gnome.compile_schemas(
-    depend_files: 'org.cinnamon.CjsTest.gschema.xml')
+    depend_files: 'org.gnome.GjsTest.gschema.xml')
 
 foreach test : jasmine_tests
     test_file = files('test@0@.js'.format(test))
@@ -145,6 +151,7 @@ foreach test : jasmine_tests
     test(test, minijasmine, args: test_file,
         depends: [
             gschemas_compiled,
+            gjstest_tools_typelib,
             gimarshallingtests_typelib,
             regress_typelib,
             warnlib_typelib,
@@ -158,12 +165,17 @@ foreach test : jasmine_tests
     test_description = configure_file(configuration: test_description_subst,
         input: '../minijasmine.test.in',
         output: 'test@0@.test'.format(test),
+        install: get_option('installed_tests'),
         install_dir: installed_tests_metadir)
 
     if get_option('installed_tests')
         install_data(test_file, install_dir: installed_js_tests_dir)
     endif
 endforeach
+
+if get_option('installed_tests')
+    install_subdir('modules', install_dir: installed_js_tests_dir)
+endif
 
 # testGDBus.js is separate, because it can be skipped, and during build should
 # be run using dbus-run-session
@@ -183,8 +195,39 @@ gdbus_test_description_subst = {
 gdbus_test_description = configure_file(
     configuration: gdbus_test_description_subst,
     input: '../minijasmine.test.in', output: 'testGDBus.test',
+    install: get_option('installed_tests'),
     install_dir: installed_tests_metadir)
 
 if get_option('installed_tests')
     install_data('testGDBus.js', install_dir: installed_js_tests_dir)
 endif
+
+# tests using ES modules are also separate because they need an extra
+# minijasmine flag
+
+modules_tests = ['ESModules']
+if build_cairo
+    modules_tests += 'CairoModule'
+endif
+
+foreach test : modules_tests
+    test_file = files('test@0@.js'.format(test))
+
+    test(test, minijasmine, args: [test_file, '-m'], env: tests_environment,
+        protocol: 'tap', suite: 'JS')
+
+    esm_test_description_subst = {
+        'name': 'test@0@.js'.format(test),
+        'installed_tests_execdir': installed_tests_execdir,
+    }
+    esm_test_description = configure_file(
+        configuration: esm_test_description_subst,
+        input: '../minijasmine-module.test.in',
+        output: 'test@0@.test'.format(test),
+        install: get_option('installed_tests'),
+        install_dir: installed_tests_metadir)
+
+    if get_option('installed_tests')
+        install_data(test_file, install_dir: installed_js_tests_dir)
+    endif
+endforeach

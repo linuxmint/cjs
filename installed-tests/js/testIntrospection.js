@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008, 2018 Red Hat, Inc.
+// SPDX-FileCopyrightText: 2017 Philip Chimento <philip.chimento@gmail.com>
+// SPDX-FileCopyrightText: 2020 Ole Jørgen Brønner <olejorgenb@yahoo.no>
+
 // Various tests having to do with how introspection is implemented in GJS
 
 imports.gi.versions.Gdk = '3.0';
@@ -7,6 +12,8 @@ const System = imports.system;
 
 describe('GLib.DestroyNotify parameter', function () {
     it('throws when encountering a GDestroyNotify not associated with a callback', function () {
+        // should throw when called, not when the function object is created
+        expect(() => Gio.MemoryInputStream.new_from_data).not.toThrow();
         // the 'destroy' argument applies to the data, which is not supported in
         // gobject-introspection
         expect(() => Gio.MemoryInputStream.new_from_data('foobar'))
@@ -16,16 +23,16 @@ describe('GLib.DestroyNotify parameter', function () {
 
 describe('Unsafe integer marshalling', function () {
     it('warns when conversion is lossy', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
         void GLib.MININT64;
         void GLib.MAXINT64;
         void GLib.MAXUINT64;
-        GLib.test_assert_expected_messages_internal('Cjs',
+        GLib.test_assert_expected_messages_internal('Gjs',
             'testEverythingBasic.js', 0,
             'Limits warns when conversion is lossy');
     });
@@ -33,15 +40,19 @@ describe('Unsafe integer marshalling', function () {
 
 describe('Marshalling empty flat arrays of structs', function () {
     let widget;
+    let gtkEnabled;
     beforeAll(function () {
-        if (GLib.getenv('ENABLE_GTK') !== 'yes') {
-            pending('GTK disabled');
+        gtkEnabled = GLib.getenv('ENABLE_GTK') === 'yes';
+        if (!gtkEnabled)
             return;
-        }
         Gtk.init(null);
     });
 
     beforeEach(function () {
+        if (!gtkEnabled) {
+            pending('GTK disabled');
+            return;
+        }
         widget = new Gtk.Label();
     });
 
@@ -79,15 +90,19 @@ describe('GError domains', function () {
 
 describe('Object properties on GtkBuilder-constructed objects', function () {
     let o1;
+    let gtkEnabled;
     beforeAll(function () {
-        if (GLib.getenv('ENABLE_GTK') !== 'yes') {
-            pending('GTK disabled');
+        gtkEnabled = GLib.getenv('ENABLE_GTK') === 'yes';
+        if (!gtkEnabled)
             return;
-        }
         Gtk.init(null);
     });
 
     beforeEach(function () {
+        if (!gtkEnabled) {
+            pending('GTK disabled');
+            return;
+        }
         const ui = `
             <interface>
               <object class="GtkButton" id="button">

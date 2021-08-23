@@ -1,12 +1,11 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+# SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
+
 ### Installed tests ############################################################
 
 installed_tests_execdir = get_option('prefix') / get_option('libexecdir') / 'installed-tests' / meson.project_name()
-
-if get_option('installed_tests')
-    installed_tests_metadir = abs_datadir / 'installed-tests' / meson.project_name()
-else
-    installed_tests_metadir = ''
-endif
+installed_tests_metadir = abs_datadir / 'installed-tests' / meson.project_name()
 
 # Simple shell script tests #
 
@@ -33,6 +32,7 @@ foreach test : simple_tests
     }
     test_description = configure_file(configuration: test_description_subst,
         input: 'script.test.in', output: 'test@0@.sh.test'.format(test),
+        install: get_option('installed_tests'),
         install_dir: installed_tests_metadir)
 
     if get_option('installed_tests')
@@ -56,6 +56,8 @@ debugger_tests = [
     'finish',
     'frame',
     'keys',
+    'lastvalues',
+    'list',
     'next',
     'print',
     'quit',
@@ -85,6 +87,7 @@ foreach test : debugger_tests
     test_description = configure_file(configuration: test_description_subst,
         input: 'debugger.test.in',
         output: '@0@.test'.format(test),
+        install: get_option('installed_tests'),
         install_dir: installed_tests_metadir)
 
     if get_option('installed_tests')

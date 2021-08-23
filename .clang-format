@@ -1,0 +1,29 @@
+---
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2018 Philip Chimento <philip.chimento@gmail.com>
+# Global Options Go Here
+IndentWidth: 4
+ColumnLimit: 80
+---
+Language: Cpp
+BasedOnStyle: Google
+AccessModifierOffset: -3  # to match cpplint
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+CommentPragmas: '^ NOLINT'
+DerivePointerAlignment: false
+ForEachMacros: []
+IncludeBlocks: Preserve
+IndentPPDirectives: AfterHash
+IndentWidth: 4
+MacroBlockBegin: "^JSNATIVE_TEST_FUNC_BEGIN$"
+MacroBlockEnd: "^JSNATIVE_TEST_FUNC_END$"
+PointerAlignment: Left  # Google style allows both, but clang-format doesn't
+SpacesBeforeTrailingComments: 2
+---
+# We should use eslint --fix instead, but we need to find a way to get that to
+# operate on diffs like clang-format does.
+Language: JavaScript
+DisableFormat: true
+SortIncludes: false  # https://bugs.llvm.org/show_bug.cgi?id=27042
+...

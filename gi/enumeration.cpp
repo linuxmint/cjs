@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #include <config.h>
 
@@ -31,9 +12,10 @@
 #include <js/TypeDecls.h>
 #include <jsapi.h>  // for JS_DefineProperty, JS_NewPlainObject
 
+#include "gi/cwrapper.h"
 #include "gi/enumeration.h"
 #include "gi/wrapperutils.h"
-#include "cjs/jsapi-util.h"
+#include "gjs/jsapi-util.h"
 #include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -91,16 +73,10 @@ gjs_define_enum_values(JSContext       *context,
      */
     n_values = g_enum_info_get_n_values(info);
     for (i = 0; i < n_values; ++i) {
-        GIValueInfo *value_info = g_enum_info_get_value(info, i);
-        bool failed;
+        GjsAutoBaseInfo value_info = g_enum_info_get_value(info, i);
 
-        failed = !gjs_define_enum_value(context, in_object, value_info);
-
-        g_base_info_unref( (GIBaseInfo*) value_info);
-
-        if (failed) {
+        if (!gjs_define_enum_value(context, in_object, value_info))
             return false;
-        }
     }
     return true;
 }

@@ -1,25 +1,8 @@
-// Copyright 2011 Giovanni Campagna
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to
-// deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-// sell copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2011 Giovanni Campagna
 
 var GLib = imports.gi.GLib;
-var CjsPrivate = imports.gi.CjsPrivate;
+var GjsPrivate = imports.gi.GjsPrivate;
 var Signals = imports.signals;
 var Gio;
 
@@ -399,7 +382,7 @@ function _wrapJSObject(interfaceInfo, jsObj) {
         info = Gio.DBusInterfaceInfo.new_for_xml(interfaceInfo);
     info.cache_build();
 
-    var impl = new CjsPrivate.DBusImplementation({g_interface_info: info});
+    var impl = new GjsPrivate.DBusImplementation({g_interface_info: info});
     impl.connect('handle-method-call', function (self, methodName, parameters, invocation) {
         return _handleMethodCall.call(jsObj, info, self, methodName, parameters, invocation);
     });
@@ -502,7 +485,7 @@ function _init() {
     _wrapFunction(Gio.DBusNodeInfo, 'new_for_xml', _newNodeInfo);
     Gio.DBusInterfaceInfo.new_for_xml = _newInterfaceInfo;
 
-    Gio.DBusExportedObject = CjsPrivate.DBusImplementation;
+    Gio.DBusExportedObject = GjsPrivate.DBusImplementation;
     Gio.DBusExportedObject.wrapJSObject = _wrapJSObject;
 
     // ListStore
@@ -512,7 +495,7 @@ function _init() {
     Gio._promisify = _promisify;
 
     // Temporary Gio.File.prototype fix
-    Gio._LocalFilePrototype = Gio.File.new_for_path('').constructor.prototype;
+    Gio._LocalFilePrototype = Gio.File.new_for_path('/').constructor.prototype;
 
     // Override Gio.Settings and Gio.SettingsSchema - the C API asserts if
     // trying to access a nonexistent schema or key, which is not handy for

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+
 ### Unit tests #################################################################
 
 mock_js_resources_files = gnome.compile_resources('mock-js-resources',
@@ -11,6 +14,7 @@ gjs_tests_sources = [
     'gjs-test-call-args.cpp',
     'gjs-test-coverage.cpp',
     'gjs-test-rooting.cpp',
+    'gjs-test-jsapi-utils.cpp',
     'gjs-test-no-introspection-object.cpp', 'gjs-test-no-introspection-object.h',
 ]
 
@@ -20,4 +24,4 @@ gjs_tests = executable('gjs-tests', gjs_tests_sources, mock_js_resources_files,
 
 test('API tests', gjs_tests, args: ['--tap', '--keep-going', '--verbose'],
     depends: gjs_private_typelib, env: tests_environment, protocol: 'tap',
-    suite: 'C')
+    suite: 'C', timeout: 60)

@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2017 Endless Mobile, Inc.
+
 #include <config.h>
 
+#include <glib-object.h>  // for g_object_weak_unref, g_object_weak_ref
 #include <glib.h>
 
 #include <js/Class.h>
@@ -9,7 +13,7 @@
 #include <js/Value.h>
 #include <jsapi.h>  // for JS_GetPrivate, JS_NewObject, JS_Set...
 
-#include "cjs/jsapi-util-root.h"
+#include "gjs/jsapi-util-root.h"
 #include "test/gjs-test-utils.h"
 
 // COMPAT: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1553

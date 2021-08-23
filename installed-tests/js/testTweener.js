@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2009 Red Hat, Inc.
+
 const Tweener = imports.tweener.tweener;
 
 function installFrameTicker() {

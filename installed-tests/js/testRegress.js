@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2008 Red Hat, Inc.
+
 const Regress = imports.gi.Regress;
 
 // We use Gio to have some objects that we know exist
@@ -24,10 +28,13 @@ describe('Life, the Universe and Everything', function () {
             const method = `test_int${bits}`;
             expect(Regress[method](42)).toBe(42);
             expect(Regress[method](-42)).toBe(-42);
+            expect(Regress[method](undefined)).toBe(0);
         });
 
         it(`includes unsigned ${bits}-bit integers`, function () {
-            expect(Regress[`test_uint${bits}`](42)).toBe(42);
+            const method = `test_uint${bits}`;
+            expect(Regress[method](42)).toBe(42);
+            expect(Regress[method](undefined)).toBe(0);
         });
     });
 
@@ -36,12 +43,19 @@ describe('Life, the Universe and Everything', function () {
             const method = `test_${type}`;
             expect(Regress[method](42)).toBe(42);
             expect(Regress[method](-42)).toBe(-42);
+
+            if (['float', 'double'].includes(type))
+                expect(Number.isNaN(Regress[method](undefined))).toBeTruthy();
+            else
+                expect(Regress[method](undefined)).toBe(0);
         });
     });
 
     ['ushort', 'uint', 'ulong', 'size'].forEach(type => {
         it(`includes ${type}s`, function () {
-            expect(Regress[`test_${type}`](42)).toBe(42);
+            const method = `test_${type}`;
+            expect(Regress[method](42)).toBe(42);
+            expect(Regress[method](undefined)).toBe(0);
         });
     });
 
@@ -847,7 +861,7 @@ describe('Life, the Universe and Everything', function () {
         });
 
         it('method cannot be called on a GBoxed of the wrong type', function () {
-            expect(() => Regress.TestSimpleBoxedA.protoype.copy.call(wrongBoxed))
+            expect(() => Regress.TestSimpleBoxedA.prototype.copy.call(wrongBoxed))
                 .toThrow();
         });
 
@@ -891,15 +905,15 @@ describe('Life, the Universe and Everything', function () {
             expect(o.hasOwnProperty('ownprop')).toBeTruthy();
         });
 
-        // it('sets write-only properties', function () {
-        //     expect(o.int).not.toEqual(0);
-        //     o.write_only = true;
-        //     expect(o.int).toEqual(0);
-        // });
+        it('sets write-only properties', function () {
+            expect(o.int).not.toEqual(0);
+            o.write_only = true;
+            expect(o.int).toEqual(0);
+        });
 
-        // it('gives undefined for write-only properties', function () {
-        //     expect(o.write_only).not.toBeDefined();
-        // });
+        it('gives undefined for write-only properties', function () {
+            expect(o.write_only).not.toBeDefined();
+        });
 
         it('constructs from constructors annotated with (constructor)', function () {
             expect(Regress.TestObj.new(o)).toEqual(jasmine.any(Regress.TestObj));
@@ -1034,23 +1048,23 @@ describe('Life, the Universe and Everything', function () {
                 expect(handler.toHaveBeenCalledWith([jasmine.any(Object), 42]));
             }).pend('Not yet implemented');
 
-            // it('GError signal with GError set', function (done) {
-            //     o.connect('sig-with-gerror', (obj, e) => {
-            //         expect(e).toEqual(jasmine.any(Gio.IOErrorEnum));
-            //         expect(e.domain).toEqual(Gio.io_error_quark());
-            //         expect(e.code).toEqual(Gio.IOErrorEnum.FAILED);
-            //         done();
-            //     });
-            //     o.emit_sig_with_error();
-            // });
+            it('GError signal with GError set', function (done) {
+                o.connect('sig-with-gerror', (obj, e) => {
+                    expect(e).toEqual(jasmine.any(Gio.IOErrorEnum));
+                    expect(e.domain).toEqual(Gio.io_error_quark());
+                    expect(e.code).toEqual(Gio.IOErrorEnum.FAILED);
+                    done();
+                });
+                o.emit_sig_with_error();
+            });
 
-            // it('GError signal with no GError set', function (done) {
-            //     o.connect('sig-with-gerror', (obj, e) => {
-            //         expect(e).toBeNull();
-            //         done();
-            //     });
-            //     o.emit_sig_with_null_error();
-            // });
+            it('GError signal with no GError set', function (done) {
+                o.connect('sig-with-gerror', (obj, e) => {
+                    expect(e).toBeNull();
+                    done();
+                });
+                o.emit_sig_with_null_error();
+            });
         });
 
         it('can call an instance method', function () {
@@ -1255,24 +1269,24 @@ describe('Life, the Universe and Everything', function () {
         });
     });
 
-    // describe('Overridden properties on interfaces', function () {
-    //     it('set and get properly', function () {
-    //         const o = new Regress.TestSubObj();
-    //         o.number = 4;
-    //         expect(o.number).toEqual(4);
-    //     });
+    describe('Overridden properties on interfaces', function () {
+        it('set and get properly', function () {
+            const o = new Regress.TestSubObj();
+            o.number = 4;
+            expect(o.number).toEqual(4);
+        });
 
-    //     it('default properly', function () {
-    //         const o = new Regress.TestSubObj();
-    //         expect(o.number).toBeDefined();
-    //         expect(o.number).toEqual(0);
-    //     });
+        it('default properly', function () {
+            const o = new Regress.TestSubObj();
+            expect(o.number).toBeDefined();
+            expect(o.number).toEqual(0);
+        });
 
-    //     it('construct properly', function () {
-    //         const o = new Regress.TestSubObj({number: 4});
-    //         expect(o.number).toEqual(4);
-    //     });
-    // });
+        it('construct properly', function () {
+            const o = new Regress.TestSubObj({number: 4});
+            expect(o.number).toEqual(4);
+        });
+    });
 
     describe('Fundamental type', function () {
         it('constructs a subtype of a fundamental type', function () {
@@ -1369,6 +1383,14 @@ describe('Life, the Universe and Everything', function () {
         expect(callback2).toHaveBeenCalledTimes(2);
     }).pend('Callback with destroy-notify and no user data not currently supported');
 
+    // If this is ever supported, then replace it with the above test.
+    it('callback with destroy-notify and no user data throws error', function () {
+        // should throw when called, not when the function object is created
+        expect(() => Regress.test_callback_destroy_notify_no_user_data).not.toThrow();
+        expect(() => Regress.test_callback_destroy_notify_no_user_data(() => {}))
+            .toThrowError(/no user data/);
+    });
+
     it('async callback', function () {
         Regress.test_callback_async(() => 44);
         expect(Regress.test_callback_thaw_async()).toEqual(44);
@@ -1432,26 +1454,26 @@ describe('Life, the Universe and Everything', function () {
         });
     });
 
-    // describe('Introspected interface', function () {
-    //     const Implementor = GObject.registerClass({
-    //         Implements: [Regress.TestInterface],
-    //         Properties: {
-    //             number: GObject.ParamSpec.override('number', Regress.TestInterface),
-    //         },
-    //     }, class Implementor extends GObject.Object {
-    //         get number() {
-    //             return 5;
-    //         }
-    //     });
+    describe('Introspected interface', function () {
+        const Implementor = GObject.registerClass({
+            Implements: [Regress.TestInterface],
+            Properties: {
+                number: GObject.ParamSpec.override('number', Regress.TestInterface),
+            },
+        }, class Implementor extends GObject.Object {
+            get number() {
+                return 5;
+            }
+        });
 
-    //     it('correctly emits interface signals', function () {
-    //         const obj = new Implementor();
-    //         const handler = jasmine.createSpy('handler').and.callFake(() => {});
-    //         obj.connect('interface-signal', handler);
-    //         obj.emit_signal();
-    //         expect(handler).toHaveBeenCalled();
-    //     });
-    // });
+        it('correctly emits interface signals', function () {
+            const obj = new Implementor();
+            const handler = jasmine.createSpy('handler').and.callFake(() => {});
+            obj.connect('interface-signal', handler);
+            obj.emit_signal();
+            expect(handler).toHaveBeenCalled();
+        });
+    });
 
     describe('GObject with nonstandard prefix', function () {
         let o;
@@ -1569,41 +1591,41 @@ describe('Life, the Universe and Everything', function () {
         expect(Regress.get_variant().unpack()).toEqual(42);
     });
 
-    // describe('Flat array of structs', function () {
-    //     it('out parameter with transfer none', function () {
-    //         const expected = [111, 222, 333].map(some_int =>
-    //             jasmine.objectContaining({some_int}));
-    //         expect(Regress.test_array_struct_out_none()).toEqual(expected);
-    //     });
+    describe('Flat array of structs', function () {
+        it('out parameter with transfer none', function () {
+            const expected = [111, 222, 333].map(some_int =>
+                jasmine.objectContaining({some_int}));
+            expect(Regress.test_array_struct_out_none()).toEqual(expected);
+        });
 
-    //     it('out parameter with transfer container', function () {
-    //         const expected = [11, 13, 17, 19, 23].map(some_int =>
-    //             jasmine.objectContaining({some_int}));
-    //         expect(Regress.test_array_struct_out_container()).toEqual(expected);
-    //     });
+        it('out parameter with transfer container', function () {
+            const expected = [11, 13, 17, 19, 23].map(some_int =>
+                jasmine.objectContaining({some_int}));
+            expect(Regress.test_array_struct_out_container()).toEqual(expected);
+        });
 
-    //     it('out parameter with transfer full', function () {
-    //         const expected = [2, 3, 5, 7].map(some_int =>
-    //             jasmine.objectContaining({some_int}));
-    //         expect(Regress.test_array_struct_out_full_fixed()).toEqual(expected);
-    //     });
+        it('out parameter with transfer full', function () {
+            const expected = [2, 3, 5, 7].map(some_int =>
+                jasmine.objectContaining({some_int}));
+            expect(Regress.test_array_struct_out_full_fixed()).toEqual(expected);
+        });
 
-    //     xit('caller-allocated out parameter', function () {
-    //         // With caller-allocated array in, there's no way to supply the
-    //         // length. This happens in GLib.MainContext.query()
-    //         expect(Regress.test_array_struct_out_caller_alloc()).toEqual([]);
-    //     }).pend('Not supported');
+        xit('caller-allocated out parameter', function () {
+            // With caller-allocated array in, there's no way to supply the
+            // length. This happens in GLib.MainContext.query()
+            expect(Regress.test_array_struct_out_caller_alloc()).toEqual([]);
+        }).pend('Not supported');
 
-    //     it('transfer-full in parameter', function () {
-    //         const array = [201, 202].map(some_int =>
-    //             new Regress.TestStructA({some_int}));
-    //         expect(() => Regress.test_array_struct_in_full(array)).not.toThrow();
-    //     });
+        it('transfer-full in parameter', function () {
+            const array = [201, 202].map(some_int =>
+                new Regress.TestStructA({some_int}));
+            expect(() => Regress.test_array_struct_in_full(array)).not.toThrow();
+        });
 
-    //     it('transfer-none in parameter', function () {
-    //         const array = [301, 302, 303].map(some_int =>
-    //             new Regress.TestStructA({some_int}));
-    //         expect(() => Regress.test_array_struct_in_none(array)).not.toThrow();
-    //     });
-    // });
+        it('transfer-none in parameter', function () {
+            const array = [301, 302, 303].map(some_int =>
+                new Regress.TestStructA({some_int}));
+            expect(() => Regress.test_array_struct_in_none(array)).not.toThrow();
+        });
+    });
 });

@@ -1,26 +1,7 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- * Copyright (c) 2012  Red Hat, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2012 Red Hat, Inc.
 
 #include <config.h>  // for GJS_VERSION
 
@@ -39,14 +20,15 @@
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
+#include <js/Value.h>     // for NullValue
 #include <jsapi.h>        // for JS_DefinePropertyById, JS_DefineF...
 #include <jsfriendapi.h>  // for DumpHeap, IgnoreNurseryObjects
 
 #include "gi/object.h"
-#include "cjs/atoms.h"
-#include "cjs/context-private.h"
-#include "cjs/jsapi-util-args.h"
-#include "cjs/jsapi-util.h"
+#include "gjs/atoms.h"
+#include "gjs/context-private.h"
+#include "gjs/jsapi-util-args.h"
+#include "gjs/jsapi-util.h"
 #include "modules/system.h"
 #include "util/log.h"
 
@@ -211,6 +193,30 @@ static JSFunctionSpec module_funcs[] = {
     JS_FN("clearDateCaches", gjs_clear_date_caches, 0, GJS_MODULE_PROP_FLAGS),
     JS_FS_END};
 
+static bool get_program_args(JSContext* cx, unsigned argc, JS::Value* vp) {
+    static const size_t SLOT_ARGV = 0;
+
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+    GjsContextPrivate* priv = GjsContextPrivate::from_cx(cx);
+
+    JS::RootedValue v_argv(
+        cx, js::GetFunctionNativeReserved(&args.callee(), SLOT_ARGV));
+
+    if (v_argv.isUndefined()) {
+        // First time this property is accessed, build the array
+        JS::RootedObject argv(cx, priv->build_args_array());
+        if (!argv)
+            return false;
+        js::SetFunctionNativeReserved(&args.callee(), SLOT_ARGV,
+                                      JS::ObjectValue(*argv));
+        args.rval().setObject(*argv);
+    } else {
+        args.rval().set(v_argv);
+    }
+
+    return true;
+}
+
 bool
 gjs_js_define_system_stuff(JSContext              *context,
                            JS::MutableHandleObject module)
@@ -222,14 +228,35 @@ gjs_js_define_system_stuff(JSContext              *context,
 
     GjsContextPrivate* gjs = GjsContextPrivate::from_cx(context);
     const char* program_name = gjs->program_name();
+    const char* program_path = gjs->program_path();
 
-    JS::RootedValue value(context);
-    return gjs_string_from_utf8(context, program_name, &value) &&
+    JS::RootedValue v_program_invocation_name(context);
+    JS::RootedValue v_program_path(context, JS::NullValue());
+    if (program_path) {
+        if (!gjs_string_from_utf8(context, program_path, &v_program_path))
+            return false;
+    }
+
+    JS::RootedObject program_args_getter(
+        context,
+        JS_GetFunctionObject(js::NewFunctionByIdWithReserved(
+            context, get_program_args, 0, 0, gjs->atoms().program_args())));
+
+    return program_args_getter &&
+           gjs_string_from_utf8(context, program_name,
+                                &v_program_invocation_name) &&
            /* The name is modeled after program_invocation_name, part of glibc
             */
            JS_DefinePropertyById(context, module,
-                                 gjs->atoms().program_invocation_name(), value,
+                                 gjs->atoms().program_invocation_name(),
+                                 v_program_invocation_name,
                                  GJS_MODULE_PROP_FLAGS | JSPROP_READONLY) &&
+           JS_DefinePropertyById(context, module, gjs->atoms().program_path(),
+                                 v_program_path,
+                                 GJS_MODULE_PROP_FLAGS | JSPROP_READONLY) &&
+           JS_DefinePropertyById(context, module, gjs->atoms().program_args(),
+                                 program_args_getter, nullptr,
+                                 GJS_MODULE_PROP_FLAGS | JSPROP_GETTER) &&
            JS_DefinePropertyById(context, module, gjs->atoms().version(),
                                  GJS_VERSION,
                                  GJS_MODULE_PROP_FLAGS | JSPROP_READONLY);

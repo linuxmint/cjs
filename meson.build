@@ -1,6 +1,15 @@
-project('cjs', 'cpp', 'c', version: '5.0.0', license: ['MIT', 'LGPL2+'],
-    meson_version: '>= 0.49.2',
-    default_options: ['cpp_std=c++17', 'c_std=c99', 'warning_level=2'])
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+# SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
+
+project('gjs', 'cpp', 'c', version: '1.68.2', license: ['MIT', 'LGPL2+'],
+    meson_version: '>= 0.52.0',
+    default_options: ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99',
+        'warning_level=2'])
+
+# cpp_rtti: SpiderMonkey can be compiled with or without runtime type
+# information, and the default is without. We must match that option because we
+# need to derive from SpiderMonkey classes.
 
 api_version = '1.0'
 api_name = '@0@-@1@'.format(meson.project_name(), api_version)
@@ -39,10 +48,11 @@ if cc.get_id() == 'msvc'
         '-wd4251',
         '-wd4291',
         '-wd4800',
+        '-wd5030',
     ]), language: ['cpp', 'c'])
 else
     # Ignore spurious compiler warnings for things that GLib and SpiderMonkey
-    # header files commonly do	
+    # header files commonly do
     add_project_arguments(cxx.get_supported_arguments([
         '-fno-strict-aliasing',
         '-Wno-variadic-macros',  # GLib uses these in header files
@@ -75,20 +85,10 @@ else
     endif
 endif
 
-# SpiderMonkey can be compiled with or without runtime type information, we must
-# match that option because we need to derive from SpiderMonkey classes
-if get_option('spidermonkey_rtti')
-    if cxx.has_argument('-GR-')
-        add_project_arguments('-GR-', language: 'cpp')  # MSVC/clang-cl option
-    endif
-else
-    if cxx.has_argument('-fno-rtti')
-        add_project_arguments('-fno-rtti', language: 'cpp')
-        # -fno-rtti is not compatible with the vptr sanitizer (part of ubsan)
-        if get_option('b_sanitize') != 'none' and cxx.has_argument('-fno-sanitize=vptr')
-            add_project_arguments('-fno-sanitize=vptr', language: 'cpp')
-        endif
-    endif
+# -fno-rtti is not compatible with the vptr sanitizer (part of ubsan)
+if not get_option('cpp_rtti') and get_option('b_sanitize') != 'none' and \
+    cxx.has_argument('-fno-sanitize=vptr')
+    add_project_arguments('-fno-sanitize=vptr', language: 'cpp')
 endif
 
 if get_option('verbose_logs')
@@ -108,7 +108,8 @@ endif
 
 ### Check for required libraries ###############################################
 
-glib_required_version = '>= 2.58.0'
+# Note: Notify GNOME release team when adding or updating dependencies
+glib_required_version = '>= 2.66.0'
 glib = dependency('glib-2.0', version: glib_required_version,
     fallback: ['glib', 'libglib_dep'])
 gthread = dependency('gthread-2.0', version: glib_required_version,
@@ -118,7 +119,7 @@ gobject = dependency('gobject-2.0', version: glib_required_version,
 gio = dependency('gio-2.0', version: glib_required_version,
     fallback: ['glib', 'libgio_dep'])
 ffi = dependency('libffi', fallback: ['libffi', 'ffi_dep'])
-gi = dependency('gobject-introspection-1.0', version: '>= 1.58.3',
+gi = dependency('gobject-introspection-1.0', version: '>= 1.61.2',
     fallback: ['gobject-introspection', 'girepo_dep'])
 spidermonkey = dependency('mozjs-78')
 
@@ -138,7 +139,7 @@ if cxx.get_argument_syntax() == 'msvc'
 endif
 
 sysprof_capture = dependency('sysprof-capture-4',
-    required: get_option('profiler'),
+    required: get_option('profiler'), include_type: 'system',
     fallback: ['sysprof', 'libsysprof_capture_dep'],
     default_options: [
         'enable_examples=false',
@@ -297,18 +298,15 @@ header_conf.set('HAVE_DTRACE', get_option('dtrace'),
     description: 'Using dtrace probes')
 header_conf.set('HAVE_PRINTF_ALTERNATIVE_INT', have_printf_alternative_int,
     description: 'printf() accepts "%Id" for alternative integer output')
-
-if build_readline and readline.found()
-        header_conf.set('HAVE_READLINE_READLINE_H',
-                        cxx.check_header('readline/readline.h', prefix: '#include <cstdio>'))
+if build_readline
+    header_conf.set('HAVE_READLINE_READLINE_H',
+        cxx.check_header('readline/readline.h', prefix: '#include <cstdio>',
+            required: readline.found()))
 endif
-
 header_conf.set('HAVE_SYS_SYSCALL_H', cxx.check_header('sys/syscall.h'))
 header_conf.set('HAVE_UNISTD_H', cxx.check_header('unistd.h'))
-
-if build_profiler
-    header_conf.set('HAVE_SIGNAL_H', cxx.check_header('signal.h'))
-endif
+header_conf.set('HAVE_SIGNAL_H', cxx.check_header('signal.h',
+    required: build_profiler))
 
 # enable GNU extensions on systems that have them
 header_conf.set('_GNU_SOURCE', 1)
@@ -338,7 +336,7 @@ endif
 tapset_subst = configuration_data({
     'EXPANDED_LIBDIR': get_option('libdir'),
 })
-tapset = configure_file(input: 'cjs/cjs.stp.in', output: 'cjs.stp',
+tapset = configure_file(input: 'gjs/gjs.stp.in', output: 'gjs.stp',
     configuration: tapset_subst)
 if get_option('systemtap')
     install_data(tapset,
@@ -353,13 +351,13 @@ directory_defines = [
 ]
 
 gjs_public_headers = [
-    'cjs/context.h',
-    'cjs/coverage.h',
-    'cjs/error-types.h',
-    'cjs/gjs.h',
-    'cjs/macros.h',
-    'cjs/mem.h',
-    'cjs/profiler.h',
+    'gjs/context.h',
+    'gjs/coverage.h',
+    'gjs/error-types.h',
+    'gjs/gjs.h',
+    'gjs/macros.h',
+    'gjs/mem.h',
+    'gjs/profiler.h',
 ]
 
 # For historical reasons, some files live in gi/
@@ -370,6 +368,7 @@ libgjs_sources = [
     'gi/arg-cache.cpp', 'gi/arg-cache.h',
     'gi/boxed.cpp', 'gi/boxed.h',
     'gi/closure.cpp', 'gi/closure.h',
+    'gi/cwrapper.cpp', 'gi/cwrapper.h',
     'gi/enumeration.cpp', 'gi/enumeration.h',
     'gi/foreign.cpp', 'gi/foreign.h',
     'gi/fundamental.cpp', 'gi/fundamental.h',
@@ -389,21 +388,23 @@ libgjs_sources = [
     'gi/utils-inl.h',
     'gi/value.cpp', 'gi/value.h',
     'gi/wrapperutils.cpp', 'gi/wrapperutils.h',
-    'cjs/atoms.cpp', 'cjs/atoms.h',
-    'cjs/byteArray.cpp', 'cjs/byteArray.h',
-    'cjs/context.cpp', 'cjs/context-private.h',
-    'cjs/coverage.cpp',
-    'cjs/debugger.cpp',
-    'cjs/deprecation.cpp', 'cjs/deprecation.h',
-    'cjs/engine.cpp', 'cjs/engine.h',
-    'cjs/error-types.cpp',
-    'cjs/global.cpp', 'cjs/global.h',
-    'cjs/importer.cpp', 'cjs/importer.h',
-    'cjs/mem.cpp', 'cjs/mem-private.h',
-    'cjs/module.cpp', 'cjs/module.h',
-    'cjs/native.cpp', 'cjs/native.h',
-    'cjs/profiler.cpp', 'cjs/profiler-private.h',
-    'cjs/stack.cpp',
+    'gjs/atoms.cpp', 'gjs/atoms.h',
+    'gjs/byteArray.cpp', 'gjs/byteArray.h',
+    'gjs/context.cpp', 'gjs/context-private.h',
+    'gjs/coverage.cpp',
+    'gjs/debugger.cpp',
+    'gjs/deprecation.cpp', 'gjs/deprecation.h',
+    'gjs/engine.cpp', 'gjs/engine.h',
+    'gjs/error-types.cpp',
+    'gjs/global.cpp', 'gjs/global.h',
+    'gjs/importer.cpp', 'gjs/importer.h',
+    'gjs/internal.cpp', 'gjs/internal.h',
+    'gjs/mem.cpp', 'gjs/mem-private.h',
+    'gjs/module.cpp', 'gjs/module.h',
+    'gjs/native.cpp', 'gjs/native.h',
+    'gjs/objectbox.cpp', 'gjs/objectbox.h',
+    'gjs/profiler.cpp', 'gjs/profiler-private.h',
+    'gjs/stack.cpp',
     'modules/console.cpp', 'modules/console.h',
     'modules/modules.cpp', 'modules/modules.h',
     'modules/print.cpp', 'modules/print.h',
@@ -417,13 +418,13 @@ libgjs_private_sources = [
 ]
 
 libgjs_jsapi_sources = [
-    'cjs/jsapi-class.h',
-    'cjs/jsapi-dynamic-class.cpp',
-    'cjs/jsapi-util-args.h',
-    'cjs/jsapi-util-error.cpp',
-    'cjs/jsapi-util-root.h',
-    'cjs/jsapi-util-string.cpp',
-    'cjs/jsapi-util.cpp', 'cjs/jsapi-util.h',
+    'gjs/jsapi-class.h',
+    'gjs/jsapi-dynamic-class.cpp',
+    'gjs/jsapi-util-args.h',
+    'gjs/jsapi-util-error.cpp',
+    'gjs/jsapi-util-root.h',
+    'gjs/jsapi-util-string.cpp',
+    'gjs/jsapi-util.cpp', 'gjs/jsapi-util.h',
     'util/log.cpp', 'util/log.h',
     'util/misc.cpp', 'util/misc.h',
 ]
@@ -484,19 +485,10 @@ if build_profiler
     libgjs_dependencies += profiler_deps
 endif
 
-link_args = []
-if cxx.has_link_argument('-Wl,-no-undefined')
-    link_args += '-Wl,-no-undefined'
-else
-    # -undefined error is the equivalent of -no-undefined for the macOS linker,
-    # but -undefined would also be understood as a valid argument for GNU ld!
-    link_args += cxx.get_supported_link_arguments('-Wl,-undefined,error')
-endif
-
 libgjs_cpp_args = ['-DGJS_COMPILATION'] + directory_defines
 
 # Check G-I and/or Meson on this one.
-libgjs_cpp_args += ['-DG_LOG_DOMAIN="Cjs"']
+libgjs_cpp_args += ['-DG_LOG_DOMAIN="Gjs"']
 
 if host_machine.system() == 'windows'
     # We need these defines to build properly for all Windows builds
@@ -506,10 +498,10 @@ endif
 libgjs_jsapi = static_library(meson.project_name() + '-jsapi',
     libgjs_jsapi_sources, probes_header, probes_objfile,
     cpp_args: libgjs_cpp_args,
-    link_args: link_args,
     dependencies: libgjs_dependencies,
     install: false)
 
+link_args = []
 symbol_map = files('libgjs.map')
 symbol_list = files('libgjs.symbols')
 link_args += cxx.get_supported_link_arguments([
@@ -530,7 +522,7 @@ libgjs = shared_library(meson.project_name(),
     gnu_symbol_visibility: 'hidden',
     install: true)
 
-install_headers(gjs_public_headers, subdir: api_name / 'cjs')
+install_headers(gjs_public_headers, subdir: api_name / 'gjs')
 
 # Allow using libgjs as a subproject
 libgjs_dep = declare_dependency(link_with: [libgjs, libgjs_jsapi],
@@ -540,16 +532,16 @@ libgjs_dep = declare_dependency(link_with: [libgjs, libgjs_jsapi],
 
 gjs_private_gir = gnome.generate_gir(libgjs,
     includes: ['GObject-2.0', 'Gio-2.0'], sources: libgjs_private_sources,
-    namespace: 'CjsPrivate', nsversion: '1.0', identifier_prefix: 'Gjs',
+    namespace: 'GjsPrivate', nsversion: '1.0', identifier_prefix: 'Gjs',
     symbol_prefix: 'gjs_', extra_args: '--warn-error', install: true,
     install_dir_gir: false, install_dir_typelib: pkglibdir / 'girepository-1.0')
 gjs_private_typelib = gjs_private_gir[1]
 
 ### Build gjs-console interpreter ##############################################
 
-gjs_console_srcs = ['cjs/console.cpp']
+gjs_console_srcs = ['gjs/console.cpp']
 
-gjs_console = executable('cjs-console', gjs_console_srcs,
+gjs_console = executable('gjs-console', gjs_console_srcs,
     cpp_args: libgjs_cpp_args,
     dependencies: libgjs_dep, install: true)
 
@@ -564,7 +556,7 @@ install_data('installed-tests/extra/lsan.supp',
 
 if get_option('installed_tests')
     schemadir = abs_datadir / 'glib-2.0' / 'schemas'
-    install_data('installed-tests/js/org.cinnamon.CjsTest.gschema.xml', install_dir: schemadir)
+    install_data('installed-tests/js/org.gnome.GjsTest.gschema.xml', install_dir: schemadir)
     meson.add_install_script('build/compile-gschemas.py', schemadir)
 endif
 
@@ -579,25 +571,29 @@ pkg.generate(libgjs, name: api_name, description: 'JS bindings for GObjects',
         'bindir=${exec_prefix}' / get_option('bindir'),
         'datarootdir=${prefix}' / get_option('datadir'),
         'datadir=${datarootdir}',
-        'gjs_console=${bindir}/cjs-console',
+        'gjs_console=${bindir}/gjs-console',
     ])
 
 ### Test environment ###########################################################
 
 tests_environment = environment()
 js_tests_builddir = meson.current_build_dir() / 'installed-tests' / 'js'
+libgjs_test_tools_builddir = js_tests_builddir / 'libgjstesttools'
 # GJS_PATH is empty here since we want to force the use of our own
 # resources. G_FILENAME_ENCODING ensures filenames are not UTF-8
 tests_environment.set('TOP_BUILDDIR', meson.build_root())
 tests_environment.set('GJS_USE_UNINSTALLED_FILES', '1')
 tests_environment.set('GJS_PATH', '')
 tests_environment.prepend('GI_TYPELIB_PATH', meson.current_build_dir(),
-    js_tests_builddir)
+    js_tests_builddir, libgjs_test_tools_builddir)
 tests_environment.prepend('LD_LIBRARY_PATH', meson.current_build_dir(),
-    js_tests_builddir)
+    js_tests_builddir, libgjs_test_tools_builddir)
 tests_environment.set('G_FILENAME_ENCODING', 'latin1')
-tests_environment.set('LSAN_OPTIONS', 'exitcode=23,suppressions=@0@'.format(
-    meson.current_source_dir() / 'installed-tests' / 'extra' / 'lsan.supp'))
+# Workaround for https://github.com/google/sanitizers/issues/1322
+tests_environment.set('ASAN_OPTIONS', 'intercept_tls_get_addr=0')
+tests_environment.set('LSAN_OPTIONS',
+    'fast_unwind_on_malloc=0,exitcode=23,suppressions=@0@'.format(
+        meson.current_source_dir() / 'installed-tests' / 'extra' / 'lsan.supp'))
 tests_environment.set('NO_AT_BRIDGE', '1')
 tests_environment.set('GSETTINGS_SCHEMA_DIR', js_tests_builddir)
 tests_environment.set('GSETTINGS_BACKEND', 'memory')
@@ -645,7 +641,7 @@ valgrind_environment.set('VALGRIND', 'valgrind')
 glib_suppresssions = (glib.get_pkgconfig_variable('prefix') / 'share' /
     'glib-2.0' / 'valgrind' / 'glib.supp')
 gjs_suppressions = (meson.current_source_dir() / 'installed-tests' / 'extra' /
-    'cjs.supp')
+    'gjs.supp')
 valgrind_args = [
     '--suppressions=@0@'.format(glib_suppresssions),
     '--suppressions=@0@'.format(gjs_suppressions),

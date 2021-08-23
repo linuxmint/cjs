@@ -1,4 +1,9 @@
 // -*- mode: js; indent-tabs-mode: nil -*-
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2011 Giovanni Campagna <gcampagna@src.gnome.org>
+
+const System = imports.system;
+
 imports.gi.versions.Gtk = '3.0';
 
 const Gio = imports.gi.Gio;
@@ -65,12 +70,7 @@ const MyObject = GObject.registerClass({
     }
 
     set construct(val) {
-        // this should be called at most once
-        if (this._constructCalled)
-            throw Error('Construct-Only property set more than once');
-
         this._constructProp = val;
-        this._constructCalled = true;
     }
 
     notifyProp() {
@@ -153,6 +153,8 @@ const MyCustomInit = GObject.registerClass(class MyCustomInit extends GObject.Ob
     }
 });
 
+const NoName = GObject.registerClass(class extends GObject.Object {});
+
 describe('GObject class with decorator', function () {
     let myInstance;
     beforeEach(function () {
@@ -182,12 +184,12 @@ describe('GObject class with decorator', function () {
     });
 
     it('warns if more than one argument passed to the default constructor', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_MESSAGE,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_MESSAGE,
             '*Too many arguments*');
 
         new MyObject({readwrite: 'baz'}, 'this is ignored', 123);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'testGObjectClassTooManyArguments');
     });
 
@@ -214,13 +216,17 @@ describe('GObject class with decorator', function () {
         expect(myInstance3.construct).toEqual('quz');
     });
 
+    it('does not allow changing CONSTRUCT_ONLY properties', function () {
+        myInstance.construct = 'val';
+        expect(myInstance.construct).toEqual('default');
+    });
+
     it('has a name', function () {
         expect(MyObject.name).toEqual('MyObject');
     });
 
     // the following would (should) cause a CRITICAL:
     // myInstance.readonly = 'val';
-    // myInstance.construct = 'val';
 
     it('has a notify signal', function () {
         let notifySpy = jasmine.createSpy('notifySpy');
@@ -333,6 +339,15 @@ describe('GObject class with decorator', function () {
         expect(obj instanceof MyObject).toBeTruthy();
     });
 
+    it('handles anonymous class expressions', function () {
+        const obj = new NoName();
+        expect(obj instanceof NoName).toBeTruthy();
+
+        const NoName2 = GObject.registerClass(class extends GObject.Object {});
+        const obj2 = new NoName2();
+        expect(obj2 instanceof NoName2).toBeTruthy();
+    });
+
     it('calls its _instance_init() function while chaining up in constructor', function () {
         let instance = new MyCustomInit();
         expect(instance.foo).toBeTruthy();
@@ -391,7 +406,7 @@ describe('GObject class with decorator', function () {
         expect(() => (obj.anchors = 'foo')).not.toThrow();
         expect(obj.anchors).toEqual('foo');
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'testGObjectClassForgottenOverride');
     });
 
@@ -593,7 +608,7 @@ describe('Register GType name', function () {
         let gtypeName = 'GType$Test/WithLòt\'s of*bad§chars!';
         let expectedSanitized = 'GType_Test_WithL_t_s_of_bad_chars_';
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             `*RangeError: Provided GType name '${gtypeName}' is not valid; ` +
             `automatically sanitized to '${expectedSanitized}'*`);
 
@@ -601,7 +616,7 @@ describe('Register GType name', function () {
             GTypeName: gtypeName,
         }, class extends GObject.Object {});
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'testGObjectRegisterClassSanitize');
 
         expect(GtypeClass.$gtype.name).toEqual(expectedSanitized);
@@ -751,6 +766,14 @@ describe('Auto accessor generation', function () {
                 'Long-named property', GObject.ParamFlags.READWRITE, 0, 100, 48),
             'construct': GObject.ParamSpec.int('construct', 'Construct', 'Construct',
                 GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT, 0, 100, 96),
+            'construct-only': GObject.ParamSpec.int('construct-only', 'Construct only',
+                'Construct-only property',
+                GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+                0, 100, 80),
+            'construct-only-with-setter': GObject.ParamSpec.int('construct-only-with-setter', 'Construct only with setter',
+                'Construct-only property with a setter method',
+                GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+                0, 100, 80),
             'snake-name': GObject.ParamSpec.int('snake-name', 'Snake name',
                 'Snake-cased property', GObject.ParamFlags.READWRITE, 0, 100, 36),
             'camel-name': GObject.ParamSpec.int('camel-name', 'Camel name',
@@ -768,6 +791,7 @@ describe('Auto accessor generation', function () {
         },
     }, class AutoAccessors extends GObject.Object {
         _init(props = {}) {
+            this._constructOnlySetterCalled = 0;
             super._init(props);
             this._snakeNameGetterCalled = 0;
             this._snakeNameSetterCalled = 0;
@@ -811,6 +835,15 @@ describe('Auto accessor generation', function () {
         get missing_setter() {
             return 42;
         }
+
+        get construct_only_with_setter() {
+            return this._constructOnlyValue;
+        }
+
+        set constructOnlyWithSetter(value) {
+            this._constructOnlySetterCalled++;
+            this._constructOnlyValue = value;
+        }
     });
 
     let a;
@@ -829,8 +862,35 @@ describe('Auto accessor generation', function () {
 
     it("initial value is the param spec's default value", function () {
         expect(a.simple).toEqual(24);
+        expect(a.long_long_name).toEqual(48);
+        expect(a.longLongName).toEqual(48);
         expect(a['long-long-name']).toEqual(48);
         expect(a.construct).toEqual(96);
+        expect(a.construct_only).toEqual(80);
+        expect(a.constructOnly).toEqual(80);
+        expect(a['construct-only']).toEqual(80);
+    });
+
+    it('set properties at construct time', function () {
+        a = new AutoAccessors({
+            simple: 1,
+            longLongName: 1,
+            construct: 1,
+            'construct-only': 1,
+            'construct-only-with-setter': 2,
+        });
+        expect(a.simple).toEqual(1);
+        expect(a.long_long_name).toEqual(1);
+        expect(a.longLongName).toEqual(1);
+        expect(a['long-long-name']).toEqual(1);
+        expect(a.construct).toEqual(1);
+        expect(a.construct_only).toEqual(1);
+        expect(a.constructOnly).toEqual(1);
+        expect(a['construct-only']).toEqual(1);
+        expect(a.constructOnlyWithSetter).toEqual(2);
+        expect(a.construct_only_with_setter).toEqual(2);
+        expect(a['construct-only-with-setter']).toEqual(2);
+        expect(a._constructOnlySetterCalled).toEqual(1);
     });
 
     it('notify when the property changes', function () {
@@ -886,3 +946,317 @@ describe('Auto accessor generation', function () {
         expect(() => (a.missingSetter = 1)).toThrowError(/setter/);
     });
 });
+
+const MyObjectWithJSObjectProperty = GObject.registerClass({
+    Properties: {
+        'jsobj-prop': GObject.ParamSpec.jsobject('jsobj-prop', 'jsobj-prop', 'jsobj-prop',
+            GObject.ParamFlags.CONSTRUCT | GObject.ParamFlags.READWRITE, ''),
+    },
+}, class MyObjectWithJSObjectProperty extends GObject.Object {
+});
+
+describe('GObject class with JSObject property', function () {
+    it('assigns a valid JSObject on construct', function () {
+        let date = new Date();
+        let obj = new MyObjectWithJSObjectProperty({jsobj_prop: date});
+        expect(obj.jsobj_prop).toEqual(date);
+        expect(obj.jsobj_prop).not.toEqual(new Date(0));
+        expect(() => obj.jsobj_prop.setFullYear(1985)).not.toThrow();
+        expect(obj.jsobj_prop.getFullYear()).toEqual(1985);
+    });
+
+    it('Set null with an empty JSObject on construct', function () {
+        expect(new MyObjectWithJSObjectProperty().jsobj_prop).toBeNull();
+        expect(new MyObjectWithJSObjectProperty({}).jsobj_prop).toBeNull();
+    });
+
+    it('assigns a null JSObject on construct', function () {
+        expect(new MyObjectWithJSObjectProperty({jsobj_prop: null}).jsobj_prop)
+            .toBeNull();
+    });
+
+    it('assigns a JSObject Array on construct', function () {
+        expect(() => new MyObjectWithJSObjectProperty({jsobj_prop: [1, 2, 3]}))
+            .not.toThrow();
+    });
+
+    it('assigns a Function on construct', function () {
+        expect(() => new MyObjectWithJSObjectProperty({jsobj_prop: () => {
+            return true;
+        }})).not.toThrow();
+    });
+
+    it('throws an error when using a boolean value on construct', function () {
+        expect(() => new MyObjectWithJSObjectProperty({jsobj_prop: true}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using an int value on construct', function () {
+        expect(() => new MyObjectWithJSObjectProperty({jsobj_prop: 1}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using a numeric value on construct', function () {
+        expect(() => new MyObjectWithJSObjectProperty({jsobj_prop: Math.PI}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using a string value on construct', function () {
+        expect(() => new MyObjectWithJSObjectProperty({jsobj_prop: 'string'}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using an undefined value on construct', function () {
+        expect(() => new MyObjectWithJSObjectProperty({jsobj_prop: undefined})).toThrow();
+    });
+
+    it('property value survives when GObject wrapper is collected', function () {
+        const MyConverter = GObject.registerClass({
+            Properties: {
+                testprop: GObject.ParamSpec.jsobject('testprop', 'testprop', 'Test property',
+                    GObject.ParamFlags.CONSTRUCT | GObject.ParamFlags.READWRITE),
+            },
+            Implements: [Gio.Converter],
+        }, class MyConverter extends GObject.Object {});
+
+        function stashObject() {
+            const base = new Gio.MemoryInputStream();
+            const converter = new MyConverter({testprop: [1, 2, 3]});
+            return Gio.ConverterInputStream.new(base, converter);
+        }
+
+        const stream = stashObject();
+        System.gc();
+        expect(stream.get_converter().testprop).toEqual([1, 2, 3]);
+    });
+});
+
+const MyObjectWithJSObjectSignals = GObject.registerClass({
+    Signals: {
+        'send-object': {param_types: [GObject.TYPE_JSOBJECT]},
+        'send-many-objects': {
+            param_types: [GObject.TYPE_JSOBJECT,
+                GObject.TYPE_JSOBJECT,
+                GObject.TYPE_JSOBJECT],
+        },
+        'get-object': {
+            flags: GObject.SignalFlags.RUN_LAST,
+            accumulator: GObject.AccumulatorType.FIRST_WINS,
+            return_type: GObject.TYPE_JSOBJECT,
+            param_types: [GObject.TYPE_JSOBJECT],
+        },
+    },
+}, class MyObjectWithJSObjectSignals extends GObject.Object {
+    emitObject(obj) {
+        this.emit('send-object', obj);
+    }
+});
+
+describe('GObject class with JSObject signals', function () {
+    let myInstance;
+    beforeEach(function () {
+        myInstance = new MyObjectWithJSObjectSignals();
+    });
+
+    it('emits signal with null JSObject parameter', function () {
+        let customSpy = jasmine.createSpy('sendObjectSpy');
+        myInstance.connect('send-object', customSpy);
+        myInstance.emitObject(null);
+        expect(customSpy).toHaveBeenCalledWith(myInstance, null);
+    });
+
+    it('emits signal with JSObject parameter', function () {
+        let customSpy = jasmine.createSpy('sendObjectSpy');
+        myInstance.connect('send-object', customSpy);
+
+        let obj = {
+            foo: [1, 2, 3],
+            sub: {a: {}, 'b': this},
+            desc: 'test',
+            date: new Date(),
+        };
+        myInstance.emitObject(obj);
+        expect(customSpy).toHaveBeenCalledWith(myInstance, obj);
+    });
+
+    it('emits signal with multiple JSObject parameters', function () {
+        let customSpy = jasmine.createSpy('sendManyObjectsSpy');
+        myInstance.connect('send-many-objects', customSpy);
+
+        let obj = {
+            foo: [9, 8, 7, 'a', 'b', 'c'],
+            sub: {a: {}, 'b': this},
+            desc: 'test',
+            date: new RegExp('\\w+'),
+        };
+        myInstance.emit('send-many-objects', obj, obj.foo, obj.sub);
+        expect(customSpy).toHaveBeenCalledWith(myInstance, obj, obj.foo, obj.sub);
+    });
+
+    it('re-emits signal with same JSObject parameter', function () {
+        let obj = {
+            foo: [9, 8, 7, 'a', 'b', 'c'],
+            sub: {a: {}, 'b': this},
+            func: arg => {
+                return {ret: [arg]};
+            },
+        };
+
+        myInstance.connect('send-many-objects', (instance, func, args, foo) => {
+            expect(instance).toEqual(myInstance);
+            expect(System.addressOf(instance)).toEqual(System.addressOf(myInstance));
+            expect(foo).toEqual(obj.foo);
+            expect(System.addressOf(foo)).toEqual(System.addressOf(obj.foo));
+            expect(func(args).ret[0]).toEqual(args);
+        });
+        myInstance.connect('send-object', (instance, param) => {
+            expect(instance).toEqual(myInstance);
+            expect(System.addressOf(instance)).toEqual(System.addressOf(myInstance));
+            expect(param).toEqual(obj);
+            expect(System.addressOf(param)).toEqual(System.addressOf(obj));
+            expect(() => instance.emit('send-many-objects', param.func, param, param.foo))
+                .not.toThrow();
+        });
+
+        myInstance.emit('send-object', obj);
+    });
+
+    it('throws an error when using a boolean value as parameter', function () {
+        expect(() => myInstance.emit('send-object', true))
+            .toThrowError(/JSObject expected/);
+        expect(() => myInstance.emit('send-many-objects', ['a'], true, {}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using an int value as parameter', function () {
+        expect(() => myInstance.emit('send-object', 1))
+            .toThrowError(/JSObject expected/);
+        expect(() => myInstance.emit('send-many-objects', ['a'], 1, {}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using a numeric value as parameter', function () {
+        expect(() => myInstance.emit('send-object', Math.PI))
+            .toThrowError(/JSObject expected/);
+        expect(() => myInstance.emit('send-many-objects', ['a'], Math.PI, {}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using a string value as parameter', function () {
+        expect(() => myInstance.emit('send-object', 'string'))
+            .toThrowError(/JSObject expected/);
+        expect(() => myInstance.emit('send-many-objects', ['a'], 'string', {}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('throws an error when using an undefined value as parameter', function () {
+        expect(() => myInstance.emit('send-object', undefined))
+            .toThrowError(/JSObject expected/);
+        expect(() => myInstance.emit('send-many-objects', ['a'], undefined, {}))
+            .toThrowError(/JSObject expected/);
+    });
+
+    it('returns a JSObject', function () {
+        let data = {
+            foo: [9, 8, 7, 'a', 'b', 'c'],
+            sub: {a: {}, 'b': this},
+            func: arg => {
+                return {ret: [arg]};
+            },
+        };
+        let id = myInstance.connect('get-object', () => {
+            return data;
+        });
+        expect(myInstance.emit('get-object', {})).toBe(data);
+        myInstance.disconnect(id);
+
+        myInstance.connect('get-object', (instance, input) => {
+            if (input) {
+                if (typeof input === 'function')
+                    input();
+                return input;
+            }
+
+            class SubObject {
+                constructor() {
+                    this.pi = Math.PI;
+                }
+
+                method() {}
+
+                gobject() {
+                    return GObject.Object;
+                }
+
+                get data() {
+                    return data;
+                }
+            }
+
+            return new SubObject();
+        });
+
+        expect(myInstance.emit('get-object', null).constructor.name).toBe('SubObject');
+        expect(myInstance.emit('get-object', null).data).toBe(data);
+        expect(myInstance.emit('get-object', null).pi).toBe(Math.PI);
+        expect(() => myInstance.emit('get-object', null).method()).not.toThrow();
+        expect(myInstance.emit('get-object', null).gobject()).toBe(GObject.Object);
+        expect(new (myInstance.emit('get-object', null).gobject())() instanceof GObject.Object)
+            .toBeTruthy();
+        expect(myInstance.emit('get-object', data)).toBe(data);
+        expect(myInstance.emit('get-object', jasmine.createSpy('callMeSpy')))
+            .toHaveBeenCalled();
+    });
+
+    it('returns null when returning undefined', function () {
+        myInstance.connect('get-object', () => {
+            return undefined;
+        });
+        expect(myInstance.emit('get-object', {})).toBeNull();
+    });
+
+    it('returns null when not returning', function () {
+        myInstance.connect('get-object', () => { });
+        expect(myInstance.emit('get-object', {})).toBeNull();
+    });
+
+    // These tests are intended to throw an error, but currently errors cannot
+    // be caught from signal handlers, so we check for logged messages instead
+
+    it('throws an error when returning a boolean value', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*JSObject expected*');
+        myInstance.connect('get-object', () => true);
+        myInstance.emit('get-object', {});
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
+            'throws an error when returning a boolean value');
+    });
+
+    it('throws an error when returning an int value', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*JSObject expected*');
+        myInstance.connect('get-object', () => 1);
+        myInstance.emit('get-object', {});
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
+            'throws an error when returning a boolean value');
+    });
+
+    it('throws an error when returning a numeric value', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*JSObject expected*');
+        myInstance.connect('get-object', () => Math.PI);
+        myInstance.emit('get-object', {});
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
+            'throws an error when returning a boolean value');
+    });
+
+    it('throws an error when returning a string value', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*JSObject expected*');
+        myInstance.connect('get-object', () => 'string');
+        myInstance.emit('get-object', {});
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
+            'throws an error when returning a boolean value');
+    });
+});
+

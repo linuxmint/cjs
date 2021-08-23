@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2016 Endless Mobile, Inc.
+
 #include <config.h>
 
 #include <stdint.h>
@@ -15,8 +18,8 @@
 #include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>       // for JS_DefineFunctions
 
-#include "cjs/jsapi-util-args.h"
-#include "cjs/jsapi-util.h"
+#include "gjs/jsapi-util-args.h"
+#include "gjs/jsapi-util.h"
 #include "test/gjs-test-common.h"
 #include "test/gjs-test-utils.h"
 

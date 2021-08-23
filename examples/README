@@ -1,3 +1,3 @@
 In order to run those example scripts, do:
 
-  cjs-console script-filename.js
+  gjs-console script-filename.js

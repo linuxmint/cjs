@@ -1,31 +1,29 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
- *
- * Copyright (c) 2008  litl, LLC
- * Copyright (c) 2009 Red Hat, Inc.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2009 Red Hat, Inc.
 
 #include <config.h>
+
+#include <string>
 
 #include <glib.h>
 
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>  // for JS_EncodeStringToUTF8
 #include <js/Conversions.h>
+#include <js/GCPolicyAPI.h>
 #include <js/PropertySpec.h>  // for JS_FN, JSFunctionSpec, JS_FS_END
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>
 
-#include "cjs/jsapi-util.h"
+#include "gjs/jsapi-util.h"
 #include "modules/print.h"
 
 // Avoid static_assert in MSVC builds
 namespace JS {
-template <typename T> struct GCPolicy;
-
 template <>
 struct GCPolicy<void*> : public IgnoreGCPolicy<void*> {};
 }
@@ -89,8 +87,9 @@ static bool gjs_log_error(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 GJS_JSAPI_RETURN_CONVENTION
 static bool gjs_print_parse_args(JSContext* cx, const JS::CallArgs& argv,
-                                 GjsAutoChar* buffer) {
-    GString* str = g_string_new("");
+                                 std::string* buffer) {
+    g_assert(buffer && "forgot out parameter");
+    buffer->clear();
     for (unsigned n = 0; n < argv.length(); ++n) {
         /* JS::ToString might throw, in which case we will only log that the
          * value could not be converted to string */
@@ -100,23 +99,17 @@ static bool gjs_print_parse_args(JSContext* cx, const JS::CallArgs& argv,
 
         if (jstr) {
             JS::UniqueChars s(JS_EncodeStringToUTF8(cx, jstr));
-            if (!s) {
-                g_string_free(str, true);
+            if (!s)
                 return false;
-            }
 
-            g_string_append(str, s.get());
+            *buffer += s.get();
             if (n < (argv.length() - 1))
-                g_string_append_c(str, ' ');
+                *buffer += ' ';
         } else {
-            *buffer = g_string_free(str, true);
-            if (!*buffer)
-                *buffer = g_strdup("<invalid string>");
+            *buffer = "<invalid string>";
             return true;
         }
     }
-    *buffer = g_string_free(str, false);
-
     return true;
 }
 
@@ -124,11 +117,11 @@ GJS_JSAPI_RETURN_CONVENTION
 static bool gjs_print(JSContext* context, unsigned argc, JS::Value* vp) {
     JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);
 
-    GjsAutoChar buffer;
+    std::string buffer;
     if (!gjs_print_parse_args(context, argv, &buffer))
         return false;
 
-    g_print("%s\n", buffer.get());
+    g_print("%s\n", buffer.c_str());
 
     argv.rval().setUndefined();
     return true;
@@ -138,11 +131,11 @@ GJS_JSAPI_RETURN_CONVENTION
 static bool gjs_printerr(JSContext* context, unsigned argc, JS::Value* vp) {
     JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);
 
-    GjsAutoChar buffer;
+    std::string buffer;
     if (!gjs_print_parse_args(context, argv, &buffer))
         return false;
 
-    g_printerr("%s\n", buffer.get());
+    g_printerr("%s\n", buffer.c_str());
 
     argv.rval().setUndefined();
     return true;

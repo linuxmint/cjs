@@ -1,4 +1,4 @@
-GJS includes a number of built-in funtions for logging and aiding debugging, in
+GJS includes a number of built-in functions for logging and aiding debugging, in
 addition to those available as a part of the GNOME APIs.
 
 # Built-in Functions
@@ -37,7 +37,7 @@ gjs> try {
 ....     logError(e, 'FooError');
 .... }
 
-(gjs:28115): Gjs-WARNING **: 19:28:13.334: JS ERROR: FooError: Error: Some error occured
+(gjs:28115): Gjs-WARNING **: 19:28:13.334: JS ERROR: FooError: Error: Some error occurred
 @typein:2:16
 @<stdin>:1:34
 ```
@@ -45,7 +45,7 @@ gjs> try {
 
 ### print() & printerr()
 
-`print()` takes any number of string (or coercable) arguments, joins them with a
+`print()` takes any number of string (or coercible) arguments, joins them with a
 space and appends a newline (`\n`). The resulting message will be printed
 directly to `stdout` of the current process using `g_print()`.
 
@@ -98,19 +98,18 @@ function _makeLogFunction(level) {
     };
 }
 
-// `window` is the global object in GJS, for historical reasons
-window.log      = _makeLogFunction(GLib.LogLevelFlags.LEVEL_MESSAGE);
-window.debug    = _makeLogFunction(GLib.LogLevelFlags.LEVEL_DEBUG);
-window.info     = _makeLogFunction(GLib.LogLevelFlags.LEVEL_INFO);
-window.warning  = _makeLogFunction(GLib.LogLevelFlags.LEVEL_WARNING);
-window.critical = _makeLogFunction(GLib.LogLevelFlags.LEVEL_CRITICAL);
-window.error    = _makeLogFunction(GLib.LogLevelFlags.LEVEL_ERROR);
+globalThis.log      = _makeLogFunction(GLib.LogLevelFlags.LEVEL_MESSAGE);
+globalThis.debug    = _makeLogFunction(GLib.LogLevelFlags.LEVEL_DEBUG);
+globalThis.info     = _makeLogFunction(GLib.LogLevelFlags.LEVEL_INFO);
+globalThis.warning  = _makeLogFunction(GLib.LogLevelFlags.LEVEL_WARNING);
+globalThis.critical = _makeLogFunction(GLib.LogLevelFlags.LEVEL_CRITICAL);
+globalThis.error    = _makeLogFunction(GLib.LogLevelFlags.LEVEL_ERROR);
 
 // Log all messages when connected to the journal
 if (GLib.log_writer_is_journald(2))
     GLib.setenv('G_MESSAGES_DEBUG', LOG_DOMAIN, false);
 ```
 
-[global-cpp]: https://gitlab.gnome.org/GNOME/gjs/blob/master/gjs/global.cpp
-[polari]: https://gitlab.gnome.org/GNOME/polari/blob/master/src/main.js
+[global-cpp]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/gjs/global.cpp
+[polari]: https://gitlab.gnome.org/GNOME/polari/blob/HEAD/src/main.js
 

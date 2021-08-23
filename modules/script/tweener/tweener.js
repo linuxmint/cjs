@@ -1,7 +1,9 @@
 /* -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil; -*- */
 /* eslint-disable block-scoped-var, eqeqeq, no-shadow, prefer-rest-params */
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2006-2007 Zeh Fernando and Nate Chatellier
+// SPDX-FileCopyrightText: 2008 litl, LLC.
 
-/* Copyright 2008  litl, LLC. */
 /**
  * Tweener
  * Transition controller for movieclips, sounds, textfields and other objects
@@ -14,28 +16,8 @@ pauseAllTweens, pauseTweens, PropertyList, registerSpecialProperty,
 registerSpecialPropertyModifier, registerSpecialPropertySplitter,
 removeAllTweens, removeTweens, restrictedWords, resumeAllTweens, resumeTweens,
 setFrameTicker, setTimeScale */
+
 /*
- Licensed under the MIT License
-
- Copyright (c) 2006-2007 Zeh Fernando and Nate Chatellier
-
- Permission is hereby granted, free of charge, to any person obtaining a copy of
- this software and associated documentation files (the "Software"), to deal in
- the Software without restriction, including without limitation the rights to
- use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- the Software, and to permit persons to whom the Software is furnished to do so,
- subject to the following conditions:
-
- The above copyright notice and this permission notice shall be included in all
- copies or substantial portions of the Software.
-
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
  http://code.google.com/p/tweener/
  http://code.google.com/p/tweener/wiki/License
  */
@@ -329,7 +311,6 @@ function _updateTweenByIndex(i) {
 
             _callOnFunction(tweening.onUpdate, 'onUpdate', tweening.onUpdateScope,
                 scope, tweening.onUpdateParams);
-
         } else {
             tweening.updatesSkipped++;
         }
@@ -620,7 +601,7 @@ function addCaller(target, tweeningParameters) {
 function _getNumberOfProperties(object) {
     var totalProperties = 0;
 
-    // the following line is disabled becasue eslint was picking up the following error: the variable name is defined but never used, however since it is required to search the object it is used and we'll allow the line to be ignored to get rid of the error message
+    // the following line is disabled because eslint was picking up the following error: the variable name is defined but never used, however since it is required to search the object it is used and we'll allow the line to be ignored to get rid of the error message
     /* eslint-disable-next-line */
     for (let name in object) {
         totalProperties++;
@@ -642,7 +623,6 @@ function removeTweensByTime(scope, properties, timeStart, timeComplete) {
             scope == _tweenList[i].scope &&
             timeComplete > _tweenList[i].timeStart &&
             timeStart < _tweenList[i].timeComplete) {
-
             for (name in _tweenList[i].properties) {
                 if (properties[name]) {
                     if (!removedLocally) {
@@ -740,7 +720,7 @@ function _affectTweens(affectFunction, scope, properties) {
                     affectFunction(i);
                     affected = true;
                 } else {
-                    // The properties are mixed, so split the tween and affect only certian specific
+                    // The properties are mixed, so split the tween and affect only certain specific
                     // properties
                     var splicedTweenIndex = _splitTweens(i, affectedProperties);
                     affectFunction(splicedTweenIndex);

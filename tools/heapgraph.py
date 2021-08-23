@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: MPL-2.0
+# SPDX-FileCopyrightText: 2013-2018 Andrew McCreight <continuation@gmail.com>
+# SPDX-FileCopyrightText: 2018 Andy Holmes <andrew.g.r.holmes@gmail.com>
 #
 # heapgraph.py - Top-level script for interpreting Garbage Collector heaps
 
@@ -84,7 +84,7 @@ filt_opts.add_argument('--no-weak-maps', '-nwm', dest='no_weak_maps',
 
 filt_opts.add_argument('--show-global', '-g', dest='show_global',
                        action='store_true', default=False,
-                       help='Show the global object (eg. window/GjsGlobal)')
+                       help='Show the global object (eg. globalThis/GjsGlobal)')
 
 filt_opts.add_argument('--show-imports', '-i', dest='show_imports',
                        action='store_true', default=False,

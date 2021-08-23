@@ -1,112 +1,59 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/* Copyright 2010 Red Hat, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2010 Red Hat, Inc.
+// SPDX-FileCopyrightText: 2020 Philip Chimento <philip.chimento@gmail.com>
 
 #include <config.h>
 
 #include <cairo.h>
-#include <glib.h>
+#include <glib.h>  // for g_assert
 
-#include <js/Class.h>
+#include <js/GCPolicyAPI.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>  // for JS_GetClass, JS_GetInstancePrivate
+#include <jsapi.h>
 
-#include "cjs/jsapi-class.h"
-#include "cjs/jsapi-util.h"
+#include "modules/cairo-private.h"
 
-[[nodiscard]] static JSObject* gjs_cairo_path_get_proto(JSContext*);
-
-GJS_DEFINE_PROTO_ABSTRACT("Path", cairo_path, JSCLASS_BACKGROUND_FINALIZE)
-
-static void gjs_cairo_path_finalize(JSFreeOp*, JSObject* obj) {
-    using AutoCairoPath =
-        GjsAutoPointer<cairo_path_t, cairo_path_t, cairo_path_destroy>;
-    AutoCairoPath path = static_cast<cairo_path_t*>(JS_GetPrivate(obj));
-    JS_SetPrivate(obj, nullptr);
+// Avoid static_assert in MSVC builds
+namespace JS {
+template <>
+struct GCPolicy<void*> : public IgnoreGCPolicy<void*> {};
 }
 
-/* Properties */
 // clang-format off
-JSPropertySpec gjs_cairo_path_proto_props[] = {
+const JSPropertySpec CairoPath::proto_props[] = {
     JS_STRING_SYM_PS(toStringTag, "Path", JSPROP_READONLY),
     JS_PS_END};
 // clang-format on
 
-JSFunctionSpec gjs_cairo_path_proto_funcs[] = {
-    JS_FS_END
-};
-
-JSFunctionSpec gjs_cairo_path_static_funcs[] = { JS_FS_END };
-
-/**
- * gjs_cairo_path_from_path:
- * @context: the context
- * @path: cairo_path_t to attach to the object
- *
- * Constructs a pattern wrapper given cairo pattern.
- * NOTE: This function takes ownership of the path.
+/*
+ * CairoPath::take_c_ptr():
+ * Same as CWrapper::from_c_ptr(), but always takes ownership of the pointer
+ * rather than copying it. It's not possible to copy a cairo_path_t*.
  */
-JSObject *
-gjs_cairo_path_from_path(JSContext    *context,
-                         cairo_path_t *path)
-{
-    g_return_val_if_fail(context, nullptr);
-    g_return_val_if_fail(path, nullptr);
-
-    JS::RootedObject proto(context, gjs_cairo_path_get_proto(context));
-    JS::RootedObject object(context,
-        JS_NewObjectWithGivenProto(context, &gjs_cairo_path_class, proto));
-    if (!object) {
-        gjs_throw(context, "failed to create path");
+JSObject* CairoPath::take_c_ptr(JSContext* cx, cairo_path_t* ptr) {
+    JS::RootedObject proto(cx, CairoPath::prototype(cx));
+    if (!proto)
         return nullptr;
-    }
 
-    g_assert(!JS_GetPrivate(object));
-    JS_SetPrivate(object, path);
+    JS::RootedObject wrapper(
+        cx, JS_NewObjectWithGivenProto(cx, &CairoPath::klass, proto));
+    if (!wrapper)
+        return nullptr;
 
-    return object;
+    g_assert(!JS_GetPrivate(wrapper));
+    JS_SetPrivate(wrapper, ptr);
+
+    debug_lifecycle(ptr, wrapper, "take_c_ptr");
+
+    return wrapper;
 }
 
-/**
- * gjs_cairo_path_get_path:
- * @cx: the context
- * @path_wrapper: path wrapper
- *
- * Returns: the path attached to the wrapper.
- */
-cairo_path_t* gjs_cairo_path_get_path(JSContext* cx,
-                                      JS::HandleObject path_wrapper) {
-    g_return_val_if_fail(cx, nullptr);
-    g_return_val_if_fail(path_wrapper, nullptr);
-
-    auto* path = static_cast<cairo_path_t*>(JS_GetInstancePrivate(
-        cx, path_wrapper, &gjs_cairo_path_class, nullptr));
-    if (!path) {
-        gjs_throw(cx, "Expected Cairo.Path but got %s",
-                  JS_GetClass(path_wrapper)->name);
-        return nullptr;
-    }
-
-    return path;
+void CairoPath::finalize_impl(JSFreeOp*, cairo_path_t* path) {
+    if (!path)
+        return;
+    cairo_path_destroy(path);
 }

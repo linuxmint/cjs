@@ -1,43 +1,29 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #include <config.h>
 
 #include <stdint.h>
 #include <string.h>  // for strlen
 
+#if GJS_VERBOSE_ENABLE_GI_USAGE
+#    include <string>
+#endif
+
 #include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
 #include <js/Class.h>
+#include <js/ComparisonOperators.h>
 #include <js/Id.h>                  // for JSID_IS_STRING, JSID_VOID
 #include <js/PropertyDescriptor.h>  // for JSPROP_PERMANENT, JSPROP_RESOLVING
-#include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
+#include <js/ValueArray.h>
 #include <js/Warnings.h>
 #include <jsapi.h>  // for JS_DefinePropertyById, JS_GetProp...
 
@@ -53,22 +39,12 @@
 #include "gi/param.h"
 #include "gi/repo.h"
 #include "gi/union.h"
-#include "cjs/atoms.h"
-#include "cjs/context-private.h"
-#include "cjs/global.h"
-#include "cjs/jsapi-class.h"
-#include "cjs/jsapi-util.h"
-#include "cjs/mem-private.h"
+#include "gjs/atoms.h"
+#include "gjs/context-private.h"
+#include "gjs/global.h"
+#include "gjs/jsapi-util.h"
+#include "gjs/module.h"
 #include "util/log.h"
-
-typedef struct {
-    void *dummy;
-
-} Repo;
-
-extern struct JSClass gjs_repo_class;
-
-GJS_DEFINE_PRIV_FROM_JS(Repo, gjs_repo_class)
 
 GJS_JSAPI_RETURN_CONVENTION
 static bool lookup_override_function(JSContext *, JS::HandleId,
@@ -94,6 +70,8 @@ static bool get_version_for_ns(JSContext* context, JS::HandleObject repo_obj,
     return gjs_object_require_property(context, versions, NULL, ns_id, version);
 }
 
+static void strlist_free(GList* l) { g_list_free_full(l, g_free); }
+
 GJS_JSAPI_RETURN_CONVENTION
 static bool resolve_namespace_object(JSContext* context,
                                      JS::HandleObject repo_obj,
@@ -112,7 +90,8 @@ static bool resolve_namespace_object(JSContext* context,
         return false;
     }
 
-    GList* versions = g_irepository_enumerate_versions(nullptr, ns_name.get());
+    GjsAutoPointer<GList, GList, strlist_free> versions =
+        g_irepository_enumerate_versions(nullptr, ns_name.get());
     unsigned nversions = g_list_length(versions);
     if (nversions > 1 && !version &&
         !g_irepository_is_registered(nullptr, ns_name.get(), nullptr) &&
@@ -121,7 +100,6 @@ static bool resolve_namespace_object(JSContext* context,
                       "imports.gi.versions to pick one",
                       ns_name.get(), nversions))
         return false;
-    g_list_free_full(versions, g_free);
 
     error = NULL;
     g_irepository_require(nullptr, ns_name.get(), version.get(),
@@ -178,8 +156,6 @@ repo_resolve(JSContext       *context,
              JS::HandleId     id,
              bool            *resolved)
 {
-    Repo *priv;
-
     if (!JSID_IS_STRING(id)) {
         *resolved = false;
         return true; /* not resolved, but no error */
@@ -192,20 +168,8 @@ repo_resolve(JSContext       *context,
         return true;
     }
 
-    priv = priv_from_js(context, obj);
-    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook, obj %s, priv %p",
-                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str(), priv);
-
-    if (priv == NULL) {
-        /* we are the prototype, or have the wrong class */
-        *resolved = false;
-        return true;
-    }
-
-    if (!JSID_IS_STRING(id)) {
-        *resolved = false;
-        return true;
-    }
+    gjs_debug_jsprop(GJS_DEBUG_GREPO, "Resolve prop '%s' hook, obj %s",
+                     gjs_debug_id(id).c_str(), gjs_debug_object(obj).c_str());
 
     if (!resolve_namespace_object(context, obj, id))
         return false;
@@ -214,75 +178,30 @@ repo_resolve(JSContext       *context,
     return true;
 }
 
-GJS_NATIVE_CONSTRUCTOR_DEFINE_ABSTRACT(repo)
-
-static void repo_finalize(JSFreeOp*, JSObject* obj) {
-    Repo *priv;
-
-    priv = (Repo*) JS_GetPrivate(obj);
-    gjs_debug_lifecycle(GJS_DEBUG_GREPO,
-                        "finalize, obj %p priv %p", obj, priv);
-    if (priv == NULL)
-        return; /* we are the prototype, not a real instance */
-
-    GJS_DEC_COUNTER(repo);
-    g_slice_free(Repo, priv);
-}
-
-/* The bizarre thing about this vtable is that it applies to both
- * instances of the object, and to the prototype that instances of the
- * class have.
- */
 static const struct JSClassOps gjs_repo_class_ops = {
     nullptr,  // addProperty
     nullptr,  // deleteProperty
     nullptr,  // enumerate
     nullptr,  // newEnumerate
     repo_resolve,
-    nullptr,  // mayResolve
-    repo_finalize};
-
-struct JSClass gjs_repo_class = {
-    "GIRepository", /* means "new GIRepository()" works */
-    JSCLASS_HAS_PRIVATE | JSCLASS_FOREGROUND_FINALIZE,
-    &gjs_repo_class_ops,
 };
 
-// clang-format off
-static const JSPropertySpec gjs_repo_proto_props[] = {
-    JS_STRING_SYM_PS(toStringTag, "GIRepository", JSPROP_READONLY),
-    JS_PS_END};
-// clang-format on
-
-static JSFunctionSpec *gjs_repo_proto_funcs = nullptr;
-static JSFunctionSpec *gjs_repo_static_funcs = nullptr;
-
-GJS_DEFINE_PROTO_FUNCS(repo)
+struct JSClass gjs_repo_class = {
+    "GIRepository",
+    0,
+    &gjs_repo_class_ops,
+};
 
 GJS_JSAPI_RETURN_CONVENTION
 static JSObject*
 repo_new(JSContext *context)
 {
-    Repo *priv;
-
-    JS::RootedObject proto(context);
-    if (!gjs_repo_define_proto(context, nullptr, &proto))
-        return nullptr;
-
-    JS::RootedObject repo(context,
-        JS_NewObjectWithGivenProto(context, &gjs_repo_class, proto));
+    JS::RootedObject repo(context, JS_NewObject(context, &gjs_repo_class));
     if (repo == nullptr)
         return nullptr;
 
-    priv = g_slice_new0(Repo);
-
-    GJS_INC_COUNTER(repo);
-
-    g_assert(priv_from_js(context, repo) == NULL);
-    JS_SetPrivate(repo, priv);
-
-    gjs_debug_lifecycle(GJS_DEBUG_GREPO,
-                        "repo constructor, obj %p priv %p", repo.get(), priv);
+    gjs_debug_lifecycle(GJS_DEBUG_GREPO, "repo constructor, obj %p",
+                        repo.get());
 
     const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
     JS::RootedObject versions(context, JS_NewPlainObject(context));
@@ -367,12 +286,10 @@ _gjs_log_info_usage(GIBaseInfo *info)
         info_type = g_base_info_get_type(info);
 
         if (info_type == GI_INFO_TYPE_FUNCTION) {
-            GString *args;
+            std::string args("{ ");
             int n_args;
             int i;
             GITransfer retval_transfer;
-
-            args = g_string_new("{ ");
 
             n_args = g_callable_info_get_n_args((GICallableInfo*) info);
             for (i = 0; i < n_args; ++i) {
@@ -384,23 +301,24 @@ _gjs_log_info_usage(GIBaseInfo *info)
                 direction = g_arg_info_get_direction(arg);
                 transfer = g_arg_info_get_ownership_transfer(arg);
 
-                g_string_append_printf(args,
-                                       "{ GI_DIRECTION_%s, GI_TRANSFER_%s }, ",
-                                       DIRECTION_STRING(direction),
-                                       TRANSFER_STRING(transfer));
+                if (i > 0)
+                    args += ", ";
+
+                args += std::string("{ GI_DIRECTION_") +
+                        DIRECTION_STRING(direction) + ", GI_TRANSFER_" +
+                        TRANSFER_STRING(transfer) + " }";
 
                 g_base_info_unref((GIBaseInfo*) arg);
             }
-            if (args->len > 2)
-                g_string_truncate(args, args->len - 2); /* chop comma */
 
-            g_string_append(args, " }");
+            args += " }";
 
             retval_transfer = g_callable_info_get_caller_owns((GICallableInfo*) info);
 
-            details = g_strdup_printf(".details = { .func = { .retval_transfer = GI_TRANSFER_%s, .n_args = %d, .args = %s } }",
-                                      TRANSFER_STRING(retval_transfer), n_args, args->str);
-            g_string_free(args, true);
+            details = g_strdup_printf(
+                ".details = { .func = { .retval_transfer = GI_TRANSFER_%s, "
+                ".n_args = %d, .args = %s } }",
+                TRANSFER_STRING(retval_transfer), n_args, args.c_str());
         } else {
             details = g_strdup_printf(".details = { .nothing = {} }");
         }
@@ -637,35 +555,41 @@ lookup_override_function(JSContext             *cx,
     }
     return true;
 
- fail:
+fail:
     saved_exc.drop();
     return false;
 }
 
-JSObject*
-gjs_lookup_namespace_object_by_name(JSContext      *context,
-                                    JS::HandleId    ns_name)
-{
-    JS::RootedObject global(context, gjs_get_import_global(context));
-    JS::RootedValue importer(
-        context, gjs_get_global_slot(global, GjsGlobalSlot::IMPORTS));
-    g_assert(importer.isObject());
+GJS_JSAPI_RETURN_CONVENTION
+static JSObject* lookup_namespace(JSContext* cx, JSObject* global,
+                                  JS::HandleId ns_name) {
+    JS::RootedObject native_registry(cx, gjs_get_native_registry(global));
+    auto priv = GjsContextPrivate::from_cx(cx);
+    const GjsAtoms& atoms = priv->atoms();
+    JS::RootedObject gi(cx);
 
-    JS::RootedObject repo(context), importer_obj(context, &importer.toObject());
-    const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
-    if (!gjs_object_require_property(context, importer_obj, "importer",
-                                     atoms.gi(), &repo)) {
-        gjs_log_exception(context);
-        gjs_throw(context, "No gi property in importer");
-        return NULL;
+    if (!gjs_global_registry_get(cx, native_registry, atoms.gi(), &gi))
+        return nullptr;
+
+    if (!gi) {
+        gjs_throw(cx, "No gi property in native registry");
+        return nullptr;
     }
 
-    JS::RootedObject retval(context);
-    if (!gjs_object_require_property(context, repo, "GI repository object",
-                                     ns_name, &retval))
+    JS::RootedObject retval(cx);
+    if (!gjs_object_require_property(cx, gi, "GI repository object", ns_name,
+                                     &retval))
         return NULL;
 
     return retval;
+}
+
+JSObject* gjs_lookup_namespace_object_by_name(JSContext* cx,
+                                              JS::HandleId ns_name) {
+    JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+
+    g_assert(gjs_global_get_type(global) == GjsGlobalType::DEFAULT);
+    return lookup_namespace(cx, global, ns_name);
 }
 
 const char*

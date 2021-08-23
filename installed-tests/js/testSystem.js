@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Pavel Vasin <rat4vier@gmail.com>
+// SPDX-FileCopyrightText: 2013 Giovanni Campagna <gcampagna@src.gnome.org>
+// SPDX-FileCopyrightText: 2017 Claudio André <claudioandre.br@gmail.com>
+// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+// SPDX-FileCopyrightText: 2019 Canonical, Ltd.
+
 const System = imports.system;
 const GObject = imports.gi.GObject;
 
@@ -11,8 +18,8 @@ describe('System.addressOf()', function () {
 
 describe('System.version', function () {
     it('gives a plausible number', function () {
-        expect(System.version).not.toBeLessThan(40802);
-        expect(System.version).toBeLessThan(60000);
+        expect(System.version).not.toBeLessThan(14700);
+        expect(System.version).toBeLessThan(20000);
     });
 });
 
@@ -46,5 +53,28 @@ describe('System.gc()', function () {
 describe('System.dumpHeap()', function () {
     it('throws but does not crash when given a nonexistent path', function () {
         expect(() => System.dumpHeap('/does/not/exist')).toThrow();
+    });
+});
+
+describe('System.programPath', function () {
+    it('is null when executed from minijasmine', function () {
+        expect(System.programPath).toBe(null);
+    });
+});
+
+describe('System.programArgs', function () {
+    it('System.programArgs is an array', function () {
+        expect(Array.isArray(System.programArgs)).toBeTruthy();
+    });
+
+    it('modifications persist', function () {
+        System.programArgs.push('--foo');
+        expect(System.programArgs.pop()).toBe('--foo');
+    });
+
+    it('System.programArgs is equal to ARGV', function () {
+        expect(System.programArgs).toEqual(ARGV);
+        ARGV.push('--foo');
+        expect(System.programArgs.pop()).toBe('--foo');
     });
 });
