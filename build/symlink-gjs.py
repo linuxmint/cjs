@@ -28,8 +28,8 @@ if os.name == 'nt':
 else:
     try:
         temp_link = tempfile.mktemp(dir=installed_bin_dir)
-        os.symlink('gjs-console', temp_link)
-        os.replace(temp_link, os.path.join(installed_bin_dir, 'gjs'))
+        os.symlink('cjs-console', temp_link)
+        os.replace(temp_link, os.path.join(installed_bin_dir, 'cjs'))
     finally:
         if os.path.islink(temp_link):
             os.remove(temp_link)

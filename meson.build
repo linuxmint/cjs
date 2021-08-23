@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 # SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
 
-project('gjs', 'cpp', 'c', version: '1.68.2', license: ['MIT', 'LGPL2+'],
+project('cjs', 'cpp', 'c', version: '5.1.0', license: ['MIT', 'LGPL2+'],
     meson_version: '>= 0.52.0',
     default_options: ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99',
         'warning_level=2'])
@@ -109,7 +109,7 @@ endif
 ### Check for required libraries ###############################################
 
 # Note: Notify GNOME release team when adding or updating dependencies
-glib_required_version = '>= 2.66.0'
+glib_required_version = '>= 2.58.0'
 glib = dependency('glib-2.0', version: glib_required_version,
     fallback: ['glib', 'libglib_dep'])
 gthread = dependency('gthread-2.0', version: glib_required_version,
@@ -522,7 +522,7 @@ libgjs = shared_library(meson.project_name(),
     gnu_symbol_visibility: 'hidden',
     install: true)
 
-install_headers(gjs_public_headers, subdir: api_name / 'gjs')
+install_headers(gjs_public_headers, subdir: api_name / 'cjs')
 
 # Allow using libgjs as a subproject
 libgjs_dep = declare_dependency(link_with: [libgjs, libgjs_jsapi],
@@ -541,7 +541,7 @@ gjs_private_typelib = gjs_private_gir[1]
 
 gjs_console_srcs = ['gjs/console.cpp']
 
-gjs_console = executable('gjs-console', gjs_console_srcs,
+gjs_console = executable('cjs-console', gjs_console_srcs,
     cpp_args: libgjs_cpp_args,
     dependencies: libgjs_dep, install: true)
 
@@ -571,7 +571,7 @@ pkg.generate(libgjs, name: api_name, description: 'JS bindings for GObjects',
         'bindir=${exec_prefix}' / get_option('bindir'),
         'datarootdir=${prefix}' / get_option('datadir'),
         'datadir=${datarootdir}',
-        'gjs_console=${bindir}/gjs-console',
+        'gjs_console=${bindir}/cjs-console',
     ])
 
 ### Test environment ###########################################################

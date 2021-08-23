@@ -239,7 +239,7 @@ gjs_console_interact(JSContext *context,
 #endif  // HAVE_SIGNAL_H
 
             if (!gjs_console_readline(
-                    &temp_buf, startline == lineno ? "gjs> " : ".... ")) {
+                    &temp_buf, startline == lineno ? "cjs> " : ".... ")) {
                 eof = true;
                 break;
             }

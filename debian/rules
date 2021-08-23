@@ -15,7 +15,6 @@ override_dh_auto_configure:
 	dh_auto_configure -- \
 		-Dauto_features=enabled \
 		-Dprofiler=disabled \
-		-Dinstalled_tests=false \
 		$(NULL)
 
 override_dh_girepository:
@@ -23,12 +22,16 @@ override_dh_girepository:
 
 override_dh_auto_test:
 ifeq (, $(filter nocheck, $(DEB_BUILD_OPTIONS)))
-	obj-$(DEB_HOST_GNU_TYPE)/cjs-console -c 'print("Smoke-test OK")'
+	obj-$(DEB_HOST_GNU_TYPE)/gjs-console -c 'print("Smoke-test OK")'
 	env \
 		TZ=UTC \
 	xvfb-run -a \
-	dh_auto_test -- -v -C $(CURDIR)/obj-$(DEB_HOST_GNU_TYPE)
+	dh_auto_test -- -v -C $(CURDIR)/obj-$(DEB_HOST_GNU_TYPE) --timeout-multiplier 4
 endif
 
 override_dh_makeshlibs:
 	dh_makeshlibs -Xusr/lib/$(DEB_HOST_MULTIARCH)/cjs-1.0 -- -c4
+
+override_dh_strip:
+	dh_strip --dbg-package=libcjs-dbg
+
