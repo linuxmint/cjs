@@ -5,7 +5,7 @@
 #ifndef GI_NS_H_
 #define GI_NS_H_
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 class JSObject;
 struct JSContext;

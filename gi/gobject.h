@@ -9,7 +9,7 @@
 
 #include <glib-object.h>
 
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 using AutoParamArray = std::vector<GjsAutoParam>;
 

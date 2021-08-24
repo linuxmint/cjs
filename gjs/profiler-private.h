@@ -10,9 +10,9 @@
 #include <js/ProfilingStack.h>
 #include <js/RootingAPI.h>
 
-#include "gjs/context.h"
-#include "gjs/macros.h"
-#include "gjs/profiler.h"
+#include "cjs/context.h"
+#include "cjs/macros.h"
+#include "cjs/profiler.h"
 
 class AutoProfilerLabel {
  public:

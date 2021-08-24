@@ -17,9 +17,9 @@
 #include <jsapi.h>       // for JS_ReportErrorUTF8, BuildStackString
 #include <jspubtd.h>     // for JSProtoKey, JSProto_Error, JSProto...
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
 #include "util/log.h"
 #include "util/misc.h"
 

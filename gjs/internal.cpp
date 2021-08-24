@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2020 Evan Welsh <contact@evanwelsh.com>
 
-#include "gjs/internal.h"
+#include "cjs/internal.h"
 
 #include <config.h>
 #include <gio/gio.h>
@@ -32,18 +32,18 @@
 #include <string>   // for u16string
 #include <vector>
 
-#include "gjs/byteArray.h"
-#include "gjs/context-private.h"
-#include "gjs/context.h"
-#include "gjs/engine.h"
-#include "gjs/error-types.h"
-#include "gjs/global.h"
-#include "gjs/importer.h"
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/mem-private.h"
-#include "gjs/module.h"
-#include "gjs/native.h"
+#include "cjs/byteArray.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/engine.h"
+#include "cjs/error-types.h"
+#include "cjs/global.h"
+#include "cjs/importer.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/mem-private.h"
+#include "cjs/module.h"
+#include "cjs/native.h"
 #include "util/log.h"
 
 #include "gi/repo.h"

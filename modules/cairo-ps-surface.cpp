@@ -11,7 +11,7 @@
 #include <js/GCPolicyAPI.h>
 #include <js/TypeDecls.h>
 
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 #if CAIRO_HAS_PS_SURFACE
 #    include <cairo-ps.h>

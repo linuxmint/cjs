@@ -10,7 +10,7 @@
 #include <stdarg.h>
 #include <stdio.h>   // for FILE, fprintf, fflush, fopen, fputs, fseek
 #include <string.h>  // for strchr, strcmp
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 #ifdef _WIN32
 # include <io.h>

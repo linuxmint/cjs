@@ -21,9 +21,9 @@
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 
-#include "gjs/context-private.h"
-#include "gjs/context.h"
-#include "gjs/macros.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/macros.h"
 #include "util/log.h"
 
 /* jsapi-util-root.h - Utilities for dealing with the lifetime and ownership of

@@ -18,8 +18,8 @@
 #include <js/TypeDecls.h>
 
 #include "gi/arg.h"
-#include "gjs/enum-utils.h"
-#include "gjs/macros.h"
+#include "cjs/enum-utils.h"
+#include "cjs/macros.h"
 
 struct GjsFunctionCallState;
 struct GjsArgumentCache;

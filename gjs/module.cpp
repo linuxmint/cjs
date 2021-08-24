@@ -33,14 +33,14 @@
 #include <jsapi.h>  // for JS_DefinePropertyById, ...
 #include <jsfriendapi.h>  // for SetFunctionNativeReserved
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/mem-private.h"
-#include "gjs/module.h"
-#include "gjs/native.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/mem-private.h"
+#include "cjs/module.h"
+#include "cjs/native.h"
 #include "util/log.h"
 
 class GjsScriptModule {

@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 namespace JS {
 struct PropertyKey;

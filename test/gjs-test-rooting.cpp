@@ -13,7 +13,7 @@
 #include <js/Value.h>
 #include <jsapi.h>  // for JS_GetPrivate, JS_NewObject, JS_Set...
 
-#include "gjs/jsapi-util-root.h"
+#include "cjs/jsapi-util-root.h"
 #include "test/gjs-test-utils.h"
 
 // COMPAT: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1553

@@ -38,9 +38,9 @@
 #include <js/Warnings.h>
 #include <jsapi.h>  // for JS_IsExceptionPending, Exce...
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
 #include "modules/console.h"
 
 namespace mozilla {

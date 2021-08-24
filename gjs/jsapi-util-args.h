@@ -22,8 +22,8 @@
 #include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>  // for JS_ClearPendingException
 
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 [[nodiscard]] GJS_ALWAYS_INLINE static inline bool check_nullable(
     const char*& fchar, const char*& fmt_string) {

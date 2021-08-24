@@ -35,11 +35,11 @@
 #include "gi/union.h"
 #include "gi/value.h"
 #include "gi/wrapperutils.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/context.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/objectbox.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/objectbox.h"
 #include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION

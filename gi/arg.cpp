@@ -42,11 +42,11 @@
 #include "gi/union.h"
 #include "gi/value.h"
 #include "gi/wrapperutils.h"
-#include "gjs/atoms.h"
-#include "gjs/byteArray.h"
-#include "gjs/context-private.h"
-#include "gjs/enum-utils.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/byteArray.h"
+#include "cjs/context-private.h"
+#include "cjs/enum-utils.h"
+#include "cjs/jsapi-util.h"
 #include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION static bool gjs_g_arg_release_internal(

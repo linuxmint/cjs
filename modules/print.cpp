@@ -19,7 +19,7 @@
 #include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>
 
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 #include "modules/print.h"
 
 // Avoid static_assert in MSVC builds

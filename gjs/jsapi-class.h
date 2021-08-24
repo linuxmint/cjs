@@ -13,9 +13,9 @@
 #include <js/TypeDecls.h>
 
 #include "gi/wrapperutils.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_init_class_dynamic(

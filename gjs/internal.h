@@ -9,7 +9,7 @@
 #include <js/TypeDecls.h>
 #include <jsapi.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_load_internal_module(JSContext* cx, const char* identifier);

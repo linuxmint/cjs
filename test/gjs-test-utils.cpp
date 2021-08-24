@@ -12,8 +12,8 @@
 #include <js/TypeDecls.h>
 #include <jsapi.h>
 
-#include "gjs/context.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-util.h"
 #include "test/gjs-test-common.h"
 #include "test/gjs-test-utils.h"
 

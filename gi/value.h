@@ -11,7 +11,7 @@
 
 #include <js/TypeDecls.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 bool       gjs_value_to_g_value         (JSContext      *context,

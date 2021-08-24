@@ -34,9 +34,9 @@
 #include <jsapi.h>        // for JS_GetPropertyById, JS_ClearPendin...
 #include <jsfriendapi.h>  // for ProtoKeyToClass
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
 
 static void
 throw_property_lookup_error(JSContext       *cx,

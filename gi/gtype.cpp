@@ -21,10 +21,10 @@
 
 #include "gi/cwrapper.h"
 #include "gi/gtype.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util.h"
 #include "util/log.h"
 
 /*

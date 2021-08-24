@@ -13,8 +13,8 @@
 
 #include "gi/cwrapper.h"
 #include "gi/gtype.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
 
 bool gjs_wrapper_define_gtype_prop(JSContext* cx, JS::HandleObject constructor,
                                    GType gtype) {

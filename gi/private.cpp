@@ -26,10 +26,10 @@
 #include "gi/param.h"
 #include "gi/private.h"
 #include "gi/repo.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-util.h"
 
 /* gi/private.cpp - private "imports._gi" module with operations that we need
  * to use from JS in order to create GObject classes, but should not be exposed

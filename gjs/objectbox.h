@@ -12,7 +12,7 @@
 
 #include <js/TypeDecls.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 class JSTracer;
 

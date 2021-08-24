@@ -28,10 +28,10 @@
 #include <jspubtd.h>  // for JSProto_Number
 
 #include "gi/arg-inl.h"
-#include "gjs/context.h"
-#include "gjs/error-types.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/profiler.h"
+#include "cjs/context.h"
+#include "cjs/error-types.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/profiler.h"
 #include "test/gjs-test-no-introspection-object.h"
 #include "test/gjs-test-utils.h"
 #include "util/misc.h"

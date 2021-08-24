@@ -22,12 +22,12 @@
 #include <jsfriendapi.h>  // for JS_NewUint8ArrayWithBuffer, GetUint...
 
 #include "gi/boxed.h"
-#include "gjs/atoms.h"
-#include "gjs/byteArray.h"
-#include "gjs/context-private.h"
-#include "gjs/deprecation.h"
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/byteArray.h"
+#include "cjs/context-private.h"
+#include "cjs/deprecation.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-util.h"
 #include "util/misc.h"  // for _gjs_memdup2
 
 /* Callbacks to use with JS::NewExternalArrayBuffer() */

@@ -14,10 +14,10 @@
 #include <jsapi.h>  // for JS_IsExceptionPending, Call, JS_Get...
 
 #include "gi/closure.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util-root.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/mem-private.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util-root.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/mem-private.h"
 #include "util/log.h"
 
 struct Closure {

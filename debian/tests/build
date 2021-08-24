@@ -17,7 +17,7 @@ else
 fi
 
 cat <<EOF > gjstest.c
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 
 int main()
 {

@@ -12,7 +12,7 @@
 
 #include <js/TypeDecls.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 JSObject* gjs_create_root_importer(JSContext* cx,

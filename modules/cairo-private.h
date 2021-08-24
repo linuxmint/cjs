@@ -19,8 +19,8 @@
 #include <jspubtd.h>  // for JSProtoKey
 
 #include "gi/cwrapper.h"
-#include "gjs/global.h"
-#include "gjs/macros.h"
+#include "cjs/global.h"
+#include "cjs/macros.h"
 #include "util/log.h"
 
 namespace JS {

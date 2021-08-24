@@ -27,13 +27,13 @@
 #include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>       // for AutoSaveExceptionState, ...
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/engine.h"
-#include "gjs/global.h"
-#include "gjs/internal.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/native.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/engine.h"
+#include "cjs/global.h"
+#include "cjs/internal.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/native.h"
 
 namespace mozilla {
 union Utf8Unit;

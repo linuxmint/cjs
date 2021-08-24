@@ -8,7 +8,7 @@
 
 #include <config.h>
 
-#include "gjs/context.h"
+#include "cjs/context.h"
 
 #include <js/TypeDecls.h>
 

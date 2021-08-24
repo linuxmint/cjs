@@ -452,9 +452,9 @@ Here is an example of all of the above rules together:
 #include <jsapi.h>           // for JS_New, JSAutoRealm, JS_GetProperty
 #include <mozilla/Unused.h>
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
 ```
 
 #### Keep "Internal" Headers Private ####

@@ -32,10 +32,10 @@
 #include "gi/gerror.h"
 #include "gi/repo.h"
 #include "gi/wrapperutils.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-class.h"
-#include "gjs/mem-private.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/mem-private.h"
 #include "util/log.h"
 
 BoxedInstance::BoxedInstance(JSContext* cx, JS::HandleObject obj)

@@ -13,7 +13,7 @@
 
 #include "gi/function.h"
 #include "gi/wrapperutils.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 /* Default spidermonkey toString is worthless.  Replace it
  * with something that gives us both the introspection name

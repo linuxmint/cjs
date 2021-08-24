@@ -15,9 +15,9 @@
 #include "gi/interface.h"
 #include "gi/object.h"
 #include "gi/repo.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/mem-private.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/mem-private.h"
 
 InterfacePrototype::InterfacePrototype(GIInterfaceInfo* info, GType gtype)
     : GIWrapperPrototype(info, gtype),

@@ -9,7 +9,7 @@
 
 #include <js/TypeDecls.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_js_define_cairo_stuff(JSContext              *context,

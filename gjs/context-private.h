@@ -31,10 +31,10 @@
 #include <jsapi.h>        // for JS_GetContextPrivate
 #include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
 
-#include "gjs/context.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
-#include "gjs/profiler.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
+#include "cjs/profiler.h"
 
 namespace js {
 class SystemAllocPolicy;

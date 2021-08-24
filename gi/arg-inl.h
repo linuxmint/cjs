@@ -18,7 +18,7 @@
 
 #include "gi/js-value-inl.h"
 #include "gi/utils-inl.h"
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 // GIArgument accessor templates
 //

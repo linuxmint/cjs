@@ -31,13 +31,13 @@
 #include <js/Value.h>
 #include <jsapi.h>  // for JS_DefineFunctions, JS_NewStringCopyZ
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/context.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 static bool quit(JSContext* cx, unsigned argc, JS::Value* vp) {

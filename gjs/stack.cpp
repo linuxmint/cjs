@@ -13,8 +13,8 @@
 #include <js/TypeDecls.h>
 #include <jsfriendapi.h>  // for DumpBacktrace
 
-#include "gjs/context.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-util.h"
 
 // Avoid static_assert in MSVC builds
 namespace JS {

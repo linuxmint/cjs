@@ -15,7 +15,7 @@
 #include "gi/cwrapper.h"
 #include "gi/enumeration.h"
 #include "gi/wrapperutils.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 #include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION

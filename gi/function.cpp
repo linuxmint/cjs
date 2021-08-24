@@ -41,12 +41,12 @@
 #include "gi/gerror.h"
 #include "gi/object.h"
 #include "gi/utils-inl.h"
-#include "gjs/context-private.h"
-#include "gjs/context.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/mem-private.h"
-#include "gjs/profiler-private.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/mem-private.h"
+#include "cjs/profiler-private.h"
 #include "util/log.h"
 
 /* We use guint8 for arguments; functions can't

@@ -18,8 +18,8 @@
 #include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>       // for JS_DefineFunctions
 
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-util.h"
 #include "test/gjs-test-common.h"
 #include "test/gjs-test-utils.h"
 

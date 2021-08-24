@@ -40,8 +40,8 @@
 #include "gi/union.h"
 #include "gi/value.h"
 #include "gi/wrapperutils.h"  // for GjsTypecheckNoThrow
-#include "gjs/byteArray.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/byteArray.h"
+#include "cjs/jsapi-util.h"
 #include "util/log.h"
 
 enum ExpectedType {

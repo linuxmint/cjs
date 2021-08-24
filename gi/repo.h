@@ -11,7 +11,7 @@
 
 #include <js/TypeDecls.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 #include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION

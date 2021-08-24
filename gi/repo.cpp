@@ -39,11 +39,11 @@
 #include "gi/param.h"
 #include "gi/repo.h"
 #include "gi/union.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/module.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/module.h"
 #include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION

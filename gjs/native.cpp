@@ -14,8 +14,8 @@
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 
-#include "gjs/jsapi-util.h"
-#include "gjs/native.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/native.h"
 #include "util/log.h"
 
 static std::unordered_map<std::string, GjsDefineModuleFunc> modules;

@@ -12,8 +12,8 @@
 #include <js/TypeDecls.h>
 
 #include "gi/foreign.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
 
 static struct {
     char *gi_namespace;

@@ -29,9 +29,9 @@
 
 #include "gi/function.h"
 #include "gi/object.h"
-#include "gjs/context-private.h"
-#include "gjs/engine.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/context-private.h"
+#include "cjs/engine.h"
+#include "cjs/jsapi-util.h"
 #include "util/log.h"
 
 static void gjs_finalize_callback(JSFreeOp*, JSFinalizeStatus status,

@@ -10,7 +10,7 @@
 #include <stddef.h>  // for NULL
 #include <utility>   // for move, swap
 
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 struct _GjsTestObject {
     GObject parent_instance;

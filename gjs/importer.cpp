@@ -36,13 +36,13 @@
 #include <jspubtd.h>  // for JSProto_Error
 #include <mozilla/UniquePtr.h>
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/global.h"
-#include "gjs/importer.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/module.h"
-#include "gjs/native.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/global.h"
+#include "cjs/importer.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/module.h"
+#include "cjs/native.h"
 #include "util/log.h"
 
 #define MODULE_INIT_FILENAME "__init__.js"

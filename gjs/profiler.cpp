@@ -32,9 +32,9 @@
 #include <js/TypeDecls.h>
 #include <mozilla/Atomics.h>  // for ProfilingStack operators
 
-#include "gjs/context.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/profiler.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/profiler.h"
 
 #define FLUSH_DELAY_SECONDS 3
 

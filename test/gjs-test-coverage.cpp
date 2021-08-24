@@ -12,9 +12,9 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include "gjs/context.h"
-#include "gjs/coverage.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/context.h"
+#include "cjs/coverage.h"
+#include "cjs/jsapi-util.h"
 
 // COMPAT: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1553
 #ifdef __clang_analyzer__

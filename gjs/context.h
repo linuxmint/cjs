@@ -22,8 +22,8 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include <gjs/macros.h>
-#include <gjs/profiler.h>
+#include <cjs/macros.h>
+#include <cjs/profiler.h>
 
 G_BEGIN_DECLS
 

@@ -10,7 +10,7 @@
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 typedef bool (* GjsDefineModuleFunc) (JSContext              *context,
                                       JS::MutableHandleObject module_out);

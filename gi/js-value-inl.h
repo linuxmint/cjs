@@ -13,8 +13,8 @@
 
 #include "gi/gtype.h"
 #include "gi/value.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 namespace Gjs {
 

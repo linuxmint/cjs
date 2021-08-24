@@ -21,12 +21,12 @@
 #include "gi/cwrapper.h"
 #include "gi/ns.h"
 #include "gi/repo.h"
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
-#include "gjs/mem-private.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
+#include "cjs/mem-private.h"
 #include "util/log.h"
 
 class Ns : private GjsAutoChar, public CWrapper<Ns> {

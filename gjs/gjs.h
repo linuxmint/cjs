@@ -9,12 +9,12 @@
 
 #define INSIDE_GJS_H
 
-#include <gjs/context.h>
-#include <gjs/coverage.h>
-#include <gjs/error-types.h>
-#include <gjs/macros.h>
-#include <gjs/mem.h>
-#include <gjs/profiler.h>
+#include <cjs/context.h>
+#include <cjs/coverage.h>
+#include <cjs/error-types.h>
+#include <cjs/macros.h>
+#include <cjs/mem.h>
+#include <cjs/profiler.h>
 
 #undef INSIDE_GJS_H
 

@@ -32,8 +32,8 @@
 #include <jsfriendapi.h>  // for FlatStringToLinearString, GetLatin...
 #include <mozilla/CheckedInt.h>
 
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "util/misc.h"  // for _gjs_memdup2
 
 // Avoid static_assert in MSVC builds

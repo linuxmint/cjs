@@ -23,8 +23,8 @@
 #include <jsapi.h>        // for MaxFrames, CaptureCurrentStack
 #include <jsfriendapi.h>  // for FormatStackDump
 
-#include "gjs/deprecation.h"
-#include "gjs/macros.h"
+#include "cjs/deprecation.h"
+#include "cjs/macros.h"
 
 // Avoid static_assert in MSVC builds
 namespace JS {

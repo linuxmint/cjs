@@ -15,8 +15,8 @@
 
 #include "gi/cwrapper.h"
 #include "gi/wrapperutils.h"
-#include "gjs/jsapi-util.h"  // for GjsAutoCallableInfo
-#include "gjs/macros.h"
+#include "cjs/jsapi-util.h"  // for GjsAutoCallableInfo
+#include "cjs/macros.h"
 #include "util/log.h"
 
 class FundamentalPrototype;

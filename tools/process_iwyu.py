@@ -107,7 +107,7 @@ FALSE_POSITIVES = (
 
     # Weird false positive on some versions of IWYU
     ('gi/arg.cpp', 'struct _GVariant;', ''),
-    ('gjs/profiler.cpp', '#include <gjs/profiler.h>', ''),
+    ('gjs/profiler.cpp', '#include <cjs/profiler.h>', ''),
 )
 
 

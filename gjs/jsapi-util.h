@@ -27,7 +27,7 @@
 #include <js/Utility.h>  // for UniqueChars
 #include <jspubtd.h>     // for JSProtoKey
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 class JSErrorReport;
 namespace JS {

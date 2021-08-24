@@ -23,13 +23,13 @@
 #include <jsapi.h>        // for JSAutoRealm, JS_SetPropertyById
 #include <jsfriendapi.h>  // for GetCodeCoverageSummary
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/context.h"
-#include "gjs/coverage.h"
-#include "gjs/global.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/coverage.h"
+#include "cjs/global.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 static bool s_coverage_enabled = false;
 

@@ -16,8 +16,8 @@
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 
-#include "gjs/jsapi-util.h"
-#include "gjs/objectbox.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/objectbox.h"
 #include "util/log.h"
 
 /* gjs/objectbox.cpp - GObject boxed type used to "box" a JS object so that it

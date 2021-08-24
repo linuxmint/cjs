@@ -22,10 +22,10 @@
 #include <jsfriendapi.h>  // for GetFunctionNativeReserved, NewFun...
 #include <jspubtd.h>      // for JSProto_TypeError
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 struct JSFunctionSpec;
 struct JSPropertySpec;

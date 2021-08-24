@@ -26,10 +26,10 @@
 #include "gi/arg-inl.h"
 #include "gi/arg.h"
 #include "gi/foreign.h"
-#include "gjs/enum-utils.h"
-#include "gjs/jsapi-util-args.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/enum-utils.h"
+#include "cjs/jsapi-util-args.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "modules/cairo-private.h"
 
 // Avoid static_assert in MSVC builds

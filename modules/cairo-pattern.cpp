@@ -15,9 +15,9 @@
 #include <js/TypeDecls.h>
 #include <jsapi.h>  // for JS_GetPrivate, JS_GetClass, ...
 
-#include "gjs/jsapi-class.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/jsapi-class.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "modules/cairo-private.h"
 
 /* Properties */

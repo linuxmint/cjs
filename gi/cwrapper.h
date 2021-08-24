@@ -23,8 +23,8 @@
 #include <jsapi.h>
 #include <jspubtd.h>
 
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "util/log.h"
 
 struct JSFunctionSpec;

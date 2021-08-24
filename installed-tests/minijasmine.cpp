@@ -12,7 +12,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include <gjs/gjs.h>
+#include <cjs/gjs.h>
 
 [[noreturn]] static void bail_out(GjsContext* gjs_context, const char* msg) {
     g_object_unref(gjs_context);

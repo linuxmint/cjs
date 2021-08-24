@@ -14,7 +14,7 @@
 #include <js/Value.h>
 
 #include "gi/arg.h"
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 typedef bool (*GjsArgOverrideToGArgumentFunc)(
     JSContext* context, JS::Value value, const char* arg_name,

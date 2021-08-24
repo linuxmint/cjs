@@ -18,8 +18,8 @@
 #include "gi/function.h"
 #include "gi/repo.h"
 #include "gi/union.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/mem-private.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/mem-private.h"
 #include "util/log.h"
 
 UnionPrototype::UnionPrototype(GIUnionInfo* info, GType gtype)

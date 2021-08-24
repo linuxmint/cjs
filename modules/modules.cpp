@@ -4,7 +4,7 @@
 
 #include <config.h>  // for ENABLE_CAIRO
 
-#include "gjs/native.h"
+#include "cjs/native.h"
 #include "modules/console.h"
 #include "modules/modules.h"
 #include "modules/print.h"

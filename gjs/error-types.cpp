@@ -4,7 +4,7 @@
 
 #include <glib-object.h>
 
-#include "gjs/error-types.h"
+#include "cjs/error-types.h"
 
 // clang-format off
 G_DEFINE_QUARK(gjs-error-quark, gjs_error)

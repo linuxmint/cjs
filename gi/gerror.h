@@ -16,8 +16,8 @@
 
 #include "gi/cwrapper.h"
 #include "gi/wrapperutils.h"
-#include "gjs/jsapi-util.h"  // for GjsAutoPointer operators
-#include "gjs/macros.h"
+#include "cjs/jsapi-util.h"  // for GjsAutoPointer operators
+#include "cjs/macros.h"
 #include "util/log.h"
 
 class ErrorPrototype;

@@ -11,7 +11,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include "gjs/macros.h"
+#include "cjs/macros.h"
 
 G_BEGIN_DECLS
 

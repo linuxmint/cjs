@@ -15,7 +15,7 @@
 #include <js/TypeDecls.h>
 #include <jsapi.h>  // for JS_AtomizeAndPinString
 
-#include "gjs/atoms.h"
+#include "cjs/atoms.h"
 
 // Avoid static_assert in MSVC builds
 namespace JS {

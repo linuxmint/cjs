@@ -20,10 +20,10 @@
 #include "gi/gobject.h"
 #include "gi/object.h"
 #include "gi/value.h"
-#include "gjs/context-private.h"
-#include "gjs/context.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/context-private.h"
+#include "cjs/context.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 
 static std::unordered_map<GType, AutoParamArray> class_init_properties;
 

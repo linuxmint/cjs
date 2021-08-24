@@ -28,9 +28,9 @@
 #include <mozilla/Likely.h>         // for MOZ_LIKELY
 
 #include "gi/wrapperutils.h"
-#include "gjs/jsapi-util-root.h"
-#include "gjs/jsapi-util.h"
-#include "gjs/macros.h"
+#include "cjs/jsapi-util-root.h"
+#include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "util/log.h"
 
 class GjsAtoms;

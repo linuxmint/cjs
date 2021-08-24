@@ -7,7 +7,7 @@
 #include <mutex>
 #include <unordered_set>
 
-#include "gjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"
 
 static std::atomic<GObject*> m_tmp_object = nullptr;
 static GWeakRef m_tmp_weak;

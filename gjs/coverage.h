@@ -16,8 +16,8 @@
 #include <glib-object.h>
 #include <glib.h> /* for G_BEGIN_DECLS, G_END_DECLS */
 
-#include <gjs/context.h>
-#include <gjs/macros.h>
+#include <cjs/context.h>
+#include <cjs/macros.h>
 
 G_BEGIN_DECLS
 
