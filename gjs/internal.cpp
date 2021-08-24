@@ -48,6 +48,10 @@
 
 #include "gi/repo.h"
 
+#if !GLIB_CHECK_VERSION(2, 66, 0)
+#include "guri.h"
+#endif
+
 // NOTE: You have to be very careful in this file to only do operations within
 // the correct global!
 
@@ -276,7 +280,6 @@ bool gjs_internal_get_registry(JSContext* cx, unsigned argc, JS::Value* vp) {
     return true;
 }
 
-#if GLIB_CHECK_VERSION(2, 66, 0)
 bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     using AutoHashTable =
         GjsAutoPointer<GHashTable, GHashTable, g_hash_table_destroy>;
@@ -368,117 +371,6 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     args.rval().setObject(*return_obj);
     return true;
 }
-#else // GLIB_CHECK_VERSION(2, 66, 0)
-bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
-    // using AutoHashTable =
-    //     GjsAutoPointer<GHashTable, GHashTable, g_hash_table_destroy>;
-    // using AutoURI = GjsAutoPointer<GUri, GUri, g_uri_unref>;
-
-    // JS::CallArgs args = CallArgsFromVp(argc, vp);
-
-    // g_assert(args.length() == 1 && "parseUri() takes one string argument");
-    // g_assert(args[0].isString() && "parseUri() takes one string argument");
-
-    // JS::RootedString string_arg(cx, args[0].toString());
-    // JS::UniqueChars uri = JS_EncodeStringToUTF8(cx, string_arg);
-    // if (!uri)
-    //     return false;
-
-    // GError* error = nullptr;
-    // AutoURI parsed = g_uri_parse(uri.get(), G_URI_FLAGS_NONE, &error);
-    // if (!parsed) {
-    //     gjs_throw_custom(cx, JSProto_Error, "ImportError",
-    //                      "Attempted to import invalid URI: %s (%s)", uri.get(),
-    //                      error->message);
-    //     g_clear_error(&error);
-    //     return false;
-    // }
-
-    // JS::RootedObject query_obj(cx, JS_NewPlainObject(cx));
-    // if (!query_obj)
-    //     return false;
-
-    // const char* raw_query = g_uri_get_query(parsed);
-    // if (raw_query) {
-    //     AutoHashTable query =
-    //         g_uri_parse_params(raw_query, -1, "&", G_URI_PARAMS_NONE, &error);
-    //     if (!query) {
-    //         gjs_throw_custom(cx, JSProto_Error, "ImportError",
-    //                          "Attempted to import invalid URI: %s (%s)",
-    //                          uri.get(), error->message);
-    //         g_clear_error(&error);
-    //         return false;
-    //     }
-
-    //     GHashTableIter iter;
-    //     g_hash_table_iter_init(&iter, query);
-
-    //     void* key_ptr;
-    //     void* value_ptr;
-    //     while (g_hash_table_iter_next(&iter, &key_ptr, &value_ptr)) {
-    //         auto* key = static_cast<const char*>(key_ptr);
-    //         auto* value = static_cast<const char*>(value_ptr);
-
-    //         JS::ConstUTF8CharsZ value_chars{value, strlen(value)};
-    //         JS::RootedString value_str(cx,
-    //                                    JS_NewStringCopyUTF8Z(cx, value_chars));
-    //         if (!value_str || !JS_DefineProperty(cx, query_obj, key, value_str,
-    //                                              JSPROP_ENUMERATE))
-    //             return false;
-    //     }
-    // }
-
-    // JS::RootedObject return_obj(cx, JS_NewPlainObject(cx));
-    // if (!return_obj)
-    //     return false;
-
-    // // JS_NewStringCopyZ() used here and below because the URI components are
-    // // %-encoded, meaning ASCII-only
-    // JS::RootedString scheme(cx,
-    //                         JS_NewStringCopyZ(cx, g_uri_get_scheme(parsed)));
-    // if (!scheme)
-    //     return false;
-
-    // JS::RootedString host(cx, JS_NewStringCopyZ(cx, g_uri_get_host(parsed)));
-    // if (!host)
-    //     return false;
-
-    // JS::RootedString path(cx, JS_NewStringCopyZ(cx, g_uri_get_path(parsed)));
-    // if (!path)
-    //     return false;
-
-    // if (!JS_DefineProperty(cx, return_obj, "uri", string_arg,
-    //                        JSPROP_ENUMERATE) ||
-    //     !JS_DefineProperty(cx, return_obj, "scheme", scheme,
-    //                        JSPROP_ENUMERATE) ||
-    //     !JS_DefineProperty(cx, return_obj, "host", host, JSPROP_ENUMERATE) ||
-    //     !JS_DefineProperty(cx, return_obj, "path", path, JSPROP_ENUMERATE) ||
-    //     !JS_DefineProperty(cx, return_obj, "query", query_obj,
-    //                        JSPROP_ENUMERATE))
-    //     return false;
-
-    // args.rval().setObject(*return_obj);
-    // return true;
-    return false;
-}
-
-
-
-
-#endif // GLIB_CHECK_VERSION(2, 66, 0)
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 bool gjs_internal_resolve_relative_resource_or_file(JSContext* cx,
                                                     unsigned argc,

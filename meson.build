@@ -411,6 +411,10 @@ libgjs_sources = [
     'modules/system.cpp', 'modules/system.h',
 ]
 
+if glib.version().version_compare('<2.66')
+    libgjs_sources += [ 'gjs/guri.c', 'gjs/guri.h' ]
+endif
+
 # GjsPrivate introspection sources
 libgjs_private_sources = [
     'libgjs-private/gjs-gdbus-wrapper.c', 'libgjs-private/gjs-gdbus-wrapper.h',

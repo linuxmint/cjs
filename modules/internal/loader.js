@@ -68,8 +68,8 @@ class ModuleLoader extends InternalModuleLoader {
                 return loader.load(uri);
         }
 
-        // const result = super.loadURI(uri);
-        return null;
+        const result = super.loadURI(uri);
+
         if (result)
             return result;
 
