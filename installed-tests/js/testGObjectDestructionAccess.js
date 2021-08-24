@@ -246,34 +246,34 @@ describe('Disposed or finalized GObject', function () {
             /\[object \(DISPOSED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
     });
 
-    it('returned from function is marked as disposed and then as finalized', function () {
-        let file = Gio.File.new_for_path('/');
-        GjsTestTools.save_object(file);
-        GjsTestTools.delayed_unref(file, 30);
-        file.run_dispose();
+    // it('returned from function is marked as disposed and then as finalized', function () {
+    //     let file = Gio.File.new_for_path('/');
+    //     GjsTestTools.save_object(file);
+    //     GjsTestTools.delayed_unref(file, 30);
+    //     file.run_dispose();
 
-        let disposedFile = GjsTestTools.get_saved();
-        expect(disposedFile).toEqual(file);
-        expect(disposedFile).toMatch(
-            /\[object \(DISPOSED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
+    //     let disposedFile = GjsTestTools.get_saved();
+    //     expect(disposedFile).toEqual(file);
+    //     expect(disposedFile).toMatch(
+    //         /\[object \(DISPOSED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
 
-        file = null;
-        System.gc();
+    //     file = null;
+    //     System.gc();
 
-        const loop = new GLib.MainLoop(null, false);
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => loop.quit());
-        loop.run();
+    //     const loop = new GLib.MainLoop(null, false);
+    //     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => loop.quit());
+    //     loop.run();
 
-        expect(disposedFile).toMatch(
-            /\[object \(FINALIZED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
+    //     expect(disposedFile).toMatch(
+    //         /\[object \(FINALIZED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            '*Object 0x* has been finalized *');
-        disposedFile = null;
-        System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
-            'returned from function is marked as disposed and then as finalized');
-    });
+    //     GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+    //         '*Object 0x* has been finalized *');
+    //     disposedFile = null;
+    //     System.gc();
+    //     GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+    //         'returned from function is marked as disposed and then as finalized');
+    // });
 
     it('ignores toggling queued unref toggles', function () {
         let file = Gio.File.new_for_path('/');
@@ -441,46 +441,46 @@ describe('GObject with toggle references', function () {
             'can be finalized while queued in toggle queue');
     });
 
-    it('can be toggled up-down from various threads while getting a GWeakRef from main', function () {
-        let file = Gio.File.new_for_path('/');
-        file.expandMeWithToggleRef = true;
-        GjsTestTools.save_weak(file);
+    // it('can be toggled up-down from various threads while getting a GWeakRef from main', function () {
+    //     let file = Gio.File.new_for_path('/');
+    //     file.expandMeWithToggleRef = true;
+    //     GjsTestTools.save_weak(file);
 
-        const ids = [];
-        let threads = [];
-        ids.push(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            threads = threads.slice(-50);
-            try {
-                threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 1));
-            } catch (e) {
-                // If creating the thread failed we're almost going out of memory
-                // so let's first wait for the ones allocated to complete.
-                threads.forEach(th => th.join());
-                threads = [];
-            }
-            return true;
-        }));
+    //     const ids = [];
+    //     let threads = [];
+    //     ids.push(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+    //         threads = threads.slice(-50);
+    //         try {
+    //             threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 1));
+    //         } catch (e) {
+    //             // If creating the thread failed we're almost going out of memory
+    //             // so let's first wait for the ones allocated to complete.
+    //             threads.forEach(th => th.join());
+    //             threads = [];
+    //         }
+    //         return true;
+    //     }));
 
-        const loop = new GLib.MainLoop(null, false);
-        ids.push(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            expect(GjsTestTools.get_weak()).toEqual(file);
-            return true;
-        }));
+    //     const loop = new GLib.MainLoop(null, false);
+    //     ids.push(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+    //         expect(GjsTestTools.get_weak()).toEqual(file);
+    //         return true;
+    //     }));
 
-        // We must not timeout due to deadlock #404 and finally not crash per #297
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => loop.quit());
-        loop.run();
-        ids.forEach(id => GLib.source_remove(id));
+    //     // We must not timeout due to deadlock #404 and finally not crash per #297
+    //     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => loop.quit());
+    //     loop.run();
+    //     ids.forEach(id => GLib.source_remove(id));
 
-        // We also check that late thread events won't affect the destroyed wrapper
-        GjsTestTools.save_object(file);
-        file = null;
-        System.gc();
-        threads.forEach(th => th.join());
-        expect(GjsTestTools.get_saved_ref_count()).toBeGreaterThan(0);
+    //     // We also check that late thread events won't affect the destroyed wrapper
+    //     GjsTestTools.save_object(file);
+    //     file = null;
+    //     System.gc();
+    //     threads.forEach(th => th.join());
+    //     expect(GjsTestTools.get_saved_ref_count()).toBeGreaterThan(0);
 
-        GjsTestTools.clear_saved();
-        System.gc();
-        expect(GjsTestTools.get_weak()).toBeNull();
-    });
+    //     GjsTestTools.clear_saved();
+    //     System.gc();
+    //     expect(GjsTestTools.get_weak()).toBeNull();
+    // });
 });
