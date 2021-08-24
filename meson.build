@@ -560,7 +560,7 @@ install_data('installed-tests/extra/lsan.supp',
 
 if get_option('installed_tests')
     schemadir = abs_datadir / 'glib-2.0' / 'schemas'
-    install_data('installed-tests/js/org.gnome.CjsTest.gschema.xml', install_dir: schemadir)
+    install_data('installed-tests/js/org.cinnamon.CjsTest.gschema.xml', install_dir: schemadir)
     meson.add_install_script('build/compile-gschemas.py', schemadir)
 endif
 
