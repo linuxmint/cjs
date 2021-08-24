@@ -336,7 +336,7 @@ endif
 tapset_subst = configuration_data({
     'EXPANDED_LIBDIR': get_option('libdir'),
 })
-tapset = configure_file(input: 'gjs/gjs.stp.in', output: 'gjs.stp',
+tapset = configure_file(input: 'cjs/gjs.stp.in', output: 'gjs.stp',
     configuration: tapset_subst)
 if get_option('systemtap')
     install_data(tapset,
@@ -351,13 +351,13 @@ directory_defines = [
 ]
 
 gjs_public_headers = [
-    'gjs/context.h',
-    'gjs/coverage.h',
-    'gjs/error-types.h',
-    'gjs/gjs.h',
-    'gjs/macros.h',
-    'gjs/mem.h',
-    'gjs/profiler.h',
+    'cjs/context.h',
+    'cjs/coverage.h',
+    'cjs/error-types.h',
+    'cjs/gjs.h',
+    'cjs/macros.h',
+    'cjs/mem.h',
+    'cjs/profiler.h',
 ]
 
 # For historical reasons, some files live in gi/
@@ -388,23 +388,23 @@ libgjs_sources = [
     'gi/utils-inl.h',
     'gi/value.cpp', 'gi/value.h',
     'gi/wrapperutils.cpp', 'gi/wrapperutils.h',
-    'gjs/atoms.cpp', 'gjs/atoms.h',
-    'gjs/byteArray.cpp', 'gjs/byteArray.h',
-    'gjs/context.cpp', 'gjs/context-private.h',
-    'gjs/coverage.cpp',
-    'gjs/debugger.cpp',
-    'gjs/deprecation.cpp', 'gjs/deprecation.h',
-    'gjs/engine.cpp', 'gjs/engine.h',
-    'gjs/error-types.cpp',
-    'gjs/global.cpp', 'gjs/global.h',
-    'gjs/importer.cpp', 'gjs/importer.h',
-    'gjs/internal.cpp', 'gjs/internal.h',
-    'gjs/mem.cpp', 'gjs/mem-private.h',
-    'gjs/module.cpp', 'gjs/module.h',
-    'gjs/native.cpp', 'gjs/native.h',
-    'gjs/objectbox.cpp', 'gjs/objectbox.h',
-    'gjs/profiler.cpp', 'gjs/profiler-private.h',
-    'gjs/stack.cpp',
+    'cjs/atoms.cpp', 'cjs/atoms.h',
+    'cjs/byteArray.cpp', 'cjs/byteArray.h',
+    'cjs/context.cpp', 'cjs/context-private.h',
+    'cjs/coverage.cpp',
+    'cjs/debugger.cpp',
+    'cjs/deprecation.cpp', 'cjs/deprecation.h',
+    'cjs/engine.cpp', 'cjs/engine.h',
+    'cjs/error-types.cpp',
+    'cjs/global.cpp', 'cjs/global.h',
+    'cjs/importer.cpp', 'cjs/importer.h',
+    'cjs/internal.cpp', 'cjs/internal.h',
+    'cjs/mem.cpp', 'cjs/mem-private.h',
+    'cjs/module.cpp', 'cjs/module.h',
+    'cjs/native.cpp', 'cjs/native.h',
+    'cjs/objectbox.cpp', 'cjs/objectbox.h',
+    'cjs/profiler.cpp', 'cjs/profiler-private.h',
+    'cjs/stack.cpp',
     'modules/console.cpp', 'modules/console.h',
     'modules/modules.cpp', 'modules/modules.h',
     'modules/print.cpp', 'modules/print.h',
@@ -412,7 +412,7 @@ libgjs_sources = [
 ]
 
 if glib.version().version_compare('<2.66')
-    libgjs_sources += [ 'gjs/guri.c', 'gjs/guri.h' ]
+    libgjs_sources += [ 'cjs/guri.c', 'cjs/guri.h' ]
 endif
 
 # GjsPrivate introspection sources
@@ -422,13 +422,13 @@ libgjs_private_sources = [
 ]
 
 libgjs_jsapi_sources = [
-    'gjs/jsapi-class.h',
-    'gjs/jsapi-dynamic-class.cpp',
-    'gjs/jsapi-util-args.h',
-    'gjs/jsapi-util-error.cpp',
-    'gjs/jsapi-util-root.h',
-    'gjs/jsapi-util-string.cpp',
-    'gjs/jsapi-util.cpp', 'gjs/jsapi-util.h',
+    'cjs/jsapi-class.h',
+    'cjs/jsapi-dynamic-class.cpp',
+    'cjs/jsapi-util-args.h',
+    'cjs/jsapi-util-error.cpp',
+    'cjs/jsapi-util-root.h',
+    'cjs/jsapi-util-string.cpp',
+    'cjs/jsapi-util.cpp', 'cjs/jsapi-util.h',
     'util/log.cpp', 'util/log.h',
     'util/misc.cpp', 'util/misc.h',
 ]
@@ -543,7 +543,7 @@ gjs_private_typelib = gjs_private_gir[1]
 
 ### Build gjs-console interpreter ##############################################
 
-gjs_console_srcs = ['gjs/console.cpp']
+gjs_console_srcs = ['cjs/console.cpp']
 
 gjs_console = executable('cjs-console', gjs_console_srcs,
     cpp_args: libgjs_cpp_args,
