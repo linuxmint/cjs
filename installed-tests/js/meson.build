@@ -143,7 +143,7 @@ endif
 installed_js_tests_dir = installed_tests_execdir / 'js'
 
 gschemas_compiled = gnome.compile_schemas(
-    depend_files: 'org.gnome.GjsTest.gschema.xml')
+    depend_files: 'org.gnome.CjsTest.gschema.xml')
 
 foreach test : jasmine_tests
     test_file = files('test@0@.js'.format(test))
