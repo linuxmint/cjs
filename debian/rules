@@ -2,7 +2,7 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,-z,defs -Wl,--as-needed
-export DEB_BUILD_OPTIONS = nocheck
+# export DEB_BUILD_OPTIONS = nocheck
 
 include /usr/share/dpkg/default.mk
 
@@ -22,11 +22,11 @@ override_dh_girepository:
 
 override_dh_auto_test:
 ifeq (, $(filter nocheck, $(DEB_BUILD_OPTIONS)))
-	obj-$(DEB_HOST_GNU_TYPE)/gjs-console -c 'print("Smoke-test OK")'
+	obj-$(DEB_HOST_GNU_TYPE)/cjs-console -c 'print("Smoke-test OK")'
 	env \
 		TZ=UTC \
 	xvfb-run -a \
-	dh_auto_test -- -v -C $(CURDIR)/obj-$(DEB_HOST_GNU_TYPE) --timeout-multiplier 4
+	dh_auto_test -- -v -C $(CURDIR)/obj-$(DEB_HOST_GNU_TYPE)
 endif
 
 override_dh_makeshlibs:
