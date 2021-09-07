@@ -1263,13 +1263,16 @@ static void wrapped_gobj_toggle_notify(void*, GObject* gobj,
          */
         if (is_main_thread) {
             if (G_UNLIKELY (toggle_up_queued || toggle_down_queued)) {
-                g_error("toggling down object %s that's already queued to toggle %s\n",
-                        G_OBJECT_TYPE_NAME(gobj),
+                g_critical("toggling down object %s (%p) that's already queued to toggle %s\n",
+                        G_OBJECT_TYPE_NAME(gobj), gobj,
                         toggle_up_queued && toggle_down_queued? "up and down" :
                         toggle_up_queued? "up" : "down");
+
+                toggle_queue.enqueue(gobj, ToggleQueue::DOWN, toggle_handler);
+            } else {
+                ObjectInstance::for_gobject(gobj)->toggle_down();
             }
 
-            ObjectInstance::for_gobject(gobj)->toggle_down();
         } else {
             toggle_queue.enqueue(gobj, ToggleQueue::DOWN, toggle_handler);
         }
