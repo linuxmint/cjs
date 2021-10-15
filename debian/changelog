@@ -1,3 +1,13 @@
+cjs (5.0.1) uma; urgency=medium
+
+  [ Eli Schwartz ]
+  * fix failing test checking for version number (#94)
+
+  [ Michael Webster ]
+  * object.cpp: Defer processing an object, rather than crash, when a toggle unref is already queued.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Fri, 15 Oct 2021 15:42:55 +0100
+
 cjs (5.0.0) uma; urgency=medium
 
   [ Leigh Scott ]
