@@ -1,3 +1,9 @@
+cjs (5.2.0) una; urgency=medium
+
+  * 5.2.0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 15 Nov 2021 11:39:00 +0000
+
 cjs (5.0.1) uma; urgency=medium
 
   [ Eli Schwartz ]
@@ -6,7 +12,7 @@ cjs (5.0.1) uma; urgency=medium
   [ Michael Webster ]
   * object.cpp: Defer processing an object, rather than crash, when a toggle unref is already queued.
 
- -- Clement Lefebvre <root@linuxmint.com>  Fri, 15 Oct 2021 15:42:55 +0100
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 15 Nov 2021 11:19:43 +0000
 
 cjs (5.0.0) uma; urgency=medium
 
