@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2017 Endless Mobile, Inc.
+
 #include <config.h>
 
 #include <glib.h>
@@ -9,6 +12,7 @@
 #include <js/Value.h>
 #include <jsapi.h>  // for JS_GetPrivate, JS_NewObject, JS_Set...
 
+#include "cjs/context-private.h"
 #include "cjs/jsapi-util-root.h"
 #include "test/gjs-test-utils.h"
 
@@ -20,7 +24,7 @@ void g_assertion_message(const char*, const char*, int, const char*,
 
 static GMutex gc_lock;
 static GCond gc_finished;
-static volatile int gc_counter;
+static int gc_counter;
 
 #define PARENT(fx) ((GjsUnitTestFixture *)fx)
 struct GjsRootingFixture {
@@ -220,7 +224,7 @@ static void test_maybe_owned_switch_to_unrooted_allows_collection(
     delete obj;
 }
 
-static void context_destroyed(JS::HandleObject, void* data) {
+static void context_destroyed(JSContext*, void* data) {
     auto fx = static_cast<GjsRootingFixture *>(data);
     g_assert_false(fx->notify_called);
     g_assert_false(fx->finalized);
@@ -230,8 +234,10 @@ static void context_destroyed(JS::HandleObject, void* data) {
 
 static void test_maybe_owned_notify_callback_called_on_context_destroy(
     GjsRootingFixture* fx, const void*) {
+    auto* gjs = GjsContextPrivate::from_cx(PARENT(fx)->cx);
     fx->obj = new GjsMaybeOwned<JSObject *>();
-    fx->obj->root(PARENT(fx)->cx, test_obj_new(fx), context_destroyed, fx);
+    fx->obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    gjs->register_notifier(context_destroyed, fx);
 
     gjs_unit_test_destroy_context(PARENT(fx));
     g_assert_true(fx->notify_called);
@@ -240,8 +246,10 @@ static void test_maybe_owned_notify_callback_called_on_context_destroy(
 
 static void test_maybe_owned_object_destroyed_after_notify(
     GjsRootingFixture* fx, const void*) {
+    auto* gjs = GjsContextPrivate::from_cx(PARENT(fx)->cx);
     fx->obj = new GjsMaybeOwned<JSObject *>();
-    fx->obj->root(PARENT(fx)->cx, test_obj_new(fx), context_destroyed, fx);
+    fx->obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    gjs->register_notifier(context_destroyed, fx);
 
     gjs_unit_test_destroy_context(PARENT(fx));
     g_assert_true(fx->finalized);

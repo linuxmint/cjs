@@ -1,47 +1,23 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/* Copyright 2012 Giovanni Campagna <scampa.giovanni@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
+/*
+ * SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+ * SPDX-FileCopyrightText: 2012 Giovanni Campagna <scampa.giovanni@gmail.com>
  */
 
 #include <config.h>
 
-#include <locale.h>    /* for setlocale */
-#include <stddef.h>    /* for size_t */
-#include <string.h>    /* for strcmp */
+#include <locale.h> /* for setlocale */
+#include <stdbool.h>
+#include <stddef.h> /* for size_t */
+#include <string.h>
 
-#include <gio/gio.h>
 #include <glib-object.h>
 #include <girepository.h>
 #include <glib.h>
 #include <glib/gi18n.h> /* for bindtextdomain, bind_textdomain_codeset, textdomain */
 
-#ifdef G_OS_UNIX
-#    include <errno.h>
-#    include <fcntl.h> /* for FD_CLOEXEC */
-#    include <stdarg.h>
-#    include <unistd.h> /* for close, write */
-
-#    include <glib-unix.h> /* for g_unix_open_pipe */
-#endif
-
 #include "libgjs-private/gjs-util.h"
+#include "util/console.h"
 
 char *
 gjs_format_int_alternative_output(int n)
@@ -53,27 +29,28 @@ gjs_format_int_alternative_output(int n)
 #endif
 }
 
-GType
-gjs_locale_category_get_type(void)
-{
-  static volatile size_t g_define_type_id__volatile = 0;
-  if (g_once_init_enter(&g_define_type_id__volatile)) {
-      static const GEnumValue v[] = {
-          { GJS_LOCALE_CATEGORY_ALL, "GJS_LOCALE_CATEGORY_ALL", "all" },
-          { GJS_LOCALE_CATEGORY_COLLATE, "GJS_LOCALE_CATEGORY_COLLATE", "collate" },
-          { GJS_LOCALE_CATEGORY_CTYPE, "GJS_LOCALE_CATEGORY_CTYPE", "ctype" },
-          { GJS_LOCALE_CATEGORY_MESSAGES, "GJS_LOCALE_CATEGORY_MESSAGES", "messages" },
-          { GJS_LOCALE_CATEGORY_MONETARY, "GJS_LOCALE_CATEGORY_MONETARY", "monetary" },
-          { GJS_LOCALE_CATEGORY_NUMERIC, "GJS_LOCALE_CATEGORY_NUMERIC", "numeric" },
-          { GJS_LOCALE_CATEGORY_TIME, "GJS_LOCALE_CATEGORY_TIME", "time" },
-          { 0, NULL, NULL }
-      };
-      GType g_define_type_id =
-        g_enum_register_static(g_intern_static_string("GjsLocaleCategory"), v);
+GType gjs_locale_category_get_type(void) {
+    static size_t gjs_locale_category_get_type = 0;
+    if (g_once_init_enter(&gjs_locale_category_get_type)) {
+        static const GEnumValue v[] = {
+            {GJS_LOCALE_CATEGORY_ALL, "GJS_LOCALE_CATEGORY_ALL", "all"},
+            {GJS_LOCALE_CATEGORY_COLLATE, "GJS_LOCALE_CATEGORY_COLLATE",
+             "collate"},
+            {GJS_LOCALE_CATEGORY_CTYPE, "GJS_LOCALE_CATEGORY_CTYPE", "ctype"},
+            {GJS_LOCALE_CATEGORY_MESSAGES, "GJS_LOCALE_CATEGORY_MESSAGES",
+             "messages"},
+            {GJS_LOCALE_CATEGORY_MONETARY, "GJS_LOCALE_CATEGORY_MONETARY",
+             "monetary"},
+            {GJS_LOCALE_CATEGORY_NUMERIC, "GJS_LOCALE_CATEGORY_NUMERIC",
+             "numeric"},
+            {GJS_LOCALE_CATEGORY_TIME, "GJS_LOCALE_CATEGORY_TIME", "time"},
+            {0, NULL, NULL}};
+        GType g_define_type_id = g_enum_register_static(
+            g_intern_static_string("GjsLocaleCategory"), v);
 
-      g_once_init_leave(&g_define_type_id__volatile, g_define_type_id);
-  }
-  return g_define_type_id__volatile;
+        g_once_init_leave(&gjs_locale_category_get_type, g_define_type_id);
+    }
+    return gjs_locale_category_get_type;
 }
 
 /**
@@ -124,105 +101,31 @@ gjs_param_spec_get_owner_type(GParamSpec *pspec)
     return pspec->owner_type;
 }
 
-#ifdef G_OS_UNIX
+#define G_CLOSURE_NOTIFY(func) ((GClosureNotify)(void (*)(void))func)
 
-// Adapted from glnx_throw_errno_prefix()
-G_GNUC_PRINTF(2, 3)
-static gboolean throw_errno_prefix(GError** error, const char* fmt, ...) {
-    int errsv = errno;
-    char* old_msg;
-    GString* buf;
+GBinding* gjs_g_object_bind_property_full(
+    GObject* source, const char* source_property, GObject* target,
+    const char* target_property, GBindingFlags flags,
+    GjsBindingTransformFunc to_callback, void* to_data,
+    GDestroyNotify to_notify, GjsBindingTransformFunc from_callback,
+    void* from_data, GDestroyNotify from_notify) {
+    GClosure* to_closure = NULL;
+    GClosure* from_closure = NULL;
 
-    va_list args;
+    if (to_callback)
+        to_closure = g_cclosure_new(G_CALLBACK(to_callback), to_data,
+                                    G_CLOSURE_NOTIFY(to_notify));
 
-    if (!error)
-        return FALSE;
+    if (from_callback)
+        from_closure = g_cclosure_new(G_CALLBACK(from_callback), from_data,
+                                      G_CLOSURE_NOTIFY(from_notify));
 
-    va_start(args, fmt);
-
-    g_set_error_literal(error, G_IO_ERROR, g_io_error_from_errno(errsv),
-                        g_strerror(errsv));
-
-    old_msg = g_steal_pointer(&(*error)->message);
-    buf = g_string_new("");
-    g_string_append_vprintf(buf, fmt, args);
-    g_string_append(buf, ": ");
-    g_string_append(buf, old_msg);
-    g_free(old_msg);
-    (*error)->message = g_string_free(g_steal_pointer(&buf), FALSE);
-
-    va_end(args);
-
-    errno = errsv;
-    return FALSE;
+    return g_object_bind_property_with_closures(source, source_property, target,
+                                                target_property, flags,
+                                                to_closure, from_closure);
 }
 
-#endif /* G_OS_UNIX */
-
-/**
- * gjs_open_bytes:
- * @bytes: bytes to send to the pipe
- * @error: Return location for a #GError, or %NULL
- *
- * Creates a pipe and sends @bytes to it, such that it is suitable for passing
- * to g_subprocess_launcher_take_fd().
- *
- * Returns: file descriptor, or -1 on error
- */
-int gjs_open_bytes(GBytes* bytes, GError** error) {
-    int pipefd[2], result;
-    size_t count;
-    const void* buf;
-    ssize_t bytes_written;
-
-    g_return_val_if_fail(bytes, -1);
-    g_return_val_if_fail(error == NULL || *error == NULL, -1);
-
-#ifdef G_OS_UNIX
-    if (!g_unix_open_pipe(pipefd, FD_CLOEXEC, error))
-        return -1;
-
-    buf = g_bytes_get_data(bytes, &count);
-
-    bytes_written = write(pipefd[1], buf, count);
-    if (bytes_written < 0) {
-        throw_errno_prefix(error, "write");
-        return -1;
-    }
-
-    if ((size_t)bytes_written != count)
-        g_warning("%s: %zd bytes sent, only %zu bytes written", __func__, count,
-                  bytes_written);
-
-    result = close(pipefd[1]);
-    if (result == -1) {
-        throw_errno_prefix(error, "close");
-        return -1;
-    }
-
-    return pipefd[0];
-#else
-    g_error("%s is currently supported on UNIX only", __func__);
-#endif
-}
-
-static GIBaseInfo* find_method_fallback(GIStructInfo* class_info,
-                                        const char* method_name) {
-    GIBaseInfo* method;
-    guint n_methods, i;
-
-    n_methods = g_struct_info_get_n_methods(class_info);
-
-    for (i = 0; i < n_methods; i++) {
-        method = g_struct_info_get_method(class_info, i);
-
-        if (strcmp(g_base_info_get_name(method), method_name) == 0)
-            return method;
-        g_base_info_unref(method);
-    }
-
-    return NULL;
-}
+#undef G_CLOSURE_NOTIFY
 
 static GParamSpec* gjs_gtk_container_class_find_child_property(
     GIObjectInfo* container_info, GObject* container, const char* property) {
@@ -235,13 +138,6 @@ static GParamSpec* gjs_gtk_container_class_find_child_property(
     class_info = g_object_info_get_class_struct(container_info);
     find_child_property_fun =
         g_struct_info_find_method(class_info, "find_child_property");
-
-    /* Workaround for
-       https://gitlab.gnome.org/GNOME/gobject-introspection/merge_requests/171
-     */
-    if (find_child_property_fun == NULL)
-        find_child_property_fun =
-            find_method_fallback(class_info, "find_child_property");
 
     find_child_property_args[0].v_pointer = G_OBJECT_GET_CLASS(container);
     find_child_property_args[1].v_string = (char*)property;
@@ -308,4 +204,141 @@ void gjs_gtk_container_child_set_property(GObject* container, GObject* child,
 out:
     g_clear_pointer(&base_info, g_base_info_unref);
     g_clear_pointer(&child_set_property_fun, g_base_info_unref);
+}
+
+/**
+ * gjs_list_store_insert_sorted:
+ * @store: a #GListStore
+ * @item: the new item
+ * @compare_func: (scope call): pairwise comparison function for sorting
+ * @user_data: (closure): user data for @compare_func
+ *
+ * Inserts @item into @store at a position to be determined by the
+ * @compare_func.
+ *
+ * The list must already be sorted before calling this function or the
+ * result is undefined.  Usually you would approach this by only ever
+ * inserting items by way of this function.
+ *
+ * This function takes a ref on @item.
+ *
+ * Returns: the position at which @item was inserted
+ */
+unsigned int gjs_list_store_insert_sorted(GListStore *store, GObject *item,
+                                          GjsCompareDataFunc compare_func,
+                                          void *user_data) {
+  return g_list_store_insert_sorted(store, item, (GCompareDataFunc)compare_func, user_data);
+}
+
+/**
+ * gjs_list_store_sort:
+ * @store: a #GListStore
+ * @compare_func: (scope call): pairwise comparison function for sorting
+ * @user_data: (closure): user data for @compare_func
+ *
+ * Sort the items in @store according to @compare_func.
+ */
+void gjs_list_store_sort(GListStore *store, GjsCompareDataFunc compare_func,
+                         void *user_data) {
+  g_list_store_sort(store, (GCompareDataFunc)compare_func, user_data);
+}
+
+typedef struct WriterFuncData {
+    GjsGLogWriterFunc func;
+    void* wrapped_user_data;
+    GDestroyNotify wrapped_user_data_free;
+} WriterFuncData;
+
+static void* log_writer_user_data = NULL;
+static GDestroyNotify log_writer_user_data_free = NULL;
+
+GLogWriterOutput gjs_log_writer_func_wrapper(GLogLevelFlags log_level,
+                                             const GLogField* fields,
+                                             size_t n_fields, void* user_data) {
+    GjsGLogWriterFunc func = (GjsGLogWriterFunc)user_data;
+    GVariantDict dict;
+    g_variant_dict_init(&dict, NULL);
+
+    size_t f;
+    for (f = 0; f < n_fields; f++) {
+        const GLogField* field = &fields[f];
+
+        GVariant* value;
+        if (field->length < 0) {
+            size_t bytes_len = strlen(field->value);
+            GBytes* bytes = g_bytes_new(field->value, bytes_len);
+
+            value = g_variant_new_maybe(
+                G_VARIANT_TYPE_BYTESTRING,
+                g_variant_new_from_bytes(G_VARIANT_TYPE_BYTESTRING, bytes,
+                                         true));
+            g_bytes_unref(bytes);
+        } else if (field->length > 0) {
+            GBytes* bytes = g_bytes_new(field->value, field->length);
+
+            value = g_variant_new_maybe(
+                G_VARIANT_TYPE_BYTESTRING,
+                g_variant_new_from_bytes(G_VARIANT_TYPE_BYTESTRING, bytes,
+                                         true));
+            g_bytes_unref(bytes);
+        } else {
+            value = g_variant_new_maybe(G_VARIANT_TYPE_STRING, NULL);
+        }
+
+        g_variant_dict_insert_value(&dict, field->key, value);
+    }
+
+    GVariant* string_fields = g_variant_dict_end(&dict);
+    g_variant_ref(string_fields);
+
+    GLogWriterOutput output =
+        func(log_level, string_fields, log_writer_user_data);
+
+    g_variant_unref(string_fields);
+    return output;
+}
+
+/**
+ * gjs_log_set_writer_default:
+ *
+ * Sets the structured logging writer function back to the platform default.
+ */
+void gjs_log_set_writer_default() {
+    if (log_writer_user_data_free) {
+        log_writer_user_data_free(log_writer_user_data);
+    }
+
+    g_log_set_writer_func(g_log_writer_default, NULL, NULL);
+    log_writer_user_data_free = NULL;
+    log_writer_user_data = NULL;
+}
+
+/**
+ * gjs_log_set_writer_func:
+ * @func: (scope notified): callback with log data
+ * @user_data: (closure): user data for @func
+ * @user_data_free: (destroy user_data_free): destroy for @user_data
+ *
+ * Sets a given function as the writer function for structured logging,
+ * passing log fields as a variant. If called from JavaScript the application
+ * must call gjs_log_set_writer_default prior to exiting.
+ */
+void gjs_log_set_writer_func(GjsGLogWriterFunc func, void* user_data,
+                             GDestroyNotify user_data_free) {
+    log_writer_user_data = user_data;
+    log_writer_user_data_free = user_data_free;
+
+    g_log_set_writer_func(gjs_log_writer_func_wrapper, func, NULL);
+}
+
+/**
+ * gjs_clear_terminal:
+ *
+ * Clears the terminal, if possible.
+ */
+void gjs_clear_terminal(void) {
+    if (!gjs_console_is_tty(stdout_fd))
+        return;
+
+    gjs_console_clear();
 }

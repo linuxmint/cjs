@@ -1,5 +1,12 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Pavel Vasin <rat4vier@gmail.com>
+// SPDX-FileCopyrightText: 2013 Giovanni Campagna <gcampagna@src.gnome.org>
+// SPDX-FileCopyrightText: 2017 Claudio André <claudioandre.br@gmail.com>
+// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+// SPDX-FileCopyrightText: 2019 Canonical, Ltd.
+
 const System = imports.system;
-const GObject = imports.gi.GObject;
+const {Gio, GObject} = imports.gi;
 
 describe('System.addressOf()', function () {
     it('gives different results for different objects', function () {
@@ -11,8 +18,8 @@ describe('System.addressOf()', function () {
 
 describe('System.version', function () {
     it('gives a plausible number', function () {
-        expect(System.version).not.toBeLessThan(40802);
-        expect(System.version).toBeLessThan(60000);
+        expect(System.version).not.toBeLessThan(14700);
+        expect(System.version).toBeLessThan(100000);
     });
 });
 
@@ -46,5 +53,39 @@ describe('System.gc()', function () {
 describe('System.dumpHeap()', function () {
     it('throws but does not crash when given a nonexistent path', function () {
         expect(() => System.dumpHeap('/does/not/exist')).toThrow();
+    });
+});
+
+describe('System.dumpMemoryInfo()', function () {
+    it('', function () {
+        expect(() => System.dumpMemoryInfo('memory.md')).not.toThrow();
+        expect(() => Gio.File.new_for_path('memory.md').delete(null)).not.toThrow();
+    });
+
+    it('throws but does not crash when given a nonexistent path', function () {
+        expect(() => System.dumpMemoryInfo('/does/not/exist')).toThrowError(/\/does\/not\/exist/);
+    });
+});
+
+describe('System.programPath', function () {
+    it('is null when executed from minijasmine', function () {
+        expect(System.programPath).toBe(null);
+    });
+});
+
+describe('System.programArgs', function () {
+    it('System.programArgs is an array', function () {
+        expect(Array.isArray(System.programArgs)).toBeTruthy();
+    });
+
+    it('modifications persist', function () {
+        System.programArgs.push('--foo');
+        expect(System.programArgs.pop()).toBe('--foo');
+    });
+
+    it('System.programArgs is equal to ARGV', function () {
+        expect(System.programArgs).toEqual(ARGV);
+        ARGV.push('--foo');
+        expect(System.programArgs.pop()).toBe('--foo');
     });
 });

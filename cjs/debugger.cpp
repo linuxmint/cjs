@@ -1,26 +1,6 @@
-/*
- * Copyright (c) 2018 Philip Chimento  <philip.chimento@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
- * Authored By: Philip Chimento <philip.chimento@gmail.com>
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2018 Philip Chimento <philip.chimento@gmail.com>
+// SPDX-FileContributor: Philip Chimento <philip.chimento@gmail.com>
 
 #include <config.h>  // for HAVE_READLINE_READLINE_H, HAVE_UNISTD_H
 
@@ -30,15 +10,6 @@
 #ifdef HAVE_READLINE_READLINE_H
 #    include <readline/history.h>
 #    include <readline/readline.h>
-#endif
-
-#ifdef HAVE_UNISTD_H
-#    include <unistd.h>  // for isatty, STDIN_FILENO
-#elif defined(_WIN32)
-#    include <io.h>
-#    ifndef STDIN_FILENO
-#        define STDIN_FILENO 0
-#    endif
 #endif
 
 #include <glib.h>
@@ -58,6 +29,8 @@
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
+
+#include "util/console.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 static bool quit(JSContext* cx, unsigned argc, JS::Value* vp) {
@@ -84,7 +57,7 @@ static bool do_readline(JSContext* cx, unsigned argc, JS::Value* vp) {
     do {
         const char* real_prompt = prompt ? prompt.get() : "db> ";
 #ifdef HAVE_READLINE_READLINE_H
-        if (isatty(STDIN_FILENO)) {
+        if (gjs_console_is_tty(stdin_fd)) {
             line = readline(real_prompt);
         } else {
 #else
@@ -95,9 +68,9 @@ static bool do_readline(JSContext* cx, unsigned argc, JS::Value* vp) {
             fflush(stdout);
             if (!fgets(buf, sizeof buf, stdin))
                 buf[0] = '\0';
-            line.reset(g_strchomp(g_strdup(buf)));
+            line.reset(g_strdup(g_strchomp(buf)));
 
-            if (!isatty(STDIN_FILENO)) {
+            if (!gjs_console_is_tty(stdin_fd)) {
                 if (feof(stdin)) {
                     g_print("[quit due to end of input]\n");
                     line.reset(g_strdup("quit"));

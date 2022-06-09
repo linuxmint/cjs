@@ -1,14 +1,10 @@
 Instructions for building GJS on Visual Studio or clang-cl
 ==========================================================
 Building the GJS on Windows is now supported using Visual Studio
-versions 2017 or later with or without clang-cl in both 32-bit and
+versions 2019 or later with or without clang-cl in both 32-bit and
 64-bit (x64) flavors, via Meson.  It should be noted that a
 recent-enough Windows SDK from Microsoft is still required if using
-clang-cl, as we will still use items from the Windows SDK.  If using
-Visual Studio, Visual Studio 2017 15.9.x or later are known to work;
-earlier versions at after Visual Studio 2017 15.6 may or may not work,
-please let us know how things went if Visual Studio 15.6, 15.7 or 15.8
-is used.
+clang-cl, as we will still use items from the Windows SDK.
 
 Recent official binary installers of CLang (which contains clang-cl)
 from the LLVM website are known to work to build SpiderMonkey 78 and
@@ -66,7 +62,7 @@ JS_STANDALONE=1 $(mozjs_srcroot)/js/src/configure --enable-nspr-build --host=i68
 
 Notice that "JS_STANDALONE=1" and "--disable-jemalloc" are absolutely required,
 otherwise GJS will not build/run correctly.  If your GJS build crashes upon
-launch, use Depedency Walker to ensure that mozjs-78.dll does not depend on
+launch, use Dependency Walker to ensure that mozjs-78.dll does not depend on
 mozglue.dll!  If it does, or if GJS fails to link with missing arena_malloc() and
 friends symbols, you have built SpiderMoney incorrectly and will need to rebuild
 SpiderMonkey (with the build options as noted above) and retry the build.
@@ -126,6 +122,13 @@ to build without clang-cl, since there are some GCC-ish assumptions here:
 Get rid of the 'JS_FRIEND_API' macro from the class
 'TempAllocPolicy : public AllocPolicyBase' (ca. lines 112 and 178),
 for the member method definitions of onOutOfMemory() and reportAllocOverflow()
+
+-Update $(includedir)/mozjs-78/js/BigInt.h (after the build):
+
+Remove the 'JS_PUBLIC_API' macro from the definition of
+'template <typename NumericT>
+extern BigInt* NumberToBigInt(JSContext* cx, NumericT val)' (ca lines 72-73), as
+it should not be there.
 
 ======================
 To carry out the build

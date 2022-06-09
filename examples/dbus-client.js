@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2020 Andy Holmes <andrew.g.r.holmes@gmail.com>
+
 'use strict';
 
 const GLib = imports.gi.GLib;
@@ -91,7 +94,6 @@ function onNameAppeared(connection, name, _owner) {
     }
 
     proxy.ComplexMethodRemote('input string', (value, error, fdList) => {
-
         // If @error is not `null`, then an error occurred
         if (error !== null) {
             logError(error);

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Giovanni Campagna <gcampagna@src.gnome.org>
+
 imports.gi.versions.Gtk = '3.0';
 
 const ByteArray = imports.byteArray;
@@ -171,25 +174,62 @@ describe('Gtk overrides', function () {
         expect(Gtk.Widget.get_css_name.call(MyComplexGtkSubclass)).toEqual('complex-subclass');
     });
 
-    // it('avoid crashing when GTK vfuncs are called in garbage collection', function () {
-    //     GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-    //         '*during garbage collection*');
-    //     GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-    //         '*destroy*');
+    it('avoid crashing when GTK vfuncs are called in garbage collection', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            '*during garbage collection*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            '*destroy*');
 
-    //     let BadLabel = GObject.registerClass(class BadLabel extends Gtk.Label {
-    //         vfunc_destroy() {}
-    //     });
+        const BadLabel = GObject.registerClass(class BadLabel extends Gtk.Label {
+            vfunc_destroy() {}
+        });
 
-    //     let w = new Gtk.Window();
-    //     w.add(new BadLabel());
+        new BadLabel();
+        System.gc();
 
-    //     w.destroy();
-    //     System.gc();
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
+            'Gtk overrides avoid crashing and print a stack trace');
+    });
 
-    //     GLib.test_assert_expected_messages_internal('Cjs', 'testGtk3.js', 0,
-    //         'Gtk overrides avoid crashing and print a stack trace');
-    // });
+    it('GTK vfuncs are not called if the object is disposed', function () {
+        const spy = jasmine.createSpy('vfunc_destroy');
+        const NotSoGoodLabel = GObject.registerClass(class NotSoGoodLabel extends Gtk.Label {
+            vfunc_destroy() {
+                spy();
+            }
+        });
+
+        let label = new NotSoGoodLabel();
+
+        label.destroy();
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            '*during garbage collection*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            '*destroy*');
+        label = null;
+        System.gc();
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
+            'GTK vfuncs are not called if the object is disposed');
+    });
+
+    it('destroy signal is emitted while disposing objects', function () {
+        const label = new Gtk.Label({label: 'Hello'});
+        const handleDispose = jasmine.createSpy('handleDispose').and.callFake(() => {
+            expect(label.label).toBe('Hello');
+        });
+        label.connect('destroy', handleDispose);
+        label.destroy();
+
+        expect(handleDispose).toHaveBeenCalledWith(label);
+
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            'Object Gtk.Label (0x* disposed *');
+        expect(label.label).toBe('Hello');
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
+            'GTK destroy signal is emitted while disposing objects');
+    });
 
     it('accepts string in place of GdkAtom', function () {
         expect(() => Gtk.Clipboard.get(1)).toThrow();
@@ -238,5 +278,44 @@ describe('Gtk overrides', function () {
         const iter = new Gtk.TreeIter();
         iter.stamp = 42;
         expect(iter.stamp).toEqual(42);
+    });
+
+    it('can get style properties using GObject.Value', function () {
+        let win = new Gtk.ScrolledWindow();
+        let value = new GObject.Value();
+        value.init(GObject.TYPE_BOOLEAN);
+        win.style_get_property('scrollbars-within-bevel', value);
+        expect(value.get_boolean()).toBeDefined();
+
+        value.unset();
+        value.init(GObject.TYPE_INT);
+        let preVal = Math.max(512521, Math.random() * Number.MAX_SAFE_INTEGER);
+        value.set_int(preVal);
+        win.style_get_property('scrollbar-spacing', value);
+        expect(value.get_int()).not.toEqual(preVal);
+
+        win = new Gtk.Window();
+        value.unset();
+        value.init(GObject.TYPE_STRING);
+        value.set_string('EMPTY');
+        win.style_get_property('decoration-button-layout', value);
+        expect(value.get_string()).not.toEqual('EMPTY');
+    });
+
+    it('can pass a parent object to a child at construction', function () {
+        const frame = new Gtk.Frame();
+        let frameChild = null;
+        frame.connect('add', (_widget, child) => {
+            frameChild = child;
+        });
+        const widget = new Gtk.Label({parent: frame});
+
+        expect(widget).toBe(frameChild);
+        expect(widget instanceof Gtk.Label).toBeTruthy();
+        expect(frameChild instanceof Gtk.Label).toBeTruthy();
+
+        expect(frameChild.visible).toBe(false);
+        expect(() => widget.show()).not.toThrow();
+        expect(frameChild.visible).toBe(true);
     });
 });

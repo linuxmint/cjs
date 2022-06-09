@@ -1,32 +1,20 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright © 2013 Endless Mobile, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
- * Authored By: Sam Spilsbury <sam@endlessm.com>
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Endless Mobile, Inc.
+// SPDX-FileContributor: Authored By: Sam Spilsbury <sam@endlessm.com>
 
 #ifndef TEST_GJS_TEST_UTILS_H_
 #define TEST_GJS_TEST_UTILS_H_
 
 #include <config.h>
+
+#include <glib.h>    // for g_assert_...
+#include <stdint.h>  // for uintptr_t
+#include <iterator>  // for pair
+#include <limits>    // for numeric_limits
+#include <string>
+#include <type_traits>  // for is_same
+#include <utility>  // IWYU pragma: keep
 
 #include "cjs/context.h"
 
@@ -49,5 +37,56 @@ void gjs_test_add_tests_for_coverage ();
 void gjs_test_add_tests_for_parse_call_args(void);
 
 void gjs_test_add_tests_for_rooting(void);
+
+void gjs_test_add_tests_for_jsapi_utils();
+
+namespace Gjs {
+namespace Test {
+
+void add_tests_for_toggle_queue();
+
+template <typename T1, typename T2>
+constexpr bool comparable_types() {
+    if constexpr (std::is_same<T1, T2>()) {
+        return true;
+    } else if constexpr (std::is_arithmetic_v<T1> == std::is_arithmetic_v<T2>) {
+        return std::is_signed_v<T1> == std::is_signed_v<T2>;
+    } else if constexpr (std::is_enum_v<T1> == std::is_enum_v<T2>) {
+        return std::is_signed_v<T1> == std::is_signed_v<T2>;
+    } else {
+        return false;
+    }
+}
+
+template <typename T, typename U>
+constexpr void assert_equal(T a, U b) {
+    static_assert(comparable_types<T, U>());
+    if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
+        if constexpr (std::is_unsigned_v<T>)
+            g_assert_cmpuint(a, ==, b);
+        else
+            g_assert_cmpint(a, ==, b);
+    } else if constexpr (std::is_arithmetic_v<T>) {
+        g_assert_cmpfloat_with_epsilon(a, b, std::numeric_limits<T>::epsilon());
+    } else if constexpr (std::is_same_v<T, char*>) {
+        g_assert_cmpstr(a, ==, b);
+    } else if constexpr (std::is_same_v<T, std::string>) {
+        assert_equal(a.c_str(), b.c_str());
+    } else if constexpr (std::is_pointer_v<T>) {
+        assert_equal(reinterpret_cast<uintptr_t>(a),
+                     reinterpret_cast<uintptr_t>(b));
+    } else {
+        g_assert_true(a == b);
+    }
+}
+
+template <typename T, typename U>
+constexpr void assert_equal(std::pair<T, U> const& pair, T first, U second) {
+    assert_equal(pair.first, first);
+    assert_equal(pair.second, second);
+}
+
+}  // namespace Test
+}  // namespace Gjs
 
 #endif  // TEST_GJS_TEST_UTILS_H_

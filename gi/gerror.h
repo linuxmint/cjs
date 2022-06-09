@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #ifndef GI_GERROR_H_
 #define GI_GERROR_H_
@@ -33,7 +14,9 @@
 #include <js/PropertySpec.h>
 #include <js/TypeDecls.h>
 
+#include "gi/cwrapper.h"
 #include "gi/wrapperutils.h"
+#include "cjs/jsapi-util.h"  // for GjsAutoPointer operators
 #include "cjs/macros.h"
 #include "util/log.h"
 
@@ -59,15 +42,15 @@ class CallArgs;
 
 class ErrorBase
     : public GIWrapperBase<ErrorBase, ErrorPrototype, ErrorInstance> {
+    friend class CWrapperPointerOps<ErrorBase>;
     friend class GIWrapperBase<ErrorBase, ErrorPrototype, ErrorInstance>;
 
  protected:
     explicit ErrorBase(ErrorPrototype* proto = nullptr)
         : GIWrapperBase(proto) {}
-    ~ErrorBase(void) {}
 
-    static const GjsDebugTopic debug_topic = GJS_DEBUG_GERROR;
-    static constexpr const char* debug_tag = "gerror";
+    static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_GERROR;
+    static constexpr const char* DEBUG_TAG = "gerror";
 
     static const struct JSClassOps class_ops;
     static const struct JSClass klass;
@@ -175,8 +158,7 @@ class ErrorInstance : public GIWrapperInstance<ErrorBase, ErrorPrototype,
 };
 
 GJS_JSAPI_RETURN_CONVENTION
-GError *gjs_gerror_make_from_error(JSContext       *cx,
-                                   JS::HandleObject obj);
+GError* gjs_gerror_make_from_thrown_value(JSContext* cx);
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_error_properties(JSContext* cx, JS::HandleObject obj);

@@ -60,11 +60,11 @@ Found 343 targets with type "Object"
 
 $ cat file.tree
 ├─[vm_stack[1]]─➤ [Object jsobj@0x7fce60683440]
-│ 
+│
 ├─[vm_stack[1]]─➤ [Object jsobj@0x7fce606833c0]
-│ 
+│
 ├─[exact-Object]─➤ [Object jsobj@0x7fce60683380]
-│ 
+│
 ├─[exact-Object]─➤ [GjsGlobal jsobj@0x7fce60680060]
 │ ├─[Debugger]─➤ [Function Debugger jsobj@0x7fce606a4540]
 │ │ ╰─[Object]─➤ [Function Object jsobj@0x7fce606a9cc0]
@@ -105,7 +105,7 @@ You can also exclude Gray Roots, WeakMaps, nodes with a heap address or nodes
 with labels containing a string. Because GObject addresses are part of the node
 label, these can be excluded with `--hide-node` as well.
 
-By default the global object (GjsGlobal aka `window`), imports (GjsModule,
+By default the global object (GjsGlobal aka `globalThis`), imports (GjsModule,
 GjsFileImporter), and namespaces (GIRepositoryNamespace) aren't shown in the
 graph since these are less useful and can't be garbage collected anyways.
 
@@ -167,7 +167,7 @@ Node/Root Filtering:
                         Don't show roots common to the heap FILE
   --no-gray-roots, -ng  Don't show gray roots (marked to be collected)
   --no-weak-maps, -nwm  Don't show WeakMaps
-  --show-global, -g     Show the global object (eg. window/GjsGlobal)
+  --show-global, -g     Show the global object (eg. globalThis/GjsGlobal)
   --show-imports, -i    Show import and module nodes (eg. imports.foo)
   --hide-addr ADDR, -ha ADDR
                         Don't show roots with the heap address ADDR
@@ -185,5 +185,5 @@ and heap parsing:
 * [GC.cpp Comments](https://searchfox.org/mozilla-central/source/js/src/gc/GC.cpp)
 * [How JavaScript Objects Are Implemented](https://www.infoq.com/presentations/javascript-objects-spidermonkey)
 * [Tracing garbage collection](https://en.wikipedia.org/wiki/Tracing_garbage_collection#Tri-color_marking) on Wikipedia
-* [SpiderMonkey Memory](https://gitlab.gnome.org/GNOME/gjs/blob/master/doc/SpiderMonkey_Memory.md) via GJS Repo
+* [SpiderMonkey Memory](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/doc/SpiderMonkey_Memory.md) via GJS Repo
 

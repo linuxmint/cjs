@@ -1,6 +1,15 @@
-project('cjs', 'cpp', 'c', version: '5.2.0', license: ['MIT', 'LGPL2+'],
-    meson_version: '>= 0.49.2',
-    default_options: ['cpp_std=c++17', 'c_std=c99', 'warning_level=2'])
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+# SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
+
+project('cjs', 'cpp', 'c', version: '5.3.0', license: ['MIT', 'LGPL2+'],
+    meson_version: '>= 0.52.0',
+    default_options: ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99',
+        'warning_level=2', 'b_pch=true' ])
+
+# cpp_rtti: SpiderMonkey can be compiled with or without runtime type
+# information, and the default is without. We must match that option because we
+# need to derive from SpiderMonkey classes.
 
 api_version = '1.0'
 api_name = '@0@-@1@'.format(meson.project_name(), api_version)
@@ -16,7 +25,8 @@ if get_option('systemtap') and not get_option('dtrace')
     error('-Ddtrace=true is required for -Dsystemtap=true')
 endif
 
-if get_option('buildtype').startswith('release') and get_option('verbose_logs')
+release_build = get_option('buildtype').startswith('release')
+if release_build and get_option('verbose_logs')
     error('-Dverbose_logs=true is not allowed with --buildtype=release')
 endif
 
@@ -39,10 +49,11 @@ if cc.get_id() == 'msvc'
         '-wd4251',
         '-wd4291',
         '-wd4800',
+        '-wd5030',
     ]), language: ['cpp', 'c'])
 else
     # Ignore spurious compiler warnings for things that GLib and SpiderMonkey
-    # header files commonly do	
+    # header files commonly do
     add_project_arguments(cxx.get_supported_arguments([
         '-fno-strict-aliasing',
         '-Wno-variadic-macros',  # GLib uses these in header files
@@ -75,20 +86,10 @@ else
     endif
 endif
 
-# SpiderMonkey can be compiled with or without runtime type information, we must
-# match that option because we need to derive from SpiderMonkey classes
-if get_option('spidermonkey_rtti')
-    if cxx.has_argument('-GR-')
-        add_project_arguments('-GR-', language: 'cpp')  # MSVC/clang-cl option
-    endif
-else
-    if cxx.has_argument('-fno-rtti')
-        add_project_arguments('-fno-rtti', language: 'cpp')
-        # -fno-rtti is not compatible with the vptr sanitizer (part of ubsan)
-        if get_option('b_sanitize') != 'none' and cxx.has_argument('-fno-sanitize=vptr')
-            add_project_arguments('-fno-sanitize=vptr', language: 'cpp')
-        endif
-    endif
+# -fno-rtti is not compatible with the vptr sanitizer (part of ubsan)
+if not get_option('cpp_rtti') and get_option('b_sanitize') != 'none' and \
+    cxx.has_argument('-fno-sanitize=vptr')
+    add_project_arguments('-fno-sanitize=vptr', language: 'cpp')
 endif
 
 if get_option('verbose_logs')
@@ -102,13 +103,16 @@ if get_option('verbose_logs')
     ], language: 'cpp')
 endif
 
-if get_option('buildtype').startswith('release')
+if release_build
     add_project_arguments('-DG_DISABLE_CAST_CHECKS', language: ['c', 'cpp'])
 endif
 
 ### Check for required libraries ###############################################
 
-glib_required_version = '>= 2.58.0'
+null_dep = dependency('', required : false)
+
+# Note: Notify GNOME release team when adding or updating dependencies
+glib_required_version = '>= 2.66.0'
 glib = dependency('glib-2.0', version: glib_required_version,
     fallback: ['glib', 'libglib_dep'])
 gthread = dependency('gthread-2.0', version: glib_required_version,
@@ -118,9 +122,9 @@ gobject = dependency('gobject-2.0', version: glib_required_version,
 gio = dependency('gio-2.0', version: glib_required_version,
     fallback: ['glib', 'libgio_dep'])
 ffi = dependency('libffi', fallback: ['libffi', 'ffi_dep'])
-gi = dependency('gobject-introspection-1.0', version: '>= 1.58.3',
+gi = dependency('gobject-introspection-1.0', version: '>= 1.66.0',
     fallback: ['gobject-introspection', 'girepo_dep'])
-spidermonkey = dependency('mozjs-78')
+spidermonkey = dependency('mozjs-78', version: '>= 78.2.0')
 
 # We might need to look for the headers and lib's for Cairo
 # manually on MSVC/clang-cl builds...
@@ -138,7 +142,7 @@ if cxx.get_argument_syntax() == 'msvc'
 endif
 
 sysprof_capture = dependency('sysprof-capture-4',
-    required: get_option('profiler'),
+    required: get_option('profiler'), include_type: 'system',
     fallback: ['sysprof', 'libsysprof_capture_dep'],
     default_options: [
         'enable_examples=false',
@@ -176,6 +180,20 @@ if readline.found() and not cxx.links(readline_code, dependencies: readline)
 readline library. Configure with -Dreadline=disabled to skip the readline
 features.''')
     endif
+endif
+
+if cxx.links('''
+#include <atomic>
+
+int main(void)
+{
+  std::atomic_int64_t value = ATOMIC_VAR_INIT(0);
+  return value.load();
+}
+''', name: '64-bit atomics built-in')
+    libatomic = null_dep
+else
+    libatomic = cc.find_library('atomic', required: false)
 endif
 
 build_profiler = sysprof_capture.found() and not get_option('profiler').disabled()
@@ -224,7 +242,7 @@ if not nondebug_spidermonkey
     debug_arg = ['-DDEBUG']  # for compile tests
 endif
 
-if get_option('buildtype').startswith('release') and not nondebug_spidermonkey
+if release_build and not nondebug_spidermonkey
     error('''You are trying to make a release
 build with a debug-enabled copy of SpiderMonkey. This is probably not what you
 want, since it will have bad performance and is not binary-compatible with
@@ -297,18 +315,16 @@ header_conf.set('HAVE_DTRACE', get_option('dtrace'),
     description: 'Using dtrace probes')
 header_conf.set('HAVE_PRINTF_ALTERNATIVE_INT', have_printf_alternative_int,
     description: 'printf() accepts "%Id" for alternative integer output')
-
-if build_readline and readline.found()
-        header_conf.set('HAVE_READLINE_READLINE_H',
-                        cxx.check_header('readline/readline.h', prefix: '#include <cstdio>'))
+if build_readline
+    header_conf.set('HAVE_READLINE_READLINE_H',
+        cxx.check_header('readline/readline.h', prefix: '#include <cstdio>',
+            required: readline.found()))
 endif
-
+header_conf.set('USE_UNITY_BUILD', get_option('unity'))
 header_conf.set('HAVE_SYS_SYSCALL_H', cxx.check_header('sys/syscall.h'))
 header_conf.set('HAVE_UNISTD_H', cxx.check_header('unistd.h'))
-
-if build_profiler
-    header_conf.set('HAVE_SIGNAL_H', cxx.check_header('signal.h'))
-endif
+header_conf.set('HAVE_SIGNAL_H', cxx.check_header('signal.h',
+    required: build_profiler))
 
 # enable GNU extensions on systems that have them
 header_conf.set('_GNU_SOURCE', 1)
@@ -370,6 +386,7 @@ libgjs_sources = [
     'gi/arg-cache.cpp', 'gi/arg-cache.h',
     'gi/boxed.cpp', 'gi/boxed.h',
     'gi/closure.cpp', 'gi/closure.h',
+    'gi/cwrapper.cpp', 'gi/cwrapper.h',
     'gi/enumeration.cpp', 'gi/enumeration.h',
     'gi/foreign.cpp', 'gi/foreign.h',
     'gi/fundamental.cpp', 'gi/fundamental.h',
@@ -399,10 +416,13 @@ libgjs_sources = [
     'cjs/error-types.cpp',
     'cjs/global.cpp', 'cjs/global.h',
     'cjs/importer.cpp', 'cjs/importer.h',
+    'cjs/internal.cpp', 'cjs/internal.h',
     'cjs/mem.cpp', 'cjs/mem-private.h',
     'cjs/module.cpp', 'cjs/module.h',
     'cjs/native.cpp', 'cjs/native.h',
+    'cjs/objectbox.cpp', 'cjs/objectbox.h',
     'cjs/profiler.cpp', 'cjs/profiler-private.h',
+    'cjs/text-encoding.cpp', 'cjs/text-encoding.h',
     'cjs/stack.cpp',
     'modules/console.cpp', 'modules/console.h',
     'modules/modules.cpp', 'modules/modules.h',
@@ -410,7 +430,7 @@ libgjs_sources = [
     'modules/system.cpp', 'modules/system.h',
 ]
 
-# GjsPrivate introspection sources
+# CjsPrivate introspection sources
 libgjs_private_sources = [
     'libgjs-private/gjs-gdbus-wrapper.c', 'libgjs-private/gjs-gdbus-wrapper.h',
     'libgjs-private/gjs-util.c', 'libgjs-private/gjs-util.h',
@@ -424,6 +444,7 @@ libgjs_jsapi_sources = [
     'cjs/jsapi-util-root.h',
     'cjs/jsapi-util-string.cpp',
     'cjs/jsapi-util.cpp', 'cjs/jsapi-util.h',
+    'util/console.cpp', 'util/console.h',
     'util/log.cpp', 'util/log.h',
     'util/misc.cpp', 'util/misc.h',
 ]
@@ -453,7 +474,7 @@ module_resource_srcs = gnome.compile_resources('js-resources',
     c_name: 'js_resources')
 
 libgjs_dependencies = [glib, gobject, gthread, gio, gi, ffi, spidermonkey,
-    readline]
+    readline, libatomic]
 pkg_dependencies = [glib, gobject, gthread, gio, gi, ffi, spidermonkey]
 libraries_private = []
 
@@ -480,36 +501,54 @@ if build_readline
     libgjs_dependencies += readline_deps
 endif
 
-if build_profiler
-    libgjs_dependencies += profiler_deps
-endif
-
-link_args = []
-if cxx.has_link_argument('-Wl,-no-undefined')
-    link_args += '-Wl,-no-undefined'
-else
-    # -undefined error is the equivalent of -no-undefined for the macOS linker,
-    # but -undefined would also be understood as a valid argument for GNU ld!
-    link_args += cxx.get_supported_link_arguments('-Wl,-undefined,error')
-endif
-
 libgjs_cpp_args = ['-DGJS_COMPILATION'] + directory_defines
 
 # Check G-I and/or Meson on this one.
-libgjs_cpp_args += ['-DG_LOG_DOMAIN="Cjs"']
+libgjs_cpp_args += ['-DG_LOG_DOMAIN="Gjs"']
 
 if host_machine.system() == 'windows'
     # We need these defines to build properly for all Windows builds
-    libgjs_cpp_args += ['-DWIN32', '-DXP_WIN']
+    libgjs_cpp_args += ['-DWIN32', '-DXP_WIN', '-DWIN32_LEAN_AND_MEAN']
 endif
+
+pch_headers = ['cjs/gjs_pch.hh']
+if get_option('b_pch') and not meson.version().version_compare('>= 0.59.0')
+    if cxx.get_id() == 'gcc'
+        warning('Precompiled headers not supported with g++ and meson versions earlier than 0.59.0')
+        pch_headers = []
+    endif
+endif
+
+# This dependency should provide everything that is needed to compile gjs except
+# the sources themselves, is used to copmile both the static libraries and the
+# tests
+base_build_dep = declare_dependency(
+    compile_args: libgjs_cpp_args,
+    dependencies: libgjs_dependencies)
+
+internal_build_dep = declare_dependency(
+    compile_args: (release_build ? ['-DG_DISABLE_ASSERT'] : []),
+    dependencies: [
+        base_build_dep,
+        build_profiler ? profiler_deps : [],
+    ])
 
 libgjs_jsapi = static_library(meson.project_name() + '-jsapi',
     libgjs_jsapi_sources, probes_header, probes_objfile,
-    cpp_args: libgjs_cpp_args,
-    link_args: link_args,
-    dependencies: libgjs_dependencies,
+    cpp_pch: pch_headers,
+    dependencies: internal_build_dep,
     install: false)
 
+# We need to create an internal static library to be able to link with the tests
+# that may use internal APIs. This is also used to generate the actual shared
+# library so that we compile its sources just once.
+libgjs_internal = static_library('gjs-internal',
+    libgjs_sources, probes_header, probes_objfile,
+    cpp_pch: pch_headers,
+    dependencies: internal_build_dep,
+    link_with: libgjs_jsapi)
+
+link_args = []
 symbol_map = files('libgjs.map')
 symbol_list = files('libgjs.symbols')
 link_args += cxx.get_supported_link_arguments([
@@ -520,12 +559,10 @@ link_args += cxx.get_supported_link_arguments([
 ])
 
 libgjs = shared_library(meson.project_name(),
-    libgjs_sources, libgjs_private_sources, module_resource_srcs,
-    probes_header, probes_objfile,
-    cpp_args: libgjs_cpp_args,
+    sources: [ libgjs_private_sources, module_resource_srcs ],
     link_args: link_args, link_depends: [symbol_map, symbol_list],
-    link_with: libgjs_jsapi,
-    dependencies: libgjs_dependencies,
+    link_whole: libgjs_internal,
+    dependencies: base_build_dep,
     version: '0.0.0', soversion: '0',
     gnu_symbol_visibility: 'hidden',
     install: true)
@@ -534,9 +571,9 @@ install_headers(gjs_public_headers, subdir: api_name / 'cjs')
 
 # Allow using libgjs as a subproject
 libgjs_dep = declare_dependency(link_with: [libgjs, libgjs_jsapi],
-    dependencies: libgjs_dependencies, include_directories: top_include)
+    dependencies: base_build_dep, include_directories: top_include)
 
-### Build GjsPrivate introspection library #####################################
+### Build CjsPrivate introspection library #####################################
 
 gjs_private_gir = gnome.generate_gir(libgjs,
     includes: ['GObject-2.0', 'Gio-2.0'], sources: libgjs_private_sources,
@@ -545,12 +582,11 @@ gjs_private_gir = gnome.generate_gir(libgjs,
     install_dir_gir: false, install_dir_typelib: pkglibdir / 'girepository-1.0')
 gjs_private_typelib = gjs_private_gir[1]
 
-### Build gjs-console interpreter ##############################################
+### Build cjs-console interpreter ##############################################
 
 gjs_console_srcs = ['cjs/console.cpp']
 
 gjs_console = executable('cjs-console', gjs_console_srcs,
-    cpp_args: libgjs_cpp_args,
     dependencies: libgjs_dep, install: true)
 
 meson.add_install_script('build/symlink-gjs.py', get_option('bindir'))
@@ -586,18 +622,26 @@ pkg.generate(libgjs, name: api_name, description: 'JS bindings for GObjects',
 
 tests_environment = environment()
 js_tests_builddir = meson.current_build_dir() / 'installed-tests' / 'js'
+libgjs_test_tools_builddir = js_tests_builddir / 'libgjstesttools'
 # GJS_PATH is empty here since we want to force the use of our own
 # resources. G_FILENAME_ENCODING ensures filenames are not UTF-8
 tests_environment.set('TOP_BUILDDIR', meson.build_root())
 tests_environment.set('GJS_USE_UNINSTALLED_FILES', '1')
 tests_environment.set('GJS_PATH', '')
+tests_environment.set('GJS_DEBUG_OUTPUT', 'stderr')
 tests_environment.prepend('GI_TYPELIB_PATH', meson.current_build_dir(),
-    js_tests_builddir)
+    js_tests_builddir, libgjs_test_tools_builddir)
 tests_environment.prepend('LD_LIBRARY_PATH', meson.current_build_dir(),
-    js_tests_builddir)
+    js_tests_builddir, libgjs_test_tools_builddir)
 tests_environment.set('G_FILENAME_ENCODING', 'latin1')
-tests_environment.set('LSAN_OPTIONS', 'exitcode=23,suppressions=@0@'.format(
-    meson.current_source_dir() / 'installed-tests' / 'extra' / 'lsan.supp'))
+# Workaround for https://github.com/google/sanitizers/issues/1322
+tests_environment.set('ASAN_OPTIONS', 'intercept_tls_get_addr=0')
+tests_environment.set('LSAN_OPTIONS',
+    'fast_unwind_on_malloc=0,exitcode=23,suppressions=@0@'.format(
+        meson.current_source_dir() / 'installed-tests' / 'extra' / 'lsan.supp'))
+tests_environment.set('TSAN_OPTIONS',
+    'history_size=5,force_seq_cst_atomics=1,suppressions=@0@'.format(
+        meson.current_source_dir() / 'installed-tests' / 'extra' / 'tsan.supp'))
 tests_environment.set('NO_AT_BRIDGE', '1')
 tests_environment.set('GSETTINGS_SCHEMA_DIR', js_tests_builddir)
 tests_environment.set('GSETTINGS_BACKEND', 'memory')
@@ -624,17 +668,17 @@ endif
 
 ### Tests and test setups ######################################################
 
-# Note: The test program in test/ needs to be ported
-#       to Windows before we can build it on Windows.
-if host_machine.system() != 'windows'
-    subdir('test')
-endif
-
 if not get_option('skip_gtk_tests')
     have_gtk4 = dependency('gtk4', required: false).found()
 endif
 
 subdir('installed-tests')
+
+# Note: The test program in test/ needs to be ported
+#       to Windows before we can build it on Windows.
+if host_machine.system() != 'windows'
+    subdir('test')
+endif
 
 valgrind_environment = environment()
 valgrind_environment.set('G_SLICE', 'always-malloc,debug-blocks')
@@ -642,8 +686,9 @@ valgrind_environment.set('G_DEBUG',
     'fatal-warnings,fatal-criticals,gc-friendly')
 valgrind_environment.set('VALGRIND', 'valgrind')
 
-glib_suppresssions = (glib.get_pkgconfig_variable('prefix') / 'share' /
-    'glib-2.0' / 'valgrind' / 'glib.supp')
+glib_prefix = glib.get_variable(pkgconfig: 'prefix', default_value: '/usr')
+glib_suppresssions = (glib_prefix / 'share' / 'glib-2.0' / 'valgrind' /
+    'glib.supp')
 gjs_suppressions = (meson.current_source_dir() / 'installed-tests' / 'extra' /
     'cjs.supp')
 valgrind_args = [
@@ -673,7 +718,7 @@ add_test_setup('post_verify', timeout_multiplier: 2, env: zeal11_environment)
 
 ### Warn about conditions that may affect runtime ##############################
 
-if gi.version().version_compare('<1.61.2')
+if gi.version().version_compare('<1.66.1')
     warning('''You do not have a new enough version of
 gobject-introspection to run the tests. You can still build GJS, but some
 tests will fail.''')
@@ -712,4 +757,6 @@ message('\n'.join([
     'Use readline for input in interactive shell and debugger: @0@'.format(
         build_readline),
     'Build profiler (Linux only): @0@'.format(build_profiler),
+    'Build with precompiled headers: @0@'.format(get_option('b_pch') and
+        pch_headers.length() > 0),
 ]))

@@ -1,28 +1,9 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- * Copyright (c) 2009 Red Hat, Inc.
- * Copyright (c) 2017  Philip Chimento <philip.chimento@gmail.com>
- * Copyright (c) 2020  Evan Welsh <contact@evanwelsh.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2009 Red Hat, Inc.
+// SPDX-FileCopyrightText: 2017 Philip Chimento <philip.chimento@gmail.com>
+// SPDX-FileCopyrightText: 2020 Evan Welsh <contact@evanwelsh.com>
 
 #include <config.h>
 
@@ -35,6 +16,7 @@
 #include <js/Class.h>
 #include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
+#include <js/Id.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_PERMANENT, JSPROP_RE...
 #include <js/PropertySpec.h>
 #include <js/Realm.h>  // for GetObjectRealmOrNull, SetRealmPrivate
@@ -49,6 +31,7 @@
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
 #include "cjs/global.h"
+#include "cjs/internal.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/native.h"
 
@@ -198,6 +181,20 @@ class GjsGlobal : GjsBaseGlobal {
         // const_cast is allowed here if we never free the realm data
         JS::SetRealmPrivate(realm, const_cast<char*>(realm_name));
 
+        JS::RootedObject native_registry(cx, JS::NewMapObject(cx));
+        if (!native_registry)
+            return false;
+
+        gjs_set_global_slot(global, GjsGlobalSlot::NATIVE_REGISTRY,
+                            JS::ObjectValue(*native_registry));
+
+        JS::RootedObject module_registry(cx, JS::NewMapObject(cx));
+        if (!module_registry)
+            return false;
+
+        gjs_set_global_slot(global, GjsGlobalSlot::MODULE_REGISTRY,
+                            JS::ObjectValue(*module_registry));
+
         JS::Value v_importer =
             gjs_get_global_slot(global, GjsGlobalSlot::IMPORTS);
         g_assert(((void) "importer should be defined before passing null "
@@ -266,6 +263,69 @@ class GjsDebuggerGlobal : GjsBaseGlobal {
     }
 };
 
+class GjsInternalGlobal : GjsBaseGlobal {
+    static constexpr JSFunctionSpec static_funcs[] = {
+        JS_FN("compileModule", gjs_internal_compile_module, 2, 0),
+        JS_FN("compileInternalModule", gjs_internal_compile_internal_module, 2,
+              0),
+        JS_FN("getRegistry", gjs_internal_get_registry, 1, 0),
+        JS_FN("loadResourceOrFile", gjs_internal_load_resource_or_file, 1, 0),
+        JS_FN("loadResourceOrFileAsync",
+              gjs_internal_load_resource_or_file_async, 1, 0),
+        JS_FN("parseURI", gjs_internal_parse_uri, 1, 0),
+        JS_FN("resolveRelativeResourceOrFile",
+              gjs_internal_resolve_relative_resource_or_file, 2, 0),
+        JS_FN("setGlobalModuleLoader", gjs_internal_set_global_module_loader, 2,
+              0),
+        JS_FN("setModulePrivate", gjs_internal_set_module_private, 2, 0),
+        JS_FN("uriExists", gjs_internal_uri_exists, 1, 0),
+        JS_FS_END};
+
+    static constexpr JSClass klass = {
+        "GjsInternalGlobal",
+        JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(
+            static_cast<uint32_t>(GjsInternalGlobalSlot::LAST)),
+        &defaultclassops,
+    };
+
+ public:
+    [[nodiscard]] static JSObject* create(JSContext* cx) {
+        return GjsBaseGlobal::create(cx, &klass);
+    }
+
+    [[nodiscard]] static JSObject* create_with_compartment(
+        JSContext* cx, JS::HandleObject cmp_global) {
+        return GjsBaseGlobal::create_with_compartment(cx, cmp_global, &klass);
+    }
+
+    static bool define_properties(JSContext* cx, JS::HandleObject global,
+                                  const char* realm_name,
+                                  const char* bootstrap_script
+                                  [[maybe_unused]]) {
+        JS::Realm* realm = JS::GetObjectRealmOrNull(global);
+        g_assert(realm && "Global object must be associated with a realm");
+        // const_cast is allowed here if we never free the realm data
+        JS::SetRealmPrivate(realm, const_cast<char*>(realm_name));
+
+        JSAutoRealm ar(cx, global);
+        JS::RootedObject native_registry(cx, JS::NewMapObject(cx));
+        if (!native_registry)
+            return false;
+
+        gjs_set_global_slot(global, GjsGlobalSlot::NATIVE_REGISTRY,
+                            JS::ObjectValue(*native_registry));
+
+        JS::RootedObject module_registry(cx, JS::NewMapObject(cx));
+        if (!module_registry)
+            return false;
+
+        gjs_set_global_slot(global, GjsGlobalSlot::MODULE_REGISTRY,
+                            JS::ObjectValue(*module_registry));
+
+        return JS_DefineFunctions(cx, global, static_funcs);
+    }
+};
+
 /**
  * gjs_create_global_object:
  * @cx: a #JSContext
@@ -284,6 +344,9 @@ JSObject* gjs_create_global_object(JSContext* cx, GjsGlobalType global_type,
             case GjsGlobalType::DEBUGGER:
                 return GjsDebuggerGlobal::create_with_compartment(
                     cx, current_global);
+            case GjsGlobalType::INTERNAL:
+                return GjsInternalGlobal::create_with_compartment(
+                    cx, current_global);
             default:
                 return nullptr;
         }
@@ -294,9 +357,32 @@ JSObject* gjs_create_global_object(JSContext* cx, GjsGlobalType global_type,
             return GjsGlobal::create(cx);
         case GjsGlobalType::DEBUGGER:
             return GjsDebuggerGlobal::create(cx);
+        case GjsGlobalType::INTERNAL:
+            return GjsInternalGlobal::create(cx);
         default:
             return nullptr;
     }
+}
+
+/**
+ * gjs_global_is_type:
+ *
+ * @param cx the current #JSContext
+ * @param type the global type to test for
+ *
+ * @returns whether the current global is the same type as #type
+ */
+bool gjs_global_is_type(JSContext* cx, GjsGlobalType type) {
+    JSObject* global = JS::CurrentGlobalOrNull(cx);
+
+    g_assert(global && "gjs_global_is_type called before a realm was entered.");
+
+    JS::Value global_type =
+        gjs_get_global_slot(global, GjsBaseGlobalSlot::GLOBAL_TYPE);
+
+    g_assert(global_type.isInt32());
+
+    return static_cast<GjsGlobalType>(global_type.toInt32()) == type;
 }
 
 GjsGlobalType gjs_global_get_type(JSContext* cx) {
@@ -305,7 +391,7 @@ GjsGlobalType gjs_global_get_type(JSContext* cx) {
     g_assert(global &&
              "gjs_global_get_type called before a realm was entered.");
 
-    auto global_type =
+    JS::Value global_type =
         gjs_get_global_slot(global, GjsBaseGlobalSlot::GLOBAL_TYPE);
 
     g_assert(global_type.isInt32());
@@ -314,12 +400,75 @@ GjsGlobalType gjs_global_get_type(JSContext* cx) {
 }
 
 GjsGlobalType gjs_global_get_type(JSObject* global) {
-    auto global_type =
+    JS::Value global_type =
         gjs_get_global_slot(global, GjsBaseGlobalSlot::GLOBAL_TYPE);
 
     g_assert(global_type.isInt32());
 
     return static_cast<GjsGlobalType>(global_type.toInt32());
+}
+
+/**
+ * gjs_global_registry_set:
+ *
+ * @brief This function inserts a module object into a global registry.
+ * Global registries are JS Map objects for easy reuse and access
+ * within internal JS. This function will assert if a module has
+ * already been inserted at the given key.
+
+ * @param cx the current #JSContext
+ * @param registry a JS Map object
+ * @param key a module identifier, typically a string or symbol
+ * @param module a module object
+ */
+bool gjs_global_registry_set(JSContext* cx, JS::HandleObject registry,
+                             JS::PropertyKey key, JS::HandleObject module) {
+    JS::RootedValue v_key(cx);
+    if (!JS_IdToValue(cx, key, &v_key))
+        return false;
+
+    bool has_key;
+    if (!JS::MapHas(cx, registry, v_key, &has_key))
+        return false;
+
+    g_assert(!has_key && "Module key already exists in the registry");
+
+    JS::RootedValue v_value(cx, JS::ObjectValue(*module));
+
+    return JS::MapSet(cx, registry, v_key, v_value);
+}
+
+/**
+ * gjs_global_registry_get:
+ *
+ * @brief This function inserts a module object into a global registry.
+ * Global registries are JS Map objects for easy reuse and access
+ * within internal JS. This function will assert if a module has
+ * already been inserted at the given key.
+
+ * @param cx the current #JSContext
+ * @param registry a JS Map object
+ * @param key a module identifier, typically a string or symbol
+ * @param module a module object
+ */
+bool gjs_global_registry_get(JSContext* cx, JS::HandleObject registry,
+                             JS::PropertyKey key,
+                             JS::MutableHandleObject module_out) {
+    JS::RootedValue v_key(cx), v_value(cx);
+    if (!JS_IdToValue(cx, key, &v_key) ||
+        !JS::MapGet(cx, registry, v_key, &v_value))
+        return false;
+
+    g_assert((v_value.isUndefined() || v_value.isObject()) &&
+             "Invalid value in module registry");
+
+    if (v_value.isObject()) {
+        module_out.set(&v_value.toObject());
+        return true;
+    }
+
+    module_out.set(nullptr);
+    return true;
 }
 
 /**
@@ -362,9 +511,13 @@ bool gjs_define_global_properties(JSContext* cx, JS::HandleObject global,
         case GjsGlobalType::DEBUGGER:
             return GjsDebuggerGlobal::define_properties(cx, global, realm_name,
                                                         bootstrap_script);
-        default:
-            return true;
+        case GjsGlobalType::INTERNAL:
+            return GjsInternalGlobal::define_properties(cx, global, realm_name,
+                                                        bootstrap_script);
     }
+
+    // Global type does not handle define_properties
+    g_assert_not_reached();
 }
 
 void detail::set_global_slot(JSObject* global, uint32_t slot, JS::Value value) {
@@ -382,3 +535,7 @@ decltype(GjsGlobal::static_props) constexpr GjsGlobal::static_props;
 decltype(GjsDebuggerGlobal::klass) constexpr GjsDebuggerGlobal::klass;
 decltype(
     GjsDebuggerGlobal::static_funcs) constexpr GjsDebuggerGlobal::static_funcs;
+
+decltype(GjsInternalGlobal::klass) constexpr GjsInternalGlobal::klass;
+decltype(
+    GjsInternalGlobal::static_funcs) constexpr GjsInternalGlobal::static_funcs;

@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #include <config.h>
 
@@ -52,14 +33,9 @@
  * So here is an awful hack inspired by
  * http://egachine.berlios.de/embedding-sm-best-practice/embedding-sm-best-practice.html#error-handling
  */
-static void
-G_GNUC_PRINTF(4, 0)
-gjs_throw_valist(JSContext       *context,
-                 JSProtoKey       error_kind,
-                 const char      *error_name,
-                 const char      *format,
-                 va_list          args)
-{
+[[gnu::format(printf, 4, 0)]] static void gjs_throw_valist(
+    JSContext* context, JSProtoKey error_kind, const char* error_name,
+    const char* format, va_list args) {
     char *s;
     bool result;
 
@@ -157,11 +133,20 @@ gjs_throw_custom(JSContext  *cx,
                  ...)
 {
     va_list args;
-    g_return_if_fail(kind == JSProto_Error || kind == JSProto_InternalError ||
-                     kind == JSProto_EvalError || kind == JSProto_RangeError ||
-                     kind == JSProto_ReferenceError ||
-                     kind == JSProto_SyntaxError || kind == JSProto_TypeError ||
-                     kind == JSProto_URIError);
+
+    switch (kind) {
+        case JSProto_Error:
+        case JSProto_EvalError:
+        case JSProto_InternalError:
+        case JSProto_RangeError:
+        case JSProto_ReferenceError:
+        case JSProto_SyntaxError:
+        case JSProto_TypeError:
+        case JSProto_URIError:
+            break;
+        default:
+            g_return_if_reached();
+    }
 
     va_start(args, format);
     gjs_throw_valist(cx, kind, error_name, format, args);

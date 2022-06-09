@@ -1,26 +1,7 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- * Copyright (c) 2018  Philip Chimento <philip.chimento@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2018 Philip Chimento <philip.chimento@gmail.com>
 
 #include <config.h>
 
@@ -211,7 +192,7 @@ static bool gjs_register_interface(JSContext* cx, unsigned argc,
                                                  &n_interfaces, &n_properties))
         return false;
 
-    GType* iface_types = g_newa(GType, n_interfaces);
+    GjsAutoPointer<GType> iface_types = g_new(GType, n_interfaces);
 
     /* We do interface addition in two passes so that any failure
        is caught early, before registering the GType (which we can't undo) */
@@ -276,8 +257,8 @@ static bool gjs_register_type(JSContext* cx, unsigned argc, JS::Value* vp) {
 
     /* Don't pass the argv to it, as otherwise we will log about the callee
      * while we only care about the parent object type. */
-    auto* parent_priv = ObjectBase::for_js_typecheck(cx, parent);
-    if (!parent_priv)
+    ObjectBase* parent_priv;
+    if (!ObjectBase::for_js_typecheck(cx, parent, &parent_priv))
         return false;
 
     uint32_t n_interfaces, n_properties;
@@ -285,8 +266,7 @@ static bool gjs_register_type(JSContext* cx, unsigned argc, JS::Value* vp) {
                                                  &n_interfaces, &n_properties))
         return false;
 
-    auto* iface_types =
-        static_cast<GType*>(g_alloca(sizeof(GType) * n_interfaces));
+    GjsAutoPointer<GType> iface_types = g_new(GType, n_interfaces);
 
     /* We do interface addition in two passes so that any failure
        is caught early, before registering the GType (which we can't undo) */
@@ -355,9 +335,6 @@ static bool gjs_signal_new(JSContext* cx, unsigned argc, JS::Value* vp) {
                              &params_obj))
         return false;
 
-    if (!gjs_typecheck_gtype(cx, gtype_obj, true))
-        return false;
-
     /* we only support standard accumulators for now */
     GSignalAccumulator accumulator;
     switch (accumulator_enum) {
@@ -388,7 +365,7 @@ static bool gjs_signal_new(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!JS::GetArrayLength(cx, params_obj, &n_parameters))
         return false;
 
-    GType* params = g_newa(GType, n_parameters);
+    GjsAutoPointer<GType> params = g_new(GType, n_parameters);
     JS::RootedValue gtype_val(cx);
     for (uint32_t ix = 0; ix < n_parameters; ix++) {
         if (!JS_GetElement(cx, params_obj, ix, &gtype_val) ||
@@ -426,7 +403,7 @@ GJS_JSAPI_RETURN_CONVENTION static bool symbol_getter(JSContext* cx,
     return true;
 }
 
-static JSFunctionSpec module_funcs[] = {
+static JSFunctionSpec private_module_funcs[] = {
     JS_FN("override_property", gjs_override_property, 2, GJS_MODULE_PROP_FLAGS),
     JS_FN("register_interface", gjs_register_interface, 3,
           GJS_MODULE_PROP_FLAGS),
@@ -435,7 +412,7 @@ static JSFunctionSpec module_funcs[] = {
     JS_FS_END,
 };
 
-static JSPropertySpec module_props[] = {
+static JSPropertySpec private_module_props[] = {
     JS_PSG("hook_up_vfunc_symbol", symbol_getter<&GjsAtoms::hook_up_vfunc>,
            GJS_MODULE_PROP_FLAGS),
     JS_PSG("signal_find_symbol", symbol_getter<&GjsAtoms::signal_find>,
@@ -451,6 +428,6 @@ static JSPropertySpec module_props[] = {
 bool gjs_define_private_gi_stuff(JSContext* cx,
                                  JS::MutableHandleObject module) {
     module.set(JS_NewPlainObject(cx));
-    return JS_DefineFunctions(cx, module, module_funcs) &&
-           JS_DefineProperties(cx, module, module_props);
+    return JS_DefineFunctions(cx, module, private_module_funcs) &&
+           JS_DefineProperties(cx, module, private_module_props);
 }

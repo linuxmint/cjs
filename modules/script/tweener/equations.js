@@ -1,7 +1,9 @@
 /* -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil; -*- */
-/* eslint-disable no-unused-vars, valid-jsdoc */
+/* eslint-disable no-unused-vars */
+// SPDX-License-Identifier: BSD-3-Clause
+// SPDX-FileCopyrightText: 2008 litl, LLC.
+// SPDX-FileCopyrightText: 2001 Robert Penner
 
-/* Copyright 2008 litl, LLC. */
 /**
  * Equations
  * Main equations for the Tweener class
@@ -18,25 +20,6 @@ easeOutBack, easeOutBounce, easeOutCirc, easeOutCubic, easeOutElastic,
 easeOutExpo, easeOutInBack, easeOutInBounce, easeOutInCirc, easeOutInCubic,
 easeOutInElastic, easeOutInExpo, easeOutInQuad, easeOutInQuart, easeOutInQuint,
 easeOutInSine, easeOutQuad, easeOutQuart, easeOutQuint, easeOutSine, linear */
-
-/*
- Disclaimer for Robert Penner's Easing Equations license:
-
- TERMS OF USE - EASING EQUATIONS
-
- Open source under the BSD License.
-
- Copyright © 2001 Robert Penner
- All rights reserved.
-
- Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
- * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
- * Neither the name of the author nor the names of contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
 
 // ==================================================================================================================================
 // TWEENING EQUATIONS functions -----------------------------------------------------------------------------------------------------
@@ -564,7 +547,7 @@ function easeOutInElastic(t, b, c, d, pParams) {
  * @param b             Starting value.
  * @param c             Change needed in value.
  * @param d             Expected easing duration (in frames or seconds).
- * @param s             Overshoot ammount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
+ * @param s             Overshoot amount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
  * @return              The correct value.
  */
 function easeInBack(t, b, c, d, pParams) {
@@ -579,7 +562,7 @@ function easeInBack(t, b, c, d, pParams) {
  * @param b             Starting value.
  * @param c             Change needed in value.
  * @param d             Expected easing duration (in frames or seconds).
- * @param s             Overshoot ammount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
+ * @param s             Overshoot amount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
  * @return              The correct value.
  */
 function easeOutBack(t, b, c, d, pParams) {
@@ -594,7 +577,7 @@ function easeOutBack(t, b, c, d, pParams) {
  * @param b             Starting value.
  * @param c             Change needed in value.
  * @param d             Expected easing duration (in frames or seconds).
- * @param s             Overshoot ammount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
+ * @param s             Overshoot amount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
  * @return              The correct value.
  */
 function easeInOutBack(t, b, c, d, pParams) {
@@ -611,7 +594,7 @@ function easeInOutBack(t, b, c, d, pParams) {
  * @param b             Starting value.
  * @param c             Change needed in value.
  * @param d             Expected easing duration (in frames or seconds).
- * @param s             Overshoot ammount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
+ * @param s             Overshoot amount: higher s means greater overshoot (0 produces cubic easing with no overshoot, and the default value of 1.70158 produces an overshoot of 10 percent).
  * @return              The correct value.
  */
 function easeOutInBack(t, b, c, d, pParams) {

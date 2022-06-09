@@ -1,3 +1,371 @@
+Version 1.70.0
+--------------
+
+- No changes from release candidate 1.69.90.
+
+Version 1.68.4
+--------------
+
+- Build fix backported from the development branch. [#436, !667, Evan Welsh]
+
+Version 1.69.90
+---------------
+
+- Closed bugs and merge requests:
+
+  * Update ESLint to v8 [!657, Evan Welsh]
+  * gi: Enable pending tests which are now correctly handled [!658, Evan Welsh]
+  * gi: Return null if return argument is a pointer type [!659, Evan Welsh]
+  * gi: Assume native enums are signed, avoid asserting. [!660, Evan Welsh]
+  * Fix cppcheck failure [!661, Philip Chimento]
+  * Strange behavior for strings with NUL character [#285, !662, Evan Welsh]
+  * 64-bit int GObject properties have some problems with values > G_MAXINT32
+    [#92, !663, Evan Welsh]
+  * Crash on dynamic import in interactive interpreter [#429, !666, Evan Welsh]
+  * 1.69.1: gjs test suite is failing when gjs is build with -DG_DISABLE_ASSERT
+    [#436, !667, Evan Welsh]
+  * function: Warn about unhandled promise rejections in System.exit() [!669,
+    Philip Chimento]
+  * attempting to wrap a new GObject mid-construction blows up [#50, !675, Evan
+    Welsh]
+  * Fix IWYU CI job [!676, Evan Welsh]
+
+- Build fixes [Evan Welsh, Philip Chimento]
+
+Version 1.69.2
+--------------
+
+- The TextEncoder and TextDecoder global objects are now available. In most
+  cases, these will be able to replace usage of the imports.byteArray module. We
+  recommend that new code use TextEncoder and TextDecoder to convert strings to
+  UTF-8 encoded Uint8Arrays and vice versa.
+  MDN is a good source of information on how to use these APIs:
+  https://developer.mozilla.org/en-US/docs/Web/API/TextEncoder
+  https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder
+
+- The 'console' global object is now available. This is for compatibility with
+  Node.js and browser environments, and for familiarity for developers
+  accustomed to them. The previously existing print(), printerr(), log(),
+  logError() functions continue to exist, and are not deprecated. The console
+  methods use GLib structured logging as their backend.
+
+- Cairo.Surface has gained getDeviceScale(), setDeviceScale(),
+  getDeviceOffset(), and setDeviceOffset() methods. These wrap the corresponding
+  C functions.
+
+- GLib.log_set_writer_func() and GObject.Object.bind_property_full() now work.
+  Previously, they had introspection problems.
+
+- There is also a 'console' built-in module which exports functions
+  setConsoleLogDomain() and getConsoleLogDomain(), for controlling the GLib
+  log domain that the console methods use.
+
+- The debugger has gained a 'set ignoreCaughtExceptions (true/false)' option.
+  Previously, when an exception was thrown, the debugger would stop, even if the
+  exception was thrown intentionally in order to be caught. With this option,
+  which is now the default, the debugger will keep going on exceptions that are
+  thrown while inside the scope of a try-catch block.
+
+- Closed bugs and merge requests:
+
+  * Implement WHATWG Encoding specification. [!534, Evan Welsh]
+  * cairo-surface: Add setDevice{Offset,Scale} functions [!605, Daniel van Vugt,
+    Philip Chimento]
+  * WHATWG Console Implementation [!634, Evan Welsh]
+  * Add support for GLib.log_set_writer_func [!637, Evan Welsh]
+  * Various maintenance [!649, Philip Chimento]
+  * examples: improve the gettext example [!651, Sonny Piers]
+  * Unable to use bind_property_full [#241, !653, Florian Müllner]
+  * Allow continuing for handled exceptions [#431, !655, Florian Müllner]
+  * text-encoding.cpp: Fix builds on 64-bit Windows [!656, Chun-wei Fan]
+
+Version 1.68.3
+--------------
+
+- Crash and bug fixes backported from the development branch.
+
+- Build fixes [Philip Chimento]
+
+- Closed bugs and merge requests:
+
+  * win32: Fix resource-based imports [!652, Evan Welsh]
+  * overrides/GLib: Guard Error.new_literal against invalid domains [!654,
+    Florian Müllner]
+
+Version 1.69.1
+--------------
+
+- Memory usage improvements and bug fixes.
+
+- Progress on TextEncoder/TextDecoder.
+
+- Closed bugs and merge requests:
+
+  * Cleanup gjs_closure_invoke [#382, !592, Philip Chimento]
+  * Various maintenance [!600, !616, !624, !630, Philip Chimento, Marco
+    Trevisan, Evan Welsh]
+  * doc: Add simple sysprof example [!606, Andy Holmes]
+  * examples: add examples of GtkBuilder templates [!607, Andy Holmes]
+  * doc: document shebang for ESModules [!608, Sonny Piers]
+  * Gio.ListStore.insert_sorted's compare_func isn't handled correctly [#326,
+    !610, Veena Nagar]
+  * object: Block access to object only if it is finalized [!611, Marco
+    Trevisan]
+  * tests: Add unit tests for ToggleQueue and ObjectInstance usage of it [!615,
+    Marco Trevisan]
+  * gjs-test-tools: Throw error if we can't create threads [!618, Marco
+    Trevisan]
+  * build: Support meson unity builds [!619, Marco Trevisan]
+  * build: Support building with precompiled headers [!620, Marco Trevisan]
+  * Support GObject properties with GByteArray type [#276, !621, Veena Nagar]
+  * Regression in running tests with log output redirected to file [#410, !622,
+    Philip Chimento]
+  * doc: add Commit and Almond to applications [!623, Sonny Piers]
+  * closure (and trampoline): Reimplement to be a C++ class with custom heap
+    allocator [!625, Marco Trevisan]
+  * gjs-test-utils: Be more liberal in comparing values of different types
+    [!626, Marco Trevisan]
+  * [regression] gjs main can't build today [#414, !627, Daniel van Vugt]
+  * Add memory counter profiling [#292, !629, Philip Chimento]
+  * Promisify should complain if the async or finish function doesn't exist
+    [#200, !631, Veena Nagar]
+  * Add 'S' conversion specifier to gjs_parse_call_args [!638, Philip Chimento]
+  * Fix builds on Windows/Visual Studio with the latest GIT main [!639,
+    Chun-wei Fan]
+  * meson: fix version check for precompiled headers [!640, Jordan Petridis]
+  * GjsDBusImplementation.emit_property_changed(..., null): assertion failed
+    [#427, !642, Andy Holmes]
+  * gi: Only enumerate properties which GJS defines [!643, Evan Welsh]
+  * Add Internship Getting Started documentation [!645, Philip Chimento]
+  * arg-cache: Handle notified callbacks without destroy [!647, Florian Müllner]
+  * esm/gi: Improve check for version conflicts [!650, Florian Müllner]
+
+Version 1.68.2
+--------------
+
+- Crash and regression fixes backported from the development branch.
+
+- Build fix to adjust to GLib renaming its main branch.
+
+- Closed bugs and merge requests:
+
+  * Fix crash in ByteArray.fromGBytes / ByteArray.fromString with 0-length input
+    [!628, Philip Chimento]
+  * subprojects: Use GLib main branch [!633, Philip Withnall]
+  * Construct-only properties and GTK Builder. [#422, !635, Carlos Garnacho]
+  * Data corruption when passing a 0-terminated array of GVariant [#269, !636,
+    Evan Welsh]
+  * Fix race condition in dynamic module resolution. [!641, Evan Welsh]
+  * Ensure the correct realm is entered in the async executor [!644, Evan Welsh]
+  * Assertion failure in toggle refs with debug mozjs [#416, !646, Evan Welsh]
+
+Version 1.68.1
+--------------
+
+- Many stability fixes due to refactoring how disposed GObjects are handled.
+  Special thanks to Marco Trevisan for the substantial effort.
+
+- Closed bugs and merge requests:
+
+  * Accessing GLib.ByteArray throws [#386, !590, Philip Chimento]
+  * Missing hyphen and camelCase getters for CONSTRUCT_ONLY GObject properties
+    defined in JavaScript [#391, !591, Philip Chimento]
+  * gnome-shell crashes on deferencing a destroyed wrapper object [#395, !593,
+    !617, Marco Trevisan]
+  * GNOME crash "JS object wrapper for GObject 0x563bf88f5f50 (GSettings) is
+    being released..." [#294, !593, !617, Marco Trevisan]
+  * Finalizing wrapper for an already freed object [#399, !593, !617, Marco
+    Trevisan]
+  * Calling implemented methods or getters on disposed objects returns function
+    pointers [#396, !594, Marco Trevisan]
+  * overrides/Gio: Fix _LocalFilePrototype [!595, Florian Müllner]
+  * doc: Fix documentation for dynamic imports [!596, Sonny Piers]
+  * Added the meson installation command in dependencies [!597, Veena Nagar]
+  * Upgrade codespell to 2.0.0 in CI [#367, !598, Kajal Sah]
+  * cairo: Add missing semi-colons from dummy class declarations [!599, Matt
+    Turner]
+  * Fixed System.addressOfGObject and System.dumpHeap missing from System ES
+    module [!600, Philip Chimento]
+  * `Error: Failed to convert GValue to a fundamental instance` in
+    Gtk.EventControllerLegacy [#398, !601, Marco Trevisan]
+  * doc: add an example to get relative filename and dirname with
+    import.meta.url [!603, Sonny Piers]
+  * wrapperutils: Use native ostringstream pointer to string conversion [!604,
+    Marco Trevisan]
+  * testFundamental: Add more tests ensuring we properly handle subtypes [!602,
+    Marco Trevisan]
+  * Some simple Visual Studio fixes for main [!612, Chun-wei Fan]
+  * Using GFileMonitor crashes GNOME Shell with toggling down object error
+    [#297, !613, !617, Marco Trevisan]
+  * Deadlock on toggle queue due to GWeakRef [#404, !613, !617, Marco Trevisan]
+  * Using g_thread_join from JS is crashing [#406, !613, !617, Marco Trevisan]
+  * GObject: Ensure to call setter methods for construct-only properties [!614,
+    Carlos Garnacho]
+
+Version 1.68.0
+--------------
+
+- Closed bugs and merge requests:
+
+  * 40.rc session crashes in gjs on unlocking (sometimes) [#387, !588, Marco
+    Trevisan]
+  * 40.rc: installed-tests installed despite explicitly disabled [#388, !589,
+    Philip Chimento]
+
+Version 1.67.3
+--------------
+
+- Closed bugs and merge requests:
+
+  * System.exit() doesn't work inside signal handler [#19, !565, Evan Welsh]
+  * GdkEvent subtypes trigger assert in Gtk4 [#365, !566, Evan Welsh]
+  * Replace g_memdup [#375, !567, Philip Chimento]
+  * 1.67.2: build fails with gcc 11 [#376, !568, Philip Chimento]
+  * Warnings introspecting array of boxed type as signal argument. [#377, !569,
+    Carlos Garnacho]
+  * Add list command to debugger [!571, Nasah Kuma]
+  * Assertion failure in enqueuePromiseJob [#349, !572, Philip Chimento]
+  * in interpreter Ctrl-c should exit inner shell if stuck [#98, !574, Philip
+    Chimento]
+  * Compiler ambiguity in enum-utils.h on operator overloading [#368, !576,
+    Chun-wei Fan]
+  * Fix GJS_DISABLE_JIT not fully disabling JIT [!575, Ivan Molodetskikh]
+  * Error running gjs built with prefix: g_object_new_is_valid_property: object
+    class 'GjsContext' has no property named 'program-path' [#381, !577, Sonny
+    Piers]
+  * Various maintenance [!578, !586, Philip Chimento]
+  * Add some profiling labels [!579, Ivan Molodetskikh]
+  * Some installed tests (introspection) segfault when GTK isn't available
+    [#383, !580, Olivier Tilloy]
+  * Installed tests do not install the js/modules subdir [#384, !581, Olivier
+    Tilloy]
+  * Installed tests fail because expected path doesn't include project name
+    [#385, !582, Olivier Tilloy]
+  * 1.67.2: Regress test hangs / timeouts on i686 [#379, !583, Marco Trevisan]
+  * object: Do not call any function on disposed GObject pointers [!585, Marco
+    Trevisan]
+
+Version 1.67.2
+--------------
+
+- New language features: Importing ES modules is now supported, both statically
+  with import statements and dynamically with the import() function. For more
+  information on how to use modules, see:
+  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
+  Four built-in modules exist: cairo, gettext, gi, and system. Except for gi,
+  they work similarly to the old-style modules imports.cairo, imports.gettext,
+  and imports.system. Consult the documentation in doc/Modules.md on how to use
+  them.
+
+- The debugger now has a "list" command which works very similarly to its GDB
+  equivalent.
+
+- New API: GObject.ParamSpec.jsobject() works like the other GObject.ParamSpec
+  types, and allows you to have a GObject property whose value is a JavaScript
+  object (plain object, Date, Array, etc.)
+
+- New API: System.programPath is the name of the JS program that GJS is running,
+  or null if there isn't one (for example, in the interactive interpreter.)
+
+- New API: System.programArgs is an array of arguments given to the JS program.
+  It is the same as ARGV but is consistently always present. (ARGV was not
+  defined in the interactive interpreter or when embedding GJS in a C program.)
+
+- Closed bugs and merge requests:
+
+  * Support Native JSObject GType for Signals and Properties [!305, Marco
+    Trevisan, Philip Chimento]
+  * Add 'system.programPath' API. [!443, Evan Welsh]
+  * ESM: Enable static imports. (Part 3) [!450, Evan Welsh, Philip Chimento]
+  * Refactor ARGV handling and add `system.programArgs` [!455, Evan Welsh,
+    Philip Chimento]
+  * Function make the object more C++ friendly [!514, Marco Trevisan]
+  * ESM: Enable dynamic imports. [!525, Evan Welsh, Philip Chimento]
+  * Remove JSClass macros from Ns, GType, and Cairo types [!549, Philip
+    Chimento]
+  * various documentation improvements [!551, Sonny Piers]
+  * Replace remaining mentions of window with globalThis [!552, Sonny Piers]
+  * add .editorconfig file [!553, Sonny Piers]
+  * Display current line of source code when displaying current frame in
+    debugger [!554, Nasah Kuma]
+  * doc: add Clapper and Flatseal to thirty party applications written in GJS
+    [!555, Sonny Piers]
+  * Multiline template literals are missing newlines when entered at interactive
+    prompt [#371, !556, Ales Huzik]
+  * function: Remove JSClass macros [!558, Philip Chimento, Marco Trevisan]
+  * Missing classes on global. [#372, !559, Philip Chimento]
+  * arg: fix build failure with glib main branch [!560, Michael Catanzaro]
+  * Update to Jasmine 2.9.1 [!561, Evan Welsh]
+  * Various maintenance [!562, Philip Chimento]
+  * Add list command to debugger [!563, Nasah Kuma]
+  * Upgrade to Jasmine 3.6.0 [!564, Evan Welsh]
+
+- Various refactors in preparation for BigInt support in gobject-introspection
+  [Marco Trevisan]
+
+Version 1.67.1
+--------------
+
+- The debugger now has a "backtrace full" command which works very similarly to
+  its GDB equivalent.
+
+- The GObject.ParamFlags.CONSTRUCT_ONLY flag is now correctly enforced, when
+  using it on GObject classes defined in JavaScript. This might break code that
+  was incorrectly trying to set a property that it had previously defined as
+  construct-only. The workaround is to remove the CONSTRUCT_ONLY flag.
+
+- Fixed exception when calling GObject.Type().
+
+- Several performance improvements.
+
+- Progress on ES Modules.
+
+- Closed bugs and merge requests:
+
+  * gobject: Handle CONSTRUCT_ONLY flag [!377, Florian Müllner]
+  * Add native module registry to global (Part 2) [!456, Evan Welsh]
+  * testGIMarshalling: Expand test coverage for flags [!479, Simon McVittie]
+  * Private Objects: Use native allocators and structs [!494, Marco Trevisan]
+  * Pass-by-reference GValue arguments do not work right [#74, !496, !507, Marco
+    Trevisan]
+  * Templated-data-only GjsAutoPointer (and use it more around) [!504, Marco
+    Trevisan]
+  * Error in function "_init()" in module "modules/overrides/GObject.js" [#238,
+    !508, Nina Pypchenko]
+  * fails to build on 32-bit [#357, !511, Michael Catanzaro]
+  * Revert "arg-cache: Save space by not caching GType" [!512, Jonas Dreßler]
+  * gi/wrapperutils: Move gjs_get_string_id() into resolve() implementations
+    [!513, Jonas Dreßler]
+  * updates on eslint configuration [!517, Nasah Kuma]
+  * Update CONTRIBUTING.md about the runner system failure [!518, Nasah Kuma]
+  * Switch to eslint-plugin-jsdoc and remove lint-condo [!520, #359, Evan Welsh,
+    Philip Chimento]
+  * gi: Check property before access [!521, Florian Müllner]
+  * testGIMarshalling: Actually run the GPtrArray utf8 tests [!522, Marco
+    Trevisan]
+  * Add more documents for "imports" and "imports.gi" [!526, wsgalaxy]
+  * overrides/Gtk: Set BuilderScope in class init [!527, Florian Müllner]
+  * gi/arg-cache: Only skip array length parameter once [!528, Florian Müllner]
+  * Copyright conformance with Reuse Software spec [!529, Philip Chimento, Evan
+    Welsh]
+  * Remove JSClass macros [!530, !533, !537, Philip Chimento]
+  * Avoid pulling from DockerHub in CI [!531, Philip Chimento, Marco Trevisan]
+  * Use GNOME-specific rules with cppcheck [!532, Philip Chimento]
+  * Fedora 33 CI images [!535, Philip Chimento]
+  * Fix IWYU bugs [!536, Philip Chimento]
+  * Reduce bandwidth usage in CI, and pick a more accurate base for diff checks
+    [!538, Philip Chimento]
+  * debugger: Make '$$' mean the last value [!539, Philip Chimento]
+  * Add codespell CI job [#362, !540, !541, !547, Björn Daase]
+  * Various maintenance [!542, !548, Philip Chimento]
+  * fix readline build on certain systems [!543, Jakub Kulík]
+  * build: Require gobject-introspection 1.66.0 [!546, Philip Chimento]
+  * Add backtrace full command to debugger [#208, !550, Nasah Kuma]
+
+- Various refactors for type safety [Marco Trevisan]
+
+- Various maintenance [Philip Chimento]
+
 Version 1.66.2
 --------------
 
@@ -11,6 +379,23 @@ Version 1.66.2
   * Error in function "_init()" in module "modules/overrides/GObject.js" [#238,
     !508, Nina Pypchenko]
   * Revert "arg-cache: Save space by not caching GType" [!512, Jonas Dreßler]
+  * gi/wrapperutils: Move gjs_get_string_id() into resolve() implementations
+    [!513, Jonas Dreßler]
+  * overrides/Gtk: Set BuilderScope in class init [!527, Florian Müllner]
+  * fix readline build on certain systems [!543, Jakub Kulík]
+
+Version 1.64.5
+--------------
+
+- Performance improvements and crash fixes backported from the development
+  branch.
+
+- Bug fixes enabling use of GTK 4.
+
+- Closed bugs and merge requests:
+
+  * Error in function "_init()" in module "modules/overrides/GObject.js" [#238,
+    !508, Nina Pypchenko]
   * gi/wrapperutils: Move gjs_get_string_id() into resolve() implementations
     [!513, Jonas Dreßler]
   * overrides/Gtk: Set BuilderScope in class init [!527, Florian Müllner]
@@ -44,7 +429,7 @@ Version 1.65.92
 
   * CI: Make iwyu idempotent [!481, Simon McVittie]
   * Enum and flags test failing in s390x [#319, !480, Simon McVittie]
-  * Bring back Visual Studio build support for GJS master [!482, Chun-wei Fan]
+  * Bring back Visual Studio build support for GJS main branch [!482, Chun-wei Fan]
   * gjs_dbus_implementation_emit_signal: don't try to unref NULL [!482, Adam
     Williamson]
   * doc: add third party applications [!484, Sonny Piers]
@@ -62,7 +447,7 @@ Version 1.65.91
   * Crash in gjs_dbus_implementation_flush() [#332, !471, Andy Holmes]
   * eslint: Bump ecmaScript version [!473, Florian Müllner]
   * Documentation: add documentation for ENV variables [!474, Andy Holmes]
-  * Fix build for master on Windows (due to SpiderMonkey-78.x upgrade) [!475,
+  * Fix build for the main branch on Windows (due to SpiderMonkey-78.x upgrade) [!475,
     Chun-wei Fan]
   * Argument cache causes test failure in armhf [#342, !476, Marco Trevisan]
   * Argument cache causes test regressions in s390x [#341, !477, Simon McVittie]
@@ -252,7 +637,7 @@ Version 1.65.2
   * Various maintenance [Philip Chimento, !413, !425]
   * doc fixes [Sonny Piers, !415, !416]
   * jsapi-util: Make log levels of exceptions consistent [Philip Chimento, !418]
-  * Too much recursion error accessing overrided gobject interface property from
+  * Too much recursion error accessing overridden gobject interface property from
     a subclass [Philip Chimento, #306, !408]
   * JS: migrate from the global `window` to `globalThis` [Andy Holmes, !423]
   * doc: Fix a typo [Matthew Leeds, !424]
@@ -340,7 +725,7 @@ Version 1.63.91
 - Closed bugs and merge requests:
   * [mozjs68] Reorganize modules for ESM. [Evan Welsh, Philip Chimento, !383]
   * Various maintenance [Philip Chimento, !388]
-  * Fix building GJS master with Visual Studio and update build instructions
+  * Fix building GJS main branch with Visual Studio and update build instructions
     [Chun-wei Fan, !389]
   * Resolve "Gnome Shell crash on GC run with mozjs68" [Philip Chimento, !391]
   * installed-tests/js: Add missing dep on warnlib_typelib [Jan Alexander
@@ -1070,7 +1455,7 @@ Version 1.53.90
       String.prototype.toLocaleUpperCase() now take an optional locale or
       array of locales.
     + Intl.PluralRules is now available.
-    + Intl.NumberFormat.protoype.formatToParts() is now available.
+    + Intl.NumberFormat.prototype.formatToParts() is now available.
     + Intl.Collator now has a caseFirst option.
     + Intl.DateTimeFormat now has an hourCycle option.
 
@@ -1241,7 +1626,7 @@ Version 1.53.4
 Version 1.53.3
 --------------
 
-- This release was made from an earlier state of master, before a bug was
+- This release was made from an earlier state of the main branch, before a bug was
   introduced, while we sort out how to fix it. As a result, we don't have too
   many changes this round.
 
@@ -1270,7 +1655,7 @@ Version 1.53.2
     Philip Chimento]
   * Reduce memory overhead of g_object_weak_ref() [#144, !122, Carlos Garnacho,
     Philip Chimento]
-  * gjs: JS_GetContextPrivate(): gjs-console killed by SIGSEGV [#148, !121,
+  * gjs: JS_GetContextPrivate(): cjs-console killed by SIGSEGV [#148, !121,
     Philip Chimento]
   * Use compacting GC on RSS size growth [#151, !133, Carlos Garnacho]
   * Segfault on enumeration of GjSFileImporter properties when a searchpath
@@ -1343,7 +1728,7 @@ Version 1.52.1
   version. The intention of 1.52.1 is to deliver a version that runs cleaner
   under performance tools, in time for the upcoming GNOME Shell performance
   hackfest. We also wanted to deliver a stable CI pipeline before branching
-  GNOME 3.28 off of master.
+  GNOME 3.28 off of the main branch.
 
 - Claudio André's work on the CI pipeline deserves a spotlight. We now have
   test jobs that run linters, sanitizers, Valgrind, and more; the tests are
@@ -1357,7 +1742,7 @@ Version 1.52.1
 - heapgraph.py is a tool in the repository (not installed in distributions) for
   analyzing and graphing heap dumps, to aid with tracking down memory leaks.
 
-- The linter CI jobs will compare your branch against GNOME/gjs@master, and fail
+- The linter CI jobs will compare your branch against the main branch of GNOME/gjs, and fail
   if your branch added any new linter errors. There may be false positives, and
   the rules configuration is not perfect. If that's the case on your merge
   request, you can skip the appropriate linter job by adding the text
@@ -1492,7 +1877,7 @@ Version 1.50.3
     Marco Trevisan]
   * Test "Cairo context has methods when created from a C function" fails [#27,
     !35, Valentín Barros]
-  * Various fixes from the master branch for rare crashes [Philip Chimento]
+  * Various fixes from the main branch for rare crashes [Philip Chimento]
 
 Version 1.51.4
 --------------
@@ -1530,7 +1915,7 @@ Version 1.51.4
 Version 1.51.3
 --------------
 
-- This release was made from an earlier state of master, before a breaking
+- This release was made from an earlier state of the main branch, before a breaking
   change was merged, while we decide whether to revert that change or not.
 
 - Closed bugs and merge requests:
@@ -1584,7 +1969,7 @@ Version 1.50.1
   worst problems are now fixed, although even more improvements will be
   released in the next unstable version. Fixes include:
 
-  * Specifing prefixes for code coverage files now works again
+  * Specifying prefixes for code coverage files now works again
   * Code coverage now works on lines inside ES6 class definitions
   * The detection of which lines are executable has been improved a bit
 
@@ -1863,7 +2248,7 @@ Version 1.49.2
 - Closed bugs:
 
   * Make gjs build on Windows/Visual Studio [#775868, Chun-wei Fan]
-  * Bring back fancy error reporter in gjs-console [#781882, Philip Chimento]
+  * Bring back fancy error reporter in cjs-console [#781882, Philip Chimento]
   * Add Meson running from source support to package.js [#781882, Patrick
     Griffis]
   * package: Fix initSubmodule() when running from source in Meson [#782065,
@@ -2220,7 +2605,7 @@ Version 1.47.0
       'A_FIELD': 'A value',
   });
 
-- Backwards-incompatible change: we have changed the way gjs-console interprets
+- Backwards-incompatible change: we have changed the way cjs-console interprets
   command-line arguments. Previously there was a heuristic to try to decide
   whether "--help" given on the command line was meant for GJS itself or for a
   script being launched. This did not work in some cases, for example:
@@ -2402,7 +2787,7 @@ Changes:
     - Support for non-default constructor (i.e. constructors like
       GdkPixbuf.Pixbuf.new_from_file(file))
     - Add a Lang.bind function which binds the meaning of 'this'
-    - Add an interactive console gjs-console
+    - Add an interactive console cjs-console
     - Allow code in directory modules (i.e. the code should reside in
       __init__.js files)
     - Fix handling of enum/flags return values
@@ -2415,7 +2800,7 @@ Changes:
       - GHashTable return values/out parameters
       - Support GHashTable 'in' parameters
       - Convert JSON-style object to a GHashTable
-    - Add support for UNIX shebang (i.e. #!/usr/bin/gjs-console)
+    - Add support for UNIX shebang (i.e. #!/usr/bin/cjs-console)
     - Support new introspection short/ushort type tags
     - Support GI_TYPE_TAG_FILENAME
     - Improve support for machine-dependent integer types and arrays of
@@ -2515,7 +2900,7 @@ Bugs fixed:
     Bug 560244 - support for strv parameters
 
 
-Version 0.1 
+Version 0.1
 -----------
 
 Initial version! Ha!

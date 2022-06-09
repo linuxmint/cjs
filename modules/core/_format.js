@@ -1,4 +1,7 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2012 Red Hat, Inc.
+// SPDX-FileCopyrightText: 2012 Giovanni Campagna <scampa.giovanni@gmail.com>
 
 /* exported vprintf */
 
@@ -15,7 +18,7 @@ function vprintf(string, args) {
         let hasAlternativeIntFlag = flagsGroup &&
             flagsGroup.indexOf('I') !== -1;
         if (hasAlternativeIntFlag && genericGroup !== 'd')
-            throw new Error("Alternative output digits can only be specfied for 'd'");
+            throw new Error("Alternative output digits can only be specified for 'd'");
 
         let pos = parseInt(posGroup, 10) || 0;
         if (!usePos && i === 0)

@@ -1,8 +1,8 @@
 GJS includes some built-in modules, as well as helpers for some core APIs like DBus like Variants. The headings below are links to the JavaScript source, which are decently documented and informative of usage.
 
-## [Gio](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/core/overrides/Gio.js)
+## [Gio](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/core/overrides/Gio.js)
 
-**Import with `const Gio = imports.gi.Gio;`**
+**Import with `const Gio = gi.require('Gio');` or `import Gio from 'gi://Gio'`**
 
 The `Gio` override includes a number of utilities for DBus that will be documented further at a later date. Below is a reasonable overview.
 
@@ -30,9 +30,9 @@ The `Gio` override includes a number of utilities for DBus that will be document
 
 [old-dbus-example]: https://wiki.gnome.org/Gjs/Examples/DBusClient
 
-## [GLib](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/core/overrides/GLib.js)
+## [GLib](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/core/overrides/GLib.js)
 
-**Import with `const GLib = imports.gi.GLib;`**
+**Import with `const GLib = gi.require('GLib');` or `import GLib from 'gi://GLib'`**
 
 Mostly GVariant and GBytes compatibility.
 
@@ -41,15 +41,15 @@ Mostly GVariant and GBytes compatibility.
 * `GLib.Variant.unpack()`: Unpack a variant to a native type
 * `GLib.Variant.deep_unpack()`: Deep unpack a variant.
 
-## [GObject](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/core/overrides/GObject.js)
+## [GObject](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/core/overrides/GObject.js)
 
-**Import with `const GObject = imports.gi.GObject;`**
+**Import with `const GObject = gi.require('GObject');` or `import GObject from 'gi://GObject'`**
 
 Mostly GObject implementation (properties, signals, GType mapping). May be useful as a reference.
 
-## [Gtk](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/core/overrides/Gtk.js)
+## [Gtk](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/core/overrides/Gtk.js)
 
-**Import with `const Gtk = imports.gi.Gtk;`**
+**Import with `const Gtk = gi.require('Gtk', '3.0');` or `import Gtk from 'gi://Gtk'`**
 
 Mostly GtkBuilder/composite template implementation. May be useful as a reference.
 
@@ -57,21 +57,19 @@ Mostly GtkBuilder/composite template implementation. May be useful as a referenc
 **REMINDER:** You should specify a version prior to importing a library with multiple versions:
 
 ```js
-imports.gi.versions.Gtk = "3.0";
-const Gtk = imports.gi.Gtk;
+import Gtk from 'gi://Gtk?version=3.0';
 ```
 >>>
 
 ## Cairo
 
-**Import with `const Cairo = imports.cairo;`**
+**Import with `import Cairo from 'cairo';`**
 
 Mostly API compatible with [cairo](https://www.cairographics.org/documentation/), but using camelCase function names. There is list of constants in [cairo.js][cairo-const] and functions for each object in its corresponding C++ file (eg. [cairo-context.cpp][cairo-func]). A simple example drawing a 32x32 red circle:
 
 ```js
-imports.gi.versions.Gtk = "3.0";
-const Gtk = imports.gi.Gtk;
-const Cairo = imports.cairo;
+import Gtk from 'gi://Gtk?version=3.0';
+import Cairo from 'cairo';
 
 let drawingArea = new Gtk.DrawingArea({
     height_request: 32,
@@ -91,10 +89,10 @@ drawingArea.connect("draw", (widget, cr) => {
 });
 ```
 
-[cairo-const]: https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/cairo.js
-[cairo-func]: https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/cairo-context.cpp#L825
+[cairo-const]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/cairo.js
+[cairo-func]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/cairo-context.cpp#L825
 
-## [Format](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/format.js)
+## [Format](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/format.js)
 
 **Import with `const Format = imports.format;`**
 
@@ -124,24 +122,28 @@ Gettext.ngettext("I have %d apple", "I have %d apples", num).format(num);
 [template-literals]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals
 [bug-50920]: https://savannah.gnu.org/bugs/?50920
 
-## [Gettext](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/gettext.js)
+## [Gettext](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/gettext.js)
 
-**Import with `const Gettext = imports.gettext;`**
+**Import with `import gettext from 'gettext';`**
 
 Helper functions for gettext. See also [examples/gettext.js][example-gettext] for usage.
 
-[example-gettext]: https://gitlab.gnome.org/GNOME/gjs/blob/master/examples/gettext.js
+[example-gettext]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/examples/gettext.js
 
-## [jsUnit](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/jsUnit.js)
+### Legacy Imports (`imports.gettext`)
+
+Gettext is also exposed via `imports.gettext` on the global `imports` object.
+
+## [jsUnit](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/jsUnit.js)
 
 **DEPRECATED**
 
 Deprecated unit test functions. [Jasmine][jasmine-gjs] for GJS should now be preferred, as demonstrated in the GJS [test suite][gjs-tests].
 
 [jasmine-gjs]: https://github.com/ptomato/jasmine-gjs
-[gjs-tests]: https://gitlab.gnome.org/GNOME/gjs/blob/master/installed-tests/js
+[gjs-tests]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/installed-tests/js
 
-## [`Lang`](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/lang.js)
+## [`Lang`](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/lang.js)
 
 **DEPRECATED**
 
@@ -174,26 +176,26 @@ var MyNewClass = class {
 }
 ```
 
-## [Mainloop](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/mainloop.js)
+## [Mainloop](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/mainloop.js)
 
 **DEPRECATED**
 
 Mainloop is simply a layer of convenience and backwards-compatibility over some GLib functions (such as [`GLib.timeout_add()`][gjs-timeoutadd] which in GJS is mapped to [`g_timeout_add_full()`][c-timeoutaddfull]). It's use is not generally recommended anymore.
 
 [c-timeoutaddfull]: https://developer.gnome.org/glib/stable/glib-The-Main-Event-Loop.html#g-timeout-add-full
-[gjs-timeoutadd]: http://devdocs.baznga.org/glib20~2.50.0/glib.timeout_add
+[gjs-timeoutadd]: https://gjs-docs.gnome.org/glib20/glib.timeout_add
 
-## [Package](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/package.js)
+## [Package](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/package.js)
 
 Infrastructure and utilities for [standalone applications](Home#standalone-applications).
 
-## [Signals](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/signals.js)
+## [Signals](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/signals.js)
 
 **Import with `const Signals = imports.signals;`**
 
 A GObject-like signal framework for native Javascript objects.
 
-**NOTE:** Unlike [GObject signals](Mapping#signals), `this` within a signal callback will refer to the global object (ie. `window`).
+**NOTE:** Unlike [GObject signals](Mapping#signals), `this` within a signal callback will refer to the global object (ie. `globalThis`).
 
 ```js
 const Signals = imports.signals;
@@ -209,7 +211,7 @@ let obj = new MyJSObject();
 
 // Connect and disconnect like standard GObject signals
 let handlerId = obj.connect("exampleSignal", (obj, stringArg, intArg) => {
-    // Remember 'this' === 'window'
+    // Remember 'this' === 'globalThis'
 });
 obj.disconnect(handlerId);
 
@@ -217,9 +219,9 @@ obj.disconnect(handlerId);
 obj.disconnectAll();
 ```
 
-## [System](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/system.cpp)
+## [System](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/system.cpp)
 
-**Import with `const System = imports.system;`**
+**Import with `import system from 'system';`**
 
 The System module offers a number of useful functions and properties for debugging and shell interaction (eg. ARGV):
 
@@ -263,21 +265,78 @@ The System module offers a number of useful functions and properties for debuggi
  [examples/gtk-application.js][example-application]):
 
     ```js
-    imports.gi.versions.Gtk = "3.0";
-    const Gtk = imports.gi.Gtk;
-    const System = imports.system;
+    import Gtk from 'gi://Gtk?version=3.0';
+    import system from 'system';
 
     let myApp = new Gtk.Application();
     myApp.connect("activate", () => log("activated"));
     myApp.run([System.programInvocationName].concat(ARGV));
     ```
 
-[example-application]: https://gitlab.gnome.org/GNOME/gjs/blob/master/examples/gtk-application.js
+[example-application]: https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/examples/gtk-application.js
 
-## [Tweener](https://gitlab.gnome.org/GNOME/gjs/blob/master/modules/script/tweener/)
+## [Tweener](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/script/tweener/)
 
 **Import with `const Tweener = imports.tweener.tweener;`**
 
 Built-in version of the well-known [Tweener][tweener-www] animation/property transition library.
 
 [tweener-www]: http://hosted.zeh.com.br/tweener/docs/
+
+## GObject Introspection
+
+**Import with `import gi from 'gi';`**
+
+A wrapper of **libgirepository** to import native gobject-introspection libraries.
+
+* `gi.require(library: string, version?: string)`
+
+Loads a native gobject-introspection library.
+Version is required if more than one version of a library is installed.
+
+You can also import libraries through the `gi://` URL scheme.
+This function is only intended to be used when you want to import a
+library conditionally, since top-level import statements are resolved
+statically.
+
+### Legacy Imports (`imports.gi`)
+
+**Import with `const gi = imports.gi;`**
+
+A wrapper for **libgirepository** is also available via the global `imports` object.
+This object has a property `versions` which is an object on which you can set string-valued
+properties indicating the version of that gobject-introspection library you want to load,
+and loading multiple versions in the same process is forbidden. So if you want to
+use gtk-3.0, set `imports.gi.versions.Gtk = '3.0';`.
+
+Any other properties of `imports.gi` will attempt to import a gobject-introspection library
+with the property name, picking the latest version if there is no entry for it in `imports.gi.versions`.
+
+## Legacy Imports
+
+Prior to the introduction of [ES Modules](ESModules.md), GJS had its own import system.
+
+**imports** is a global object that you can use to import any js file or GObject
+Introspection lib as module, there are 4 special properties of **imports**:
+
+ * `searchPath`
+
+    An array of path that used to look for files, if you want to prepend a path
+    you can do something like `imports.searchPath.unshift(myPath)`.
+
+ * `__modulePath__`
+ * `__moduleName__`
+ * `__parentModule__`
+
+    These 3 properties is intended to be used internally, you should not use them.
+
+Any other properties of **imports** is treated as a module, if you access these
+properties, an import is attempted. Gjs try to look up a js file or directory by property name
+from each location in `imports.searchPath`. For `imports.foo`, if a file named
+`foo.js` is found, this file is executed and then imported as a module object; else if
+a directory `foo` is found, a new importer object is returned and its `searchPath` property
+is replaced by the path of `foo`.
+
+Note that any variable, function and class declared at the top level,
+except those declared by `let` or `const`, are exported as properties of the module object,
+and one js file is executed only once at most even if it is imported multiple times.

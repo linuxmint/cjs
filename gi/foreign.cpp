@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2010  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2010 litl, LLC
 
 #include <config.h>
 
@@ -30,7 +11,6 @@
 
 #include <js/TypeDecls.h>
 
-#include "gi/arg.h"
 #include "gi/foreign.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util.h"
@@ -128,24 +108,18 @@ void gjs_struct_foreign_register(const char* gi_namespace,
     return retval;
 }
 
-bool
-gjs_struct_foreign_convert_to_g_argument(JSContext      *context,
-                                         JS::Value       value,
-                                         GIBaseInfo     *interface_info,
-                                         const char     *arg_name,
-                                         GjsArgumentType argument_type,
-                                         GITransfer      transfer,
-                                         bool            may_be_null,
-                                         GArgument      *arg)
-{
+bool gjs_struct_foreign_convert_to_g_argument(
+    JSContext* context, JS::Value value, GIBaseInfo* interface_info,
+    const char* arg_name, GjsArgumentType argument_type, GITransfer transfer,
+    GjsArgumentFlags flags, GArgument* arg) {
     GjsForeignInfo *foreign;
 
     foreign = gjs_struct_foreign_lookup(context, interface_info);
     if (!foreign)
         return false;
 
-    if (!foreign->to_func(context, value, arg_name,
-                           argument_type, transfer, may_be_null, arg))
+    if (!foreign->to_func(context, value, arg_name, argument_type, transfer,
+                          flags, arg))
         return false;
 
     return true;

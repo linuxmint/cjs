@@ -1,56 +1,32 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/* Copyright 2010 litl, LLC.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2010 litl, LLC.
 
 #include <config.h>
 
 #include <cairo.h>
 
 #include <js/CallArgs.h>
-#include <js/Class.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
+#include <jsapi.h>    // for JS_NewObjectWithGivenProto
+#include <jspubtd.h>  // for JSProtoKey
 
-#include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "modules/cairo-private.h"
 
-GJS_DEFINE_PROTO_ABSTRACT_WITH_PARENT("Gradient", cairo_gradient,
-                                      cairo_pattern,
-                                      JSCLASS_BACKGROUND_FINALIZE)
-
-static void
-gjs_cairo_gradient_finalize(JSFreeOp *fop,
-                            JSObject *obj)
-{
-    gjs_cairo_pattern_finalize_pattern(fop, obj);
+JSObject* CairoGradient::new_proto(JSContext* cx, JSProtoKey) {
+    JS::RootedObject parent_proto(cx, CairoPattern::prototype(cx));
+    return JS_NewObjectWithGivenProto(cx, nullptr, parent_proto);
 }
 
 /* Properties */
 // clang-format off
-JSPropertySpec gjs_cairo_gradient_proto_props[] = {
+const JSPropertySpec CairoGradient::proto_props[] = {
     JS_STRING_SYM_PS(toStringTag, "Gradient", JSPROP_READONLY),
     JS_PS_END};
 // clang-format on
@@ -73,7 +49,7 @@ addColorStopRGB_func(JSContext *context,
                              "blue", &blue))
         return false;
 
-    cairo_pattern_t* pattern = gjs_cairo_pattern_get_pattern(context, obj);
+    cairo_pattern_t* pattern = CairoPattern::for_js(context, obj);
     if (!pattern)
         return false;
 
@@ -103,7 +79,7 @@ addColorStopRGBA_func(JSContext *context,
                              "alpha", &alpha))
         return false;
 
-    cairo_pattern_t* pattern = gjs_cairo_pattern_get_pattern(context, obj);
+    cairo_pattern_t* pattern = CairoPattern::for_js(context, obj);
     if (!pattern)
         return false;
 
@@ -116,11 +92,9 @@ addColorStopRGBA_func(JSContext *context,
     return true;
 }
 
-JSFunctionSpec gjs_cairo_gradient_proto_funcs[] = {
+const JSFunctionSpec CairoGradient::proto_funcs[] = {
     JS_FN("addColorStopRGB", addColorStopRGB_func, 0, 0),
     JS_FN("addColorStopRGBA", addColorStopRGBA_func, 0, 0),
     // getColorStopRGB
     // getColorStopRGBA
     JS_FS_END};
-
-JSFunctionSpec gjs_cairo_gradient_static_funcs[] = { JS_FS_END };

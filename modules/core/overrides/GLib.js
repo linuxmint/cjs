@@ -1,22 +1,5 @@
-// Copyright 2011 Giovanni Campagna
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to
-// deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-// sell copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2011 Giovanni Campagna
 
 const ByteArray = imports.byteArray;
 
@@ -65,13 +48,6 @@ function _readSingleType(signature, forceSimple) {
         throw new TypeError(`Invalid GVariant signature (${char} is not a valid type)`);
 
     return [char];
-}
-
-function _makeBytes(byteArray) {
-    if (byteArray instanceof Uint8Array || byteArray instanceof ByteArray.ByteArray)
-        return ByteArray.toGBytes(byteArray);
-    else
-        return new GLib.Bytes(byteArray);
 }
 
 function _packVariant(signature, value) {
@@ -130,7 +106,7 @@ function _packVariant(signature, value) {
                     byteArray = Uint8Array.of(...byteArray, 0);
                 bytes = ByteArray.toGBytes(byteArray);
             } else {
-                bytes = _makeBytes(value);
+                bytes = new GLib.Bytes(value);
             }
             return GLib.Variant.new_from_bytes(new GLib.VariantType('ay'),
                 bytes, true);
@@ -292,6 +268,16 @@ function _init() {
         return false;
     };
 
+    // Guard against domains that aren't valid quarks and would lead
+    // to a crash
+    const quarkToString = this.quark_to_string;
+    const realNewLiteral = this.Error.new_literal;
+    this.Error.new_literal = function (domain, code, message) {
+        if (quarkToString(domain) === null)
+            throw new TypeError(`Error.new_literal: ${domain} is not a valid domain`);
+        return realNewLiteral(domain, code, message);
+    };
+
     this.Variant._new_internal = function (sig, value) {
         let signature = Array.prototype.slice.call(sig);
 
@@ -325,15 +311,68 @@ function _init() {
     };
 
     this.Bytes.prototype.toArray = function () {
-        return imports.byteArray.fromGBytes(this);
+        return imports._byteArrayNative.fromGBytes(this);
     };
 
-    this.log_structured = function (logDomain, logLevel, stringFields) {
+    this.log_structured =
+    /**
+     * @param {string} logDomain
+     * @param {GLib.LogLevelFlags} logLevel
+     * @param {Record<string, unknown>} stringFields
+     * @returns {void}
+     */
+    function log_structured(logDomain, logLevel, stringFields) {
+        /** @type {Record<string, GLib.Variant>} */
         let fields = {};
-        for (let key in stringFields)
-            fields[key] = new GLib.Variant('s', stringFields[key]);
+
+        for (let key in stringFields) {
+            const field = stringFields[key];
+
+            if (field instanceof Uint8Array) {
+                fields[key] = new GLib.Variant('ay', field);
+            } else if (typeof field === 'string') {
+                fields[key] = new GLib.Variant('s', field);
+            } else if (field instanceof GLib.Variant) {
+                // GLib.log_variant converts all Variants that are
+                // not 'ay' or 's' type to strings by printing
+                // them.
+                //
+                // https://gitlab.gnome.org/GNOME/glib/-/blob/a380bfdf93cb3bfd3cd4caedc0127c4e5717545b/glib/gmessages.c#L1894
+                fields[key] = field;
+            } else {
+                throw new TypeError(`Unsupported value ${field}, log_structured supports GLib.Variant, Uint8Array, and string values.`);
+            }
+        }
 
         GLib.log_variant(logDomain, logLevel, new GLib.Variant('a{sv}', fields));
+    };
+
+    // CjsPrivate depends on GLib so we cannot import it
+    // before GLib is fully resolved.
+
+    this.log_set_writer_func_variant = function (...args) {
+        const {log_set_writer_func} = imports.gi.CjsPrivate;
+
+        log_set_writer_func(...args);
+    };
+
+    this.log_set_writer_default = function (...args) {
+        const {log_set_writer_default} = imports.gi.CjsPrivate;
+
+        log_set_writer_default(...args);
+    };
+
+    this.log_set_writer_func = function (writer_func) {
+        const {log_set_writer_func} = imports.gi.CjsPrivate;
+
+        if (typeof writer_func !== 'function') {
+            log_set_writer_func(writer_func);
+        } else {
+            log_set_writer_func(function (logLevel, stringFields) {
+                const stringFieldsObj = {...stringFields.recursiveUnpack()};
+                return writer_func(logLevel, stringFieldsObj);
+            });
+        }
     };
 
     this.VariantDict.prototype.lookup = function (key, variantType = null, deep = false) {

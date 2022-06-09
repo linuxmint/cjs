@@ -34,7 +34,7 @@ at <https://gitlab.gnome.org/GNOME/gjs>.
 
 [google]: https://google.github.io/styleguide/cppguide.html
 [llvm]: https://llvm.org/docs/CodingStandards.html
-[llvm-source]: https://raw.githubusercontent.com/llvm-mirror/llvm/master/docs/CodingStandards.rst
+[llvm-source]: https://raw.githubusercontent.com/llvm-mirror/llvm/HEAD/docs/CodingStandards.rst
 
 ## Languages, Libraries, and Standards ##
 
@@ -122,34 +122,14 @@ The standard header looks like this:
 
 ```c++
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) YEARS  NAME <EMAIL>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: YEAR NAME <EMAIL>
 
 #include <HEADERS>
 
-/* gi/private.cpp - private "imports._gi" module with operations that we need
- * to use from JS in order to create GObject classes, but should not be exposed
- * to client code.
- */
+// gi/private.cpp - private "imports._gi" module with operations that we need
+// to use from JS in order to create GObject classes, but should not be exposed
+// to client code.
 ```
 
 A few things to note about this particular format: The "`-*-`" string on
@@ -158,8 +138,8 @@ file, not a C file (since C++ and C headers both share the `.h`
 extension.)
 This is originally an Emacs convention, but other editors use it too.
 
-The next section in the file is a concise note that describes the file's
-copyright and the license that the file is released under.
+The next lines in the file are machine-readable SPDX comments describing the file's copyright and the license that the file is released under.
+These comments should follow the [REUSE specification][reuse].
 This makes it perfectly clear what terms the source code can be
 distributed under and should not be modified.
 Names can be added to the copyright when making a substantial
@@ -170,6 +150,8 @@ file contains.
 If an algorithm is being implemented or something tricky is going on,
 this should be explained here, as well as any notes or *gotchas* in the
 code to watch out for.
+
+[reuse]: https://reuse.software/
 
 ##### Class overviews ######
 
@@ -437,7 +419,7 @@ Note that the header `<config.h>` must be included before any
 SpiderMonkey headers.
 
 GJS headers should use quotes, _except_ in public header files (any
-header file included from `<gjs/gjs.h>`.)
+header file included from `<cjs/gjs.h>`.)
 
 If you need to include headers conditionally, add the conditional
 after the group that it belongs to, separated by a blank line.
@@ -459,8 +441,6 @@ Here is an example of all of the above rules together:
 #    include <windows.h>
 #endif
 
-#include <codecvt>  // for codecvt_utf8_utf16
-#include <locale>   // for wstring_convert
 #include <vector>
 
 #include <girepository.h>
@@ -470,9 +450,9 @@ Here is an example of all of the above rules together:
 #include <jsapi.h>           // for JS_New, JSAutoRealm, JS_GetProperty
 #include <mozilla/Unused.h>
 
-#include "gjs/atoms.h"
-#include "gjs/context-private.h"
-#include "gjs/jsapi-util.h"
+#include "cjs/atoms.h"
+#include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
 ```
 
 #### Keep "Internal" Headers Private ####
@@ -827,6 +807,11 @@ In cases where this is not practical, either use `g_critical()` and
 continue execution as best as possible, or use `g_error()` to abort with
 a fatal error.
 
+For this reason, don't use `g_assert()` or `g_assert_not_reached()` in unit tests!
+Otherwise the tests will crash in a release build.
+In unit tests, use `g_assert_true()`, `g_assert_false()`, `g_assert_cmpint()`, etc.
+Likewise, don't use these unit test assertions in the main code!
+
 Another issue is that values used only by assertions will produce an
 "unused value" warning when assertions are disabled.
 For example, this code will warn:
@@ -1024,3 +1009,13 @@ class Foo {
     }
 };
 ```
+
+#### Don't use C++ standard library UTF-8/UTF-16 encoding facilities
+
+There are
+[bugs](https://social.msdn.microsoft.com/Forums/en-US/8f40dcd8-c67f-4eba-9134-a19b9178e481/vs-2015-rc-linker-stdcodecvt-error?forum=vcgeneral)
+in Visual Studio that make `wstring_convert` non-portable.
+Instead, use `g_utf8_to_utf16()` and friends (unfortunately not
+typesafe) or `mozilla::ConvertUtf8toUtf16()` and friends (when that
+becomes possible; it is currently not possible due to a linker bug.)
+

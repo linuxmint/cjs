@@ -1,2 +1,2 @@
-usr/lib/*/cjs/girepository-1.0/*.typelib
-usr/lib/*/libcjs*.so.*
+usr/lib/${DEB_HOST_MULTIARCH}/cjs/girepository-1.0/*.typelib
+usr/lib/${DEB_HOST_MULTIARCH}/libcjs*.so.*

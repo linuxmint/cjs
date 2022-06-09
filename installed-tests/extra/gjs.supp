@@ -1,34 +1,8 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2008 litl, LLC
+
 # Valgrind suppressions file for GJS
 # This is intended to be used in addition to GLib's glib.supp file.
-
-# We leak a small wrapper in GJS for each registered GType.
-
-{
-   gtype-wrapper-new
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:_Znwm
-   fun:gjs_gtype_create_gtype_wrapper
-}
-
-{
-   gtype-wrapper-qdata
-   Memcheck:Leak
-   match-leak-kinds: possible
-   ...
-   fun:type_set_qdata_W
-   fun:g_type_set_qdata
-   fun:gjs_gtype_create_gtype_wrapper
-}
-
-{
-   g_type_register_fundamental never freed
-   Memcheck:Leak
-   fun:calloc
-   ...
-   fun:g_type_register_fundamental
-   ...
-}
 
 # SpiderMonkey leaks
 
@@ -37,107 +11,103 @@
    Memcheck:Leak
    match-leak-kinds: possible
    fun:calloc
-   fun:allocate_dtv
-   fun:_dl_allocate_tls
-   fun:allocate_stack
+   ...
    fun:pthread_create@@GLIBC_2.2.5
    fun:_ZN7mozilla9TimeStamp20ComputeProcessUptimeEv
-   fun:_ZN7mozilla9TimeStamp15ProcessCreationERb
+   fun:_ZN7mozilla9TimeStamp15ProcessCreationEPb
    fun:_ZN2JS6detail25InitWithFailureDiagnosticEb
-   fun:JS_Init
+   fun:_Z7JS_Initv
 }
 
+# Various things that I don't believe are related to GJS
+
 {
-   mozjs-thread-stack-new-context
+   gtk-style-context
    Memcheck:Leak
    match-leak-kinds: possible
-   fun:calloc
-   fun:allocate_dtv
-   fun:_dl_allocate_tls
-   fun:allocate_stack
-   fun:pthread_create@@GLIBC_2.2.5
-   fun:_ZN2js6Thread6createEPFPvS1_ES1_
-   fun:init<void (&)(void*), js::HelperThread*>
-   fun:_ZN2js23GlobalHelperThreadState17ensureInitializedEv
-   fun:_ZN9JSRuntime4initEjj
-   fun:init
-   fun:NewContext
-   fun:_Z13JS_NewContextjjP9JSContext
+   fun:malloc
+   fun:g_malloc
+   ...
+   fun:gtk_css_node_declaration_make_writable*
+   ...
+   fun:gtk_style_constructed
 }
 
+# https://bugs.freedesktop.org/show_bug.cgi?id=105466
 {
-   mozjs-gc-helper-thread-mutex-guard
+   freedesktop-bug-105466
    Memcheck:Leak
    match-leak-kinds: definite
    fun:malloc
-   fun:js_malloc
-   fun:js_new<mozilla::Vector<const js::Mutex*> >
-   fun:_ZN2js5Mutex14heldMutexStackEv.part.*
-   fun:heldMutexStack
-   fun:_ZN2js5Mutex4lockEv
-   fun:LockGuard
-   fun:_ZN2js25AutoLockHelperThreadStateC1EON7mozilla6detail19GuardObjectNotifierE
-   fun:_ZN2js12HelperThread10threadLoopEv
-   fun:callMain<0*>
-   fun:_ZN2js6detail16ThreadTrampolineIRFvPvEJPNS_12HelperThreadEEE5StartES2_
-   fun:start_thread
-   fun:clone
-}
-
-
-# SpiderMonkey data races
-
-# These are in SpiderMonkey's atomics / thread barrier stuff so presumably
-# locking is working correctly and helgrind just can't detect it?
-
-{
-   mozjs-helgrind-atomic-load-1
-   Helgrind:Race
-   fun:load
-   fun:load
-   fun:operator unsigned int
-}
-
-{
-   mozjs-helgrind-atomic-load-2
-   Helgrind:Race
-   fun:load
-   fun:load
-   fun:operator bool
-}
-
-{
-   mozjs-helgrind-atomic-store
-   Helgrind:Race
-   fun:store
-   fun:store
-   fun:operator=
-}
-
-# Presumably this one is OK since the function is called "thread safe"?!
-{
-   mozjs-helgrind-thread-safe-lookup
-   Helgrind:Race
    ...
-   fun:lookup
-   fun:readonlyThreadsafeLookup
-   fun:readonlyThreadsafeLookup
-}
-
-{
-   mozjs-helgrind-jit-code
-   Helgrind:Race
-   obj:*
+   fun:FcConfigSubstituteWithPat
+   fun:_cairo_ft_resolve_pattern
+   fun:_cairo_ft_font_face_get_implementation
+   fun:cairo_scaled_font_create
+   fun:_cairo_gstate_ensure_scaled_font
    ...
-   fun:_ZL13EnterBaselineP9JSContextRN2js3jit12EnterJitDataE
+   fun:_cairo_default_context_get_scaled_font
+   fun:cairo_show_text
+}
+
+# Data that Cairo keeps around for the process lifetime
+# This could be freed by calling cairo_debug_reset_static_data(), but it's
+# not a good idea to call that function in production, because certain versions
+# of Cairo have bugs that cause it to fail assertions and crash.
+{
+   cairo-static-data
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:FcPatternDuplicate
+   fun:_cairo_ft_font_face_create_for_pattern
+   ...
+   fun:_cairo_gstate_ensure_scaled_font
+   ...
+   fun:_cairo_default_context_get_scaled_font
+   ...
+   fun:cairo_show_text
+}
+
+# https://gitlab.gnome.org/GNOME/gobject-introspection/issues/265
+{
+   gobject-introspection-default-repository
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:realloc
+   ...
+   fun:build_typelib_key
+   fun:register_internal
+}
+
+# Workaround for https://github.com/mesonbuild/meson/issues/4427
+# When fixed, valgrind should already not trace bash
+{
+   bash-workaround
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:xmalloc
+   fun:set_default_locale
+   fun:main
+}
+
+# https://gitlab.gnome.org/GNOME/glib/-/issues/1911
+{
+   g-type-register-static
+   Memcheck:Leak
+   match-leak-kinds:possible
+   fun:malloc
+   ...
+   fun:g_type_register_static
 }
 
 {
-   mozjs-helgrind-probably-jit-code
-   Helgrind:Race
-   obj:*
-   obj:*
-   obj:*
-   obj:*
-   obj:*
+   g-type-register-static-calloc
+   Memcheck:Leak
+   match-leak-kinds:possible
+   fun:calloc
+   ...
+   fun:g_type_register_static
 }

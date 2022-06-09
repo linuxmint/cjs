@@ -1,4 +1,6 @@
 /* eslint-disable no-restricted-properties */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 const Mainloop = imports.mainloop;
 
@@ -19,7 +21,7 @@ describe('Mainloop.timeout_add()', function () {
 
         Mainloop.timeout_add(10, runTenTimes);
         Mainloop.timeout_add(10, runOnlyOnce);
-        neverRunSource = Mainloop.timeout_add(15000, neverRun);
+        neverRunSource = Mainloop.timeout_add(90000, neverRun);
     });
 
     it('runs a timeout function', function () {

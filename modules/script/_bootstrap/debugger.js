@@ -1,10 +1,7 @@
+/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
 /* global debuggee, quit, loadNative, readline, uneval */
-/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*-
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// SPDX-License-Identifier: MPL-2.0
+// SPDX-FileCopyrightText: 2011 Mozilla Foundation and contributors
 
 /*
  * This is a simple command-line debugger for GJS programs. It is based on
@@ -24,7 +21,7 @@ var topFrame = null;
 var debuggeeValues = {};
 var nextDebuggeeValueIndex = 1;
 var lastExc = null;
-var options = {pretty: true};
+var options = {pretty: true, colors: true, ignoreCaughtExceptions: true};
 var breakpoints = [undefined];  // Breakpoint numbers start at 1
 
 // Cleanup functions to run when we next re-enter the repl.
@@ -51,6 +48,18 @@ function summarizeObject(dv) {
 }
 
 function debuggeeValueToString(dv, style = {pretty: options.pretty}) {
+    // Special sentinel values returned by Debugger.Environment.getVariable()
+    if (typeof dv === 'object' && dv !== null) {
+        if (dv.missingArguments)
+            return ['<missing>', undefined];
+        if (dv.optimizedOut)
+            return ['<optimized out>', undefined];
+        if (dv.uninitialized)
+            return ['<uninitialized>', undefined];
+        if (!(dv instanceof Debugger.Object))
+            return ['<unexpected object>', JSON.stringify(dv, null, 4)];
+    }
+
     const dvrepr = dvToString(dv);
     if (!style.pretty || dv === null || typeof dv !== 'object')
         return [dvrepr, undefined];
@@ -82,6 +91,7 @@ function debuggeeValueToString(dv, style = {pretty: options.pretty}) {
 function showDebuggeeValue(dv, style = {pretty: options.pretty}) {
     const i = nextDebuggeeValueIndex++;
     debuggeeValues[`$${i}`] = dv;
+    debuggeeValues['$$'] = dv;
     const [brief, full] = debuggeeValueToString(dv, style);
     print(`$${i} = ${brief}`);
     if (full !== undefined)
@@ -142,7 +152,7 @@ Debugger.Script.prototype.describeOffset = function describeOffset(offset) {
     return `${url}:${lineNumber}:${columnNumber}`;
 };
 
-function showFrame(f, n) {
+function showFrame(f, n, option = {btCommand: false, fullOption: false}) {
     if (f === undefined || f === null) {
         f = focusedFrame;
         if (f === null) {
@@ -155,9 +165,25 @@ function showFrame(f, n) {
         if (n === undefined)
             throw new Error('Internal error: frame not on stack');
     }
-
     print(`#${n.toString().padEnd(4)} ${f.describeFull()}`);
+    if (option.btCommand) {
+        if (option.fullOption) {
+            const variables = f.environment.names();
+            for (let i = 0; i < variables.length; i++) {
+                if (variables.length === 0)
+                    print('No locals.');
+
+                const value = f.environment.getVariable(variables[i]);
+                const [brief] = debuggeeValueToString(value, {brief: false, pretty: false});
+                print(`${variables[i]} = ${brief}`);
+            }
+        }
+    } else {
+        let lineNumber = f.line;
+        print(`   ${lineNumber}\t${f.script.source.text.split('\n')[lineNumber - 1]}`);
+    }
 }
+
 
 function saveExcursion(fn) {
     const tf = topFrame, ff = focusedFrame;
@@ -189,16 +215,72 @@ quitCommand.summary = 'Quit the debugger';
 quitCommand.helpText = `USAGE
     quit`;
 
-function backtraceCommand() {
+function backtraceCommand(option) {
     if (topFrame === null)
         print('No stack.');
-    for (var i = 0, f = topFrame; f; i++, f = f.older)
-        showFrame(f, i);
+    if (option === '') {
+        for (let i = 0, f = topFrame; f; i++, f = f.older)
+            showFrame(f, i, {btCommand: true, fullOption: false});
+    } else if (option === 'full') {
+        for (let i = 0, f = topFrame; f; i++, f = f.older)
+            showFrame(f, i, {btCommand: true, fullOption: true});
+    } else {
+        print('Invalid option');
+    }
 }
-backtraceCommand.summary = 'Print backtrace of all stack frames';
+backtraceCommand.summary = 'Print backtrace of all stack frames and details of all local variables if the full option is added';
 backtraceCommand.helpText = `USAGE
-    bt`;
+    bt <option>
 
+PARAMETERS
+    · option: option name. Allowed options are:
+        · full: prints the local variables in a stack frame`;
+
+function listCommand(option) {
+    if (focusedFrame === null) {
+        print('No frame to list from');
+        return;
+    }
+    let lineNumber = focusedFrame.line;
+    if (option === '') {
+        printSurroundingLines(lineNumber);
+        return;
+    }
+    let currentLine = Number(option);
+    if (Number.isNaN(currentLine) === false)
+        printSurroundingLines(currentLine);
+
+    else
+        print('Unknown option');
+}
+
+function printSurroundingLines(currentLine = 1) {
+    let sourceLines = focusedFrame.script.source.text.split('\n');
+    let lastLine = sourceLines.length - 1;
+    let maxLineLimit = Math.min(lastLine, currentLine + 5);
+    let minLineLimit = Math.max(1, currentLine - 5);
+    for (let i = minLineLimit; i < maxLineLimit + 1; i++) {
+        if (i === currentLine) {
+            const code = colorCode('1');
+            print(`  *${code[0]}${i}\t${sourceLines[i - 1]}${code[1]}`);
+        } else {
+            print(`   ${i}\t${sourceLines[i - 1]}`);
+        }
+    }
+}
+
+listCommand.summary = 'Prints five lines of code before and five lines after the current line of code on which the debugger is running';
+listCommand.helpText = `USAGE
+    list <option>
+PARAMETERS
+    -option : option name. Allowed options are: line number`;
+
+function colorCode(codeNumber) {
+    if (options.colors === true)
+        return [`\x1b[${codeNumber}m`, '\x1b[0m'];
+    else
+        return ['', ''];
+}
 function setCommand(rest) {
     var space = rest.indexOf(' ');
     if (space === -1) {
@@ -225,6 +307,8 @@ setCommand.helpText = `USAGE
 PARAMETERS
     · option: option name. Allowed options are:
         · pretty: set print mode to pretty or brief. Allowed value true or false
+        · colors: set printing with colors to true or false.
+        · ignoreCaughtExceptions: do not stop on handled exceptions. Allowed value true or false
     · value: option value`;
 
 function splitPrintOptions(s, style) {
@@ -266,7 +350,10 @@ printCommand.helpText = `USAGE
 PARAMETER
     · expr: expression to be printed
     · pretty|p: prettify the output
-    · brief|b: brief output`;
+    · brief|b: brief output
+
+expr may also reference the variables $1, $2, ... for already printed
+expressions, or $$ for the most recently printed expression.`;
 
 function keysCommand(rest) {
     return doPrint(`Object.keys(${rest})`);
@@ -654,6 +741,7 @@ var commandArray = [
     throwCommand, 't',
     untilCommand, 'u', 'upto',
     upCommand,
+    listCommand, 'li', 'l',
 ];
 // clang-format on
 var currentCmd = null;
@@ -843,6 +931,18 @@ dbg.onDebuggerStatement = function (frame) {
     });
 };
 dbg.onExceptionUnwind = function (frame, value) {
+    const willBeCaught = currentFrame => {
+        while (currentFrame) {
+            if (currentFrame.script.isInCatchScope(currentFrame.offset))
+                return true;
+            currentFrame = currentFrame.older;
+        }
+        return false;
+    };
+
+    if (options.ignoreCaughtExceptions && willBeCaught(frame))
+        return undefined;
+
     return saveExcursion(() => {
         topFrame = focusedFrame = frame;
         print("Unwinding due to exception. (Type 'c' to continue unwinding.)");

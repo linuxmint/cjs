@@ -1,32 +1,12 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
 
 #include <config.h>
 
 #include <stdint.h>
 
 #ifdef _WIN32
-#    define WIN32_LEAN_AND_MEAN
 #    include <windows.h>
 #endif
 
@@ -46,7 +26,6 @@
 #include <jsapi.h>  // for InitSelfHostedCode, JS_Destr...
 #include <mozilla/UniquePtr.h>
 
-#include "gi/object.h"
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
 #include "cjs/jsapi-util.h"
@@ -55,65 +34,7 @@
 static void gjs_finalize_callback(JSFreeOp*, JSFinalizeStatus status,
                                   void* data) {
     auto* gjs = static_cast<GjsContextPrivate*>(data);
-
-  /* Implementation note for mozjs 24:
-     sweeping happens in two phases, in the first phase all
-     GC things from the allocation arenas are queued for
-     sweeping, then the actual sweeping happens.
-     The first phase is marked by JSFINALIZE_GROUP_START,
-     the second one by JSFINALIZE_GROUP_END, and finally
-     we will see JSFINALIZE_COLLECTION_END at the end of
-     all GC.
-     (see jsgc.cpp, BeginSweepPhase/BeginSweepingZoneGroup
-     and SweepPhase, all called from IncrementalCollectSlice).
-     Incremental GC muds the waters, because BeginSweepPhase
-     is always run to entirety, but SweepPhase can be run
-     incrementally and mixed with JS code runs or even
-     native code, when MaybeGC/IncrementalGC return.
-
-     Luckily for us, objects are treated specially, and
-     are not really queued for deferred incremental
-     finalization (unless they are marked for background
-     sweeping). Instead, they are finalized immediately
-     during phase 1, so the following guarantees are
-     true (and we rely on them)
-     - phase 1 of GC will begin and end in the same JSAPI
-       call (ie, our callback will be called with GROUP_START
-       and the triggering JSAPI call will not return until
-       we see a GROUP_END)
-     - object finalization will begin and end in the same
-       JSAPI call
-     - therefore, if there is a finalizer frame somewhere
-       in the stack, gjs_runtime_is_sweeping() will return
-       true.
-
-     Comments in mozjs24 imply that this behavior might
-     change in the future, but it hasn't changed in
-     mozilla-central as of 2014-02-23. In addition to
-     that, the mozilla-central version has a huge comment
-     in a different portion of the file, explaining
-     why finalization of objects can't be mixed with JS
-     code, so we can probably rely on this behavior.
-  */
-
-  if (status == JSFINALIZE_GROUP_PREPARE)
-        gjs->set_sweeping(true);
-  else if (status == JSFINALIZE_GROUP_END)
-        gjs->set_sweeping(false);
-}
-
-static void on_garbage_collect(JSContext*, JSGCStatus status, JS::GCReason,
-                               void*) {
-    /* We finalize any pending toggle refs before doing any garbage collection,
-     * so that we can collect the JS wrapper objects, and in order to minimize
-     * the chances of objects having a pending toggle up queued when they are
-     * garbage collected. */
-    if (status == JSGC_BEGIN) {
-        gjs_debug_lifecycle(GJS_DEBUG_CONTEXT, "Begin garbage collection");
-        gjs_object_clear_toggles();
-    } else if (status == JSGC_END) {
-        gjs_debug_lifecycle(GJS_DEBUG_CONTEXT, "End garbage collection");
-    }
+    gjs->set_finalize_status(status);
 }
 
 static void on_promise_unhandled_rejection(
@@ -230,7 +151,6 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
     JS_SetContextPrivate(cx, uninitialized_gjs);
 
     JS_AddFinalizeCallback(cx, gjs_finalize_callback, uninitialized_gjs);
-    JS_SetGCCallback(cx, on_garbage_collect, uninitialized_gjs);
     JS::SetWarningReporter(cx, gjs_warning_reporter);
     JS::SetJobQueue(cx, dynamic_cast<JS::JobQueue*>(uninitialized_gjs));
     JS::SetPromiseRejectionTrackerCallback(cx, on_promise_unhandled_rejection,
@@ -262,6 +182,8 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
         cx, JSJitCompilerOption::JSJITCOMPILER_ION_ENABLE, value);
     JS_SetGlobalJitCompilerOption(
         cx, JSJitCompilerOption::JSJITCOMPILER_BASELINE_ENABLE, value);
+    JS_SetGlobalJitCompilerOption(
+        cx, JSJitCompilerOption::JSJITCOMPILER_BASELINE_INTERPRETER_ENABLE, value);
 
     return cx;
 }

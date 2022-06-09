@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: MPL-2.0
+# SPDX-FileCopyrightText: 2013-2018 Andrew McCreight <continuation@gmail.com>
+# SPDX-FileCopyrightText: 2018 Andy Holmes <andrew.g.r.holmes@gmail.com>
 #
 # heapdot.py - DOT Graph output
 
@@ -119,6 +119,10 @@ def output_dot_file(args, graph, targs, fname):
         elif label.startswith('WeakMap'):
             label = 'WeakMap'
             style = 'dashed'
+        # A Proxy
+        elif label.startswith('Proxy'):
+            shape = 'doublecircle'
+            color = 'goldenrod2'
         # Mostly uninteresting objects
         elif label in ['base_shape', 'object_group', 'type_object']:
             style = 'dotted'
