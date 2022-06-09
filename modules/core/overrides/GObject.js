@@ -1,27 +1,10 @@
 /* exported _init, interfaces, properties, registerClass, requires, signals */
-// Copyright 2011 Jasper St. Pierre
-// Copyright 2017 Philip Chimento <philip.chimento@gmail.com>, <philip@endlessm.com>
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to
-// deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-// sell copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2011 Jasper St. Pierre
+// SPDX-FileCopyrightText: 2017 Philip Chimento <philip.chimento@gmail.com>, <philip@endlessm.com>
 
 const Gi = imports._gi;
-const CjsPrivate = imports.gi.CjsPrivate;
+const {CjsPrivate, GLib} = imports.gi;
 const {_checkAccessors} = imports._common;
 const Legacy = imports._legacy;
 
@@ -168,6 +151,9 @@ function _createGTypeName(klass) {
             gtypeClassName = `${callerBasename}_${gtypeClassName}`;
     }
 
+    if (gtypeClassName === '')
+        gtypeClassName = `anonymous_${GLib.uuid_string_random()}`;
+
     return sanitizeGType(`Gjs_${gtypeClassName}`);
 }
 
@@ -237,7 +223,6 @@ function _checkInterface(iface, proto) {
 }
 
 function _init() {
-
     GObject = this;
 
     function _makeDummyClass(obj, name, upperName, gtypeName, actual) {
@@ -278,6 +263,10 @@ function _init() {
     GObject.TYPE_STRING = GObject.type_from_name('gchararray');
     GObject.String = String;
     String.$gtype = GObject.TYPE_STRING;
+
+    GObject.TYPE_JSOBJECT = GObject.type_from_name('JSObject');
+    GObject.JSObject = Object;
+    Object.$gtype = GObject.TYPE_JSOBJECT;
 
     GObject.TYPE_POINTER = GObject.type_from_name('gpointer');
     GObject.TYPE_BOXED = GObject.type_from_name('GBoxed');
@@ -350,6 +339,10 @@ function _init() {
 
     GObject.ParamSpec.object = function (name, nick, blurb, flags, objectType) {
         return GObject.param_spec_object(name, nick, blurb, objectType, flags);
+    };
+
+    GObject.ParamSpec.jsobject = function (name, nick, blurb, flags) {
+        return GObject.param_spec_boxed(name, nick, blurb, Object.$gtype, flags);
     };
 
     GObject.ParamSpec.param = function (name, nick, blurb, flags, paramType) {
@@ -563,6 +556,10 @@ function _init() {
         Object.assign(this, params);
     };
 
+    GObject.Object.prototype.bind_property_full = function (...args) {
+        return CjsPrivate.g_object_bind_property_full(this, ...args);
+    };
+
     // fake enum for signal accumulators, keep in sync with gi/object.c
     GObject.AccumulatorType = {
         NONE: 0,
@@ -609,10 +606,11 @@ function _init() {
      * The criteria are passed as properties of a match object.
      * The match object has to be non-empty for successful matches.
      * If no handler was found, a falsy value is returned.
+     *
      * @function
      * @param {GObject.Object} instance - the instance owning the signal handler
      *   to be found.
-     * @param {Object} match - a properties object indicating whether to match
+     * @param {object} match - a properties object indicating whether to match
      *   by signal ID, detail, or callback function.
      * @param {string} [match.signalId] - signal the handler has to be connected
      *   to.
@@ -620,7 +618,7 @@ function _init() {
      *   connected to.
      * @param {Function} [match.func] - the callback function the handler will
      *   invoke.
-     * @returns {number|BigInt|Object|null} A valid non-0 signal handler ID for
+     * @returns {number | bigint | object | null} A valid non-0 signal handler ID for
      *   a successful match.
      */
     GObject.signal_handler_find = function (instance, match) {
@@ -636,10 +634,11 @@ function _init() {
      * The match object has to have at least `func` for successful matches.
      * If no handlers were found, 0 is returned, the number of blocked handlers
      * otherwise.
+     *
      * @function
      * @param {GObject.Object} instance - the instance owning the signal handler
      *   to be found.
-     * @param {Object} match - a properties object indicating whether to match
+     * @param {object} match - a properties object indicating whether to match
      *   by signal ID, detail, or callback function.
      * @param {string} [match.signalId] - signal the handler has to be connected
      *   to.
@@ -665,10 +664,11 @@ function _init() {
      * handlers otherwise.
      * The match criteria should not apply to any handlers that are not
      * currently blocked.
+     *
      * @function
      * @param {GObject.Object} instance - the instance owning the signal handler
      *   to be found.
-     * @param {Object} match - a properties object indicating whether to match
+     * @param {object} match - a properties object indicating whether to match
      *   by signal ID, detail, or callback function.
      * @param {string} [match.signalId] - signal the handler has to be connected
      *   to.
@@ -692,10 +692,11 @@ function _init() {
      * The match object has to have at least `func` for successful matches.
      * If no handlers were found, 0 is returned, the number of disconnected
      * handlers otherwise.
+     *
      * @function
      * @param {GObject.Object} instance - the instance owning the signal handler
      *   to be found.
-     * @param {Object} match - a properties object indicating whether to match
+     * @param {object} match - a properties object indicating whether to match
      *   by signal ID, detail, or callback function.
      * @param {string} [match.signalId] - signal the handler has to be connected
      *   to.
@@ -717,6 +718,7 @@ function _init() {
 
     /**
      * Blocks all handlers on an instance that match `func`.
+     *
      * @function
      * @param {GObject.Object} instance - the instance to block handlers from.
      * @param {Function} func - the callback function the handler will invoke.
@@ -727,6 +729,7 @@ function _init() {
     };
     /**
      * Unblocks all handlers on an instance that match `func`.
+     *
      * @function
      * @param {GObject.Object} instance - the instance to unblock handlers from.
      * @param {Function} func - the callback function the handler will invoke.
@@ -737,6 +740,7 @@ function _init() {
     };
     /**
      * Disconnects all handlers on an instance that match `func`.
+     *
      * @function
      * @param {GObject.Object} instance - the instance to remove handlers from.
      * @param {Function} func - the callback function the handler will invoke.

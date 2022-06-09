@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+
 const Clutter = imports.gi.Clutter;
 
 Clutter.init(null);

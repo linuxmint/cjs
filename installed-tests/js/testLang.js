@@ -1,4 +1,7 @@
 /* eslint-disable no-restricted-properties */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+
 // tests for imports.lang module
 // except for Lang.Class and Lang.Interface, which are tested in testLegacyClass
 
@@ -68,11 +71,11 @@ describe('Lang module', function () {
         it('calls the bound function with the supplied this-object', function () {
             let callback = Lang.bind(o, o.callback);
             callback();
-            expect(o.callback.calls.mostRecent()).toEqual({
+            expect(o.callback.calls.mostRecent()).toEqual(jasmine.objectContaining({
                 object: o,
                 args: [],
                 returnValue: true,
-            });
+            }));
         });
 
         it('throws an error when no function supplied', function () {

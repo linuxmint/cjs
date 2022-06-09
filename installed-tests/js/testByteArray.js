@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2010 litl, LLC
+// SPDX-FileCopyrightText: 2017 Philip Chimento <philip.chimento@gmail.com>
+
 const ByteArray = imports.byteArray;
 const {GIMarshallingTests, GLib} = imports.gi;
 
@@ -64,6 +68,16 @@ describe('Byte array', function () {
         expect(ByteArray.toGBytes(a).get_size()).toEqual(0);
     });
 
+    it('deals gracefully with a 0-length GLib.Bytes', function () {
+        const noBytes = ByteArray.toGBytes(new Uint8Array(0));
+        expect(ByteArray.fromGBytes(noBytes).length).toEqual(0);
+    });
+
+    it('deals gracefully with a 0-length string', function () {
+        expect(ByteArray.fromString('').length).toEqual(0);
+        expect(ByteArray.fromString('', 'LATIN1').length).toEqual(0);
+    });
+
     it('deals gracefully with a non Uint8Array', function () {
         const a = [97, 98, 99, 100, 0];
         expect(() => ByteArray.toString(a)).toThrow();
@@ -72,7 +86,7 @@ describe('Byte array', function () {
 
     describe('legacy toString() behavior', function () {
         beforeEach(function () {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 'Some code called array.toString()*');
         });
 
@@ -87,7 +101,7 @@ describe('Byte array', function () {
         });
 
         afterEach(function () {
-            GLib.test_assert_expected_messages_internal('Cjs',
+            GLib.test_assert_expected_messages_internal('Gjs',
                 'testByteArray.js', 0, 'testToStringCompatibility');
         });
     });

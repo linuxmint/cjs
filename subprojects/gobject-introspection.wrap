@@ -1,4 +1,8 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+
 [wrap-git]
 directory=gobject-introspection
 url=https://gitlab.gnome.org/GNOME/gobject-introspection.git
-revision=origin/master
+revision=master
+depth=1

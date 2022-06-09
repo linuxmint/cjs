@@ -1,8 +1,10 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 
 SRCDIR=$(pwd)
 
-if [ "$1" == '--help' -o "$1" == '-h' ]; then
+if [ "$1" = '--help' -o "$1" = '-h' ]; then
     echo "usage: $0 [ COMMIT ]"
     echo "Run include-what-you-use on the GJS codebase."
     echo "If COMMIT is given, analyze only the files changed since that commit,"
@@ -33,16 +35,17 @@ should_analyze () {
     esac
 }
 
-if ! meson setup _build; then
-    echo 'Meson failed.'
+cd ${BUILDDIR:-_build}
+if ! ninja -t compdb > compile_commands.json; then
+    echo 'Generating compile_commands.json failed.'
     exit 1
 fi
-cd ${BUILDDIR:-_build}
 
 echo "files: $files"
 
-IWYU="python3 $(which iwyu_tool) -p ."
-IWYU_RAW="include-what-you-use -xc++ -std=c++17"
+IWYU="python3 $(which iwyu_tool || which iwyu_tool.py) -p ."
+IWYU_RAW="include-what-you-use -xc++ -std=c++17 -Xiwyu --keep=config.h"
+IWYU_RAW_INC="-I. -I.. $(pkg-config --cflags gobject-introspection-1.0 mozjs-78)"
 PRIVATE_MAPPING="-Xiwyu --mapping_file=$SRCDIR/tools/gjs-private-iwyu.imp -Xiwyu --keep=config.h"
 PUBLIC_MAPPING="-Xiwyu --mapping_file=$SRCDIR/tools/gjs-public-iwyu.imp"
 POSTPROCESS="python3 $SRCDIR/tools/process_iwyu.py"
@@ -50,19 +53,25 @@ EXIT=0
 
 # inline-only files with no implementation file don't appear in the compilation
 # database, so iwyu_tool cannot process them
-if should_analyze $SRCDIR/gi/utils-inl.h; then
-    if ! $IWYU_RAW $(realpath --relative-to=. $SRCDIR/gi/utils-inl.h) 2>&1 \
-        | $POSTPROCESS; then
-        EXIT=1
+for FILE in $SRCDIR/gi/arg-types-inl.h $SRCDIR/gi/js-value-inl.h \
+    $SRCDIR/gi/utils-inl.h $SRCDIR/gjs/enum-utils.h \
+    $SRCDIR/gjs/jsapi-util-args.h $SRCDIR/gjs/jsapi-util-root.h \
+    $SRCDIR/modules/cairo-module.h
+do
+    if should_analyze $FILE; then
+        if ! $IWYU_RAW $(realpath --relative-to=. $FILE) $IWYU_RAW_INC 2>&1 \
+            | $POSTPROCESS; then
+            EXIT=1
+        fi
     fi
-fi
+done
 
-for FILE in $SRCDIR/gi/*.cpp $SRCDIR/cjs/atoms.cpp $SRCDIR/cjs/byteArray.cpp \
-    $SRCDIR/cjs/coverage.cpp $SRCDIR/cjs/debugger.cpp \
-    $SRCDIR/cjs/deprecation.cpp $SRCDIR/cjs/error-types.cpp \
-    $SRCDIR/cjs/engine.cpp $SRCDIR/cjs/global.cpp $SRCDIR/cjs/importer.cpp \
-    $SRCDIR/cjs/jsapi-util-error.cpp $SRCDIR/cjs/jsapi-util-string.cpp \
-    $SRCDIR/cjs/module.cpp $SRCDIR/cjs/native.cpp $SRCDIR/cjs/stack.cpp \
+for FILE in $SRCDIR/gi/*.cpp $SRCDIR/gjs/atoms.cpp $SRCDIR/gjs/byteArray.cpp \
+    $SRCDIR/gjs/coverage.cpp $SRCDIR/gjs/debugger.cpp \
+    $SRCDIR/gjs/deprecation.cpp $SRCDIR/gjs/error-types.cpp \
+    $SRCDIR/gjs/engine.cpp $SRCDIR/gjs/global.cpp $SRCDIR/gjs/importer.cpp \
+    $SRCDIR/gjs/jsapi-util*.cpp $SRCDIR/gjs/module.cpp $SRCDIR/gjs/native.cpp \
+    $SRCDIR/gjs/objectbox.cpp $SRCDIR/gjs/stack.cpp \
     $SRCDIR/modules/cairo-*.cpp $SRCDIR/modules/console.cpp \
     $SRCDIR/modules/print.cpp $SRCDIR/modules/system.cpp $SRCDIR/test/*.cpp \
     $SRCDIR/util/*.cpp $SRCDIR/libgjs-private/*.c
@@ -74,55 +83,26 @@ do
     fi
 done
 
-if should_analyze $SRCDIR/cjs/context.cpp; then
-    if ! $IWYU $SRCDIR/cjs/context.cpp -- $PRIVATE_MAPPING \
-        -Xiwyu --check_also=*/cjs/context-private.h | $POSTPROCESS; then
+# this header file is named differently from its corresponding implementation
+if ( should_analyze $SRCDIR/gjs/jsapi-dynamic-class.cpp || \
+    should_analyze $SRCDIR/gjs/jsapi-class.h ); then
+    if ! $IWYU $SRCDIR/gjs/jsapi-dynamic-class.cpp -- $PRIVATE_MAPPING \
+        -Xiwyu --check_also=*/gjs/jsapi-class.h | $POSTPROCESS; then
         EXIT=1
     fi
 fi
 
-if ( should_analyze $SRCDIR/cjs/jsapi-dynamic-class.cpp || \
-    should_analyze $SRCDIR/cjs/jsapi-class.h ); then
-    if ! $IWYU $SRCDIR/cjs/jsapi-dynamic-class.cpp -- $PRIVATE_MAPPING \
-        -Xiwyu --check_also=*/cjs/jsapi-class.h | $POSTPROCESS; then
-        EXIT=1
+# include header files with private implementation along with their main files
+for STEM in gjs/context gjs/mem gjs/profiler modules/cairo; do
+    if should_analyze $SRCDIR/$STEM.cpp; then
+        if ! $IWYU $SRCDIR/$STEM.cpp -- $PRIVATE_MAPPING \
+            -Xiwyu --check_also=*/$STEM-private.h | $POSTPROCESS; then
+            EXIT=1
+        fi
     fi
-fi
+done
 
-if ( should_analyze $SRCDIR/cjs/jsapi-util.cpp ||
-    should_analyze $SRCDIR/cjs/jsapi-util-args.h || \
-    should_analyze $SRCDIR/cjs/jsapi-util-root.h ); then
-    if ! $IWYU $SRCDIR/cjs/jsapi-util.cpp -- $PRIVATE_MAPPING \
-        -Xiwyu --check_also=*/cjs/jsapi-util-args.h \
-        -Xiwyu --check_also=*/cjs/jsapi-util-root.h | $POSTPROCESS; then
-        EXIT=1
-    fi
-fi
-
-if should_analyze $SRCDIR/cjs/mem.cpp; then
-    if ! $IWYU $SRCDIR/cjs/mem.cpp -- $PRIVATE_MAPPING \
-        -Xiwyu --check_also=*/cjs/mem-private.h | $POSTPROCESS; then
-        EXIT=1
-    fi
-fi
-
-if should_analyze $SRCDIR/cjs/profiler.cpp; then
-    if ! $IWYU $SRCDIR/cjs/profiler.cpp -- $PRIVATE_MAPPING \
-        -Xiwyu --check_also=*/cjs/profiler-private.h | $POSTPROCESS; then
-        EXIT=1
-    fi
-fi
-
-if ( should_analyze $SRCDIR/modules/cairo.cpp ||
-    should_analyze $SRCDIR/modules/cairo-module.h ); then
-    if ! $IWYU $SRCDIR/modules/cairo.cpp -- $PRIVATE_MAPPING \
-        -Xiwyu --check_also=*/modules/cairo-module.h \
-        -Xiwyu --check_also=*/modules/cairo-private.h | $POSTPROCESS; then
-        EXIT=1
-    fi
-fi
-
-for FILE in $SRCDIR/cjs/console.cpp $SRCDIR/installed-tests/minijasmine.cpp
+for FILE in $SRCDIR/gjs/console.cpp $SRCDIR/installed-tests/minijasmine.cpp
 do
     if should_analyze $FILE; then
         if ! $IWYU $FILE -- $PUBLIC_MAPPING | $POSTPROCESS; then

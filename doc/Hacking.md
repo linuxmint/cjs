@@ -1,10 +1,32 @@
 # Hacking on GJS #
 
+## Quick start ##
+
+If you are looking to get started quickly, then you can clone GJS using
+GNOME Builder and choose the `org.gnome.GjsConsole` build configuration.
+
+For the most part, you will be able to build GJS with the Build button
+and run the interpreter with the Run button.
+If you need to issue any of the Meson commands manually, make sure to do
+so in a runtime terminal (Ctrl+Alt+T) rather than a build terminal or a
+regular terminal.
+
 ## Setting up ##
 
-First of all, if you are contributing C++ code, install the handy git
+First of all, download the GJS source code using Git.
+Go to [GJS on GitLab](https://gitlab.gnome.org/GNOME/gjs), and click
+"Fork" near the top right of the page.
+Then, click the "Clone" button that's located a bit under the "Fork"
+button, and click the little clipboard icon next to "Clone with SSH" or
+"Clone with HTTPS", to copy the address to your clipboard.
+Go to your terminal, and type `git clone` and then paste the address
+into your terminal with Shift+Ctrl+V.
+(Don't forget Shift! It's important when pasting into a terminal.)
+This will download the GJS source code into a `gjs` directory.
+
+If you are contributing C++ code, install the handy git
 commit hook that will autoformat your code when you commit it.
-In your GJS checkout directory, run
+In your `gjs` directory, run
 `tools/git-pre-commit-format install`.
 For more information, see
 <https://github.com/barisione/clang-format-hooks/>.
@@ -12,14 +34,25 @@ For more information, see
 you'll need to manually format your code before it gets merged.
 You can also skip this step if you are not writing any C++ code.)
 
-GJS requires four other libraries to be installed: GLib, libffi,
-gobject-introspection, and SpiderMonkey (also called "mozjs78" on some
-systems.)
+## Dependencies
+
+GJS requires five other libraries to be installed: GLib, libffi,
+gobject-introspection, SpiderMonkey (also called "mozjs78" on some
+systems.) and the build tool Meson.
 The readline library is not required, but strongly recommended.
 We recommend installing your system's development packages for GLib,
-libffi, gobject-introspection, and readline.
-(For example, on Ubuntu you would run
-`sudo apt-get install libglib2.0-dev libffi-dev libreadline-dev libgirepository1.0-dev libreadline-dev`.)
+libffi, gobject-introspection, Meson and readline.
+
+<details>
+    <summary>Ubuntu</summary>
+    <code>sudo apt-get install libglib2.0-dev libffi-dev libreadline-dev libgirepository1.0-dev meson</code>
+</details>
+
+<details>
+    <summary>Fedora</summary>
+    <code>sudo dnf install glib2-devel libffi readline-devel gobject-introspection-devel meson</code>
+</details>
+
 But, if your system's versions of these packages aren't new enough, then
 the build process will download and build sufficient versions.
 
@@ -27,10 +60,30 @@ SpiderMonkey cannot be auto-installed, so you will need to install it
 either through your system's package manager, or building it yourself.
 Even if your system includes a development package for SpiderMonkey, we
 still recommend building it if you are going to do any development on
-GJS so that you can enable the debugging features.
+GJS's C++ code so that you can enable the debugging features.
 These debugging features reduce performance by quite a lot, but they
 will help catch mistakes in the API that could otherwise go unnoticed
 and cause crashes in gnome-shell later on.
+
+If you aren't writing any C++ code, and your system provides it (for
+example, Fedora 33 or Ubuntu 20.10 and later versions), then you don't
+need to build it yourself.
+Install SpiderMonkey using your system's package manager instead:
+
+<details>
+    <summary>Ubuntu</summary>
+    <code>sudo apt-get install libmozjs-78-dev</code>
+</details>
+
+<details>
+    <summary>Fedora</summary>
+    <code>sudo dnf install mozjs78-devel</code>
+</details>
+
+If you _are_ writing C++ code, then please build SpiderMonkey yourself
+with the debugging features enabled.
+This can save you time later when you submit your merge request, because
+the code will be checked using the debugging features.
 
 To build SpiderMonkey, follow the instructions on [this page](https://github.com/mozilla-spidermonkey/spidermonkey-embedding-examples/blob/esr78/docs/Building%20SpiderMonkey.md) to download the source code and build the library.
 If you are using `-Dprefix` to build GJS into a different path, then
@@ -38,7 +91,7 @@ make sure to use the same build prefix for SpiderMonkey with `--prefix`.
 
 ## First build ##
 
-To build GJS, change to your checkout directory, and run:
+To build GJS, change to your `gjs` directory, and run:
 ```sh
 meson _build
 ninja -C _build
@@ -47,13 +100,19 @@ ninja -C _build
 Add any options with `-D` arguments to the `meson _build` command.
 For a list of available options, run `meson configure`.
 
+That's it! You can now run your build of gjs for testing and hacking with
+
+```sh
+LD_LIBRARY_PATH=_build GI_TYPELIB_PATH=_build GJS_USE_UNINSTALLED_FILES=1 ./_build/cjs-console script.js
+```
+
 To install GJS into the path you chose with `-Dprefix`, (or into
 `/usr/local` if you didn't choose a path), run
 `ninja -C _build install`, adding `sudo` if necessary.
 
 ## Making Sure Your Stuff Doesn't Break Anything Else ##
 
-Make your changes in your GJS checkout directory, then run
+Make your changes in your `gjs` directory, then run
 `ninja -C _build` to build a modified copy of GJS.
 
 Each changeset should ensure that the test suite still passes.
@@ -132,7 +191,7 @@ To execute cppcheck, a static code analysis tool for the C and C++, run:
 ```sh
 tools/run_cppcheck.sh
 ```
-It is a versatile tool that can check non-standard code, including: variable 
+It is a versatile tool that can check non-standard code, including: variable
 checking, bounds checking, leaks, etc. It can detect the types of bugs that
 the compilers normally fail to detect.
 
@@ -157,3 +216,16 @@ instrumentation enabled, run the test suite to collect the coverage
 data, and open the generated HTML report.
 
 [embedder](https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr78/docs/Building%20SpiderMonkey.md)
+
+## Troubleshooting
+
+### I sent a merge request from my fork but CI does not pass.
+
+Check the job log, most likely you missed the following
+
+> The container registry is not enabled in $USERNAME/gjs, enable it in the project general settings panel
+
+* Go to your fork general setting, for example https://gitlab.gnome.org/$USERNAME/gjs/edit
+* Expand "Visibility, project features, permissions"
+* Enable "Container registry"
+* Hit "Save changes"

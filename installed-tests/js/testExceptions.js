@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2013 Red Hat, Inc.
+// SPDX-FileCopyrightText: 2015 Endless Mobile, Inc.
+
 const {GIMarshallingTests, Gio, GLib, GObject} = imports.gi;
 
 const Foo = GObject.registerClass({
@@ -35,12 +39,12 @@ describe('Exceptions', function () {
     // FIXME: In the next cases the errors aren't thrown but logged
 
     it('are logged from constructor', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: set*');
 
         new Foo({prop: 'bar'});
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js', 0,
             'testExceptionInPropertySetterFromConstructor');
     });
 
@@ -51,13 +55,13 @@ describe('Exceptions', function () {
         bar.bind_property('prop',
             foo, 'prop',
             GObject.BindingFlags.DEFAULT);
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: set*');
 
         // wake up the binding so that g_object_set() is called on foo
         bar.notify('prop');
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js', 0,
             'testExceptionInPropertySetterWithBinding');
     });
 
@@ -68,25 +72,25 @@ describe('Exceptions', function () {
         foo.bind_property('prop',
             bar, 'prop',
             GObject.BindingFlags.DEFAULT);
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: get*');
 
         // wake up the binding so that g_object_get() is called on foo
         foo.notify('prop');
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js', 0,
             'testExceptionInPropertyGetterWithBinding');
     });
 });
 
 describe('logError', function () {
     afterEach(function () {
-        GLib.test_assert_expected_messages_internal('Cjs', 'testExceptions.js',
+        GLib.test_assert_expected_messages_internal('Gjs', 'testExceptions.js',
             0, 'testGErrorMessages');
     });
 
     it('logs a warning for a GError', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Gio.IOErrorEnum: *');
         try {
             let file = Gio.file_new_for_path("\\/,.^!@&$_don't exist");
@@ -97,7 +101,7 @@ describe('logError', function () {
     });
 
     it('logs a warning with a message if given', function marker() {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Gio.IOErrorEnum: a message\nmarker@*');
         try {
             throw new Gio.IOErrorEnum({message: 'a message', code: 0});
@@ -107,25 +111,25 @@ describe('logError', function () {
     });
 
     it('also logs an error for a created GError that is not thrown', function marker() {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Gio.IOErrorEnum: a message\nmarker@*');
         logError(new Gio.IOErrorEnum({message: 'a message', code: 0}));
     });
 
     it('logs an error created with the GLib.Error constructor', function marker() {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Gio.IOErrorEnum: a message\nmarker@*');
         logError(new GLib.Error(Gio.IOErrorEnum, 0, 'a message'));
     });
 
     it('logs the quark for a JS-created GError type', function marker() {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: GLib.Error my-error: a message\nmarker@*');
         logError(new GLib.Error(GLib.quark_from_string('my-error'), 0, 'a message'));
     });
 
     it('logs with stack for a GError created from a C struct', function marker() {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: GLib.Error gi-marshalling-tests-gerror-domain: gi-marshalling-tests-gerror-message\nmarker@*');
         logError(GIMarshallingTests.gerror_return());
     });
@@ -133,7 +137,7 @@ describe('logError', function () {
     // Now with prefix
 
     it('logs an error with a prefix if given', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: prefix: Gio.IOErrorEnum: *');
         try {
             let file = Gio.file_new_for_path("\\/,.^!@&$_don't exist");
@@ -144,7 +148,7 @@ describe('logError', function () {
     });
 
     it('logs an error with prefix and message', function marker() {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: prefix: Gio.IOErrorEnum: a message\nmarker@*');
         try {
             throw new Gio.IOErrorEnum({message: 'a message', code: 0});
@@ -154,7 +158,7 @@ describe('logError', function () {
     });
 
     it('logs a SyntaxError', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: SyntaxError:*');
         try {
             Reflect.parse('!@#$%^&');
@@ -199,5 +203,19 @@ describe('thrown GError', function () {
     it('has properties for domain and code', function () {
         expect(err.domain).toEqual(Gio.io_error_quark());
         expect(err.code).toEqual(Gio.IOErrorEnum.NOT_FOUND);
+    });
+});
+
+describe('GError.new_literal', function () {
+    it('constructs a valid GLib.Error', function () {
+        const e = GLib.Error.new_literal(
+            Gio.IOErrorEnum, Gio.IOErrorEnum.FAILED, 'message');
+        expect(e instanceof GLib.Error).toBeTruthy();
+        expect(e.code).toEqual(Gio.IOErrorEnum.FAILED);
+        expect(e.message).toEqual('message');
+    });
+    it('does not accept invalid domains', function () {
+        expect(() => GLib.Error.new_literal(0, 0, 'message'))
+            .toThrowError(/0 is not a valid domain/);
     });
 });

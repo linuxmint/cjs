@@ -1,26 +1,7 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2017 Endless Mobile, Inc.
- * Copyright (c) 2019 Canonical, Ltd.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2017 Endless Mobile, Inc.
+// SPDX-FileCopyrightText: 2019 Canonical, Ltd.
 
 #ifndef GJS_JSAPI_UTIL_ROOT_H_
 #define GJS_JSAPI_UTIL_ROOT_H_
@@ -40,8 +21,6 @@
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 
-#include "cjs/context-private.h"
-#include "cjs/context.h"
 #include "cjs/macros.h"
 #include "util/log.h"
 
@@ -66,7 +45,7 @@
  *
  * If the thing is rooted, it will be unrooted either when the GjsMaybeOwned is
  * destroyed, or when the JSContext is destroyed. In the latter case, you can
- * get an optional notification by passing a callback to root().
+ * get an optional notification by registering a callback in the PrivateContext.
  *
  * To switch between one of the three modes, you must first call reset(). This
  * drops all references to any GC thing and leaves the GjsMaybeOwned in the
@@ -117,53 +96,12 @@ struct GjsHeapOperation<JSFunction*> {
  * any instances of classes that have it as a member on the stack either. */
 template<typename T>
 class GjsMaybeOwned {
- public:
-    typedef void (*DestroyNotify)(JS::Handle<T> thing, void *data);
-
  private:
     /* m_root value controls which of these members we can access. When switching
      * from one to the other, be careful to call the constructor and destructor
      * of JS::Heap, since they use post barriers. */
     JS::Heap<T> m_heap;
     std::unique_ptr<JS::PersistentRooted<T>> m_root;
-
-    struct Notifier {
-        Notifier(GjsMaybeOwned<T> *parent, DestroyNotify func, void *data)
-            : m_parent(parent)
-            , m_func(func)
-            , m_data(data)
-        {
-            GjsContext* current = gjs_context_get_current();
-            g_assert(GJS_IS_CONTEXT(current));
-            g_object_weak_ref(G_OBJECT(current), on_context_destroy, this);
-        }
-
-        ~Notifier() { disconnect(); }
-
-        static void on_context_destroy(void* data,
-                                       GObject* ex_context [[maybe_unused]]) {
-            auto self = static_cast<Notifier*>(data);
-            auto *parent = self->m_parent;
-            self->m_parent = nullptr;
-            self->m_func(parent->handle(), self->m_data);
-        }
-
-        void disconnect() {
-            if (!m_parent)
-                return;
-
-            GjsContext* current = gjs_context_get_current();
-            g_assert(GJS_IS_CONTEXT(current));
-            g_object_weak_unref(G_OBJECT(current), on_context_destroy, this);
-            m_parent = nullptr;
-        }
-
-     private:
-        GjsMaybeOwned<T> *m_parent;
-        DestroyNotify m_func;
-        void *m_data;
-    };
-    std::unique_ptr<Notifier> m_notify;
 
     /* No-op unless GJS_VERBOSE_ENABLE_LIFECYCLE is defined to 1. */
     inline void debug(const char* what GJS_USED_VERBOSE_LIFECYCLE) {
@@ -178,7 +116,6 @@ class GjsMaybeOwned {
         g_assert(m_root);
 
         m_root.reset();
-        m_notify.reset();
 
         new (&m_heap) JS::Heap<T>();
     }
@@ -196,65 +133,57 @@ class GjsMaybeOwned {
      * GjsMaybeOwned wrapper in place of the GC thing itself due to the implicit
      * cast operator. But if you want to call methods on the GC thing, for
      * example if it's a JS::Value, you have to use get(). */
-    [[nodiscard]] const T get() const {
+    [[nodiscard]] constexpr const T get() const {
         return m_root ? m_root->get() : m_heap.get();
     }
-    operator const T() const { return get(); }
+    constexpr operator const T() const { return get(); }
 
     /* Use debug_addr() only for debug logging, because it is unbarriered. */
     template <typename U = T>
-    [[nodiscard]] const void* debug_addr(
+    [[nodiscard]] constexpr const void* debug_addr(
         std::enable_if_t<std::is_pointer_v<U>>* = nullptr) const {
         return m_root ? m_root->get() : m_heap.unbarrieredGet();
     }
 
-    bool
-    operator==(const T& other) const
-    {
+    constexpr bool operator==(const T& other) const {
         if (m_root)
             return m_root->get() == other;
         return m_heap == other;
     }
-    inline bool operator!=(const T& other) const { return !(*this == other); }
+    constexpr bool operator!=(const T& other) const {
+        return !(*this == other);
+    }
 
     /* We can access the pointer without a read barrier if the only thing we
      * are doing with it is comparing it to nullptr. */
-    bool
-    operator==(std::nullptr_t) const
-    {
+    constexpr bool operator==(std::nullptr_t) const {
         if (m_root)
             return m_root->get() == nullptr;
         return m_heap.unbarrieredGet() == nullptr;
     }
-    inline bool operator!=(std::nullptr_t) const { return !(*this == nullptr); }
+    constexpr bool operator!=(std::nullptr_t) const {
+        return !(*this == nullptr);
+    }
 
     /* Likewise the truth value does not require a read barrier */
-    inline explicit operator bool() const { return *this != nullptr; }
+    constexpr explicit operator bool() const { return *this != nullptr; }
 
     /* You can get a Handle<T> if the thing is rooted, so that you can use this
      * wrapper with stack rooting. However, you must not do this if the
      * JSContext can be destroyed while the Handle is live. */
-    [[nodiscard]] JS::Handle<T> handle() {
+    [[nodiscard]] constexpr JS::Handle<T> handle() {
         g_assert(m_root);
         return *m_root;
     }
 
     /* Roots the GC thing. You must not use this if you're already using the
      * wrapper to store a non-rooted GC thing. */
-    void
-    root(JSContext    *cx,
-         const T&      thing,
-         DestroyNotify notify = nullptr,
-         void         *data   = nullptr)
-    {
+    void root(JSContext* cx, const T& thing) {
         debug("root()");
         g_assert(!m_root);
         g_assert(m_heap.get() == JS::SafelyInitialized<T>());
         m_heap.~Heap();
         m_root = std::make_unique<JS::PersistentRooted<T>>(cx, thing);
-
-        if (notify)
-            m_notify = std::make_unique<Notifier>(this, notify, data);
     }
 
     /* You can only assign directly to the GjsMaybeOwned wrapper in the
@@ -285,11 +214,7 @@ class GjsMaybeOwned {
         teardown_rooting();
     }
 
-    void
-    switch_to_rooted(JSContext    *cx,
-                     DestroyNotify notify = nullptr,
-                     void         *data   = nullptr)
-    {
+    void switch_to_rooted(JSContext* cx) {
         debug("switch to rooted");
         g_assert(!m_root);
 
@@ -298,7 +223,7 @@ class GjsMaybeOwned {
         JS::Rooted<T> thing(cx, m_heap);
 
         reset();
-        root(cx, thing, notify, data);
+        root(cx, thing);
         g_assert(m_root);
     }
 
@@ -335,7 +260,7 @@ class GjsMaybeOwned {
         return GjsHeapOperation<T>::update_after_gc(&m_heap);
     }
 
-    [[nodiscard]] bool rooted() const { return m_root != nullptr; }
+    [[nodiscard]] constexpr bool rooted() const { return m_root != nullptr; }
 };
 
 #endif  // GJS_JSAPI_UTIL_ROOT_H_

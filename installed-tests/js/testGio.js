@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2017 Patrick Griffis <tingping@tingping.se>
+// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+
 const {GLib, Gio, GObject} = imports.gi;
 
 const Foo = GObject.registerClass({
@@ -25,6 +29,47 @@ describe('ListStore iterator', function () {
         let i = 0;
         for (let f of list)
             expect(f.value).toBe(i++);
+    });
+});
+
+function compareFunc(a, b) {
+    return a.value - b.value;
+}
+
+describe('Sorting in ListStore', function () {
+    let list;
+
+    beforeEach(function () {
+        list = new Gio.ListStore({
+            item_type: Foo,
+        });
+    });
+
+    it('test insert_sorted', function () {
+        for (let i = 10; i > 0; i--)
+            list.insert_sorted(new Foo(i), compareFunc);
+        let i = 1;
+        for (let f of list)
+            expect(f.value).toBe(i++);
+    });
+
+    it('test sort', function () {
+        for (let i = 10; i > 0; i--)
+            list.append(new Foo(i));
+        list.sort(compareFunc);
+        let i = 1;
+        for (let f of list)
+            expect(f.value).toBe(i++);
+    });
+});
+
+describe('Promisify function', function () {
+    it("doesn't crash when async function is not defined", function () {
+        expect(() => Gio._promisify(Gio.Subprocess.prototype, 'commuicate_utf8_async', 'communicate_utf8_finish')).toThrowError(/commuicate_utf8_async/);
+    });
+
+    it("doesn't crash when finish function is not defined", function () {
+        expect(() => Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async', 'commuicate_utf8_finish')).toThrowError(/commuicate_utf8_finish/);
     });
 });
 

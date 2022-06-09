@@ -1,25 +1,10 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+
+#include <stdint.h>
+
+#include <atomic>  // for atomic_int64_t
 
 #include <glib.h>
 
@@ -27,18 +12,21 @@
 #include "cjs/mem.h"
 #include "util/log.h"
 
-#define GJS_DEFINE_COUNTER(name)             \
-    GjsMemCounter gjs_counter_ ## name = { \
-        0, #name                                \
-    };
+namespace Gjs {
+namespace Memory {
+namespace Counters {
+#define GJS_DEFINE_COUNTER(name, ix) Counter name(#name);
 
-
-GJS_DEFINE_COUNTER(everything)
+GJS_DEFINE_COUNTER(everything, -1)
 GJS_FOR_EACH_COUNTER(GJS_DEFINE_COUNTER)
+}  // namespace Counters
+}  // namespace Memory
+}  // namespace Gjs
 
-#define GJS_LIST_COUNTER(name) &gjs_counter_##name,
+#define GJS_LIST_COUNTER(name, ix) &Gjs::Memory::Counters::name,
 
-static GjsMemCounter* counters[] = {GJS_FOR_EACH_COUNTER(GJS_LIST_COUNTER)};
+static Gjs::Memory::Counter* counters[] = {
+    GJS_FOR_EACH_COUNTER(GJS_LIST_COUNTER)};
 
 void
 gjs_memory_report(const char *where,
@@ -46,7 +34,7 @@ gjs_memory_report(const char *where,
 {
     int i;
     int n_counters;
-    int total_objects;
+    int64_t total_objects;
 
     gjs_debug(GJS_DEBUG_MEMORY,
               "Memory report: %s",
@@ -65,13 +53,13 @@ gjs_memory_report(const char *where,
     }
 
     gjs_debug(GJS_DEBUG_MEMORY,
-              "  %d objects currently alive",
+              "  %" G_GINT64_FORMAT " objects currently alive",
               GJS_GET_COUNTER(everything));
 
     if (GJS_GET_COUNTER(everything) != 0) {
         for (i = 0; i < n_counters; ++i) {
-            gjs_debug(GJS_DEBUG_MEMORY, "    %24s = %d", counters[i]->name,
-                      counters[i]->value);
+            gjs_debug(GJS_DEBUG_MEMORY, "    %24s = %" G_GINT64_FORMAT,
+                      counters[i]->name, counters[i]->value.load());
         }
 
         if (die_if_leaks)

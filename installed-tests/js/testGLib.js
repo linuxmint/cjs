@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2011 Giovanni Campagna <gcampagna@src.gnome.org>
+// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+
 const ByteArray = imports.byteArray;
 const GLib = imports.gi.GLib;
 
@@ -116,14 +120,14 @@ describe('GLib string function overrides', function () {
     function expectWarnings(count) {
         numExpectedWarnings = count;
         for (let c = 0; c < count; c++) {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 '*not introspectable*');
         }
     }
 
     function assertWarnings(testName) {
         for (let c = 0; c < numExpectedWarnings; c++) {
-            GLib.test_assert_expected_messages_internal('Cjs', 'testGLib.js', 0,
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGLib.js', 0,
                 `test GLib.${testName}`);
         }
         numExpectedWarnings = 0;
@@ -236,5 +240,15 @@ describe('GLib string function overrides', function () {
         expect(GLib.strcanon('1a2b3c4', 'abc', '?'.charCodeAt())).toEqual('?a?b?c?');
         expect(GLib.strcanon('1a2b3c4', 'abc', '?')).toEqual('?a?b?c?');
         assertWarnings('strcanon');
+    });
+
+    it('GLib.base64_encode', function () {
+        const ascii = 'hello\0world';
+        const base64 = 'aGVsbG8Ad29ybGQ=';
+
+        expect(GLib.base64_encode(ascii)).toBe(base64);
+
+        const encoded = new TextEncoder().encode(ascii);
+        expect(GLib.base64_encode(encoded)).toBe(base64);
     });
 });

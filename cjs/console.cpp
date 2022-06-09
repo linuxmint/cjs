@@ -1,29 +1,11 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #include <config.h>  // for PACKAGE_STRING
 
 #include <locale.h>  // for setlocale, LC_ALL
+#include <stdint.h>
 #include <stdlib.h>  // for exit
 #include <string.h>  // for strcmp, strlen
 
@@ -38,6 +20,7 @@
 #include <glib.h>
 
 #include <cjs/gjs.h>
+#include <cjs/jsapi-util.h>
 
 static char **include_path = NULL;
 static char **coverage_prefixes = NULL;
@@ -47,6 +30,7 @@ static char *command = NULL;
 static gboolean print_version = false;
 static gboolean print_js_version = false;
 static gboolean debugging = false;
+static gboolean exec_as_module = false;
 static bool enable_profiler = false;
 
 static gboolean parse_profile_arg(const char *, const char *, void *, GError **);
@@ -60,6 +44,7 @@ static GOptionEntry entries[] = {
     { "coverage-prefix", 'C', 0, G_OPTION_ARG_STRING_ARRAY, &coverage_prefixes, "Add the prefix PREFIX to the list of files to generate coverage info for", "PREFIX" },
     { "coverage-output", 0, 0, G_OPTION_ARG_STRING, &coverage_output_path, "Write coverage output to a directory DIR. This option is mandatory when using --coverage-prefix", "DIR", },
     { "include-path", 'I', 0, G_OPTION_ARG_STRING_ARRAY, &include_path, "Add the directory DIR to the list of directories to search for js files.", "DIR" },
+    { "module", 'm', 0, G_OPTION_ARG_NONE, &exec_as_module, "Execute the file as a module." },
     { "profile", 0, G_OPTION_FLAG_OPTIONAL_ARG | G_OPTION_FLAG_FILENAME,
         G_OPTION_ARG_CALLBACK, reinterpret_cast<void *>(&parse_profile_arg),
         "Enable the profiler and write output to FILE (default: gjs-$PID.syscap)",
@@ -180,19 +165,31 @@ check_script_args_for_stray_gjs_args(int           argc,
 int define_argv_and_eval_script(GjsContext* js_context, int argc,
                                 char* const* argv, const char* script,
                                 size_t len, const char* filename) {
+    gjs_context_set_argv(js_context, argc, const_cast<const char**>(argv));
+
     GError* error = nullptr;
-
-    /* prepare command line arguments */
-    if (!gjs_context_define_string_array(
-            js_context, "ARGV", argc, const_cast<const char**>(argv), &error)) {
-        g_critical("Failed to define ARGV: %s", error->message);
-        g_clear_error(&error);
-        return 1;
-    }
-
     /* evaluate the script */
-    int code;
-    if (!gjs_context_eval(js_context, script, len, filename, &code, &error)) {
+    int code = 0;
+    if (exec_as_module) {
+        GjsAutoUnref<GFile> output = g_file_new_for_commandline_arg(filename);
+        GjsAutoChar uri = g_file_get_uri(output);
+        if (!gjs_context_register_module(js_context, uri, uri, &error)) {
+            g_critical("%s", error->message);
+            g_clear_error(&error);
+            code = 1;
+        }
+
+        uint8_t code_u8 = 0;
+        if (!code &&
+            !gjs_context_eval_module(js_context, uri, &code_u8, &error)) {
+            code = code_u8;
+
+            if (!g_error_matches(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT))
+                g_critical("%s", error->message);
+            g_clear_error(&error);
+        }
+    } else if (!gjs_context_eval(js_context, script, len, filename, &code,
+                                 &error)) {
         if (!g_error_matches(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT))
             g_critical("%s", error->message);
         g_clear_error(&error);
@@ -259,6 +256,7 @@ main(int argc, char **argv)
     print_version = false;
     print_js_version = false;
     debugging = false;
+    exec_as_module = false;
     g_option_context_set_ignore_unknown_options(context, false);
     g_option_context_set_help_enabled(context, true);
     if (!g_option_context_parse_strv(context, &gjs_argv, &error)) {
@@ -281,6 +279,7 @@ main(int argc, char **argv)
         exit(0);
     }
 
+    GjsAutoChar program_path = nullptr;
     gjs_argc = g_strv_length(gjs_argv);
     if (command != NULL) {
         script = command;
@@ -288,6 +287,12 @@ main(int argc, char **argv)
         filename = "<command line>";
         program_name = gjs_argv[0];
     } else if (gjs_argc == 1) {
+        if (exec_as_module) {
+            g_warning(
+                "'-m' requires a file argument.\nExample: gjs -m main.js");
+            exit(1);
+        }
+
         script = g_strdup("const Console = imports.console; Console.interact();");
         len = strlen(script);
         filename = "<stdin>";
@@ -297,10 +302,13 @@ main(int argc, char **argv)
         /* All unprocessed options should be in script_argv */
         g_assert(gjs_argc == 2);
         error = NULL;
-        if (!g_file_get_contents(gjs_argv[1], &script, &len, &error)) {
+        GjsAutoUnref<GFile> input = g_file_new_for_commandline_arg(gjs_argv[1]);
+        if (!g_file_load_contents(input, nullptr, &script, &len, nullptr,
+                                  &error)) {
             g_printerr("%s\n", error->message);
             exit(1);
         }
+        program_path = g_file_get_path(input);
         filename = gjs_argv[1];
         program_name = gjs_argv[1];
     }
@@ -334,11 +342,10 @@ main(int argc, char **argv)
     if (coverage_prefixes)
         gjs_coverage_enable();
 
-    js_context = (GjsContext*) g_object_new(GJS_TYPE_CONTEXT,
-                                            "search-path", include_path,
-                                            "program-name", program_name,
-                                            "profiler-enabled", enable_profiler,
-                                            NULL);
+    js_context = GJS_CONTEXT(g_object_new(
+        GJS_TYPE_CONTEXT, "search-path", include_path, "program-name",
+        program_name, "program-path", program_path.get(), "profiler-enabled",
+        enable_profiler, "exec-as-module", exec_as_module, nullptr));
 
     env_coverage_output_path = g_getenv("GJS_COVERAGE_OUTPUT");
     if (env_coverage_output_path != NULL) {

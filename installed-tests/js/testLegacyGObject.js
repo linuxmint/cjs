@@ -1,5 +1,8 @@
 // -*- mode: js; indent-tabs-mode: nil -*-
 /* eslint-disable no-restricted-properties */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2011 Giovanni Campagna <gcampagna@src.gnome.org>
+// SPDX-FileCopyrightText: 2015 Endless Mobile, Inc.
 
 imports.gi.versions.Gtk = '3.0';
 
@@ -74,12 +77,7 @@ const MyObject = new GObject.Class({
     },
 
     set construct(val) {
-        // this should be called at most once
-        if (this._constructCalled)
-            throw Error('Construct-Only property set more than once');
-
         this._constructProp = val;
-        this._constructCalled = true;
     },
 
     notify_prop() {
@@ -220,13 +218,17 @@ describe('GObject class', function () {
         expect(myInstance3.construct).toEqual('quz');
     });
 
+    it('does not allow changing CONSTRUCT_ONLY properties', function () {
+        myInstance.construct = 'val';
+        expect(myInstance.construct).toEqual('default');
+    });
+
     it('has a name', function () {
         expect(MyObject.name).toEqual('MyObject');
     });
 
     // the following would (should) cause a CRITICAL:
     // myInstance.readonly = 'val';
-    // myInstance.construct = 'val';
 
     it('has a notify signal', function () {
         let notifySpy = jasmine.createSpy('notifySpy');

@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2016 Endless Mobile, Inc.
+# SPDX-FileCopyrightText: 2016 Philip Chimento <philip.chimento@gmail.com>
 
 if test "$GJS_USE_UNINSTALLED_FILES" = "1"; then
     gjs="$TOP_BUILDDIR/cjs-console"
@@ -56,6 +59,61 @@ async function bar() {
 bar();
 EOF
 
+# this JS script should fail to import a second version of the same namespace
+cat <<EOF >doublegi.js
+import 'gi://Gio?version=2.0';
+import 'gi://Gio?version=75.94';
+EOF
+
+# this JS script is used to test ARGV handling
+cat <<EOF >argv.js
+const System = imports.system;
+
+if (System.programPath.endsWith('/argv.js'))
+    System.exit(0);
+else
+    System.exit(1);
+EOF
+
+# this JS script is used to test correct exiting from signal callbacks
+cat <<EOF >signalexit.js
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import { exit } from 'system';
+
+const Button = GObject.registerClass({
+    Signals: {
+        'clicked': {},
+    },
+}, class Button extends GObject.Object {
+    go() {
+        this.emit('clicked');
+    }
+});
+
+const button = new Button();
+button.connect('clicked', () => exit(15));
+let n = 1;
+GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+    print(\`click \${n++}\`);
+    button.go();
+    return GLib.SOURCE_CONTINUE;
+});
+const loop = new GLib.MainLoop(null, false);
+loop.run();
+EOF
+
+# this is similar to exit.js but should exit with an unhandled promise rejection
+cat <<EOF >promiseexit.js
+const {GLib} = imports.gi;
+const System = imports.system;
+const loop = GLib.MainLoop.new(null, false);
+Promise.reject();
+GLib.idle_add(GLib.PRIORITY_LOW, () => System.exit(42));
+GLib.timeout_add_seconds(GLib.PRIORITY_HIGH, 3, () => loop.quit());
+loop.run();
+EOF
+
 total=0
 
 report () {
@@ -90,12 +148,16 @@ report_xfail "Invalid option should exit with failure"
 $gjs --invalid-option 2>&1 | grep -q invalid-option
 report "Invalid option should print a relevant message"
 
-# Test that System.exit() works in gjs-console
+# Test that System.exit() works in cjs-console
 $gjs -c 'imports.system.exit(0)'
 report "System.exit(0) should exit successfully"
 $gjs -c 'imports.system.exit(42)'
 test $? -eq 42
 report "System.exit(42) should exit with the correct exit code"
+
+# Test the System.programPath works in cjs-console
+$gjs argv.js
+report "System.programPath should end in '/argv.js' when gjs argv.js is run"
 
 # FIXME: should check -eq 42 specifically, but in debug mode we will be
 # hitting an assertion. For this reason, skip when running under valgrind
@@ -105,8 +167,14 @@ if test -z $VALGRIND; then
     ASAN_OPTIONS=detect_leaks=0 $gjs exit.js
     test $? -ne 0
     report "System.exit() should still exit across an FFI boundary"
+
+    # https://gitlab.gnome.org/GNOME/gjs/-/issues/417
+    output="$(ASAN_OPTIONS=detect_leaks=0 $gjs promiseexit.js 2>&1)"
+    test $? -ne 0 && printf '%s' "$output" | grep -q "Unhandled promise rejection"
+    report "Unhandled promise rejections should still be printed when exiting"
 else
     skip "System.exit() should still exit across an FFI boundary" "running under valgrind"
+    skip "Unhandled promise rejections should still be printed when exiting" "running under valgrind"
 fi
 
 # ensure the encoding of argv is being properly handled
@@ -159,11 +227,11 @@ report "--help after -c should not print anything"
 # report_xfail "-I after script file should not be added to search path"
 # fi
 G_DEBUG=$(echo "$G_DEBUG" | sed -e 's/fatal-warnings,\{0,1\}//')
-$gjs help.js --help -I sentinel 2>&1 | grep -q 'Cjs-WARNING.*--include-path'
+$gjs help.js --help -I sentinel 2>&1 | grep -q 'Gjs-WARNING.*--include-path'
 report "-I after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-prefix'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-prefix'
 report "--coverage-prefix after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-output'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-output'
 report "--coverage-output after script should succeed but give a warning"
 rm -f foo/coverage.lcov
 G_DEBUG="$OLD_G_DEBUG"
@@ -189,7 +257,7 @@ $gjs -c 'imports.system.exit(0)' && ! stat gjs-*.syscap > /dev/null 2>&1
 report "no profiling data should be dumped without --profile"
 
 # Skip some tests if built without profiler support
-if $gjs --profile -c 1 2>&1 | grep -q 'Cjs-Message.*Profiler is disabled'; then
+if $gjs --profile -c 1 2>&1 | grep -q 'Gjs-Message.*Profiler is disabled'; then
     reason="profiler is disabled"
     skip "--profile should dump profiling data to the default file name" "$reason"
     skip "--profile with argument should dump profiling data to the named file" "$reason"
@@ -216,7 +284,7 @@ report "interpreter should run queued promise jobs before finishing"
 test -n "${output##*Should not be printed*}"
 report "interpreter should stop running jobs when one calls System.exit()"
 
-$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Cjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
+$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Gjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
 report "unhandled promise rejection should be reported"
 test -z "$($gjs awaitcatch.js)"
 report "catching an await expression should not cause unhandled rejection"
@@ -253,6 +321,26 @@ grep -q TN: coverage.lcov
 report "coverage prefix is treated as an absolute path"
 rm -f coverage.lcov
 
-rm -f exit.js help.js promise.js awaitcatch.js
+$gjs -m doublegi.js 2>&1 | grep -q 'already loaded'
+report "avoid statically importing two versions of the same module"
+
+# https://gitlab.gnome.org/GNOME/gjs/-/issues/19
+echo "# VALGRIND = $VALGRIND"
+if test -z $VALGRIND; then
+    ASAN_OPTIONS=detect_leaks=0 output=$($gjs -m signalexit.js)
+    test $? -eq 15
+    report "exit with correct code from a signal callback"
+    test -n "$output" -a -z "${output##*click 1*}"
+    report "avoid asserting when System.exit is called from a signal callback"
+    test -n "${output##*click 2*}"
+    report "exit after first System.exit call in a signal callback"
+else
+    skip "exit with correct code from a signal callback" "running under valgrind"
+    skip "avoid asserting when System.exit is called from a signal callback" "running under valgrind"
+    skip "exit after first System.exit call in a signal callback" "running under valgrind"
+fi
+
+rm -f exit.js help.js promise.js awaitcatch.js doublegi.js argv.js \
+    signalexit.js promiseexit.js
 
 echo "1..$total"

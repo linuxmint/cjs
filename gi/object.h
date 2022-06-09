@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #ifndef GI_OBJECT_H_
 #define GI_OBJECT_H_
@@ -37,15 +18,16 @@
 #include <glib.h>
 
 #include <js/GCHashTable.h>  // for GCHashMap
+#include <js/HashTable.h>    // for DefaultHasher
 #include <js/Id.h>
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <jsfriendapi.h>            // for JSID_IS_ATOM, JSID_TO_ATOM
 #include <mozilla/HashFunctions.h>  // for HashGeneric, HashNumber
-#include <mozilla/HashTable.h>      // for DefaultHasher
 #include <mozilla/Likely.h>         // for MOZ_LIKELY
 
+#include "gi/value.h"
 #include "gi/wrapperutils.h"
 #include "cjs/jsapi-util-root.h"
 #include "cjs/jsapi-util.h"
@@ -60,29 +42,13 @@ class CallArgs;
 namespace js {
 class SystemAllocPolicy;
 }
+namespace Gjs {
+namespace Test {
+struct ObjectInstance;
+}
+}
 class ObjectInstance;
 class ObjectPrototype;
-
-class GjsListLink {
- private:
-    ObjectInstance* m_prev;
-    ObjectInstance* m_next;
-
- public:
-    [[nodiscard]] ObjectInstance* prev() const { return m_prev; }
-    [[nodiscard]] ObjectInstance* next() const { return m_next; }
-
-    void prepend(ObjectInstance* this_instance, ObjectInstance* head);
-    void unlink(void);
-    [[nodiscard]] size_t size() const;
-};
-
-struct AutoGValueVector : public std::vector<GValue> {
-    ~AutoGValueVector() {
-        for (GValue value : *this)
-            g_value_unset(&value);
-    }
-};
 
 /*
  * ObjectBase:
@@ -107,8 +73,8 @@ class ObjectBase
  public:
     using SignalMatchFunc = guint(gpointer, GSignalMatchType, guint, GQuark,
                                   GClosure*, gpointer, gpointer);
-    static const GjsDebugTopic debug_topic = GJS_DEBUG_GOBJECT;
-    static constexpr const char* debug_tag = "GObject";
+    static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_GOBJECT;
+    static constexpr const char* DEBUG_TAG = "GObject";
 
     static const struct JSClassOps class_ops;
     static const struct JSClass klass;
@@ -187,7 +153,6 @@ class ObjectBase
                                                            JS::Value* vp);
     GJS_JSAPI_RETURN_CONVENTION
     static bool to_string(JSContext* cx, unsigned argc, JS::Value* vp);
-    [[nodiscard]] const char* to_string_kind() const;
     GJS_JSAPI_RETURN_CONVENTION
     static bool init_gobject(JSContext* cx, unsigned argc, JS::Value* vp);
     GJS_JSAPI_RETURN_CONVENTION
@@ -197,6 +162,7 @@ class ObjectBase
 
     [[nodiscard]] static GQuark custom_type_quark();
     [[nodiscard]] static GQuark custom_property_quark();
+    [[nodiscard]] static GQuark disposed_quark();
 };
 
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=1614220
@@ -313,6 +279,7 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
                                    GObject>;
     friend class GIWrapperBase<ObjectBase, ObjectPrototype, ObjectInstance>;
     friend class ObjectBase;  // for add_property, prop_getter, etc.
+    friend struct Gjs::Test::ObjectInstance;
 
     // GIWrapperInstance::m_ptr may be null in ObjectInstance.
 
@@ -320,10 +287,10 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     // a list of all GClosures installed on this object (from signal connections
     // and scope-notify callbacks passed to methods), used when tracing
     std::forward_list<GClosure*> m_closures;
-    GjsListLink m_instance_link;
 
     bool m_wrapper_finalized : 1;
     bool m_gobj_disposed : 1;
+    bool m_gobj_finalized : 1;
 
     /* True if this object has visible JS state, and thus its lifecycle is
      * managed using toggle references. False if this object just keeps a
@@ -380,22 +347,31 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     GJS_JSAPI_RETURN_CONVENTION
     static JSObject* wrapper_from_gobject(JSContext* cx, GObject* ptr);
 
+    GJS_JSAPI_RETURN_CONVENTION
+    static bool set_value_from_gobject(JSContext* cx, GObject*,
+                                       JS::MutableHandleValue);
+
     /* Methods to manipulate the list of closures */
 
  private:
+    void invalidate_closures();
     static void closure_invalidated_notify(void* data, GClosure* closure);
 
  public:
-    void associate_closure(JSContext* cx, GClosure* closure);
+    GJS_JSAPI_RETURN_CONVENTION bool associate_closure(JSContext*, GClosure*);
 
     /* Helper methods */
 
  private:
     void set_object_qdata(void);
     void unset_object_qdata(void);
+    void track_gobject_finalization();
+    void ignore_gobject_finalization();
     void check_js_object_finalized(void);
-    void ensure_uses_toggle_ref(JSContext* cx);
-    [[nodiscard]] bool check_gobject_disposed(const char* for_what) const;
+    GJS_JSAPI_RETURN_CONVENTION bool ensure_uses_toggle_ref(JSContext* cx);
+    [[nodiscard]] bool check_gobject_disposed_or_finalized(
+        const char* for_what) const;
+    [[nodiscard]] bool check_gobject_finalized(const char* for_what) const;
     GJS_JSAPI_RETURN_CONVENTION
     bool signal_match_arguments_from_object(JSContext* cx,
                                             JS::HandleObject props_obj,
@@ -416,25 +392,18 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     /* Methods to manipulate the linked list of instances */
 
  private:
-    static ObjectInstance* wrapped_gobject_list;
-    [[nodiscard]] ObjectInstance* next() const {
-        return m_instance_link.next();
-    }
+    static std::vector<ObjectInstance*> s_wrapped_gobject_list;
     void link(void);
     void unlink(void);
     [[nodiscard]] static size_t num_wrapped_gobjects() {
-        return wrapped_gobject_list
-                   ? wrapped_gobject_list->m_instance_link.size()
-                   : 0;
+        return s_wrapped_gobject_list.size();
     }
     using Action = std::function<void(ObjectInstance*)>;
     using Predicate = std::function<bool(ObjectInstance*)>;
-    static void iterate_wrapped_gobjects(const Action& action);
     static void remove_wrapped_gobjects_if(const Predicate& predicate,
                                            const Action& action);
 
  public:
-    [[nodiscard]] GjsListLink* get_link() { return &m_instance_link; }
     static void prepare_shutdown(void);
 
     /* JSClass operations */
@@ -481,7 +450,7 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
         JSContext* cx, const JS::CallArgs& args);
     GJS_JSAPI_RETURN_CONVENTION
     bool init_impl(JSContext* cx, const JS::CallArgs& args,
-                   JS::MutableHandleObject obj);
+                   JS::HandleObject obj);
     [[nodiscard]] const char* to_string_kind() const;
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -489,9 +458,12 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
                         GType expected_type) const;
 
     /* Notification callbacks */
+    void gobj_dispose_notify(void);
+    static void wrapped_gobj_dispose_notify(void* data, GObject*);
+    static void wrapped_gobj_toggle_notify(void* instance, GObject* gobj,
+                                           gboolean is_last_ref);
 
  public:
-    void gobj_dispose_notify(void);
     static void context_dispose_notify(void* data,
                                        GObject* where_the_object_was);
 };

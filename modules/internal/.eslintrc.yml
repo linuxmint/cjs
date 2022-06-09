@@ -1,0 +1,28 @@
+---
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2020 Evan Welsh <contact@evanwelsh.com>
+extends: ../../.eslintrc.yml
+parserOptions:
+  sourceType: 'module'
+  ecmaVersion: 2022
+globals:
+  ARGV: off
+  Debugger: readonly
+  GIRepositoryGType: off
+  imports: off
+  Intl: readonly
+  log: off
+  logError: off
+  print: off
+  printerr: off
+  moduleGlobalThis: readonly
+  compileModule: readonly
+  compileInternalModule: readonly
+  loadResourceOrFile: readonly
+  loadResourceOrFileAsync: readonly
+  parseURI: readonly
+  uriExists: readonly
+  resolveRelativeResourceOrFile: readonly
+  setGlobalModuleLoader: readonly
+  setModulePrivate: readonly
+  getRegistry: readonly

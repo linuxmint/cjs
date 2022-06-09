@@ -1,17 +1,21 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2020 Philip Chimento <philip.chimento@gmail.com>
+
 # === Build Spidermonkey stage ===
 
-FROM fedora:32 AS mozjs-build
-ARG MOZJS_BRANCH=mozjs68
-ARG BUILD_OPTS="--enable-posix-nspr-emulation --enable-unaligned-private-values"
+FROM registry.fedoraproject.org/fedora:33 AS mozjs-build
+ARG MOZJS_BRANCH=mozjs78
+ARG MOZJS_BUILDDEPS=${MOZJS_BRANCH}
+ARG BUILD_OPTS=
 
 ENV SHELL=/bin/bash
 
-RUN dnf -y install 'dnf-command(builddep)' git make which llvm-devel
-RUN dnf -y builddep mozjs68
+RUN dnf -y install 'dnf-command(builddep)' autoconf213 git make which llvm-devel
+RUN dnf -y builddep ${MOZJS_BUILDDEPS}
 
 WORKDIR /root
 
-RUN git clone --depth 1 https://github.com/ptomato/mozjs.git -b ${MOZJS_BRANCH}
+RUN git clone --no-tags --depth 1 https://github.com/ptomato/mozjs.git -b ${MOZJS_BRANCH}
 RUN mkdir -p mozjs/_build
 
 WORKDIR /root/mozjs/_build
@@ -24,7 +28,7 @@ RUN rm -f /root/mozjs-install/usr/lib64/libjs_static.ajs
 
 # === Actual Docker image ===
 
-FROM fedora:32
+FROM registry.fedoraproject.org/fedora:33
 
 ENV SHELL=/bin/bash
 
@@ -35,14 +39,14 @@ ENV SHELL=/bin/bash
 # final Docker image.
 RUN dnf -y install --enablerepo=fedora-debuginfo,updates-debuginfo \
     binutils cairo-debuginfo cairo-debugsource cairo-gobject-devel clang \
-    compiler-rt dbus-daemon diffutils fontconfig-debuginfo \
+    compiler-rt dbus-daemon dbus-x11 diffutils fontconfig-debuginfo \
     fontconfig-debugsource gcc-c++ git glib2-debuginfo glib2-debugsource \
     glib2-devel glibc-debuginfo glibc-debuginfo-common gnome-desktop-testing \
     gobject-introspection-debuginfo gobject-introspection-debugsource \
     gobject-introspection-devel gtk3-debuginfo gtk3-debugsource gtk3-devel \
     gtk4-debuginfo gtk4-debugsource gtk4-devel lcov libasan libubsan libtsan \
-    meson-0.54.0-1.fc32 ninja-build pkgconf readline-devel systemtap-sdt-devel \
-    valgrind which Xvfb xz && \
+    meson ninja-build pkgconf readline-devel systemtap-sdt-devel valgrind \
+    which Xvfb xz && \
     dnf clean all && rm -rf /var/cache/dnf
 
 COPY --from=mozjs-build /root/mozjs-install/usr /usr

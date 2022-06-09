@@ -1,4 +1,6 @@
 #!/bin/sh -e
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2017 Claudio André <claudioandre.br@gmail.com>
 
 do_Set_Env () {
     #Save cache on $pwd (required by artifacts)
@@ -13,49 +15,71 @@ do_Set_Env () {
     #Macros
     export ACLOCAL_PATH=$ACLOCAL_PATH:/usr/local/share/aclocal
 
-    export JHBUILD_RUN_AS_ROOT=1
     export SHELL=/bin/bash
     PATH=$PATH:~/.local/bin
 
     export DISPLAY="${DISPLAY:-:0}"
 }
 
-do_Get_Upstream_Master () {
-    if test "$CI_PROJECT_PATH_SLUG" = "gnome-gjs"; then
-        if test "$CI_BUILD_REF_SLUG" = "master" -o \
-            "$CI_BUILD_REF_SLUG" = "gnome-"* -o \
-             -n "$CI_COMMIT_TAG"; then
-            echo '-----------------------------------------'
-            echo 'Running against upstream'
-            echo "=> $1 Nothing to do"
+do_Get_Upstream_Base () {
+    echo '-----------------------------------------'
+    echo 'Finding common ancestor'
 
-            do_Done
-            exit 0
-        fi
+    # We need to add a new remote for the upstream target branch, since this
+    # script could be running in a personal fork of the repository which has out
+    # of date branches.
+    #
+    # Limit the fetch to a certain date horizon to limit the amount of data we
+    # get. If the branch was forked from the main branch before this horizon, it
+    # should probably be rebased.
+    git remote add upstream https://gitlab.gnome.org/GNOME/gjs.git || \
+        git remote set-url upstream https://gitlab.gnome.org/GNOME/gjs.git
+    base_branch="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_DEFAULT_BRANCH}}"
+    if ! git fetch --shallow-since="28 days ago" --no-tags upstream "$base_branch"; then
+        echo "Main branch doesn't have history in the past 28 days, fetching "
+        echo "the last 30 commits."
+        git fetch --depth=30 --no-tags upstream "$base_branch"
     fi
 
-    echo '-----------------------------------------'
-    echo 'Cloning upstream master'
+    git branch ci-upstream-base-branch FETCH_HEAD
 
-    mkdir -p ~/tmp-upstream; cd ~/tmp-upstream || exit 1
-    git clone --depth 1 https://gitlab.gnome.org/GNOME/gjs.git; cd gjs || exit 1
+    # Work out the newest common ancestor between the detached HEAD that this CI
+    # job has checked out, and the upstream target branch (which will typically
+    # be `upstream/master` or `upstream/gnome-nn`).
+    #
+    # $CI_MERGE_REQUEST_TARGET_BRANCH_NAME is only defined if we’re running in a
+    # merge request pipeline; fall back to $CI_DEFAULT_BRANCH otherwise.
+    newest_common_ancestor_sha=$(git merge-base ci-upstream-base-branch HEAD)
+    if test -z "$newest_common_ancestor_sha"; then
+        echo "Couldn’t find common ancestor with the upstream main branch. This"
+        echo "typically happens if you branched a long time ago. Please update"
+        echo "your clone, rebase, and re-push your branch."
+        echo "Base revisions:"
+        git log --oneline -10 ci-upstream-base-branch
+        echo "Branch revisions:"
+        git log --oneline -10 HEAD
+        exit 1
+    fi
+    echo "Merge base:"
+    git show --no-patch "$newest_common_ancestor_sha"
+    git branch -f ci-upstream-base "$newest_common_ancestor_sha"
     echo '-----------------------------------------'
 }
 
-do_Compare_With_Upstream_Master () {
+do_Compare_With_Upstream_Base () {
     echo '-----------------------------------------'
-    echo 'Compare the working code with upstream master'
+    echo 'Comparing the code with upstream merge base'
 
-    sort < /cwd/master-report.txt > /cwd/master-report-sorted.txt
-    sort < /cwd/current-report.txt > /cwd/current-report-sorted.txt
+    sort < /cwd/base-report.txt > /cwd/base-report-sorted.txt
+    sort < /cwd/head-report.txt > /cwd/head-report-sorted.txt
 
-    NEW_WARNINGS=$(comm -13 /cwd/master-report-sorted.txt /cwd/current-report-sorted.txt | wc -l)
-    REMOVED_WARNINGS=$(comm -23 /cwd/master-report-sorted.txt /cwd/current-report-sorted.txt | wc -l)
+    NEW_WARNINGS=$(comm -13 /cwd/base-report-sorted.txt /cwd/head-report-sorted.txt | wc -l)
+    REMOVED_WARNINGS=$(comm -23 /cwd/base-report-sorted.txt /cwd/head-report-sorted.txt | wc -l)
     if test "$NEW_WARNINGS" -ne 0; then
         echo '-----------------------------------------'
         echo "### $NEW_WARNINGS new warning(s) found by $1 ###"
         echo '-----------------------------------------'
-        diff -U0 /cwd/master-report.txt /cwd/current-report.txt || true
+        diff -U0 /cwd/base-report.txt /cwd/head-report.txt || true
         echo '-----------------------------------------'
         exit 1
     else
@@ -133,22 +157,33 @@ elif test "$1" = "CPPLINT"; then
     do_Print_Labels 'C/C++ Linter report '
 
     cpplint --quiet $(find . -name \*.cpp -or -name \*.c -or -name \*.h | sort) 2>&1 >/dev/null | \
-        tee "$save_dir"/analysis/current-report.txt | \
+        tee "$save_dir"/analysis/head-report.txt | \
         sed -E -e 's/:[0-9]+:/:LINE:/' -e 's/  +/ /g' \
-        > /cwd/current-report.txt
-    cat "$save_dir"/analysis/current-report.txt
+        > /cwd/head-report.txt
+    cat "$save_dir"/analysis/head-report.txt
     echo
 
-    # Get the code committed at upstream master
-    do_Get_Upstream_Master "cppLint"
+    do_Get_Upstream_Base
+    if test $(git rev-parse HEAD) = $(git rev-parse ci-upstream-base); then
+        echo '-----------------------------------------'
+        echo 'Running against upstream'
+        echo '=> cpplint: Nothing to do'
+        do_Done
+        exit 0
+    fi
+    git checkout ci-upstream-base
     cpplint --quiet $(find . -name \*.cpp -or -name \*.c -or -name \*.h | sort) 2>&1 >/dev/null | \
-        tee "$save_dir"/analysis/master-report.txt | \
+        tee "$save_dir"/analysis/base-report.txt | \
         sed -E -e 's/:[0-9]+:/:LINE:/' -e 's/  +/ /g' \
-        > /cwd/master-report.txt
+        > /cwd/base-report.txt
     echo
 
-    # Compare the report with master and fail if new warnings are found
-    do_Compare_With_Upstream_Master "cppLint"
+    # Compare the report with merge base and fail if new warnings are found
+    do_Compare_With_Upstream_Base "cpplint"
+
+elif test "$1" = "UPSTREAM_BASE"; then
+    do_Get_Upstream_Base
+    exit 0
 fi
 
 # Releases stuff and finishes

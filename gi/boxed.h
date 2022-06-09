@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #ifndef GI_BOXED_H_
 #define GI_BOXED_H_
@@ -28,16 +9,19 @@
 
 #include <stdint.h>
 
+#include <memory>  // for unique_ptr
+
 #include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
 #include <js/GCHashTable.h>  // for GCHashMap
+#include <js/HashTable.h>    // for DefaultHasher
 #include <js/Id.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <mozilla/HashTable.h>  // for DefaultHasher
 
+#include "gi/cwrapper.h"
 #include "gi/wrapperutils.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -61,15 +45,15 @@ class SystemAllocPolicy;
 
 class BoxedBase
     : public GIWrapperBase<BoxedBase, BoxedPrototype, BoxedInstance> {
+    friend class CWrapperPointerOps<BoxedBase>;
     friend class GIWrapperBase<BoxedBase, BoxedPrototype, BoxedInstance>;
 
  protected:
     explicit BoxedBase(BoxedPrototype* proto = nullptr)
         : GIWrapperBase(proto) {}
-    ~BoxedBase(void) {}
 
-    static const GjsDebugTopic debug_topic = GJS_DEBUG_GBOXED;
-    static constexpr const char* debug_tag = "GBoxed";
+    static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_GBOXED;
+    static constexpr const char* DEBUG_TAG = "boxed";
 
     static const struct JSClassOps class_ops;
     static const struct JSClass klass;
@@ -82,8 +66,6 @@ class BoxedBase
     static bool field_setter(JSContext* cx, unsigned argc, JS::Value* vp);
 
     // Helper methods that work on either instances or prototypes
-
-    [[nodiscard]] const char* to_string_kind() const { return "boxed"; }
 
     GJS_JSAPI_RETURN_CONVENTION
     GIFieldInfo* get_field_info(JSContext* cx, uint32_t id) const;
@@ -106,7 +88,7 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
     int m_zero_args_constructor;  // -1 if none
     int m_default_constructor;  // -1 if none
     JS::Heap<jsid> m_default_constructor_name;
-    FieldMap* m_field_map;
+    std::unique_ptr<FieldMap> m_field_map;
     bool m_can_allocate_directly : 1;
 
     explicit BoxedPrototype(GIStructInfo* info, GType gtype);
@@ -153,7 +135,8 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
     // Helper methods
 
     GJS_JSAPI_RETURN_CONVENTION
-    static FieldMap* create_field_map(JSContext* cx, GIStructInfo* struct_info);
+    static std::unique_ptr<FieldMap> create_field_map(
+        JSContext* cx, GIStructInfo* struct_info);
     GJS_JSAPI_RETURN_CONVENTION
     bool ensure_field_map(JSContext* cx);
     GJS_JSAPI_RETURN_CONVENTION

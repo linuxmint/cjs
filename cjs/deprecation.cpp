@@ -1,32 +1,15 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2018  Philip Chimento <philip.chimento@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2018 Philip Chimento <philip.chimento@gmail.com>
 
 #include <config.h>
 
 #include <cstddef>        // for size_t
+#include <functional>     // for hash<int>
 #include <string>         // for string
+#include <string_view>    // for hash<string>
 #include <unordered_set>  // for unordered_set
-#include <utility>        // for hash, move
+#include <utility>        // for move
 
 #include <glib.h>  // for g_warning
 
@@ -40,15 +23,8 @@
 #include <jsfriendapi.h>  // for FormatStackDump
 
 #include "cjs/deprecation.h"
+#include "cjs/jsapi-util.h"  // IWYU pragma: keep
 #include "cjs/macros.h"
-
-// Avoid static_assert in MSVC builds
-namespace JS {
-template <typename T> struct GCPolicy;
-
-template <>
-struct GCPolicy<void*> : public IgnoreGCPolicy<void*> {};
-}
 
 const char* messages[] = {
     // None:
@@ -60,13 +36,8 @@ const char* messages[] = {
     "is nonstandard. In the future this will return the bytes as "
     "comma-separated digits. For the time being, the old behavior has been "
     "preserved, but please fix your code anyway to explicitly call ByteArray"
-    ".toString(array). (Note that array.toString() may have been called implicitly.)\n\n"
-    "ByteArray.toString(array) is *not* backward compatible with previous (< 4.8) "
-    "versions of Cinnamon. You will have add versioning support to your applet "
-    "if it does not already have it, so that compatibility can be maintained for "
-    "users on older Cinnamon versions.\n\n"
-    "See:\n"
-    "https://projects.linuxmint.com/reference/git/cinnamon-tutorials/xlet-versioning.html\n",
+    ".toString(array).\n"
+    "(Note that array.toString() may have been called implicitly.)",
 
     // DeprecatedGObjectProperty:
     "Some code tried to set a deprecated GObject property.",

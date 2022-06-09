@@ -1,34 +1,45 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2018 Endless Mobile, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2018 Endless Mobile, Inc.
 
 #ifndef GJS_PROFILER_PRIVATE_H_
 #define GJS_PROFILER_PRIVATE_H_
 
 #include <stdint.h>
 
+#include <js/ProfilingCategory.h>
+#include <js/ProfilingStack.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+
 #include "cjs/context.h"
-#include "cjs/macros.h"
 #include "cjs/profiler.h"
+
+class AutoProfilerLabel {
+ public:
+    explicit inline AutoProfilerLabel(JSContext* cx, const char* label,
+                                      const char* dynamicString,
+                                      JS::ProfilingCategoryPair categoryPair =
+                                          JS::ProfilingCategoryPair::OTHER,
+                                      uint32_t flags = 0)
+        : m_stack(js::GetContextProfilingStackIfEnabled(cx)) {
+        if (m_stack)
+            m_stack->pushLabelFrame(label, dynamicString, this, categoryPair,
+                                    flags);
+    }
+
+    inline ~AutoProfilerLabel() {
+        if (m_stack)
+            m_stack->pop();
+    }
+
+ private:
+    ProfilingStack* m_stack;
+};
+
+namespace Gjs {
+enum GCCounters { GC_HEAP_BYTES, MALLOC_HEAP_BYTES, N_COUNTERS };
+}  // namespace Gjs
 
 GjsProfiler *_gjs_profiler_new(GjsContext *context);
 void _gjs_profiler_free(GjsProfiler *self);
@@ -36,6 +47,9 @@ void _gjs_profiler_free(GjsProfiler *self);
 void _gjs_profiler_add_mark(GjsProfiler* self, int64_t time, int64_t duration,
                             const char* group, const char* name,
                             const char* message);
+
+[[nodiscard]] bool _gjs_profiler_sample_gc_memory_info(
+    GjsProfiler* self, int64_t gc_counters[Gjs::GCCounters::N_COUNTERS]);
 
 [[nodiscard]] bool _gjs_profiler_is_running(GjsProfiler* self);
 

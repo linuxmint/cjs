@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+
 describe('Test harness internal consistency', function () {
     it('', function () {
         var someUndefined;
@@ -28,6 +31,22 @@ describe('Test harness internal consistency', function () {
 
         expect(() => expect(true).toThrow()).toThrow();
         expect(() => true).not.toThrow();
+    });
+
+    describe('awaiting', function () {
+        it('a Promise resolves', async function () {
+            await Promise.resolve();
+            expect(true).toBe(true);
+        });
+
+        async function nested() {
+            await Promise.resolve();
+        }
+
+        it('a nested async function resolves', async function () {
+            await nested();
+            expect(true).toBe(true);
+        });
     });
 });
 

@@ -1,31 +1,95 @@
-JavaScript bindings for Cinnamon
-================================
+[![Build Status](https://gitlab.gnome.org/GNOME/gjs/badges/master/pipeline.svg)](https://gitlab.gnome.org/GNOME/gjs/pipelines)
+[![Coverage report](https://gitlab.gnome.org/GNOME/gjs/badges/master/coverage.svg)](https://gnome.pages.gitlab.gnome.org/gjs/)
+[![Contributors](https://img.shields.io/github/contributors/GNOME/gjs.svg)](https://gitlab.gnome.org/GNOME/gjs/-/graphs/HEAD)
+[![Last commit](https://img.shields.io/github/last-commit/GNOME/gjs.svg)](https://gitlab.gnome.org/GNOME/gjs/commits/HEAD)
+[![Search hit](https://img.shields.io/github/search/GNOME/gjs/goto.svg?label=github%20hits)](https://github.com/search?utf8=%E2%9C%93&q=gjs&type=)
+[![License](https://img.shields.io/badge/License-LGPL%20v2%2B-blue.svg)](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/COPYING)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/COPYING)
 
-Based on GJS: https://wiki.gnome.org/action/show/Projects/Gjs
+JavaScript bindings for GNOME
+=============================
 
-Please do the following when reporting CJS crashes:
-===================================================
+Use the GNOME platform libraries in your JavaScript programs.
+GJS powers GNOME Shell, Polari, GNOME Documents, and many other apps.
+Under the hood it uses SpiderMonkey, Mozilla's JavaScript engine
+originally developed for Firefox.
 
-If possible, provide a stack trace.
+## Installation
 
-Run dmesg and provide the line related to the crash, for instance:
+Available as part of your GNOME distribution by default.
+In most package managers the package will be called `gjs`.
 
-`[ 4947.459104] cinnamon[2868]: segfault at 7f2611ffffe8 ip **00007f2667dda305** sp 00007fffb416b9d0 error 4 in libcjs.so.0.0.0[**7f2667db1000**+c1000]`
+## Usage
 
-Launch the Calculator, choose Advanced Mode and set it to Hexadecimal. Then substract the loading address (first address in brackets: 7f2667db1000) from the ip (00007f2667dda305).
+GJS includes a command-line interpreter, usually installed in
+`/usr/bin/gjs`.
+Type `gjs` to start it and test out your JavaScript statements
+interactively.
+Hit Ctrl+D to exit.
 
-In the example above:
+`gjs filename.js` runs a whole program.
+`gjs -d filename.js` does that and starts a debugger as well.
 
-ip: 00007f2667dda305
-loading address: 7f2667db1000
+There are also facilities for generating code coverage reports.
+Type `gjs --help` for more information.
 
-`00007f2667dda305 - 7f2667db1000 = 29305`
+`-d` only available in gjs >= 1.53.90
 
-This gives us the offset. Use addr2line to see what's under it in our shared library:
+## Contributing
 
-```
-addr2line -e /usr/lib/libcjs.so.0.0.0 29305 -fCi
-gjs_typecheck_boxed
-```
+For instructions on how to get started contributing to GJS, please read
+the contributing guide,
+<https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/CONTRIBUTING.md>.
 
-When reporting the bug, along with the trace and the dmesg line, please report that function name (in this example gjs_typecheck_boxed).
+## History
+
+GJS probably started in August 2008 with [this blog post][havocp] and
+[this experimental code][gscript].
+GJS in its current form was first developed in October 2008 at a company
+called litl, for their [litl webbook] product.
+It was soon adopted as the basis of [GNOME Shell]'s UI code and
+extensions system and debuted as a fundamental component of GNOME 3.0.
+
+In February 2013 at the GNOME Developer Experience Hackfest GJS was
+declared the ['first among equals'][treitter] of languages for GNOME
+application development.
+That proved controversial for many, and was later abandoned.
+
+At the time of writing (2018) GJS is used in many systems including
+Endless OS's [framework for offline content][eos-knowledge-lib] and, as
+a forked version, [Cinnamon].
+
+## Reading material
+
+### Documentation
+
+* [Get started](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/CONTRIBUTING.md)
+* [Get started - Internship](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/doc/Internship-Getting-Started.md)
+* [API documentation](https://gjs-docs.gnome.org/)
+
+### JavaScript & SpiderMonkey
+
+* https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples
+
+### GNOME Contribution
+
+* https://wiki.gnome.org/GitLab
+* https://wiki.gnome.org/Newcomers/
+
+## License
+
+Dual licensed under LGPL 2.0+ and MIT.
+
+## Thanks ##
+
+The form of this README was inspired by [Nadia Odunayo][hospitable] on
+the Greater Than Code podcast.
+
+[havocp]: https://blog.ometer.com/2008/08/25/embeddable-languages/
+[gscript]: https://gitlab.gnome.org/Archive/gscript/tree/HEAD/gscript
+[litl webbook]: https://en.wikipedia.org/wiki/Litl
+[GNOME Shell]: https://wiki.gnome.org/Projects/GnomeShell
+[treitter]: https://treitter.livejournal.com/14871.html
+[eos-knowledge-lib]: http://endlessm.github.io/eos-knowledge-lib/
+[Cinnamon]: https://en.wikipedia.org/wiki/Cinnamon_(software)
+[hospitable]: https://www.greaterthancode.com/code-hospitality

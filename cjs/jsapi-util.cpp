@@ -1,26 +1,7 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- * Copyright (c) 2009 Red Hat, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2009 Red Hat, Inc.
 
 #include <config.h>
 
@@ -28,12 +9,9 @@
 #include <string.h>  // for strlen
 
 #ifdef _WIN32
-#    define WIN32_LEAN_AND_MEAN
 #    include <windows.h>
 #endif
 
-#include <codecvt>  // for codecvt_utf8_utf16
-#include <locale>   // for wstring_convert
 #include <string>
 #include <utility>  // for move
 #include <vector>
@@ -205,10 +183,8 @@ gjs_throw_constructor_error(JSContext *context)
               "Constructor called as normal method. Use 'new SomeObject()' not 'SomeObject()'");
 }
 
-void
-gjs_throw_abstract_constructor_error(JSContext    *context,
-                                     JS::CallArgs& args)
-{
+void gjs_throw_abstract_constructor_error(JSContext* context,
+                                          const JS::CallArgs& args) {
     const JSClass *proto_class;
     const char *name = "anonymous";
 
@@ -259,17 +235,15 @@ JSObject* gjs_define_string_array(JSContext* context,
 /**
  * gjs_string_readable:
  *
- * Return a string that can be read back by gjs-console; for
+ * Return a string that can be read back by cjs-console; for
  * JS strings that contain valid Unicode, we return a UTF-8 formatted
  * string.  Otherwise, we return one where non-ASCII-printable bytes
  * are \x escaped.
  *
  */
-[[nodiscard]] static char* gjs_string_readable(JSContext* context,
-                                               JS::HandleString string) {
-    GString *buf = g_string_new("");
-
-    g_string_append_c(buf, '"');
+[[nodiscard]] static std::string gjs_string_readable(JSContext* context,
+                                                     JS::HandleString string) {
+    std::string buf(1, '"');
 
     JS::UniqueChars chars(JS_EncodeStringToUTF8(context, string));
     if (!chars) {
@@ -283,52 +257,47 @@ JSObject* gjs_define_string_array(JSContext* context,
         char *escaped = g_new(char, len + 1);
 
         JS_PutEscapedString(context, escaped, len, string, '"');
-        g_string_append(buf, escaped);
+        buf += escaped;
         g_free(escaped);
     } else {
-        g_string_append(buf, chars.get());
+        buf += chars.get();
     }
 
-    g_string_append_c(buf, '"');
-
-    return g_string_free(buf, false);
+    return buf + '"';
 }
 
-[[nodiscard]] static char* _gjs_g_utf8_make_valid(const char* name) {
-    GString *string;
+[[nodiscard]] static std::string _gjs_g_utf8_make_valid(const char* name) {
     const char *remainder, *invalid;
     int remaining_bytes, valid_bytes;
 
     g_return_val_if_fail (name != NULL, NULL);
 
-    string = nullptr;
     remainder = name;
     remaining_bytes = strlen (name);
 
+    if (remaining_bytes == 0)
+        return std::string(name);
+
+    std::string buf;
+    buf.reserve(remaining_bytes);
     while (remaining_bytes != 0) {
         if (g_utf8_validate (remainder, remaining_bytes, &invalid))
             break;
         valid_bytes = invalid - remainder;
 
-        if (!string)
-            string = g_string_sized_new (remaining_bytes);
-
-        g_string_append_len (string, remainder, valid_bytes);
+        buf.append(remainder, valid_bytes);
         /* append U+FFFD REPLACEMENT CHARACTER */
-        g_string_append (string, "\357\277\275");
+        buf += "\357\277\275";
 
         remaining_bytes -= valid_bytes + 1;
         remainder = invalid + 1;
     }
 
-    if (!string)
-        return g_strdup (name);
+    buf += remainder;
 
-    g_string_append (string, remainder);
+    g_assert(g_utf8_validate(buf.c_str(), -1, nullptr));
 
-    g_assert (g_utf8_validate (string->str, -1, NULL));
-
-    return g_string_free (string, false);
+    return buf;
 }
 
 /**
@@ -338,10 +307,7 @@ JSObject* gjs_define_string_array(JSContext* context,
  *
  * Returns: A UTF-8 encoded string describing @value
  */
-char*
-gjs_value_debug_string(JSContext      *context,
-                       JS::HandleValue value)
-{
+std::string gjs_value_debug_string(JSContext* context, JS::HandleValue value) {
     /* Special case debug strings for strings */
     if (value.isString()) {
         JS::RootedString str(context, value.toString());
@@ -365,13 +331,13 @@ gjs_value_debug_string(JSContext      *context,
                 str = JS_NewStringCopyZ(context, klass->name);
                 JS_ClearPendingException(context);
                 if (!str)
-                    return g_strdup("[out of memory copying class name]");
+                    return "[out of memory copying class name]";
             } else {
                 gjs_log_exception(context);
-                return g_strdup("[unknown object]");
+                return "[unknown object]";
             }
         } else {
-            return g_strdup("[unknown non-object]");
+            return "[unknown non-object]";
         }
     }
 
@@ -540,37 +506,34 @@ bool gjs_log_exception_uncaught(JSContext* cx) {
 }
 
 #ifdef __linux__
-static void
-_linux_get_self_process_size (gulong *vm_size,
-                              gulong *rss_size)
+// This type has to be long and not int32_t or int64_t, because of the %ld
+// sscanf specifier mandated in "man proc". The NOLINT comment is because
+// cpplint will ask you to avoid long in favour of defined bit width types.
+static void _linux_get_self_process_size(long* rss_size)  // NOLINT(runtime/int)
 {
     char *iter;
     gsize len;
     int i;
 
-    *vm_size = *rss_size = 0;
+    *rss_size = 0;
 
-    char* contents_unowned;
-    if (!g_file_get_contents("/proc/self/stat", &contents_unowned, &len,
-                             nullptr))
+    GjsAutoChar contents;
+    if (!g_file_get_contents("/proc/self/stat", contents.out(), &len, nullptr))
         return;
 
-    GjsAutoChar contents = contents_unowned;
     iter = contents;
-    /* See "man proc" for where this 22 comes from */
-    for (i = 0; i < 22; i++) {
+    // See "man proc" for where this 23 comes from
+    for (i = 0; i < 23; i++) {
         iter = strchr (iter, ' ');
         if (!iter)
             return;
         iter++;
     }
-    sscanf (iter, " %lu", vm_size);
-    iter = strchr (iter, ' ');
-    if (iter)
-        sscanf (iter, " %lu", rss_size);
+    sscanf(iter, " %ld", rss_size);
 }
 
-static gulong linux_rss_trigger;
+// We initiate a GC if RSS has grown by this much
+static uint64_t linux_rss_trigger;
 static int64_t last_gc_check_time;
 #endif
 
@@ -579,9 +542,7 @@ gjs_gc_if_needed (JSContext *context)
 {
 #ifdef __linux__
     {
-        /* We initiate a GC if VM or RSS has grown by this much */
-        gulong vmsize;
-        gulong rss_size;
+        long rss_size;  // NOLINT(runtime/int)
         gint64 now;
 
         /* We rate limit GCs to at most one per 5 frames.
@@ -592,7 +553,7 @@ gjs_gc_if_needed (JSContext *context)
 
         last_gc_check_time = now;
 
-        _linux_get_self_process_size (&vmsize, &rss_size);
+        _linux_get_self_process_size(&rss_size);
 
         /* linux_rss_trigger is initialized to 0, so currently
          * we always do a full GC early.
@@ -604,12 +565,16 @@ gjs_gc_if_needed (JSContext *context)
          * other hand, if swapping is going on, better
          * to GC.
          */
-        if (rss_size > linux_rss_trigger) {
-            linux_rss_trigger = (gulong) MIN(G_MAXULONG, rss_size * 1.25);
-            JS::NonIncrementalGC(context, GC_SHRINK, JS::GCReason::API);
+        if (rss_size < 0)
+            return;  // doesn't make sense
+        uint64_t rss_usize = rss_size;
+        if (rss_usize > linux_rss_trigger) {
+            linux_rss_trigger = MIN(G_MAXUINT32, rss_usize * 1.25);
+            JS::NonIncrementalGC(context, GC_SHRINK,
+                                 Gjs::GCReason::LINUX_RSS_TRIGGER);
         } else if (rss_size < (0.75 * linux_rss_trigger)) {
             /* If we've shrunk by 75%, lower the trigger */
-            linux_rss_trigger = (rss_size * 1.25);
+            linux_rss_trigger = rss_usize * 1.25;
         }
     }
 #else  // !__linux__
@@ -652,38 +617,40 @@ JSObject* gjs_get_import_global(JSContext* cx) {
     return GjsContextPrivate::from_cx(cx)->global();
 }
 
-#if defined(G_OS_WIN32) && (defined(_MSC_VER) && (_MSC_VER >= 1900))
-/* Unfortunately Visual Studio's C++ .lib somehow did not contain the right
- * codecvt stuff that we need to convert from utf8 to utf16 (char16_t), so we
- * need to work around this Visual Studio bug.  Use Windows API
- * MultiByteToWideChar() and obtain the std::u16string on the std::wstring we
- * obtain from MultiByteToWideChar().  See:
- * https://social.msdn.microsoft.com/Forums/en-US/8f40dcd8-c67f-4eba-9134-a19b9178e481/vs-2015-rc-linker-stdcodecvt-error?forum=vcgeneral
+/**
+ * gjs_get_internal_global:
+ *
+ * @brief Gets the "internal global" for the context's runtime. The internal
+ * global object is the global object used for all "internal" JavaScript
+ * code (e.g. the module loader) that should not be accessible from users'
+ * code.
+ *
+ * @param cx a #JSContext
+ *
+ * @returns the "internal global" for the context's
+ *  runtime. Will never return %NULL while GJS has an active context
+ *  for the runtime.
  */
-static std::wstring gjs_win32_vc140_utf8_to_utf16(const char* str,
-                                                  ssize_t len) {
-    int bufsize = MultiByteToWideChar(CP_UTF8, 0, str, len, nullptr, 0);
-    if (bufsize == 0)
-        return nullptr;
-
-    std::wstring wstr(bufsize, 0);
-    int result = MultiByteToWideChar(CP_UTF8, 0, str, len, &wstr[0], bufsize);
-    if (result == 0)
-        return nullptr;
-
-    wstr.resize(len < 0 ? strlen(str) : len);
-    return wstr;
+JSObject* gjs_get_internal_global(JSContext* cx) {
+    return GjsContextPrivate::from_cx(cx)->internal_global();
 }
-#endif
 
-std::u16string gjs_utf8_script_to_utf16(const char* script, ssize_t len) {
-#if defined(G_OS_WIN32) && (defined(_MSC_VER) && (_MSC_VER >= 1900))
-    std::wstring wscript = gjs_win32_vc140_utf8_to_utf16(script, len);
-    return std::u16string(reinterpret_cast<const char16_t*>(wscript.c_str()));
-#else
-    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
-    if (len < 0)
-        return convert.from_bytes(script);
-    return convert.from_bytes(script, script + len);
-#endif
+const char* gjs_explain_gc_reason(JS::GCReason reason) {
+    if (JS::InternalGCReason(reason))
+        return JS::ExplainGCReason(reason);
+
+    static const char* reason_strings[] = {
+        "RSS above threshold",
+        "GjsContext disposed",
+        "Big Hammer hit",
+        "gjs_context_gc() called",
+    };
+    static_assert(G_N_ELEMENTS(reason_strings) == Gjs::GCReason::N_REASONS,
+                  "Explanations must match the values in Gjs::GCReason");
+
+    g_assert(size_t(reason) < size_t(JS::GCReason::FIRST_FIREFOX_REASON) +
+                                  Gjs::GCReason::N_REASONS &&
+             "Bad Gjs::GCReason");
+    return reason_strings[size_t(reason) -
+                          size_t(JS::GCReason::FIRST_FIREFOX_REASON)];
 }

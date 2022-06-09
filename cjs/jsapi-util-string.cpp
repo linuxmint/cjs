@@ -1,28 +1,10 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #include <config.h>
 
+#include <ctype.h>  // for toupper
 #include <stdint.h>
 #include <string.h>     // for size_t, strlen
 #include <sys/types.h>  // for ssize_t
@@ -34,11 +16,12 @@
 
 #include <glib.h>
 
+#include <js/BigInt.h>
 #include <js/CharacterEncoding.h>
 #include <js/Class.h>
-#include <js/ComparisonOperators.h>
 #include <js/GCAPI.h>  // for AutoCheckCannotGC
 #include <js/Id.h>     // for JSID_IS_STRING...
+#include <js/Promise.h>
 #include <js/RootingAPI.h>
 #include <js/Symbol.h>
 #include <js/TypeDecls.h>
@@ -46,27 +29,41 @@
 #include <js/Value.h>
 #include <jsapi.h>        // for JSID_TO_FLAT_STRING, JS_GetTwoByte...
 #include <jsfriendapi.h>  // for FlatStringToLinearString, GetLatin...
+#include <mozilla/CheckedInt.h>
 
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
-
-// Avoid static_assert in MSVC builds
-namespace JS {
-template <typename T> struct GCPolicy;
-
-template <>
-struct GCPolicy<void*> : public IgnoreGCPolicy<void*> {};
-}
+#include "util/misc.h"  // for _gjs_memdup2
 
 class JSLinearString;
 
-char* gjs_hyphen_to_underscore(const char* str) {
+GjsAutoChar gjs_hyphen_to_underscore(const char* str) {
     char *s = g_strdup(str);
     char *retval = s;
     while (*(s++) != '\0') {
         if (*s == '-')
             *s = '_';
     }
+    return retval;
+}
+
+GjsAutoChar gjs_hyphen_to_camel(const char* str) {
+    GjsAutoChar retval = static_cast<char*>(g_malloc(strlen(str) + 1));
+    const char* input_iter = str;
+    char* output_iter = retval.get();
+    bool uppercase_next = false;
+    while (*input_iter != '\0') {
+        if (*input_iter == '-') {
+            uppercase_next = true;
+        } else if (uppercase_next) {
+            *output_iter++ = toupper(*input_iter);
+            uppercase_next = false;
+        } else {
+            *output_iter++ = *input_iter;
+        }
+        input_iter++;
+    }
+    *output_iter = '\0';
     return retval;
 }
 
@@ -94,6 +91,88 @@ JS::UniqueChars gjs_string_to_utf8(JSContext* cx, const JS::Value value) {
     return JS_EncodeStringToUTF8(cx, str);
 }
 
+/**
+ * gjs_string_to_utf8_n:
+ * @param cx: the current #JSContext
+ * @param str: a handle to a JSString
+ * @param output a pointer to a JS::UniqueChars
+ * @param output_len a pointer for the length of output
+ *
+ * @brief Converts a JSString to UTF-8 and puts the char array in #output and
+ * its length in #output_len.
+ *
+ * This function handles the boilerblate for unpacking a JSString, determining its
+ * length, and returning the appropriate JS::UniqueChars. This function should generally
+ * be preferred over using JS::DeflateStringToUTF8Buffer directly as it correctly
+ * handles allocation in a JS_Free compatible manner.
+ */
+bool gjs_string_to_utf8_n(JSContext* cx, JS::HandleString str, JS::UniqueChars* output,
+                          size_t* output_len) {
+    JSLinearString* linear = JS_EnsureLinearString(cx, str);
+    if (!linear)
+        return false;
+
+    size_t length = JS::GetDeflatedUTF8StringLength(linear);
+    char* bytes = js_pod_arena_malloc<char>(js::StringBufferArena, length + 1);
+    if (!bytes)
+        return false;
+
+    // Append a zero-terminator to the string.
+    bytes[length] = '\0';
+
+    size_t deflated_length [[maybe_unused]] =
+        JS::DeflateStringToUTF8Buffer(linear, mozilla::Span(bytes, length));
+    g_assert(deflated_length == length);
+
+    *output_len = length;
+    *output = JS::UniqueChars(bytes);
+    return true;
+}
+
+/**
+ * gjs_lossy_string_from_utf8:
+ *
+ * @brief Converts an array of UTF-8 characters to a JS string.
+ * Instead of throwing, any invalid characters will be converted
+ * to the UTF-8 invalid character fallback.
+ *
+ * @param cx the current #JSContext
+ * @param utf8_string an array of UTF-8 characters
+ * @param value_p a value to store the resulting string in
+ */
+JSString* gjs_lossy_string_from_utf8(JSContext* cx, const char* utf8_string) {
+    JS::ConstUTF8CharsZ chars(utf8_string, strlen(utf8_string));
+    size_t outlen;
+    JS::UniqueTwoByteChars twobyte_chars(
+        JS::LossyUTF8CharsToNewTwoByteCharsZ(cx, chars, &outlen,
+                                             js::MallocArena)
+            .get());
+    if (!twobyte_chars)
+        return nullptr;
+
+    return JS_NewUCStringCopyN(cx, twobyte_chars.get(), outlen);
+}
+
+/**
+ * gjs_lossy_string_from_utf8_n:
+ *
+ * @brief Provides the same conversion behavior as gjs_lossy_string_from_utf8
+ * with a fixed length. See gjs_lossy_string_from_utf8()
+ */
+JSString* gjs_lossy_string_from_utf8_n(JSContext* cx, const char* utf8_string,
+                                       size_t len) {
+    JS::UTF8Chars chars(utf8_string, len);
+    size_t outlen;
+    JS::UniqueTwoByteChars twobyte_chars(
+        JS::LossyUTF8CharsToNewTwoByteCharsZ(cx, chars, &outlen,
+                                             js::MallocArena)
+            .get());
+    if (!twobyte_chars)
+        return nullptr;
+
+    return JS_NewUCStringCopyN(cx, twobyte_chars.get(), outlen);
+}
+
 bool
 gjs_string_from_utf8(JSContext             *context,
                      const char            *utf8_string,
@@ -101,10 +180,11 @@ gjs_string_from_utf8(JSContext             *context,
 {
     JS::ConstUTF8CharsZ chars(utf8_string, strlen(utf8_string));
     JS::RootedString str(context, JS_NewStringCopyUTF8Z(context, chars));
-    if (str)
-        value_p.setString(str);
+    if (!str)
+        return false;
 
-    return str != nullptr;
+    value_p.setString(str);
+    return true;
 }
 
 bool
@@ -223,7 +303,14 @@ gjs_string_get_char16_data(JSContext       *context,
     if (js_data == NULL)
         return false;
 
-    *data_p = (char16_t *) g_memdup(js_data, sizeof(*js_data) * (*len_p));
+    mozilla::CheckedInt<size_t> len_bytes =
+        mozilla::CheckedInt<size_t>(*len_p) * sizeof(*js_data);
+    if (!len_bytes.isValid()) {
+        JS_ReportOutOfMemory(context);  // cannot call gjs_throw, it may GC
+        return false;
+    }
+
+    *data_p = static_cast<char16_t*>(_gjs_memdup2(js_data, len_bytes.value()));
 
     return true;
 }
@@ -389,16 +476,28 @@ gjs_intern_string_to_id(JSContext  *cx,
     return JS::PropertyKey::fromPinnedString(str);
 }
 
-[[nodiscard]] static std::string gjs_debug_linear_string(JSLinearString* str) {
+enum Quotes {
+    DoubleQuotes,
+    NoQuotes,
+};
+
+[[nodiscard]] static std::string gjs_debug_linear_string(JSLinearString* str,
+                                                         Quotes quotes) {
     size_t len = js::GetLinearStringLength(str);
+
+    std::ostringstream out;
+    if (quotes == DoubleQuotes)
+        out << '"';
 
     JS::AutoCheckCannotGC nogc;
     if (js::LinearStringHasLatin1Chars(str)) {
         const JS::Latin1Char *chars = js::GetLatin1LinearStringChars(nogc, str);
-        return std::string(reinterpret_cast<const char *>(chars), len);
+        out << std::string(reinterpret_cast<const char*>(chars), len);
+        if (quotes == DoubleQuotes)
+            out << '"';
+        return out.str();
     }
 
-    std::ostringstream out;
     const char16_t *chars = js::GetTwoByteLinearStringChars(nogc, str);
     for (size_t ix = 0; ix < len; ix++) {
         char16_t c = chars[ix];
@@ -413,6 +512,8 @@ gjs_intern_string_to_id(JSContext  *cx,
         else
             out << "\\x" << std::setfill('0') << std::setw(4) << unsigned(c);
     }
+    if (quotes == DoubleQuotes)
+        out << '"';
     return out.str();
 }
 
@@ -426,7 +527,8 @@ gjs_debug_string(JSString *str)
         out << JS_GetStringLength(str) << '>';
         return out.str();
     }
-    return gjs_debug_linear_string(JS_ASSERT_STRING_IS_LINEAR(str));
+    return gjs_debug_linear_string(JS_ASSERT_STRING_IS_LINEAR(str),
+                                   DoubleQuotes);
 }
 
 std::string
@@ -473,6 +575,36 @@ gjs_debug_object(JSObject * const obj)
         return "<null object>";
 
     std::ostringstream out;
+
+    if (js::IsFunctionObject(obj)) {
+        JSFunction* fun = JS_GetObjectFunction(obj);
+        JSString* display_name = JS_GetFunctionDisplayId(fun);
+        if (display_name && JS_GetStringLength(display_name))
+            out << "<function " << gjs_debug_string(display_name);
+        else
+            out << "<anonymous function";
+        out << " at " << fun << '>';
+        return out.str();
+    }
+
+    // This is OK because the promise methods can't cause a garbage collection
+    JS::HandleObject handle = JS::HandleObject::fromMarkedLocation(&obj);
+    if (JS::IsPromiseObject(handle)) {
+        out << '<';
+        JS::PromiseState state = JS::GetPromiseState(handle);
+        if (state == JS::PromiseState::Pending)
+            out << "pending ";
+        out << "promise " << JS::GetPromiseID(handle) << " at " << obj;
+        if (state != JS::PromiseState::Pending) {
+            out << ' ';
+            out << (state == JS::PromiseState::Rejected ? "rejected"
+                                                        : "resolved");
+            out << " with " << gjs_debug_value(JS::GetPromiseResult(handle));
+        }
+        out << '>';
+        return out.str();
+    }
+
     const JSClass* clasp = JS_GetClass(obj);
     out << "<object " << clasp->name << " at " << obj <<  '>';
     return out.str();
@@ -494,22 +626,17 @@ gjs_debug_value(JS::Value v)
         out << v.toDouble();
         return out.str();
     }
+    if (v.isBigInt()) {
+        // technically this prints v % INT64_MAX
+        out << JS::ToBigInt64(v.toBigInt()) << 'n';
+        return out.str();
+    }
     if (v.isString()) {
         out << gjs_debug_string(v.toString());
         return out.str();
     }
     if (v.isSymbol()) {
         out << gjs_debug_symbol(v.toSymbol());
-        return out.str();
-    }
-    if (v.isObject() && js::IsFunctionObject(&v.toObject())) {
-        JSFunction* fun = JS_GetObjectFunction(&v.toObject());
-        JSString *display_name = JS_GetFunctionDisplayId(fun);
-        if (display_name)
-            out << "<function " << gjs_debug_string(display_name);
-        else
-            out << "<unnamed function";
-        out << " at " << fun << '>';
         return out.str();
     }
     if (v.isObject()) {
@@ -527,6 +654,6 @@ std::string
 gjs_debug_id(jsid id)
 {
     if (JSID_IS_STRING(id))
-        return gjs_debug_linear_string(JSID_TO_LINEAR_STRING(id));
+        return gjs_debug_linear_string(JSID_TO_LINEAR_STRING(id), NoQuotes);
     return gjs_debug_value(js::IdToValue(id));
 }

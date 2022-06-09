@@ -1,4 +1,6 @@
 #!/usr/bin/env gjs
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2016 Philip Chimento <philip.chimento@gmail.com>
 
 const GLib = imports.gi.GLib;
 
@@ -37,7 +39,9 @@ globalThis.clearTimeout = globalThis.clearInterval = _clearTimeoutInternal;
 let jasmineRequire = imports.jasmine.getJasmineRequireObj();
 let jasmineCore = jasmineRequire.core(jasmineRequire);
 globalThis._jasmineEnv = jasmineCore.getEnv();
-
+globalThis._jasmineEnv.configure({
+    random: false,
+});
 globalThis._jasmineMain = GLib.MainLoop.new(null, false);
 globalThis._jasmineRetval = 0;
 
@@ -111,9 +115,10 @@ class TapReporter {
 
 globalThis._jasmineEnv.addReporter(new TapReporter());
 
-// If we're running the tests in certain JS_GC_ZEAL modes, then some will time
-// out if the CI machine is under a certain load. In that case increase the
-// default timeout.
+// If we're running the tests in certain JS_GC_ZEAL modes or Valgrind, then some
+// will time out if the CI machine is under a certain load. In that case
+// increase the default timeout.
 const gcZeal = GLib.getenv('JS_GC_ZEAL');
-if (gcZeal && (gcZeal === '2' || gcZeal.startsWith('2,') || gcZeal === '4'))
+const valgrind = GLib.getenv('VALGRIND');
+if (valgrind || (gcZeal && (gcZeal === '2' || gcZeal.startsWith('2,') || gcZeal === '4')))
     jasmine.DEFAULT_TIMEOUT_INTERVAL *= 5;

@@ -1,25 +1,6 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
-/*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
+// SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+// SPDX-FileCopyrightText: 2008 litl, LLC
 
 #include <config.h>
 
@@ -29,9 +10,11 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Value.h>
+#include <js/ValueArray.h>
 #include <jsapi.h>  // for JS_New, JSAutoRealm, JS_GetProperty
 
 #include "gi/gobject.h"
@@ -44,7 +27,7 @@
 
 static std::unordered_map<GType, AutoParamArray> class_init_properties;
 
-[[nodiscard]] static JSContext* current_context() {
+[[nodiscard]] static JSContext* current_js_context() {
     GjsContext* gjs = gjs_context_get_current();
     return static_cast<JSContext*>(gjs_context_get_native_context(gjs));
 }
@@ -71,6 +54,43 @@ static bool jsobj_set_gproperty(JSContext* cx, JS::HandleObject object,
         return false;
 
     GjsAutoChar underscore_name = gjs_hyphen_to_underscore(pspec->name);
+
+    if (pspec->flags & G_PARAM_CONSTRUCT_ONLY) {
+        unsigned flags = GJS_MODULE_PROP_FLAGS | JSPROP_READONLY;
+        GjsAutoChar camel_name = gjs_hyphen_to_camel(pspec->name);
+
+        if (g_param_spec_get_qdata(pspec, ObjectBase::custom_property_quark())) {
+            JS::Rooted<JS::PropertyDescriptor> jsprop(cx);
+
+            // Ensure to call any associated setter method
+            if (!g_str_equal(underscore_name.get(), pspec->name)) {
+                if (!JS_GetPropertyDescriptor(cx, object, underscore_name, &jsprop))
+                    return false;
+                if (jsprop.setter() &&
+                    !JS_SetProperty(cx, object, underscore_name, jsvalue))
+                    return false;
+            }
+
+            if (!g_str_equal(camel_name.get(), pspec->name)) {
+                if (!JS_GetPropertyDescriptor(cx, object, camel_name, &jsprop))
+                    return false;
+                if (jsprop.setter() &&
+                    !JS_SetProperty(cx, object, camel_name, jsvalue))
+                    return false;
+            }
+
+            if (!JS_GetPropertyDescriptor(cx, object, pspec->name, &jsprop))
+                return false;
+            if (jsprop.setter() &&
+                !JS_SetProperty(cx, object, pspec->name, jsvalue))
+                return false;
+        }
+
+        return JS_DefineProperty(cx, object, underscore_name, jsvalue, flags) &&
+               JS_DefineProperty(cx, object, camel_name, jsvalue, flags) &&
+               JS_DefineProperty(cx, object, pspec->name, jsvalue, flags);
+    }
+
     return JS_SetProperty(cx, object, underscore_name, jsvalue);
 }
 
@@ -89,7 +109,7 @@ static void gjs_object_base_finalize(void* klass) {
 static GObject* gjs_object_constructor(
     GType type, unsigned n_construct_properties,
     GObjectConstructParam* construct_properties) {
-    JSContext* cx = current_context();
+    JSContext* cx = current_js_context();
     GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
 
     if (!gjs->object_init_list().empty()) {
@@ -151,7 +171,7 @@ static void gjs_object_set_gproperty(GObject* object,
                                      unsigned property_id [[maybe_unused]],
                                      const GValue* value, GParamSpec* pspec) {
     auto* priv = ObjectInstance::for_gobject(object);
-    JSContext *cx = current_context();
+    JSContext* cx = current_js_context();
 
     JS::RootedObject js_obj(cx, priv->wrapper());
     JSAutoRealm ar(cx, js_obj);
@@ -164,7 +184,7 @@ static void gjs_object_get_gproperty(GObject* object,
                                      unsigned property_id [[maybe_unused]],
                                      GValue* value, GParamSpec* pspec) {
     auto* priv = ObjectInstance::for_gobject(object);
-    JSContext *cx = current_context();
+    JSContext* cx = current_js_context();
 
     JS::RootedObject js_obj(cx, priv->wrapper());
     JS::RootedValue jsvalue(cx);
@@ -201,7 +221,7 @@ static void gjs_object_class_init(void* class_pointer, void*) {
 
 static void gjs_object_custom_init(GTypeInstance* instance,
                                    void* g_class [[maybe_unused]]) {
-    JSContext *cx = current_context();
+    JSContext* cx = current_js_context();
     GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
 
     if (gjs->object_init_list().empty())

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
 
 import os
 import shutil
@@ -21,7 +23,7 @@ else:
 
 if os.name == 'nt':
     # Using symlinks on Windows often require administrative privileges,
-    # which is not what we want.  Instead, copy gjs-console.exe.
+    # which is not what we want.  Instead, copy cjs-console.exe.
     shutil.copyfile('cjs-console.exe', os.path.join(installed_bin_dir, 'gjs.exe'))
 else:
     try:

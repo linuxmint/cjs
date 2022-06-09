@@ -1,24 +1,7 @@
 /* -*- mode: C; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /*
- * Copyright (c) 2008  litl, LLC
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+ * SPDX-FileCopyrightText: 2008 litl, LLC
  */
 
 #ifndef GJS_CONTEXT_H_
@@ -29,6 +12,8 @@
 #endif
 
 #include <stdbool.h>    /* IWYU pragma: keep */
+#include <stdint.h>
+#include <sys/types.h> /* for ssize_t */
 
 #ifndef _WIN32
 #    include <signal.h> /* for siginfo_t */
@@ -61,13 +46,29 @@ GJS_EXPORT GJS_USE bool gjs_context_eval_file(GjsContext* js_context,
                                               const char* filename,
                                               int* exit_status_p,
                                               GError** error);
+GJS_EXPORT GJS_USE bool gjs_context_eval_module_file(GjsContext* js_context,
+                                                     const char* filename,
+                                                     uint8_t* exit_status_p,
+                                                     GError** error);
 GJS_EXPORT GJS_USE bool gjs_context_eval(GjsContext* js_context,
                                          const char* script, gssize script_len,
                                          const char* filename,
                                          int* exit_status_p, GError** error);
+GJS_EXPORT GJS_USE bool gjs_context_register_module(GjsContext* context,
+                                                    const char* identifier,
+                                                    const char* uri,
+                                                    GError** error);
+GJS_EXPORT GJS_USE bool gjs_context_eval_module(GjsContext* context,
+                                                const char* identifier,
+                                                uint8_t* exit_code,
+                                                GError** error);
 GJS_EXPORT GJS_USE bool gjs_context_define_string_array(
     GjsContext* js_context, const char* array_name, gssize array_length,
     const char** array_values, GError** error);
+
+GJS_EXPORT void gjs_context_set_argv(GjsContext* js_context,
+                                     ssize_t array_length,
+                                     const char** array_values);
 
 GJS_EXPORT GJS_USE GList* gjs_context_get_all(void);
 
