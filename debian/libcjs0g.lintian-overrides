@@ -1,0 +1,5 @@
+# This is a historical wart: libgjs used to break ABI without a SONAME bump
+# as a result of exposing objects from mozjs. It has stopped doing that,
+# but doing a final rename from libgjs0g back to libgjs0 would be an extra
+# transition for no actual benefit.
+package-name-doesnt-match-sonames libcjs0
