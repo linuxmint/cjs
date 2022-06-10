@@ -1,6 +1,15 @@
-Tests: build
-Restrictions: superficial
-Depends: libgjs-dev, build-essential
+# TODO: GDbus and EverythingBasic are failing
+# Tests: testsuite
+# Depends: @, @builddeps@, build-essential, procps, dbus, xvfb, xauth, uuid-runtime
+# Restrictions: build-needed allow-stderr
 
-Tests: installed-tests
-Depends: gjs-tests, dbus-x11, dbus (>= 1.8), xauth, xvfb, gnome-desktop-testing
+Tests: acc
+Depends: @, dh-acc, exuberant-ctags
+Restrictions: allow-stderr
+
+Tests: build
+Depends: libcjs-dev, build-essential
+
+# No installed tests
+# Tests: installed-tests
+# Depends: gjs-tests, dbus-x11, dbus (>= 1.8), xauth, xvfb, gnome-desktop-testing
