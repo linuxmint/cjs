@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<descriptor>
+
+<version>
+    3.8.0
+</version>
+
+<headers>
+    /usr/include/cjs-1.0/cjs/gjs.h
+</headers>
+
+<libs>
+    /usr/lib/@@DEB_HOST_MULTIARCH@@/libcjs.so
+</libs>
+
+<gcc_options>
+    -I/usr/include/js
+</gcc_options>
+
+</descriptor>

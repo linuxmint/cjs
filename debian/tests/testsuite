@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# dh_auto_test
+make check
