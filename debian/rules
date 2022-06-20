@@ -28,7 +28,7 @@ override_dh_auto_test:
 	env \
 		TZ=UTC \
 	xvfb-run -a \
-	dh_auto_test -- -v -C $(CURDIR)/obj-$(DEB_HOST_GNU_TYPE) --timeout-multiplier 4
+	dh_auto_test -- -v -C $(CURDIR)/obj-$(DEB_HOST_GNU_TYPE) --timeout-multiplier 4 --num-processes=1
 
 override_dh_makeshlibs:
 	dh_makeshlibs -Xusr/lib/$(DEB_HOST_MULTIARCH)/cjs-1.0 -- -c4
