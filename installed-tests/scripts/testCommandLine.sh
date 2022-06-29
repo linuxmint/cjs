@@ -295,8 +295,12 @@ report "main program exceptions are not swallowed by queued promise jobs"
 G_DEBUG="$OLD_G_DEBUG"
 
 # https://gitlab.gnome.org/GNOME/gjs/issues/26
-$gjs -c 'new imports.gi.Gio.Subprocess({argv: ["true"]}).init(null);'
-report "object unref from other thread after shutdown should not race"
+if test -n "$CIRCLECI"; then
+    skip "object unref from other thread after shutdown should not race" "Running in CircleCI"
+else
+    $gjs -c 'new imports.gi.Gio.Subprocess({argv: ["true"]}).init(null);'
+    report "object unref from other thread after shutdown should not race"
+fi
 
 # https://gitlab.gnome.org/GNOME/gjs/issues/212
 if test -n "$ENABLE_GTK"; then
