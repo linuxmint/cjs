@@ -1,0 +1,10 @@
+debian/*.debhelper.log
+debian/*.substvars
+debian/.debhelper/
+debian/cjs/
+debian/debhelper-build-stamp
+debian/files
+debian/libcjs-dbg/
+debian/libcjs-dev/
+debian/libcjs0f/
+debian/tmp/
