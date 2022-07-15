@@ -1,3 +1,13 @@
+cjs (5.4.1) vanessa; urgency=medium
+
+  [ Michael Webster ]
+  * Remove some links from the README
+  * Don't use max threads for tests.
+  * testCommandLine.sh: Skip a Gio.Subprocess test when inside of a circleci environment.
+  * debian/rules: Limit number of threads for the build.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Fri, 15 Jul 2022 15:20:25 +0200
+
 cjs (5.4.0) vanessa; urgency=medium
 
   [ Michael Webster ]
