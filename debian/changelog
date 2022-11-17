@@ -1,3 +1,23 @@
+cjs (5.6.0) vera; urgency=medium
+
+  [ Rick Calixte ]
+  * Fix .gitignore for builds
+
+  [ Michael Webster ]
+  * Use github instead of circleci.
+
+  [ Fabio Fantoni ]
+  * remove d/control.in and add override about it in d/rules
+  * libcjs0f->libcjs0g, missed from gjs 1.70.0-4 rebase
+  * d/control: remove duplicate build-dep
+  * try to merge tests from debian package
+  * d/control: update build-dep min versions
+
+  [ Clement Lefebvre ]
+  * Rename libcj0g -> libcjs0
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 17 Nov 2022 12:04:09 +0000
+
 cjs (5.4.1) vanessa; urgency=medium
 
   [ Michael Webster ]
