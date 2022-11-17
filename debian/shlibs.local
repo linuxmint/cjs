@@ -1,1 +1,1 @@
-libcjs 0 libcjs0g (= ${binary:Version})
+libcjs 0 libcjs0 (= ${binary:Version})
