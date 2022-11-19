@@ -30,8 +30,11 @@ Architecture: any
 Depends: gir1.2-gtk-3.0, ${misc:Depends}, ${shlibs:Depends}
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon's platform
- libraries using the JavaScript language. It's mainly based on the
- Mozilla JavaScript engine and the GObject introspection framework.
+ libraries using the Javascript language. It's mainly based on the
+ Mozilla javascript engine and the GObject introspection framework.
+ .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
  .
  This package contains the interactive console application.
 
@@ -45,7 +48,10 @@ Description: Mozilla-based javascript bindings for the Cinnamon platform
  libraries using the JavaScript language. It's mainly based on the
  Mozilla JavaScript engine and the GObject introspection framework.
  .
- This development package contains unstripped binaries compiled with
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
+ .
+ This debug package contains unstripped binaries compiled with
  debugging symbols needed by gdb.
 
 Package: libcjs-dev
@@ -59,10 +65,13 @@ Depends:
  libgirepository1.0-dev (>= 1.64),
  libmozjs-78-dev (>= 78.2.0),
  ${misc:Depends},
-Description: Mozilla-based javascript bindings for the Cinnamon platform
+Description: Development files for the javascript bindings for Cinnamon
  Makes it possible for applications to use all of Cinnamon's platform
- libraries using the JavaScript language. It's mainly based on the
- Mozilla JavaScript engine and the GObject introspection framework.
+ libraries using the Javascript language. It's mainly based on the
+ Mozilla javascript engine and the GObject introspection framework.
+ .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
  .
  This package contains the development files applications need to
  build against.
@@ -75,9 +84,12 @@ Depends: ${gir:Depends}, ${misc:Depends}, ${shlibs:Depends}
 Conflicts: libcjs0a, libcjs0c, libcjs0e, libcjs0f
 Replaces: libcjs0a, libcjs0c, libcjs0e, libcjs0f
 Provides: ${cjs:Provides}
-Description: Mozilla-based javascript bindings for the Cinnamon platform
+Description: Library of the javascript bindings for the Cinnamon
  Makes it possible for applications to use all of Cinnamon's platform
- libraries using the JavaScript language. It's mainly based on the
- Mozilla JavaScript engine and the GObject introspection framework.
+ libraries using the Javascript language. It's mainly based on the
+ Mozilla javascript engine and the GObject introspection framework.
  .
- This is the shared library applications link to.
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
+ .
+ This package contains the shared library, used by cjs itself, and cinnamon.
