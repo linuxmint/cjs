@@ -6,13 +6,12 @@
 #include <config.h>
 
 #include <cairo.h>
-#include <glib.h>  // for g_assert
 
 #include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>
+#include <jsapi.h>  // for JS_NewObjectWithGivenProto
 
 #include "modules/cairo-private.h"
 
@@ -37,15 +36,14 @@ JSObject* CairoPath::take_c_ptr(JSContext* cx, cairo_path_t* ptr) {
     if (!wrapper)
         return nullptr;
 
-    g_assert(!JS_GetPrivate(wrapper));
-    JS_SetPrivate(wrapper, ptr);
+    CairoPath::init_private(wrapper, ptr);
 
     debug_lifecycle(ptr, wrapper, "take_c_ptr");
 
     return wrapper;
 }
 
-void CairoPath::finalize_impl(JSFreeOp*, cairo_path_t* path) {
+void CairoPath::finalize_impl(JS::GCContext*, cairo_path_t* path) {
     if (!path)
         return;
     cairo_path_destroy(path);

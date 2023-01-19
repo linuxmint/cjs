@@ -5,7 +5,6 @@
 #include <config.h>
 
 #include <girepository.h>
-#include <glib.h>  // for g_atomic_rc_box_acquire, ...
 
 #include <js/CallArgs.h>
 #include <js/Class.h>
@@ -19,6 +18,7 @@
 #include "gi/repo.h"
 #include "gi/union.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "cjs/mem-private.h"
 #include "util/log.h"
 
@@ -29,8 +29,8 @@ UnionPrototype::UnionPrototype(GIUnionInfo* info, GType gtype)
 
 UnionPrototype::~UnionPrototype(void) { GJS_DEC_COUNTER(union_prototype); }
 
-UnionInstance::UnionInstance(JSContext* cx, JS::HandleObject obj)
-    : GIWrapperInstance(cx, obj) {
+UnionInstance::UnionInstance(UnionPrototype* prototype, JS::HandleObject obj)
+    : GIWrapperInstance(prototype, obj) {
     GJS_INC_COUNTER(union_instance);
 }
 
@@ -148,7 +148,7 @@ const struct JSClassOps UnionBase::class_ops = {
 
 const struct JSClass UnionBase::klass = {
     "GObject_Union",
-    JSCLASS_HAS_PRIVATE | JSCLASS_FOREGROUND_FINALIZE,
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_FOREGROUND_FINALIZE,
     &UnionBase::class_ops
 };
 // clang-format on

@@ -15,15 +15,17 @@
 #include <gio/gio.h>
 #include <glib.h>
 
+#include <js/Context.h>
 #include <js/ContextOptions.h>
 #include <js/GCAPI.h>           // for JS_SetGCParameter, JS_AddFin...
 #include <js/Initialization.h>  // for JS_Init, JS_ShutDown
 #include <js/Promise.h>
 #include <js/RootingAPI.h>
+#include <js/Stack.h>  // for JS_SetNativeStackQuota
 #include <js/TypeDecls.h>
 #include <js/Warnings.h>
 #include <js/experimental/SourceHook.h>
-#include <jsapi.h>  // for InitSelfHostedCode, JS_Destr...
+#include <jsapi.h>  // for JS_SetGlobalJitCompilerOption
 #include <mozilla/UniquePtr.h>
 
 #include "cjs/context-private.h"
@@ -31,7 +33,7 @@
 #include "cjs/jsapi-util.h"
 #include "util/log.h"
 
-static void gjs_finalize_callback(JSFreeOp*, JSFinalizeStatus status,
+static void gjs_finalize_callback(JS::GCContext*, JSFinalizeStatus status,
                                   void* data) {
     auto* gjs = static_cast<GjsContextPrivate*>(data);
     gjs->set_finalize_status(status);
@@ -87,10 +89,13 @@ LPVOID    lpvReserved)
 {
   switch (fdwReason)
   {
-  case DLL_PROCESS_ATTACH:
-    gjs_dll = hinstDLL;
-    gjs_is_inited = JS_Init();
-    break;
+      case DLL_PROCESS_ATTACH: {
+          gjs_dll = hinstDLL;
+          const char* reason = JS_InitWithFailureDiagnostic();
+          if (reason)
+              g_error("Could not initialize JavaScript: %s", reason);
+          gjs_is_inited = true;
+      } break;
 
   case DLL_THREAD_DETACH:
     JS_ShutDown ();
@@ -108,8 +113,9 @@ LPVOID    lpvReserved)
 class GjsInit {
 public:
     GjsInit() {
-        if (!JS_Init())
-            g_error("Could not initialize Javascript");
+        const char* reason = JS_InitWithFailureDiagnostic();
+        if (reason)
+            g_error("Could not initialize JavaScript: %s", reason);
     }
 
     ~GjsInit() {
@@ -133,19 +139,12 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
         return nullptr;
     }
 
-    // commented are defaults in moz-24
+    // For additional context on these options, see
+    // https://searchfox.org/mozilla-esr91/rev/c49725508e97c1e2e2bb3bf9ed0ba14b2016abac/js/public/GCAPI.h#53
     JS_SetNativeStackQuota(cx, 1024 * 1024);
     JS_SetGCParameter(cx, JSGC_MAX_BYTES, -1);
-    JS_SetGCParameter(cx, JSGC_MODE, JSGC_MODE_INCREMENTAL);
+    JS_SetGCParameter(cx, JSGC_INCREMENTAL_GC_ENABLED, 1);
     JS_SetGCParameter(cx, JSGC_SLICE_TIME_BUDGET_MS, 10); /* ms */
-    // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_TIME_LIMIT, 1000); /* ms */
-    // JS_SetGCParameter(cx, JSGC_LOW_FREQUENCY_HEAP_GROWTH, 150);
-    // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MIN, 150);
-    // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX, 300);
-    // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_LOW_LIMIT, 100);
-    // JS_SetGCParameter(cx, JSGC_HIGH_FREQUENCY_HIGH_LIMIT, 500);
-    // JS_SetGCParameter(cx, JSGC_ALLOCATION_THRESHOLD, 30);
-    // JS_SetGCParameter(cx, JSGC_DECOMMIT_THRESHOLD, 32);
 
     /* set ourselves as the private data */
     JS_SetContextPrivate(cx, uninitialized_gjs);
@@ -173,8 +172,7 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
     if (enable_jit) {
         gjs_debug(GJS_DEBUG_CONTEXT, "Enabling JIT");
     }
-    JS::ContextOptionsRef(cx)
-        .setAsmJS(enable_jit);
+    JS::ContextOptionsRef(cx).setAsmJS(enable_jit);
 
     uint32_t value = enable_jit ? 1 : 0;
 

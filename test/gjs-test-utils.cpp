@@ -8,9 +8,9 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>
 
 #include "cjs/context.h"
 #include "cjs/jsapi-util.h"

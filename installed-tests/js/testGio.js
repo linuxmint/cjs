@@ -71,6 +71,32 @@ describe('Promisify function', function () {
     it("doesn't crash when finish function is not defined", function () {
         expect(() => Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async', 'commuicate_utf8_finish')).toThrowError(/commuicate_utf8_finish/);
     });
+
+    it('promisifies functions', async function () {
+        Gio._promisify(Gio.File.prototype, 'query_info_async');
+        const file = Gio.File.new_for_path('.');
+
+        const fileInfo = await file.query_info_async(Gio.FILE_ATTRIBUTE_STANDARD_TYPE,
+            Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null);
+        expect(fileInfo.get_file_type()).not.toBe(Gio.FileType.UNKNOWN);
+    });
+
+    it('preserves old behavior', function (done) {
+        Gio._promisify(Gio.File.prototype, 'query_info_async');
+        const file = Gio.File.new_for_path('.');
+
+        file.query_info_async(Gio.FILE_ATTRIBUTE_STANDARD_TYPE,
+            Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null, (_, res) => {
+                const fileInfo = file.query_info_finish(res);
+                expect(fileInfo.get_file_type()).not.toBe(Gio.FileType.UNKNOWN);
+                done();
+            });
+    });
+
+    it('can guess the finish function', function () {
+        expect(() => Gio._promisify(Gio._LocalFilePrototype, 'read_async')).not.toThrow();
+        expect(() => Gio._promisify(Gio.DBus, 'get')).not.toThrow();
+    });
 });
 
 describe('Gio.Settings overrides', function () {
@@ -190,5 +216,207 @@ describe('Gio.Settings overrides', function () {
             const sub = settings.get_child('sub');
             expect(sub.get_uint('marine')).toEqual(10);
         });
+    });
+});
+
+describe('Gio.add_action_entries override', function () {
+    it('registers each entry as an action', function ()  {
+        const app = new Gio.Application();
+
+        const entries = [
+            {
+                name: 'foo',
+                parameter_type: 's',
+            },
+            {
+                name: 'bar',
+                state: 'false',
+            },
+        ];
+
+        app.add_action_entries(entries);
+
+        expect(app.lookup_action('foo').name).toEqual(entries[0].name);
+        expect(app.lookup_action('foo').parameter_type.dup_string()).toEqual(entries[0].parameter_type);
+
+        expect(app.lookup_action('bar').name).toEqual(entries[1].name);
+        expect(app.lookup_action('bar').state.print(true)).toEqual(entries[1].state);
+    });
+
+    it('connects and binds the activate handler', function (done) {
+        const app = new Gio.Application();
+        let action;
+
+        const entries = [
+            {
+                name: 'foo',
+                parameter_type: 's',
+                activate() {
+                    expect(this).toBe(action);
+                    done();
+                },
+            },
+        ];
+
+        app.add_action_entries(entries);
+        action = app.lookup_action('foo');
+
+        action.activate(new GLib.Variant('s', 'hello'));
+    });
+
+    it('connects and binds the change_state handler', function (done) {
+        const app = new Gio.Application();
+        let action;
+
+        const entries = [
+            {
+                name: 'bar',
+                state: 'false',
+                change_state() {
+                    expect(this).toBe(action);
+                    done();
+                },
+            },
+        ];
+
+        app.add_action_entries(entries);
+        action = app.lookup_action('bar');
+
+        action.change_state(new GLib.Variant('b', 'true'));
+    });
+
+    it('throw an error if the parameter_type is invalid', function () {
+        const app = new Gio.Application();
+
+        const entries = [
+            {
+                name: 'foo',
+                parameter_type: '(((',
+            },
+        ];
+
+        expect(() => app.add_action_entries(entries)).toThrow();
+    });
+
+    it('throw an error if the state is invalid', function () {
+        const app = new Gio.Application();
+
+        const entries = [
+            {
+                name: 'bar',
+                state: 'foo',
+            },
+        ];
+
+        expect(() => app.add_action_entries(entries)).toThrow();
+    });
+});
+
+describe('Gio.FileEnumerator overrides', function () {
+    it('iterates synchronously', function () {
+        const dir = Gio.File.new_for_path('.');
+        let count = 0;
+        for (const value of dir.enumerate_children(
+            'standard::name',
+            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+            null
+        )) {
+            expect(value).toBeInstanceOf(Gio.FileInfo);
+            count++;
+        }
+        expect(count).toBeGreaterThan(0);
+    });
+
+    it('iterates asynchronously', async function () {
+        const dir = Gio.File.new_for_path('.');
+        let count = 0;
+        for await (const value of dir.enumerate_children(
+            'standard::name',
+            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+            null
+        )) {
+            expect(value).toBeInstanceOf(Gio.FileInfo);
+            count++;
+        }
+        expect(count).toBeGreaterThan(0);
+    });
+});
+
+describe('Non-introspectable file attribute overrides', function () {
+    let numExpectedWarnings, file, info;
+    const flags = [Gio.FileQueryInfoFlags.NONE, null];
+
+    function expectWarnings(count) {
+        numExpectedWarnings = count;
+        for (let c = 0; c < count; c++) {
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                '*not introspectable*');
+        }
+    }
+
+    function assertWarnings(testName) {
+        for (let c = 0; c < numExpectedWarnings; c++) {
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGio.js', 0,
+                `test Gio.${testName}`);
+        }
+        numExpectedWarnings = 0;
+    }
+
+    beforeEach(function () {
+        numExpectedWarnings = 0;
+        [file] = Gio.File.new_tmp('XXXXXX');
+        info = file.query_info('standard::*', ...flags);
+    });
+
+    it('invalid means unsetting the attribute', function () {
+        expectWarnings(2);
+        expect(() =>
+            file.set_attribute('custom::remove', Gio.FileAttributeType.INVALID, null, ...flags))
+            .toThrowError(/not introspectable/);
+        expect(() => info.set_attribute('custom::remove', Gio.FileAttributeType.INVALID)).not.toThrow();
+        assertWarnings();
+    });
+
+    it('works for boolean', function () {
+        expectWarnings(2);
+        expect(() =>
+            file.set_attribute(Gio.FILE_ATTRIBUTE_STANDARD_IS_HIDDEN, Gio.FileAttributeType.BOOLEAN, false, ...flags))
+            .toThrowError(/not introspectable/);
+        expect(() => info.set_attribute(Gio.FILE_ATTRIBUTE_STANDARD_IS_HIDDEN, Gio.FileAttributeType.BOOLEAN, false))
+            .not.toThrow();
+        assertWarnings();
+    });
+
+    it('works for uint32', function () {
+        expectWarnings(2);
+        expect(() => file.set_attribute(Gio.FILE_ATTRIBUTE_TIME_MODIFIED_USEC, Gio.FileAttributeType.UINT32, 123456, ...flags))
+            .not.toThrow();
+        expect(() => info.set_attribute(Gio.FILE_ATTRIBUTE_TIME_MODIFIED_USEC, Gio.FileAttributeType.UINT32, 654321))
+            .not.toThrow();
+        assertWarnings();
+    });
+
+    it('works for uint64', function () {
+        expectWarnings(2);
+        expect(() => file.set_attribute(Gio.FILE_ATTRIBUTE_TIME_MODIFIED, Gio.FileAttributeType.UINT64, Date.now() / 1000, ...flags))
+            .not.toThrow();
+        expect(() => info.set_attribute(Gio.FILE_ATTRIBUTE_TIME_MODIFIED, Gio.FileAttributeType.UINT64, Date.now() / 1000))
+            .not.toThrow();
+        assertWarnings();
+    });
+
+    it('works for object', function () {
+        expectWarnings(2);
+        const icon = Gio.ThemedIcon.new_from_names(['list-add-symbolic']);
+        expect(() =>
+            file.set_attribute(Gio.FILE_ATTRIBUTE_STANDARD_ICON, Gio.FileAttributeType.OBJECT, icon, ...flags))
+            .toThrowError(/not introspectable/);
+        expect(() => info.set_attribute(Gio.FILE_ATTRIBUTE_STANDARD_ICON, Gio.FileAttributeType.OBJECT, icon))
+            .not.toThrow();
+        assertWarnings();
+    });
+
+    afterEach(function () {
+        file.delete_async(GLib.PRIORITY_DEFAULT, null, (obj, res) => obj.delete_finish(res));
     });
 });

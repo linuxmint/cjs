@@ -27,28 +27,36 @@
 #include <glib.h>
 #include <glib/gprintf.h>  // for g_fprintf
 
+#include <js/CallAndConstruct.h>
 #include <js/CallArgs.h>
+#include <js/CharacterEncoding.h>  // for JS_EncodeStringToUTF8
 #include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
+#include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
 #include <js/SourceText.h>
 #include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
+#include <js/Value.h>
+#include <js/ValueArray.h>
 #include <js/Warnings.h>
-#include <jsapi.h>  // for JS_IsExceptionPending, Exce...
+#include <jsapi.h>  // for JS_NewPlainObject
 
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
+#include "cjs/global.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "modules/console.h"
 
 namespace mozilla {
 union Utf8Unit;
 }
 
-static void gjs_console_warning_reporter(JSContext* cx, JSErrorReport* report) {
-    JS::PrintError(cx, stderr, report, /* reportWarnings = */ true);
+static void gjs_console_warning_reporter(JSContext*, JSErrorReport* report) {
+    JS::PrintError(stderr, report, /* reportWarnings = */ true);
 }
 
 /* Based on js::shell::AutoReportException from SpiderMonkey. */
@@ -75,7 +83,7 @@ public:
 
         g_assert(!report.report()->isWarning());
 
-        JS::PrintError(m_cx, stderr, report, /* reportWarnings = */ false);
+        JS::PrintError(stderr, report, /* reportWarnings = */ false);
 
         if (exnStack.stack()) {
             GjsAutoChar stack_str =
@@ -146,11 +154,26 @@ sigjmp_buf AutoCatchCtrlC::jump_buffer;
     return true;
 }
 
+std::string print_string_value(JSContext* cx, JS::HandleValue v_string) {
+    if (!v_string.isString())
+        return "[unexpected result from printing value]";
+
+    JS::RootedString printed_string(cx, v_string.toString());
+    JS::AutoSaveExceptionState exc_state(cx);
+    JS::UniqueChars chars(JS_EncodeStringToUTF8(cx, printed_string));
+    exc_state.restore();
+    if (!chars)
+        return "[error printing value]";
+
+    return chars.get();
+}
+
 /* Return value of false indicates an uncatchable exception, rather than any
  * exception. (This is because the exception should be auto-printed around the
  * invocation of this function.)
  */
 [[nodiscard]] static bool gjs_console_eval_and_print(JSContext* cx,
+                                                     JS::HandleObject global,
                                                      const std::string& bytes,
                                                      int lineno) {
     JS::SourceText<mozilla::Utf8Unit> source;
@@ -173,7 +196,23 @@ sigjmp_buf AutoCatchCtrlC::jump_buffer;
     if (result.isUndefined())
         return true;
 
-    g_fprintf(stdout, "%s\n", gjs_value_debug_string(cx, result).c_str());
+    JS::AutoSaveExceptionState exc_state(cx);
+    JS::RootedValue v_printed_string(cx);
+    JS::RootedValue v_pretty_print(
+        cx, gjs_get_global_slot(global, GjsGlobalSlot::PRETTY_PRINT_FUNC));
+    bool ok = JS::Call(cx, global, v_pretty_print, JS::HandleValueArray(result),
+                       &v_printed_string);
+    if (!ok)
+        gjs_log_exception(cx);
+    exc_state.restore();
+
+    if (ok) {
+        g_fprintf(stdout, "%s\n",
+                  print_string_value(cx, v_printed_string).c_str());
+    } else {
+        g_fprintf(stdout, "[error printing value]\n");
+    }
+
     return true;
 }
 
@@ -251,7 +290,7 @@ gjs_console_interact(JSContext *context,
         bool ok;
         {
             AutoReportException are(context);
-            ok = gjs_console_eval_and_print(context, buffer, startline);
+            ok = gjs_console_eval_and_print(context, global, buffer, startline);
         }
         exit_warning = false;
 
@@ -261,7 +300,7 @@ gjs_console_interact(JSContext *context,
         if (!ok) {
             /* If this was an uncatchable exception, throw another uncatchable
              * exception on up to the surrounding JS::Evaluate() in main(). This
-             * happens when you run cjs-console and type imports.system.exit(0);
+             * happens when you run gjs-console and type imports.system.exit(0);
              * at the prompt. If we don't throw another uncatchable exception
              * here, then it's swallowed and main() won't exit. */
             return false;

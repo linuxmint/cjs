@@ -37,7 +37,7 @@ You can also skip this step if you are not writing any C++ code.)
 ## Dependencies
 
 GJS requires five other libraries to be installed: GLib, libffi,
-gobject-introspection, SpiderMonkey (also called "mozjs78" on some
+gobject-introspection, SpiderMonkey (also called "mozjs102" on some
 systems.) and the build tool Meson.
 The readline library is not required, but strongly recommended.
 We recommend installing your system's development packages for GLib,
@@ -66,18 +66,19 @@ will help catch mistakes in the API that could otherwise go unnoticed
 and cause crashes in gnome-shell later on.
 
 If you aren't writing any C++ code, and your system provides it (for
-example, Fedora 33 or Ubuntu 20.10 and later versions), then you don't
+example, Fedora 36 or Ubuntu 22.04 and later versions), then you don't
 need to build it yourself.
 Install SpiderMonkey using your system's package manager instead:
 
-<details>
+<!--Ubuntu does not currently ship a build of libmozjs-102-->
+<!-- <details>
     <summary>Ubuntu</summary>
-    <code>sudo apt-get install libmozjs-78-dev</code>
-</details>
+    <code>sudo apt-get install libmozjs-102-dev</code>
+</details> -->
 
 <details>
     <summary>Fedora</summary>
-    <code>sudo dnf install mozjs78-devel</code>
+    <code>sudo dnf install mozjs102-devel</code>
 </details>
 
 If you _are_ writing C++ code, then please build SpiderMonkey yourself
@@ -85,7 +86,7 @@ with the debugging features enabled.
 This can save you time later when you submit your merge request, because
 the code will be checked using the debugging features.
 
-To build SpiderMonkey, follow the instructions on [this page](https://github.com/mozilla-spidermonkey/spidermonkey-embedding-examples/blob/esr78/docs/Building%20SpiderMonkey.md) to download the source code and build the library.
+To build SpiderMonkey, follow the instructions on [this page](https://github.com/mozilla-spidermonkey/spidermonkey-embedding-examples/blob/esr102/docs/Building%20SpiderMonkey.md) to download the source code and build the library.
 If you are using `-Dprefix` to build GJS into a different path, then
 make sure to use the same build prefix for SpiderMonkey with `--prefix`.
 
@@ -103,7 +104,7 @@ For a list of available options, run `meson configure`.
 That's it! You can now run your build of gjs for testing and hacking with
 
 ```sh
-LD_LIBRARY_PATH=_build GI_TYPELIB_PATH=_build GJS_USE_UNINSTALLED_FILES=1 ./_build/cjs-console script.js
+LD_LIBRARY_PATH=_build GI_TYPELIB_PATH=_build GJS_USE_UNINSTALLED_FILES=1 ./_build/gjs-console script.js
 ```
 
 To install GJS into the path you chose with `-Dprefix`, (or into
@@ -151,7 +152,7 @@ more likely to show up.
 
 To see which GC zeal options are available:
 ```sh
-JS_GC_ZEAL=-1 js78
+JS_GC_ZEAL=-1 js102
 ```
 
 We include three test setups, `extra_gc`, `pre_verify`, and
@@ -215,7 +216,7 @@ This will build GJS into a separate build directory with code coverage
 instrumentation enabled, run the test suite to collect the coverage
 data, and open the generated HTML report.
 
-[embedder](https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr78/docs/Building%20SpiderMonkey.md)
+[embedder](https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr102/docs/Building%20SpiderMonkey.md)
 
 ## Troubleshooting
 

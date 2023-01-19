@@ -16,14 +16,13 @@
 #include <js/CharacterEncoding.h>
 #include <js/Conversions.h>
 #include <js/RootingAPI.h>
+#include <js/Stack.h>  // for CaptureCurrentStack, MaxFrames
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
-#include <jsapi.h>        // for MaxFrames, CaptureCurrentStack
-#include <jsfriendapi.h>  // for FormatStackDump
+#include <js/friend/DumpFunctions.h>
 
 #include "cjs/deprecation.h"
-#include "cjs/jsapi-util.h"  // IWYU pragma: keep
 #include "cjs/macros.h"
 
 const char* messages[] = {
@@ -35,8 +34,7 @@ const char* messages[] = {
     "this would have interpreted the bytes of the array as a string, but that "
     "is nonstandard. In the future this will return the bytes as "
     "comma-separated digits. For the time being, the old behavior has been "
-    "preserved, but please fix your code anyway to explicitly call ByteArray"
-    ".toString(array).\n"
+    "preserved, but please fix your code anyway to use TextDecoder.\n"
     "(Note that array.toString() may have been called implicitly.)",
 
     // DeprecatedGObjectProperty:

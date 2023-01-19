@@ -9,13 +9,12 @@
 
 #include <js/Id.h>
 #include <js/RootingAPI.h>
+#include <js/String.h>
 #include <js/Symbol.h>
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>  // for JS_AtomizeAndPinString
 
 #include "cjs/atoms.h"
-#include "cjs/jsapi-util.h"  // IWYU pragma: keep
 
 bool GjsAtom::init(JSContext* cx, const char* str) {
     JSString* s = JS_AtomizeAndPinString(cx, str);
@@ -32,7 +31,7 @@ bool GjsSymbolAtom::init(JSContext* cx, const char* str) {
     JS::Symbol* symbol = JS::NewSymbol(cx, descr);
     if (!symbol)
         return false;
-    m_jsid = JS::Heap<jsid>{SYMBOL_TO_JSID(symbol)};
+    m_jsid = JS::Heap<jsid>{JS::PropertyKey::Symbol(symbol)};
     return true;
 }
 

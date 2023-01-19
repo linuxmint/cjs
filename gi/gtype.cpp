@@ -12,11 +12,12 @@
 #include <js/CallArgs.h>
 #include <js/Class.h>
 #include <js/GCHashTable.h>         // for WeakCache
+#include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_PERMANENT
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>  // for JS_GetPropertyById, JS_AtomizeString
+#include <jsapi.h>  // for JS_NewObjectWithGivenProto
 #include <mozilla/HashTable.h>
 
 #include "gi/cwrapper.h"
@@ -25,6 +26,7 @@
 #include "cjs/context-private.h"
 #include "cjs/global.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "util/log.h"
 
 /*
@@ -46,7 +48,7 @@ class GTypeObj : public CWrapper<GTypeObj, void> {
 
     // No private data is allocated, it's stuffed directly in the private field
     // of JSObject, so nothing to free
-    static void finalize_impl(JSFreeOp*, void*) {}
+    static void finalize_impl(JS::GCContext*, void*) {}
 
     // Properties
 
@@ -96,7 +98,8 @@ class GTypeObj : public CWrapper<GTypeObj, void> {
         js::ClassSpec::DontDefineConstructor};
 
     static constexpr JSClass klass = {
-        "GIRepositoryGType", JSCLASS_HAS_PRIVATE | JSCLASS_FOREGROUND_FINALIZE,
+        "GIRepositoryGType",
+        JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_FOREGROUND_FINALIZE,
         &GTypeObj::class_ops, &GTypeObj::class_spec};
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -170,7 +173,7 @@ class GTypeObj : public CWrapper<GTypeObj, void> {
         if (!gtype_wrapper)
             return nullptr;
 
-        JS_SetPrivate(gtype_wrapper, GSIZE_TO_POINTER(gtype));
+        GTypeObj::init_private(gtype_wrapper, GSIZE_TO_POINTER(gtype));
 
         gjs->gtype_table().put(gtype, gtype_wrapper);
 

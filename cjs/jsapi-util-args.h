@@ -17,10 +17,10 @@
 
 #include <js/CallArgs.h>
 #include <js/Conversions.h>
+#include <js/Exception.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
-#include <jsapi.h>  // for JS_ClearPendingException
 
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"

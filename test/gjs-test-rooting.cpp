@@ -3,18 +3,22 @@
 
 #include <config.h>
 
+#include <stddef.h>  // for size_t
+
 #include <glib.h>
 
 #include <js/Class.h>
 #include <js/GCAPI.h>  // for JS_GC, JS_SetGCCallback, JSGCStatus
-#include <js/RootingAPI.h>
+#include <js/Object.h>
 #include <js/TypeDecls.h>
 #include <js/Value.h>
-#include <jsapi.h>  // for JS_GetPrivate, JS_NewObject, JS_Set...
+#include <jsapi.h>  // for JS_NewObject
 
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util-root.h"
 #include "test/gjs-test-utils.h"
+
+class JSTracer;
 
 // COMPAT: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1553
 #ifdef __clang_analyzer__
@@ -26,6 +30,9 @@ static GMutex gc_lock;
 static GCond gc_finished;
 static int gc_counter;
 
+// TestObj reserved slots
+static const size_t POINTER = 0;
+
 #define PARENT(fx) ((GjsUnitTestFixture *)fx)
 struct GjsRootingFixture {
     GjsUnitTestFixture parent;
@@ -36,8 +43,8 @@ struct GjsRootingFixture {
     GjsMaybeOwned<JSObject *> *obj;  /* only used in callback test cases */
 };
 
-static void test_obj_finalize(JSFreeOp*, JSObject* obj) {
-    bool *finalized_p = static_cast<bool *>(JS_GetPrivate(obj));
+static void test_obj_finalize(JS::GCContext*, JSObject* obj) {
+    bool* finalized_p = JS::GetMaybePtrFromReservedSlot<bool>(obj, POINTER);
     g_assert_false(*finalized_p);
     *finalized_p = true;
 }
@@ -52,16 +59,14 @@ static const JSClassOps test_obj_class_ops = {
     test_obj_finalize};
 
 static JSClass test_obj_class = {
-    "TestObj",
-    JSCLASS_HAS_PRIVATE | JSCLASS_FOREGROUND_FINALIZE,
-    &test_obj_class_ops
-};
+    "TestObj", JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_FOREGROUND_FINALIZE,
+    &test_obj_class_ops};
 
 static JSObject *
 test_obj_new(GjsRootingFixture *fx)
 {
     JSObject *retval = JS_NewObject(PARENT(fx)->cx, &test_obj_class);
-    JS_SetPrivate(retval, &fx->finalized);
+    JS::SetReservedSlot(retval, POINTER, JS::PrivateValue(&fx->finalized));
     return retval;
 }
 
@@ -144,10 +149,10 @@ static void test_maybe_owned_rooted_is_collected_after_reset(
     delete obj;
 }
 
-static void update_weak_pointer(JSContext*, JS::Compartment*, void* data) {
+static void update_weak_pointer(JSTracer* trc, JS::Compartment*, void* data) {
     auto* obj = static_cast<GjsMaybeOwned<JSObject*>*>(data);
     if (*obj)
-        obj->update_after_gc();
+        obj->update_after_gc(trc);
 }
 
 static void test_maybe_owned_weak_pointer_is_collected_by_gc(

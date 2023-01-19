@@ -10,12 +10,16 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/CallAndConstruct.h>
+#include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
+#include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Value.h>
 #include <js/ValueArray.h>
-#include <jsapi.h>  // for JS_New, JSAutoRealm, JS_GetProperty
+#include <jsapi.h>  // for JS_NewPlainObject
+#include <mozilla/Maybe.h>
 
 #include "gi/gobject.h"
 #include "gi/object.h"
@@ -60,30 +64,57 @@ static bool jsobj_set_gproperty(JSContext* cx, JS::HandleObject object,
         GjsAutoChar camel_name = gjs_hyphen_to_camel(pspec->name);
 
         if (g_param_spec_get_qdata(pspec, ObjectBase::custom_property_quark())) {
-            JS::Rooted<JS::PropertyDescriptor> jsprop(cx);
+            JS::Rooted<mozilla::Maybe<JS::PropertyDescriptor>> jsprop(cx);
+            JS::RootedObject holder(cx);
+            JS::RootedObject getter(cx);
 
             // Ensure to call any associated setter method
             if (!g_str_equal(underscore_name.get(), pspec->name)) {
-                if (!JS_GetPropertyDescriptor(cx, object, underscore_name, &jsprop))
+                if (!JS_GetPropertyDescriptor(cx, object, underscore_name,
+                                              &jsprop, &holder)) {
                     return false;
-                if (jsprop.setter() &&
-                    !JS_SetProperty(cx, object, underscore_name, jsvalue))
+                }
+
+                if (jsprop.isSome() && jsprop->setter() &&
+                    !JS_SetProperty(cx, object, underscore_name, jsvalue)) {
                     return false;
+                }
+                if (jsprop.isSome() && jsprop->getter())
+                    getter.set(jsprop->getter());
             }
 
             if (!g_str_equal(camel_name.get(), pspec->name)) {
-                if (!JS_GetPropertyDescriptor(cx, object, camel_name, &jsprop))
+                if (!JS_GetPropertyDescriptor(cx, object, camel_name, &jsprop,
+                                              &holder)) {
                     return false;
-                if (jsprop.setter() &&
-                    !JS_SetProperty(cx, object, camel_name, jsvalue))
+                }
+
+                if (jsprop.isSome() && jsprop.value().setter() &&
+                    !JS_SetProperty(cx, object, camel_name, jsvalue)) {
                     return false;
+                }
+                if (!getter && jsprop.isSome() && jsprop->getter())
+                    getter.set(jsprop->getter());
             }
 
-            if (!JS_GetPropertyDescriptor(cx, object, pspec->name, &jsprop))
+            if (!JS_GetPropertyDescriptor(cx, object, pspec->name, &jsprop,
+                                          &holder))
                 return false;
-            if (jsprop.setter() &&
+            if (jsprop.isSome() && jsprop.value().setter() &&
                 !JS_SetProperty(cx, object, pspec->name, jsvalue))
                 return false;
+            if (!getter && jsprop.isSome() && jsprop->getter())
+                getter.set(jsprop->getter());
+
+            // If a getter is found, redefine the property with that getter
+            // and no setter.
+            if (getter)
+                return JS_DefineProperty(cx, object, underscore_name, getter,
+                                         nullptr, GJS_MODULE_PROP_FLAGS) &&
+                       JS_DefineProperty(cx, object, camel_name, getter,
+                                         nullptr, GJS_MODULE_PROP_FLAGS) &&
+                       JS_DefineProperty(cx, object, pspec->name, getter,
+                                         nullptr, GJS_MODULE_PROP_FLAGS);
         }
 
         return JS_DefineProperty(cx, object, underscore_name, jsvalue, flags) &&
@@ -137,7 +168,8 @@ static GObject* gjs_object_constructor(
     if (!constructor)
         return nullptr;
 
-    JSObject* object;
+    JS::RootedValue v_constructor(cx, JS::ObjectValue(*constructor));
+    JS::RootedObject object(cx);
     if (n_construct_properties) {
         JS::RootedObject props_hash(cx, JS_NewPlainObject(cx));
 
@@ -149,13 +181,13 @@ static GObject* gjs_object_constructor(
 
         JS::RootedValueArray<1> args(cx);
         args[0].set(JS::ObjectValue(*props_hash));
-        object = JS_New(cx, constructor, args);
-    } else {
-        object = JS_New(cx, constructor, JS::HandleValueArray::empty());
-    }
 
-    if (!object)
+        if (!JS::Construct(cx, v_constructor, args, &object))
+            return nullptr;
+    } else if (!JS::Construct(cx, v_constructor, JS::HandleValueArray::empty(),
+                              &object)) {
         return nullptr;
+    }
 
     auto* priv = ObjectBase::for_js_nocheck(object);
     /* Should have been set in init_impl() and pushed into object_init_list,

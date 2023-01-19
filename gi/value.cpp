@@ -13,16 +13,20 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/BigInt.h>
 #include <js/CharacterEncoding.h>
 #include <js/Conversions.h>
+#include <js/Exception.h>
 #include <js/GCVector.h>  // for RootedVector
+#include <js/PropertyAndElement.h>
+#include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
 #include <js/ValueArray.h>
-#include <jsapi.h>  // for InformalValueTypeName, JS_ClearPendingException
-#include <jsfriendapi.h>
+#include <js/experimental/TypedData.h>
+#include <jsapi.h>  // for InformalValueTypeName, JS_Get...
 
 #include "gi/arg-inl.h"
 #include "gi/arg.h"
@@ -43,6 +47,7 @@
 #include "cjs/context-private.h"
 #include "cjs/context.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "cjs/objectbox.h"
 #include "util/log.h"
 
@@ -319,6 +324,17 @@ static bool gjs_value_guess_g_type(JSContext* context, JS::Value value,
         *gtype_out = G_TYPE_BOOLEAN;
         return true;
     }
+    if (value.isBigInt()) {
+        // Assume that if the value is negative or within the int64_t limit,
+        // then we're handling a signed integer, otherwise unsigned.
+        int64_t ignored;
+        if (JS::BigIntIsNegative(value.toBigInt()) ||
+            JS::BigIntFits(value.toBigInt(), &ignored))
+            *gtype_out = G_TYPE_INT64;
+        else
+            *gtype_out = G_TYPE_UINT64;
+        return true;
+    }
     if (value.isObject()) {
         JS::RootedObject obj(context, &value.toObject());
         return gjs_gtype_get_actual_gtype(context, obj, gtype_out);
@@ -359,6 +375,47 @@ gjs_value_to_g_value_internal(JSContext      *context,
     bool out_of_range = false;
 
     gtype = G_VALUE_TYPE(gvalue);
+
+    if (value.isObject()) {
+        JS::RootedObject obj(context, &value.toObject());
+        GType boxed_gtype;
+
+        if (!gjs_gtype_get_actual_gtype(context, obj, &boxed_gtype))
+            return false;
+
+        // Don't unbox GValue if the GValue's gtype is GObject.Value
+        if (g_type_is_a(boxed_gtype, G_TYPE_VALUE) && gtype != G_TYPE_VALUE) {
+            if (no_copy) {
+                gjs_throw(
+                    context,
+                    "Cannot convert GObject.Value object without copying.");
+                return false;
+            }
+
+            GValue* source = BoxedBase::to_c_ptr<GValue>(context, obj);
+            // Only initialize the value if it doesn't have a type
+            // and our source GValue has been initialized
+            GType source_gtype = G_VALUE_TYPE(source);
+            if (gtype == 0) {
+                if (source_gtype == 0) {
+                    gjs_throw(context,
+                              "GObject.Value is not initialized with a type");
+                    return false;
+                }
+                g_value_init(gvalue, source_gtype);
+            }
+
+            GType dest_gtype = G_VALUE_TYPE(gvalue);
+            if (!g_value_type_compatible(source_gtype, dest_gtype)) {
+                gjs_throw(context, "GObject.Value expected GType %s, found %s",
+                          g_type_name(dest_gtype), g_type_name(source_gtype));
+                return false;
+            }
+
+            g_value_copy(source, gvalue);
+            return true;
+        }
+    }
 
     if (gtype == 0) {
         if (!gjs_value_guess_g_type(context, value, &gtype))
@@ -424,11 +481,14 @@ gjs_value_to_g_value_internal(JSContext      *context,
             return throw_expect_type(context, value, "integer");
         }
     } else if (gtype == G_TYPE_INT64) {
-        gint64 i;
-        if (Gjs::js_value_to_c(context, value, &i)) {
+        int64_t i;
+        if (Gjs::js_value_to_c_checked<int64_t>(context, value, &i,
+                                                &out_of_range) &&
+            !out_of_range) {
             g_value_set_int64(gvalue, i);
         } else {
-            return throw_expect_type(context, value, "64-bit integer");
+            return throw_expect_type(context, value, "64-bit integer", 0,
+                                     out_of_range);
         }
     } else if (gtype == G_TYPE_DOUBLE) {
         gdouble d;
@@ -454,11 +514,14 @@ gjs_value_to_g_value_internal(JSContext      *context,
             return throw_expect_type(context, value, "unsigned integer");
         }
     } else if (gtype == G_TYPE_UINT64) {
-        guint64 i;
-        if (Gjs::js_value_to_c(context, value, &i)) {
+        uint64_t i;
+        if (Gjs::js_value_to_c_checked<uint64_t>(context, value, &i,
+                                                 &out_of_range) &&
+            !out_of_range) {
             g_value_set_uint64(gvalue, i);
         } else {
-            return throw_expect_type(context, value, "unsigned 64-bit integer");
+            return throw_expect_type(context, value, "unsigned 64-bit integer",
+                                     0, out_of_range);
         }
     } else if (gtype == G_TYPE_BOOLEAN) {
         /* JS::ToBoolean() can't fail */
@@ -490,9 +553,10 @@ gjs_value_to_g_value_internal(JSContext      *context,
 
             const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
             JS::RootedObject array_obj(context, &value.toObject());
-            if (JS_HasPropertyById(context, array_obj, atoms.length(),
-                                   &found_length) &&
-                found_length) {
+            if (!JS_HasPropertyById(context, array_obj, atoms.length(),
+                                    &found_length))
+                return false;
+            if (found_length) {
                 guint32 length;
 
                 if (!gjs_object_require_converted_property(

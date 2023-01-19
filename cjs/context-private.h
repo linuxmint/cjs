@@ -7,8 +7,8 @@
 
 #include <config.h>
 
+#include <stddef.h>  // for size_t
 #include <stdint.h>
-#include <sys/types.h>  // for ssize_t
 
 #include <atomic>
 #include <string>
@@ -17,9 +17,12 @@
 #include <utility>  // for pair
 #include <vector>
 
+#include <gio/gio.h>
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/AllocPolicy.h>
+#include <js/Context.h>
 #include <js/GCAPI.h>
 #include <js/GCHashTable.h>
 #include <js/GCVector.h>
@@ -29,18 +32,17 @@
 #include <js/TypeDecls.h>
 #include <js/UniquePtr.h>
 #include <js/ValueArray.h>
-#include <jsapi.h>        // for JS_GetContextPrivate
 #include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
+#include <mozilla/Vector.h>
 
 #include "gi/closure.h"
 #include "cjs/context.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
+#include "cjs/mainloop.h"
 #include "cjs/profiler.h"
+#include "cjs/promise.h"
 
-namespace js {
-class SystemAllocPolicy;
-}
 class GjsAtoms;
 class JSTracer;
 
@@ -78,7 +80,8 @@ class GjsContextPrivate : public JS::JobQueue {
     std::vector<std::string> m_args;
 
     JobQueueStorage m_job_queue;
-    unsigned m_idle_drain_handler;
+    Gjs::PromiseJobDispatcher m_dispatcher;
+    Gjs::MainLoop m_main_loop;
 
     std::vector<std::pair<DestroyNotify, void*>> m_destroy_notifications;
     std::vector<Gjs::Closure::Ptr> m_async_closures;
@@ -118,6 +121,7 @@ class GjsContextPrivate : public JS::JobQueue {
     bool m_draining_job_queue : 1;
     bool m_should_profile : 1;
     bool m_exec_as_module : 1;
+    bool m_unhandled_exception : 1;
     bool m_should_listen_sigusr2 : 1;
 
     // If profiling is enabled, we record the durations and reason for GC mark
@@ -134,10 +138,11 @@ class GjsContextPrivate : public JS::JobQueue {
     class SavedQueue;
     void start_draining_job_queue(void);
     void stop_draining_job_queue(void);
-    static gboolean drain_job_queue_idle_handler(void* data);
 
-    uint8_t handle_exit_code(const char* type, const char* identifier,
-                             GError** error);
+    [[nodiscard]] bool handle_exit_code(bool no_sync_error_pending,
+                                        const char* source_type,
+                                        const char* identifier,
+                                        uint8_t* exit_code, GError** error);
     [[nodiscard]] bool auto_profile_enter(void);
     void auto_profile_exit(bool status);
 
@@ -175,6 +180,8 @@ class GjsContextPrivate : public JS::JobQueue {
     [[nodiscard]] JSObject* internal_global() const {
         return m_internal_global.get();
     }
+    void main_loop_hold() { m_main_loop.hold(); }
+    void main_loop_release() { m_main_loop.release(); }
     [[nodiscard]] GjsProfiler* profiler() const { return m_profiler; }
     [[nodiscard]] const GjsAtoms& atoms() const { return *m_atoms; }
     [[nodiscard]] bool destroying() const { return m_destroying.load(); }
@@ -207,12 +214,12 @@ class GjsContextPrivate : public JS::JobQueue {
         return *(from_cx(cx)->m_atoms);
     }
 
-    [[nodiscard]] bool eval(const char* script, ssize_t script_len,
+    [[nodiscard]] bool eval(const char* script, size_t script_len,
                             const char* filename, int* exit_status_p,
                             GError** error);
     GJS_JSAPI_RETURN_CONVENTION
     bool eval_with_scope(JS::HandleObject scope_object, const char* script,
-                         ssize_t script_len, const char* filename,
+                         size_t script_len, const char* filename,
                          JS::MutableHandleValue retval);
     [[nodiscard]] bool eval_module(const char* identifier, uint8_t* exit_code_p,
                                    GError** error);
@@ -224,6 +231,7 @@ class GjsContextPrivate : public JS::JobQueue {
     void schedule_gc(void) { schedule_gc_internal(true); }
     void schedule_gc_if_needed(void);
 
+    void report_unhandled_exception() { m_unhandled_exception = true; }
     void exit(uint8_t exit_code);
     [[nodiscard]] bool should_exit(uint8_t* exit_code_p) const;
 
@@ -236,11 +244,13 @@ class GjsContextPrivate : public JS::JobQueue {
                            JS::HandleObject allocation_site,
                            JS::HandleObject incumbent_global) override;
     void runJobs(JSContext* cx) override;
+    void runJobs(JSContext* cx, GCancellable* cancellable);
     [[nodiscard]] bool empty() const override { return m_job_queue.empty(); }
     js::UniquePtr<JS::JobQueue::SavedJobQueue> saveJobQueue(
         JSContext* cx) override;
 
-    GJS_JSAPI_RETURN_CONVENTION bool run_jobs_fallible(void);
+    GJS_JSAPI_RETURN_CONVENTION bool run_jobs_fallible(
+        GCancellable* cancellable = nullptr);
     void register_unhandled_promise_rejection(uint64_t id, GjsAutoChar&& stack);
     void unregister_unhandled_promise_rejection(uint64_t id);
     void warn_about_unhandled_promise_rejections();

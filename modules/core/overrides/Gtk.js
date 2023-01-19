@@ -4,6 +4,7 @@
 
 const Legacy = imports._legacy;
 const {Gio, CjsPrivate, GObject} = imports.gi;
+const {_registerType} = imports._common;
 
 let Gtk;
 let BuilderScope;
@@ -22,6 +23,13 @@ function _init() {
     if (Gtk.Container && Gtk.Container.prototype.child_set_property) {
         Gtk.Container.prototype.child_set_property = function (child, property, value) {
             CjsPrivate.gtk_container_child_set_property(this, child, property, value);
+        };
+    }
+
+    if (Gtk.CustomSorter) {
+        Gtk.CustomSorter.new = CjsPrivate.gtk_custom_sorter_new;
+        Gtk.CustomSorter.prototype.set_sort_func = function (sortFunc) {
+            CjsPrivate.gtk_custom_sorter_set_sort_func(this, sortFunc);
         };
     }
 
@@ -64,6 +72,12 @@ function _init() {
     };
 
     Gtk.Widget._classInit = function (klass) {
+        return GObject.Object._classInit(klass);
+    };
+
+    function registerWidgetType() {
+        let klass = this;
+
         let template = klass[Gtk.template];
         let cssName = klass[Gtk.cssName];
         let children = klass[Gtk.children];
@@ -75,7 +89,7 @@ function _init() {
             };
         }
 
-        klass = GObject.Object._classInit(klass);
+        GObject.Object[_registerType].call(klass);
 
         if (cssName)
             Gtk.Widget.set_css_name.call(klass, cssName);
@@ -107,9 +121,14 @@ function _init() {
             internalChildren.forEach(child =>
                 Gtk.Widget.bind_template_child_full.call(klass, child, true, 0));
         }
+    }
 
-        return klass;
-    };
+    Object.defineProperty(Gtk.Widget, _registerType, {
+        value: registerWidgetType,
+        writable: false,
+        configurable: false,
+        enumerable: false,
+    });
 
     if (Gtk.Widget.prototype.get_first_child) {
         Gtk.Widget.prototype[Symbol.iterator] = function* () {

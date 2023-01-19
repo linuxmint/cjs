@@ -4,7 +4,6 @@
 
 #include <config.h>
 
-#include <ctype.h>  // for toupper
 #include <stdint.h>
 #include <string.h>     // for size_t, strlen
 #include <sys/types.h>  // for ssize_t
@@ -19,17 +18,21 @@
 #include <js/BigInt.h>
 #include <js/CharacterEncoding.h>
 #include <js/Class.h>
+#include <js/ErrorReport.h>
 #include <js/GCAPI.h>  // for AutoCheckCannotGC
-#include <js/Id.h>     // for JSID_IS_STRING...
+#include <js/Id.h>
+#include <js/Object.h>  // for GetClass
 #include <js/Promise.h>
 #include <js/RootingAPI.h>
+#include <js/String.h>
 #include <js/Symbol.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
-#include <jsapi.h>        // for JSID_TO_FLAT_STRING, JS_GetTwoByte...
-#include <jsfriendapi.h>  // for FlatStringToLinearString, GetLatin...
+#include <jsapi.h>        // for JS_GetFunctionDisplayId
+#include <jsfriendapi.h>  // for IdToValue, IsFunctionObject, ...
 #include <mozilla/CheckedInt.h>
+#include <mozilla/Span.h>
 
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -56,7 +59,7 @@ GjsAutoChar gjs_hyphen_to_camel(const char* str) {
         if (*input_iter == '-') {
             uppercase_next = true;
         } else if (uppercase_next) {
-            *output_iter++ = toupper(*input_iter);
+            *output_iter++ = g_ascii_toupper(*input_iter);
             uppercase_next = false;
         } else {
             *output_iter++ = *input_iter;
@@ -290,7 +293,7 @@ gjs_string_get_char16_data(JSContext       *context,
                            char16_t       **data_p,
                            size_t          *len_p)
 {
-    if (JS_StringHasLatin1Chars(str))
+    if (JS::StringHasLatin1Chars(str))
         return from_latin1(context, str, data_p, len_p);
 
     /* From this point on, crash if a GC is triggered while we are using
@@ -336,7 +339,7 @@ gjs_string_to_ucs4(JSContext       *cx,
     size_t len;
     GError *error = NULL;
 
-    if (JS_StringHasLatin1Chars(str))
+    if (JS::StringHasLatin1Chars(str))
         return from_latin1(cx, str, ucs4_string_p, len_p);
 
     /* From this point on, crash if a GC is triggered while we are using
@@ -430,12 +433,12 @@ gjs_string_from_ucs4(JSContext             *cx,
  * Returns: false on error, otherwise true
  **/
 bool gjs_get_string_id(JSContext* cx, jsid id, JS::UniqueChars* name_p) {
-    if (!JSID_IS_STRING(id)) {
+    if (!id.isString()) {
         name_p->reset();
         return true;
     }
 
-    JSLinearString* lstr = JSID_TO_LINEAR_STRING(id);
+    JSLinearString* lstr = id.toLinearString();
     JS::RootedString s(cx, JS_FORGET_STRING_LINEARNESS(lstr));
     *name_p = JS_EncodeStringToUTF8(cx, s);
     return !!*name_p;
@@ -472,8 +475,20 @@ gjs_intern_string_to_id(JSContext  *cx,
 {
     JS::RootedString str(cx, JS_AtomizeAndPinString(cx, string));
     if (!str)
-        return JSID_VOID;
+        return JS::PropertyKey::Void();
     return JS::PropertyKey::fromPinnedString(str);
+}
+
+std::string gjs_debug_bigint(JS::BigInt* bi) {
+    // technically this prints the value % INT64_MAX, cast into an int64_t if
+    // the value is negative, otherwise cast into uint64_t
+    std::ostringstream out;
+    if (JS::BigIntIsNegative(bi))
+        out << JS::ToBigInt64(bi);
+    else
+        out << JS::ToBigUint64(bi);
+    out << "n (modulo 2^64)";
+    return out.str();
 }
 
 enum Quotes {
@@ -483,22 +498,22 @@ enum Quotes {
 
 [[nodiscard]] static std::string gjs_debug_linear_string(JSLinearString* str,
                                                          Quotes quotes) {
-    size_t len = js::GetLinearStringLength(str);
+    size_t len = JS::GetLinearStringLength(str);
 
     std::ostringstream out;
     if (quotes == DoubleQuotes)
         out << '"';
 
     JS::AutoCheckCannotGC nogc;
-    if (js::LinearStringHasLatin1Chars(str)) {
-        const JS::Latin1Char *chars = js::GetLatin1LinearStringChars(nogc, str);
+    if (JS::LinearStringHasLatin1Chars(str)) {
+        const JS::Latin1Char* chars = JS::GetLatin1LinearStringChars(nogc, str);
         out << std::string(reinterpret_cast<const char*>(chars), len);
         if (quotes == DoubleQuotes)
             out << '"';
         return out.str();
     }
 
-    const char16_t *chars = js::GetTwoByteLinearStringChars(nogc, str);
+    const char16_t* chars = JS::GetTwoByteLinearStringChars(nogc, str);
     for (size_t ix = 0; ix < len; ix++) {
         char16_t c = chars[ix];
         if (c == '\n')
@@ -523,7 +538,8 @@ gjs_debug_string(JSString *str)
     if (!str)
         return "<null string>";
     if (!JS_StringIsLinear(str)) {
-        std::ostringstream out("<non-flat string of length ");
+        std::ostringstream out("<non-flat string of length ",
+                               std::ios_base::ate);
         out << JS_GetStringLength(str) << '>';
         return out.str();
     }
@@ -605,7 +621,7 @@ gjs_debug_object(JSObject * const obj)
         return out.str();
     }
 
-    const JSClass* clasp = JS_GetClass(obj);
+    const JSClass* clasp = JS::GetClass(obj);
     out << "<object " << clasp->name << " at " << obj <<  '>';
     return out.str();
 }
@@ -613,36 +629,28 @@ gjs_debug_object(JSObject * const obj)
 std::string
 gjs_debug_value(JS::Value v)
 {
-    std::ostringstream out;
     if (v.isNull())
         return "null";
     if (v.isUndefined())
         return "undefined";
     if (v.isInt32()) {
+        std::ostringstream out;
         out << v.toInt32();
         return out.str();
     }
     if (v.isDouble()) {
+        std::ostringstream out;
         out << v.toDouble();
         return out.str();
     }
-    if (v.isBigInt()) {
-        // technically this prints v % INT64_MAX
-        out << JS::ToBigInt64(v.toBigInt()) << 'n';
-        return out.str();
-    }
-    if (v.isString()) {
-        out << gjs_debug_string(v.toString());
-        return out.str();
-    }
-    if (v.isSymbol()) {
-        out << gjs_debug_symbol(v.toSymbol());
-        return out.str();
-    }
-    if (v.isObject()) {
-        out << gjs_debug_object(&v.toObject());
-        return out.str();
-    }
+    if (v.isBigInt())
+        return gjs_debug_bigint(v.toBigInt());
+    if (v.isString())
+        return gjs_debug_string(v.toString());
+    if (v.isSymbol())
+        return gjs_debug_symbol(v.toSymbol());
+    if (v.isObject())
+        return gjs_debug_object(&v.toObject());
     if (v.isBoolean())
         return (v.toBoolean() ? "true" : "false");
     if (v.isMagic())
@@ -653,7 +661,7 @@ gjs_debug_value(JS::Value v)
 std::string
 gjs_debug_id(jsid id)
 {
-    if (JSID_IS_STRING(id))
-        return gjs_debug_linear_string(JSID_TO_LINEAR_STRING(id), NoQuotes);
+    if (id.isString())
+        return gjs_debug_linear_string(id.toLinearString(), NoQuotes);
     return gjs_debug_value(js::IdToValue(id));
 }
