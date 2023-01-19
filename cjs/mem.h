@@ -8,7 +8,7 @@
 #define GJS_MEM_H_
 
 #if !defined(INSIDE_GJS_H) && !defined(GJS_COMPILATION)
-#    error "Only <cjs/gjs.h> can be included directly."
+#    error "Only <gjs/gjs.h> can be included directly."
 #endif
 
 #include <stdbool.h> /* IWYU pragma: keep */

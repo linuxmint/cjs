@@ -54,18 +54,15 @@ const MyComplexGtkSubclass = GObject.registerClass({
     boundCallback(widget) {
         widget.callbackBoundTo = this;
     }
+
+    testChildrenExist() {
+        this._internalLabel = this.get_template_child(MyComplexGtkSubclass, 'label-child');
+        expect(this._internalLabel).toEqual(jasmine.anything());
+
+        expect(this.label_child2).toEqual(jasmine.anything());
+        expect(this._internal_label_child).toEqual(jasmine.anything());
+    }
 });
-
-// Sadly, putting this in the body of the class will prevent calling
-// get_template_child, since MyComplexGtkSubclass will be bound to the ES6
-// class name without the GObject goodies in it
-MyComplexGtkSubclass.prototype.testChildrenExist = function () {
-    this._internalLabel = this.get_template_child(MyComplexGtkSubclass, 'label-child');
-    expect(this._internalLabel).toEqual(jasmine.anything());
-
-    expect(this.label_child2).toEqual(jasmine.anything());
-    expect(this._internal_label_child).toEqual(jasmine.anything());
-};
 
 const MyComplexGtkSubclassFromResource = GObject.registerClass({
     Template: 'resource:///org/gjs/jsunit/complex3.ui',
@@ -174,6 +171,10 @@ describe('Gtk overrides', function () {
         expect(Gtk.Widget.get_css_name.call(MyComplexGtkSubclass)).toEqual('complex-subclass');
     });
 
+    it('static inheritance works', function () {
+        expect(MyComplexGtkSubclass.get_css_name()).toEqual('complex-subclass');
+    });
+
     it('avoid crashing when GTK vfuncs are called in garbage collection', function () {
         GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*during garbage collection*');
@@ -247,20 +248,9 @@ describe('Gtk overrides', function () {
     });
 
     it('accepts null in place of GdkAtom as GDK_NONE', function () {
-        /**
-         * When you pass GDK_NONE (an atom, interned from the 'NONE' string)
-         * to Gtk.Clipboard.get(), it throws an error, mentioning null in
-         * its message.
-         */
-        expect(() => Gtk.Clipboard.get('NONE')).toThrowError(/null/);
-
-        /**
-         * Null is converted to GDK_NONE, so you get the same message. If you
-         * know an API function that accepts GDK_NONE without throwing, and
-         * returns something different when passed another atom, consider
-         * adding a less confusing example here.
-         */
-        expect(() => Gtk.Clipboard.get(null)).toThrowError(/null/);
+        const clipboard = Gtk.Clipboard.get('NONE');
+        const clipboard2 = Gtk.Clipboard.get(null);
+        expect(clipboard2).toBe(clipboard);
     });
 
     it('uses the correct GType for null child properties', function () {

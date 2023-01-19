@@ -25,6 +25,11 @@ do_Get_Upstream_Base () {
     echo '-----------------------------------------'
     echo 'Finding common ancestor'
 
+    if git show-branch ci-upstream-base 2> /dev/null; then
+        echo "Already found"
+        return
+    fi
+
     # We need to add a new remote for the upstream target branch, since this
     # script could be running in a personal fork of the repository which has out
     # of date branches.
@@ -34,6 +39,8 @@ do_Get_Upstream_Base () {
     # should probably be rebased.
     git remote add upstream https://gitlab.gnome.org/GNOME/gjs.git || \
         git remote set-url upstream https://gitlab.gnome.org/GNOME/gjs.git
+    # $CI_MERGE_REQUEST_TARGET_BRANCH_NAME is only defined if we’re running in a
+    # merge request pipeline; fall back to $CI_DEFAULT_BRANCH otherwise.
     base_branch="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_DEFAULT_BRANCH}}"
     if ! git fetch --shallow-since="28 days ago" --no-tags upstream "$base_branch"; then
         echo "Main branch doesn't have history in the past 28 days, fetching "
@@ -46,9 +53,6 @@ do_Get_Upstream_Base () {
     # Work out the newest common ancestor between the detached HEAD that this CI
     # job has checked out, and the upstream target branch (which will typically
     # be `upstream/master` or `upstream/gnome-nn`).
-    #
-    # $CI_MERGE_REQUEST_TARGET_BRANCH_NAME is only defined if we’re running in a
-    # merge request pipeline; fall back to $CI_DEFAULT_BRANCH otherwise.
     newest_common_ancestor_sha=$(git merge-base ci-upstream-base-branch HEAD)
     if test -z "$newest_common_ancestor_sha"; then
         echo "Couldn’t find common ancestor with the upstream main branch. This"
@@ -116,11 +120,14 @@ fi
 # Show some environment info
 do_Print_Labels  'ENVIRONMENT'
 echo "Running on: $BASE $OS"
-echo "Job: $TASK_ID"
+echo "Job: $CI_JOB_NAME"
 echo "Configure options: ${CONFIG_OPTS-$BUILD_OPTS}"
 echo "Doing: $1 $extra_opts"
 
 do_Create_Artifacts_Folder "$1"
+
+# Ignore extra git security checks as we don't care in CI.
+git config --global --add safe.directory "${PWD}"
 
 if test "$1" = "SETUP"; then
     do_Show_Info
@@ -131,7 +138,7 @@ elif test "$1" = "BUILD"; then
     do_Set_Env
 
     DEFAULT_CONFIG_OPTS="-Dcairo=enabled -Dreadline=enabled -Dprofiler=enabled \
-        -Ddtrace=false -Dsystemtap=false -Dverbose_logs=false --werror"
+        -Ddtrace=false -Dsystemtap=false -Dverbose_logs=false"
     meson _build $DEFAULT_CONFIG_OPTS $CONFIG_OPTS
     ninja -C _build
 
@@ -156,7 +163,7 @@ elif test "$1" = "SH_CHECKS"; then
 elif test "$1" = "CPPLINT"; then
     do_Print_Labels 'C/C++ Linter report '
 
-    cpplint --quiet $(find . -name \*.cpp -or -name \*.c -or -name \*.h | sort) 2>&1 >/dev/null | \
+    cpplint --quiet $(find . -name \*.cpp -or -name \*.h | sort) 2>&1 >/dev/null | \
         tee "$save_dir"/analysis/head-report.txt | \
         sed -E -e 's/:[0-9]+:/:LINE:/' -e 's/  +/ /g' \
         > /cwd/head-report.txt
@@ -172,7 +179,7 @@ elif test "$1" = "CPPLINT"; then
         exit 0
     fi
     git checkout ci-upstream-base
-    cpplint --quiet $(find . -name \*.cpp -or -name \*.c -or -name \*.h | sort) 2>&1 >/dev/null | \
+    cpplint --quiet $(find . -name \*.cpp -or -name \*.h | sort) 2>&1 >/dev/null | \
         tee "$save_dir"/analysis/base-report.txt | \
         sed -E -e 's/:[0-9]+:/:LINE:/' -e 's/  +/ /g' \
         > /cwd/base-report.txt

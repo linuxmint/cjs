@@ -4,12 +4,22 @@
 
 #pragma once
 
+#include <config.h>
+
 #include <stdint.h>
+
+#include <cmath>  // for isnan
 #include <limits>
-#include <type_traits>
 
 #include <girepository.h>
+#include <glib-object.h>
+#include <glib.h>
+
+#include <js/BigInt.h>
 #include <js/Conversions.h>
+#include <js/RootingAPI.h>
+#include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
 
 #include "gi/gtype.h"
 #include "gi/value.h"
@@ -17,6 +27,17 @@
 #include "cjs/macros.h"
 
 namespace Gjs {
+
+template <typename T>
+struct TypeWrapper {
+    constexpr TypeWrapper() : m_value(0) {}
+    explicit constexpr TypeWrapper(T v) : m_value(v) {}
+    constexpr operator T() const { return m_value; }
+    constexpr operator T() { return m_value; }
+
+ private:
+    T m_value;
+};
 
 namespace JsValueHolder {
 
@@ -72,7 +93,9 @@ constexpr auto get_strict() {
 
 template <typename T>
 constexpr auto get_relaxed() {
-    if constexpr (type_fits<T, int32_t>())
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>)
+        return TypeWrapper<T>{};
+    else if constexpr (type_fits<T, int32_t>())
         return int32_t{};
     else if constexpr (type_fits<T, uint16_t>())
         return uint32_t{};
@@ -126,12 +149,20 @@ GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c(
 template <>
 GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c(
     JSContext* cx, const JS::HandleValue& value, int64_t* out) {
+    if (value.isBigInt()) {
+        *out = JS::ToBigInt64(value.toBigInt());
+        return true;
+    }
     return JS::ToInt64(cx, value, out);
 }
 
 template <>
 GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c(
     JSContext* cx, const JS::HandleValue& value, uint64_t* out) {
+    if (value.isBigInt()) {
+        *out = JS::ToBigUint64(value.toBigInt());
+        return true;
+    }
     return JS::ToUint64(cx, value, out);
 }
 
@@ -185,6 +216,19 @@ GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c(
     return true;
 }
 
+template <typename BigT>
+[[nodiscard]] inline constexpr BigT max_safe_big_number() {
+    return (BigT(1) << std::numeric_limits<double>::digits) - 1;
+}
+
+template <typename BigT>
+[[nodiscard]] inline constexpr BigT min_safe_big_number() {
+    if constexpr (std::is_signed_v<BigT>)
+        return -(max_safe_big_number<BigT>());
+
+    return std::numeric_limits<BigT>::lowest();
+}
+
 template <typename WantedType, typename T>
 GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c_checked(
     JSContext* cx, const JS::HandleValue& value, T* out, bool* out_of_range) {
@@ -194,11 +238,40 @@ GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c_checked(
                           std::numeric_limits<WantedType>::lowest(),
                   "Container can't contain wanted type");
 
+    if constexpr (std::is_same_v<WantedType, uint64_t> ||
+                  std::is_same_v<WantedType, int64_t>) {
+        if (out_of_range) {
+            JS::BigInt* bi = nullptr;
+            *out_of_range = false;
+
+            if (value.isBigInt()) {
+                bi = value.toBigInt();
+            } else if (value.isNumber()) {
+                double number = value.toNumber();
+                if (!std::isfinite(number)) {
+                    *out = 0;
+                    return true;
+                }
+                number = std::trunc(number);
+                bi = JS::NumberToBigInt(cx, number);
+                if (!bi)
+                    return false;
+            }
+
+            if (bi) {
+                *out_of_range = Gjs::bigint_is_out_of_range(bi, out);
+                return true;
+            }
+        }
+    }
+
     if constexpr (std::is_same_v<WantedType, T>)
         return js_value_to_c(cx, value, out);
 
+    // JS::ToIntNN() converts undefined, NaN, infinity to 0
     if constexpr (std::is_integral_v<WantedType>) {
-        if (value.isUndefined()) {
+        if (value.isUndefined() ||
+            (value.isDouble() && !std::isfinite(value.toDouble()))) {
             *out = 0;
             return true;
         }
@@ -207,6 +280,15 @@ GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c_checked(
     if constexpr (std::is_arithmetic_v<T>) {
         bool ret = js_value_to_c(cx, value, out);
         if (out_of_range) {
+            // Infinity and NaN preserved between floating point types
+            if constexpr (std::is_floating_point_v<WantedType> &&
+                          std::is_floating_point_v<T>) {
+                if (!std::isfinite(*out)) {
+                    *out_of_range = false;
+                    return ret;
+                }
+            }
+
             *out_of_range =
                 (*out >
                      static_cast<T>(std::numeric_limits<WantedType>::max()) ||
@@ -219,6 +301,22 @@ GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c_checked(
         }
         return ret;
     }
+}
+
+template <typename WantedType>
+GJS_JSAPI_RETURN_CONVENTION inline bool js_value_to_c_checked(
+    JSContext* cx, const JS::HandleValue& value, TypeWrapper<WantedType>* out,
+    bool* out_of_range) {
+    static_assert(std::is_integral_v<WantedType>);
+
+    WantedType wanted_out;
+    if (!js_value_to_c_checked<WantedType>(cx, value, &wanted_out,
+                                           out_of_range))
+        return false;
+
+    *out = TypeWrapper<WantedType>{wanted_out};
+
+    return true;
 }
 
 }  // namespace Gjs

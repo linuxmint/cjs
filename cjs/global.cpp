@@ -16,7 +16,12 @@
 #include <js/Class.h>
 #include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
+#include <js/Debug.h>         // for JS_DefineDebuggerObject
+#include <js/GlobalObject.h>  // for CurrentGlobalOrNull, JS_NewGlobalObject
 #include <js/Id.h>
+#include <js/MapAndSet.h>
+#include <js/Object.h>
+#include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_PERMANENT, JSPROP_RE...
 #include <js/PropertySpec.h>
 #include <js/Realm.h>  // for GetObjectRealmOrNull, SetRealmPrivate
@@ -25,7 +30,7 @@
 #include <js/SourceText.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
-#include <jsapi.h>       // for AutoSaveExceptionState, ...
+#include <jsapi.h>       // for JS_IdToValue, JS_InitReflectParse
 
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
@@ -33,6 +38,7 @@
 #include "cjs/global.h"
 #include "cjs/internal.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "cjs/native.h"
 
 namespace mozilla {
@@ -42,6 +48,12 @@ union Utf8Unit;
 class GjsBaseGlobal {
     static JSObject* base(JSContext* cx, const JSClass* clasp,
                           JS::RealmCreationOptions options) {
+        // Enable WeakRef without the cleanupSome specification
+        // Re-evaluate if cleanupSome is standardized
+        // See: https://github.com/tc39/proposal-cleanup-some
+        options.setWeakRefsEnabled(
+            JS::WeakRefSpecifier::EnabledWithoutCleanupSome);
+
         JS::RealmBehaviors behaviors;
         JS::RealmOptions compartment_options(options, behaviors);
 
@@ -98,12 +110,8 @@ class GjsBaseGlobal {
                          JS::SourceOwnership::TakeOwnership))
             return false;
 
-        JS::RootedScript compiled_script(cx, JS::Compile(cx, options, source));
-        if (!compiled_script)
-            return false;
-
         JS::RootedValue ignored(cx);
-        return JS::CloneAndExecuteScript(cx, compiled_script, &ignored);
+        return JS::Evaluate(cx, options, source, &ignored);
     }
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -124,7 +132,8 @@ class GjsBaseGlobal {
 
         JS::RootedObject native_obj(m_cx);
 
-        if (!gjs_load_native_module(m_cx, id.get(), &native_obj)) {
+        if (!Gjs::NativeModuleRegistry::get().load(m_cx, id.get(),
+                                                   &native_obj)) {
             gjs_throw(m_cx, "Failed to load native module: %s", id.get());
             return false;
         }
@@ -521,11 +530,11 @@ bool gjs_define_global_properties(JSContext* cx, JS::HandleObject global,
 }
 
 void detail::set_global_slot(JSObject* global, uint32_t slot, JS::Value value) {
-    JS_SetReservedSlot(global, JSCLASS_GLOBAL_SLOT_COUNT + slot, value);
+    JS::SetReservedSlot(global, JSCLASS_GLOBAL_SLOT_COUNT + slot, value);
 }
 
 JS::Value detail::get_global_slot(JSObject* global, uint32_t slot) {
-    return JS_GetReservedSlot(global, JSCLASS_GLOBAL_SLOT_COUNT + slot);
+    return JS::GetReservedSlot(global, JSCLASS_GLOBAL_SLOT_COUNT + slot);
 }
 
 decltype(GjsGlobal::klass) constexpr GjsGlobal::klass;

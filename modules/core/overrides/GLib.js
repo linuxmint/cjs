@@ -261,6 +261,12 @@ function _init() {
 
     GLib = this;
 
+    // For convenience in property min or max values, since GLib.MAXINT64 and
+    // friends will log a warning when used
+    this.MAXINT64_BIGINT = 0x7fff_ffff_ffff_ffffn;
+    this.MININT64_BIGINT = -this.MAXINT64_BIGINT - 1n;
+    this.MAXUINT64_BIGINT = 0xffff_ffff_ffff_ffffn;
+
     // small HACK: we add a matches() method to standard Errors so that
     // you can do "if (e.matches(Ns.FooError, Ns.FooError.SOME_CODE))"
     // without checking instanceof
@@ -498,5 +504,28 @@ function _init() {
         const escapedValidArray = validArray.map(_escapeCharacterSetChars);
         const invalidRegex = new RegExp(`[^${escapedValidArray.join('')}]`, 'g');
         return string.replace(invalidRegex, substitutor);
+    };
+
+    // Prevent user code from calling GThread functions which always crash
+    this.Thread.new = function () {
+        throw _notIntrospectableError('GLib.Thread.new()',
+            'GIO asynchronous methods or Promise()');
+    };
+
+    this.Thread.try_new = function () {
+        throw _notIntrospectableError('GLib.Thread.try_new()',
+            'GIO asynchronous methods or Promise()');
+    };
+
+    this.Thread.exit = function () {
+        throw new Error('\'GLib.Thread.exit()\' may not be called in GJS');
+    };
+
+    this.Thread.prototype.ref = function () {
+        throw new Error('\'GLib.Thread.ref()\' may not be called in GJS');
+    };
+
+    this.Thread.prototype.unref = function () {
+        throw new Error('\'GLib.Thread.unref()\' may not be called in GJS');
     };
 }

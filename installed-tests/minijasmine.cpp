@@ -12,7 +12,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include <cjs/gjs.h>
+#include <gjs/gjs.h>
 
 [[noreturn]] static void bail_out(GjsContext* gjs_context, const char* msg) {
     g_object_unref(gjs_context);
@@ -104,8 +104,18 @@ main(int argc, char **argv)
     if (!success)
         bail_out(cx, error->message);
 
-    if (code != 0)
-        g_print("# Test script failed; see test log for assertions\n");
+    if (code != 0) {
+        success = gjs_context_eval(cx, R"js(
+            printerr(globalThis._jasmineErrorsOutput.join('\n'));
+        )js",
+                                   -1, "<jasmine-error-logs>", &code, &error);
+
+        if (!success)
+            bail_out(cx, error->message);
+
+        if (code != 0)
+            g_print("# Test script failed; see test log for assertions\n");
+    }
 
     if (coverage) {
         gjs_coverage_write_statistics(coverage);

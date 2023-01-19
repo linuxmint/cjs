@@ -11,13 +11,13 @@
 #include <js/Array.h>
 #include <js/CallArgs.h>
 #include <js/Class.h>
+#include <js/Object.h>              // for GetClass
 #include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Value.h>
 #include <js/ValueArray.h>
-#include <jsapi.h>  // for JS_GetPrivate, JS_GetClass, ...
 
 #include "gi/arg-inl.h"
 #include "gi/arg.h"
@@ -207,14 +207,13 @@ const JSFunctionSpec CairoSurface::proto_funcs[] = {
 
 /**
  * CairoSurface::finalize_impl:
- * @fop: the free op
  * @surface: the pointer to finalize
  *
  * Destroys the resources associated with a surface wrapper.
  *
  * This is mainly used for subclasses.
  */
-void CairoSurface::finalize_impl(JSFreeOp*, cairo_surface_t* surface) {
+void CairoSurface::finalize_impl(JS::GCContext*, cairo_surface_t* surface) {
     if (!surface)
         return;
     cairo_surface_destroy(surface);
@@ -268,11 +267,12 @@ cairo_surface_t* CairoSurface::for_js(JSContext* cx,
         return nullptr;
     if (!is_surface_subclass) {
         gjs_throw(cx, "Expected Cairo.Surface but got %s",
-                  JS_GetClass(surface_wrapper)->name);
+                  JS::GetClass(surface_wrapper)->name);
         return nullptr;
     }
 
-    return static_cast<cairo_surface_t*>(JS_GetPrivate(surface_wrapper));
+    return JS::GetMaybePtrFromReservedSlot<cairo_surface_t>(
+        surface_wrapper, CairoSurface::POINTER);
 }
 
 [[nodiscard]] static bool surface_to_g_argument(

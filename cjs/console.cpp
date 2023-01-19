@@ -19,8 +19,8 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include <cjs/gjs.h>
-#include <cjs/jsapi-util.h>
+#include <gjs/gjs.h>
+#include <gjs/jsapi-util.h>
 
 static char **include_path = NULL;
 static char **coverage_prefixes = NULL;

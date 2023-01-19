@@ -11,16 +11,20 @@
 #include <girepository.h>
 #include <glib-object.h>
 
+#include <js/CallAndConstruct.h>
 #include <js/CallArgs.h>
 #include <js/Class.h>
+#include <js/Exception.h>
+#include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_ENUMERATE
 #include <js/RootingAPI.h>
 #include <js/SavedFrameAPI.h>
+#include <js/Stack.h>  // for BuildStackString, CaptureCurrentStack
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
 #include <js/ValueArray.h>
-#include <jsapi.h>    // for JS_DefinePropertyById, JS_GetProp...
+#include <jsapi.h>    // for InformalValueTypeName, JS_GetClassObject
 #include <jspubtd.h>  // for JSProtoKey, JSProto_Error, JSProt...
 
 #include "gi/arg-inl.h"
@@ -32,6 +36,7 @@
 #include "cjs/context-private.h"
 #include "cjs/error-types.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "cjs/mem-private.h"
 #include "util/log.h"
 
@@ -43,8 +48,8 @@ ErrorPrototype::ErrorPrototype(GIEnumInfo* info, GType gtype)
 
 ErrorPrototype::~ErrorPrototype(void) { GJS_DEC_COUNTER(gerror_prototype); }
 
-ErrorInstance::ErrorInstance(JSContext* cx, JS::HandleObject obj)
-    : GIWrapperInstance(cx, obj) {
+ErrorInstance::ErrorInstance(ErrorPrototype* prototype, JS::HandleObject obj)
+    : GIWrapperInstance(prototype, obj) {
     GJS_INC_COUNTER(gerror_instance);
 }
 
@@ -191,7 +196,7 @@ const struct JSClassOps ErrorBase::class_ops = {
 
 const struct JSClass ErrorBase::klass = {
     "GLib_Error",
-    JSCLASS_HAS_PRIVATE | JSCLASS_BACKGROUND_FINALIZE,
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_BACKGROUND_FINALIZE,
     &ErrorBase::class_ops
 };
 
@@ -336,7 +341,13 @@ gjs_error_from_js_gerror(JSContext *cx,
     if (!JS_GetClassObject(cx, error_kind, &error_constructor))
         return nullptr;
 
-    return JS_New(cx, error_constructor, error_args);
+    JS::RootedValue v_error_constructor(cx,
+                                        JS::ObjectValue(*error_constructor));
+    JS::RootedObject error(cx);
+    if (!JS::Construct(cx, v_error_constructor, error_args, &error))
+        return nullptr;
+
+    return error;
 }
 
 JSObject* ErrorInstance::object_for_c_ptr(JSContext* context, GError* gerror) {

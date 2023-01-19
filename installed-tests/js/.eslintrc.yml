@@ -14,8 +14,6 @@ rules:
     - error
     - selector: CallExpression[callee.name="it"] > ArrowFunctionExpression
       message: Arrow functions can mess up some Jasmine APIs. Use function () instead
-    - selector: CallExpression[callee.name="describe"] > ArrowFunctionExpression
-      message: Arrow functions can mess up some Jasmine APIs. Use function () instead
     - selector: CallExpression[callee.name="beforeEach"] > ArrowFunctionExpression
       message: Arrow functions can mess up some Jasmine APIs. Use function () instead
     - selector: CallExpression[callee.name="afterEach"] > ArrowFunctionExpression
@@ -24,19 +22,16 @@ rules:
       message: Arrow functions can mess up some Jasmine APIs. Use function () instead
     - selector: CallExpression[callee.name="afterAll"] > ArrowFunctionExpression
       message: Arrow functions can mess up some Jasmine APIs. Use function () instead
-globals:
-  clearInterval: writable
-  clearTimeout: writable
-  setInterval: writable
-  setTimeout: writable
 overrides:
   - files:
       - matchers.js
+      - testAsync.js
       - testCairoModule.js
       - testConsole.js
       - testESModules.js
       - testEncoding.js
       - testGLibLogWriter.js
+      - testTimers.js
       - modules/importmeta.js
       - modules/exports.js
       - modules/say.js

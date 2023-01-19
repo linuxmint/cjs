@@ -8,6 +8,8 @@
 #include <girepository.h>
 
 #include <js/Class.h>
+#include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
+#include <js/Id.h>           // for PropertyKey, jsid
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 
@@ -17,6 +19,7 @@
 #include "gi/repo.h"
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
+#include "cjs/jsapi-util.h"
 #include "cjs/mem-private.h"
 
 InterfacePrototype::InterfacePrototype(GIInterfaceInfo* info, GType gtype)
@@ -29,6 +32,57 @@ InterfacePrototype::InterfacePrototype(GIInterfaceInfo* info, GType gtype)
 InterfacePrototype::~InterfacePrototype(void) {
     g_clear_pointer(&m_vtable, g_type_default_interface_unref);
     GJS_DEC_COUNTER(interface);
+}
+
+static bool append_inferface_properties(JSContext* cx,
+                                        JS::MutableHandleIdVector properties,
+                                        GIInterfaceInfo* iface_info) {
+    int n_methods = g_interface_info_get_n_methods(iface_info);
+    if (!properties.reserve(properties.length() + n_methods)) {
+        JS_ReportOutOfMemory(cx);
+        return false;
+    }
+
+    for (int i = 0; i < n_methods; i++) {
+        GjsAutoFunctionInfo meth_info =
+            g_interface_info_get_method(iface_info, i);
+        GIFunctionInfoFlags flags = g_function_info_get_flags(meth_info);
+
+        if (flags & GI_FUNCTION_IS_METHOD) {
+            const char* name = meth_info.name();
+            jsid id = gjs_intern_string_to_id(cx, name);
+            if (id.isVoid())
+                return false;
+            properties.infallibleAppend(id);
+        }
+    }
+
+    return true;
+}
+
+bool InterfacePrototype::new_enumerate_impl(
+    JSContext* cx, JS::HandleObject obj [[maybe_unused]],
+    JS::MutableHandleIdVector properties,
+    bool only_enumerable [[maybe_unused]]) {
+    unsigned n_interfaces;
+    GjsAutoPointer<GType, void, &g_free> interfaces =
+        g_type_interfaces(gtype(), &n_interfaces);
+
+    for (unsigned k = 0; k < n_interfaces; k++) {
+        GjsAutoInterfaceInfo iface_info =
+            g_irepository_find_by_gtype(nullptr, interfaces[k]);
+
+        if (!iface_info)
+            continue;
+
+        if (!append_inferface_properties(cx, properties, iface_info))
+            return false;
+    }
+
+    if (!info())
+        return true;
+
+    return append_inferface_properties(cx, properties, info());
 }
 
 // See GIWrapperBase::resolve().
@@ -98,7 +152,12 @@ bool InterfacePrototype::has_instance_impl(JSContext* cx,
                                            const JS::CallArgs& args) {
     // This method is never called directly, so no need for error messages.
     g_assert(args.length() == 1);
-    g_assert(args[0].isObject());
+
+    if (!args[0].isObject()) {
+        args.rval().setBoolean(false);
+        return true;
+    }
+
     JS::RootedObject instance(cx, &args[0].toObject());
     bool isinstance = ObjectBase::typecheck(cx, instance, nullptr, m_gtype,
                                             GjsTypecheckNoThrow());
@@ -111,7 +170,7 @@ const struct JSClassOps InterfaceBase::class_ops = {
     nullptr,  // addProperty
     nullptr,  // deleteProperty
     nullptr,  // enumerate
-    nullptr,  // newEnumerate
+    &InterfaceBase::new_enumerate,
     &InterfaceBase::resolve,
     nullptr,  // mayResolve
     &InterfaceBase::finalize,
@@ -119,7 +178,7 @@ const struct JSClassOps InterfaceBase::class_ops = {
 
 const struct JSClass InterfaceBase::klass = {
     "GObject_Interface",
-    JSCLASS_HAS_PRIVATE | JSCLASS_BACKGROUND_FINALIZE,
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_BACKGROUND_FINALIZE,
     &InterfaceBase::class_ops
 };
 

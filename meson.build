@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 # SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
 
-project('cjs', 'cpp', 'c', version: '5.6.1', license: ['MIT', 'LGPL2+'],
-    meson_version: '>= 0.52.0',
+project('cjs', 'cpp', 'c', version: '5.7.0', license: ['MIT', 'LGPL2+'],
+    meson_version: '>= 0.54.0',
     default_options: ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99',
         'warning_level=2', 'b_pch=true' ])
 
@@ -14,6 +14,7 @@ project('cjs', 'cpp', 'c', version: '5.6.1', license: ['MIT', 'LGPL2+'],
 api_version = '1.0'
 api_name = '@0@-@1@'.format(meson.project_name(), api_version)
 
+fs = import('fs')
 gnome = import('gnome')
 pkg = import('pkgconfig')
 
@@ -39,12 +40,14 @@ if cc.get_id() == 'msvc'
     add_project_arguments(cxx.get_supported_arguments([
         '-utf-8',  # Use UTF-8 mode
         '/Zc:externConstexpr',  # Required for 'extern constexpr' on MSVC
+        '/Zc:preprocessor',     # Required to consume the mozjs-102 headers on MSVC
 
         # Ignore spurious compiler warnings for things that GLib and SpiderMonkey
         # header files commonly do
         '-FImsvc_recommended_pragmas.h',
         '-EHsc',
         '-D_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS', # Don't worry about the C++17 deprecations
+        '-D__PRETTY_FUNCTION__=__FUNCSIG__',
         '-wd4099',
         '-wd4251',
         '-wd4291',
@@ -69,6 +72,7 @@ if cc.get_argument_syntax() == 'msvc'
     add_project_arguments(cxx.get_supported_arguments([
         '-Dssize_t=gssize',  # Windows SDK/MSVC headers do not come with ssize_t
         '-DNOMINMAX',  # We don't want 'min' or 'max' to interfere
+        '-DSSIZE_MAX=G_MAXSSIZE',  # Windows SDK/MSVC headers do not come with SSIZE_MAX
         ]), language: ['cpp', 'c'])
 else
     if get_option('bsymbolic_functions')
@@ -124,7 +128,7 @@ gio = dependency('gio-2.0', version: glib_required_version,
 ffi = dependency('libffi', fallback: ['libffi', 'ffi_dep'])
 gi = dependency('gobject-introspection-1.0', version: '>= 1.66.0',
     fallback: ['gobject-introspection', 'girepo_dep'])
-spidermonkey = dependency('mozjs-78', version: '>= 78.2.0')
+spidermonkey = dependency('mozjs-102')
 
 # We might need to look for the headers and lib's for Cairo
 # manually on MSVC/clang-cl builds...
@@ -145,12 +149,13 @@ sysprof_capture = dependency('sysprof-capture-4',
     required: get_option('profiler'), include_type: 'system',
     fallback: ['sysprof', 'libsysprof_capture_dep'],
     default_options: [
-        'enable_examples=false',
-        'enable_gtk=false',
-        'enable_tests=false',
-        'enable_tools=false',
+        'agent=false',
+        'examples=false',
+        'gtk=false',
+        'tests=false',
+        'tools=false',
         'libsysprof=false',
-        'with_sysprofd=none',
+        'sysprofd=none',
         'help=false',
     ])
 
@@ -264,11 +269,21 @@ int main(void) {
     args: debug_arg, dependencies: spidermonkey,
     name: 'SpiderMonkey sanity check')
 
-if not minimal_program.compiled() or minimal_program.returncode() != 0
+recommended_configuration = ''' Check the recommended configuration:
+https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr91/docs/Building%20SpiderMonkey.md'''
+if not minimal_program.compiled()
     error('''A minimal SpiderMonkey program
-could not be compiled, linked, or run. Most likely you should build it with a
-different configuration. Check the recommended configuration:
-https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr78/docs/Building%20SpiderMonkey.md''')
+could not be compiled or linked. Most likely you should build it with a
+different configuration.''' + recommended_configuration)
+elif meson.is_cross_build()
+    warning('''This is a cross build. A check that a minimal
+SpiderMonkey program executes will not be performed. Before shipping GJS, you
+should check that it does not crash on startup, since building SpiderMonkey with
+the wrong configuration may cause that.''' + recommended_configuration)
+elif minimal_program.returncode() != 0
+    error('''A minimal SpiderMonkey program
+failed to execute. Most likely you should build it with a different
+configuration.''' + recommended_configuration)
 endif
 
 have_printf_alternative_int = cc.compiles('''
@@ -354,7 +369,7 @@ endif
 tapset_subst = configuration_data({
     'EXPANDED_LIBDIR': get_option('libdir'),
 })
-tapset = configure_file(input: 'cjs/cjs.stp.in', output: 'cjs.stp',
+tapset = configure_file(input: 'gjs/gjs.stp.in', output: 'gjs.stp',
     configuration: tapset_subst)
 if get_option('systemtap')
     install_data(tapset,
@@ -417,12 +432,14 @@ libgjs_sources = [
     'cjs/global.cpp', 'cjs/global.h',
     'cjs/importer.cpp', 'cjs/importer.h',
     'cjs/internal.cpp', 'cjs/internal.h',
+    'cjs/mainloop.cpp', 'cjs/mainloop.h',
     'cjs/mem.cpp', 'cjs/mem-private.h',
     'cjs/module.cpp', 'cjs/module.h',
     'cjs/native.cpp', 'cjs/native.h',
     'cjs/objectbox.cpp', 'cjs/objectbox.h',
     'cjs/profiler.cpp', 'cjs/profiler-private.h',
     'cjs/text-encoding.cpp', 'cjs/text-encoding.h',
+    'cjs/promise.cpp', 'cjs/promise.h',
     'cjs/stack.cpp',
     'modules/console.cpp', 'modules/console.h',
     'modules/modules.cpp', 'modules/modules.h',
@@ -511,14 +528,6 @@ if host_machine.system() == 'windows'
     libgjs_cpp_args += ['-DWIN32', '-DXP_WIN', '-DWIN32_LEAN_AND_MEAN']
 endif
 
-pch_headers = ['cjs/gjs_pch.hh']
-if get_option('b_pch') and not meson.version().version_compare('>= 0.59.0')
-    if cxx.get_id() == 'gcc'
-        warning('Precompiled headers not supported with g++ and meson versions earlier than 0.59.0')
-        pch_headers = []
-    endif
-endif
-
 # This dependency should provide everything that is needed to compile gjs except
 # the sources themselves, is used to copmile both the static libraries and the
 # tests
@@ -535,7 +544,7 @@ internal_build_dep = declare_dependency(
 
 libgjs_jsapi = static_library(meson.project_name() + '-jsapi',
     libgjs_jsapi_sources, probes_header, probes_objfile,
-    cpp_pch: pch_headers,
+    cpp_pch: 'cjs/gjs_pch.hh',
     dependencies: internal_build_dep,
     install: false)
 
@@ -544,7 +553,7 @@ libgjs_jsapi = static_library(meson.project_name() + '-jsapi',
 # library so that we compile its sources just once.
 libgjs_internal = static_library('gjs-internal',
     libgjs_sources, probes_header, probes_objfile,
-    cpp_pch: pch_headers,
+    cpp_pch: 'cjs/gjs_pch.hh',
     dependencies: internal_build_dep,
     link_with: libgjs_jsapi)
 
@@ -701,6 +710,9 @@ valgrind_args = [
     '--error-exitcode=1'
 ]
 
+add_test_setup('quiet', env: ['GJS_DEBUG_TOPICS='], is_default: true)
+add_test_setup('verbose')
+
 add_test_setup('valgrind', timeout_multiplier: 40, env: valgrind_environment,
     exe_wrapper: ['valgrind'] + valgrind_args)
 
@@ -750,13 +762,52 @@ endif
 
 ### Summarize options ##########################################################
 
-message('\n'.join([
-    'Optional features',
-    '==========================',
-    'Build Cairo module: @0@'.format(build_cairo),
-    'Use readline for input in interactive shell and debugger: @0@'.format(
-        build_readline),
-    'Build profiler (Linux only): @0@'.format(build_profiler),
-    'Build with precompiled headers: @0@'.format(get_option('b_pch') and
-        pch_headers.length() > 0),
-]))
+prefix = get_option('prefix')
+bindir = get_option('bindir')
+libdir = get_option('libdir')
+datadir = get_option('datadir')
+summary({
+    'prefix': prefix,
+    'bindir': fs.is_absolute(bindir) ? bindir : prefix / bindir,
+    'libdir': fs.is_absolute(libdir) ? libdir : prefix / libdir,
+    'datadir': fs.is_absolute(datadir) ? datadir : prefix / datadir,
+}, section: 'Directories')
+locations = []
+foreach dep: [ffi, glib, gi, spidermonkey, readline, sysprof_capture]
+    if dep.type_name() == 'pkgconfig'
+        locations += 'in @0@'.format(dep.get_pkgconfig_variable('prefix'))
+    else
+        locations += dep.type_name()
+    endif
+endforeach
+summary({
+    'libffi': '@0@ (@1@)'.format(ffi.version(), locations[0]),
+    'GLib': '@0@ (@1@)'.format(glib.version(), locations[1]),
+    'GObject introspection': '@0@ (@1@)'.format(gi.version(), locations[2]),
+    'SpiderMonkey': '@0@ (@1@, @2@ build)'.format(spidermonkey.version(),
+        locations[3], nondebug_spidermonkey ? 'release' : 'debug'),
+}, section: 'Dependencies')
+if build_readline
+    summary('Readline', '(@0@)'.format(locations[4]), section: 'Dependencies')
+endif
+if build_profiler
+    summary('Sysprof',
+        '@0@ (@1@)'.format(sysprof_capture.version(), locations[5]),
+        section: 'Dependencies')
+endif
+summary({
+    'Build type': get_option('buildtype'),
+    'Installed tests': get_option('installed_tests'),
+    '-Bsymbolic-functions': get_option('bsymbolic_functions'),
+    'Skip DBus tests': get_option('skip_dbus_tests'),
+    'Skip GTK tests': get_option('skip_gtk_tests'),
+    'Extra debug logs': get_option('verbose_logs'),
+    'Precompiled headers': get_option('b_pch'),
+}, section: 'Build options')
+summary({
+    'Cairo module': build_cairo,
+    'Use readline for input': build_readline,
+    'Profiler (Linux only)': build_profiler,
+    'Dtrace debugging': get_option('dtrace'),
+    'Systemtap debugging': get_option('systemtap'),
+}, section: 'Optional features')

@@ -8,10 +8,12 @@
 
 #include <glib.h>  // for g_assert
 
+#include <js/CallAndConstruct.h>
+#include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/ValueArray.h>
-#include <jsapi.h>  // for JS_IsExceptionPending, Call, JS_Get...
+#include <jsapi.h>  // for JS_GetFunctionObject
 
 #include "gi/closure.h"
 #include "cjs/context-private.h"
@@ -180,7 +182,12 @@ bool Closure::invoke(JS::HandleObject this_obj,
     }
 
     JS::RootedFunction func(m_cx, m_func);
-    if (!JS::Call(m_cx, this_obj, func, args, retval)) {
+    bool ok = JS::Call(m_cx, this_obj, func, args, retval);
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(m_cx);
+
+    if (gjs->should_exit(nullptr))
+        gjs->warn_about_unhandled_promise_rejections();
+    if (!ok) {
         /* Exception thrown... */
         gjs_debug_closure(
             "Closure invocation failed (exception should have been thrown) "
@@ -196,7 +203,6 @@ bool Closure::invoke(JS::HandleObject this_obj,
             m_cx);
     }
 
-    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(m_cx);
     gjs->schedule_gc_if_needed();
     return true;
 }

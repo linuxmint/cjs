@@ -10,7 +10,7 @@
 #include <glib.h>
 
 #include <js/TypeDecls.h>
-#include <jsfriendapi.h>  // for DumpBacktrace
+#include <js/friend/DumpFunctions.h>
 
 #include "cjs/context.h"
 #include "cjs/jsapi-util.h"

@@ -15,17 +15,23 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/CallAndConstruct.h>  // for JS_CallFunctionValue
 #include <js/Class.h>
 #include <js/ComparisonOperators.h>
-#include <js/Id.h>                  // for JSID_IS_STRING, JSID_VOID
+#include <js/Exception.h>
+#include <js/GlobalObject.h>        // for CurrentGlobalOrNull
+#include <js/Id.h>                  // for PropertyKey
+#include <js/Object.h>              // for GetClass
+#include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_PERMANENT, JSPROP_RESOLVING
 #include <js/RootingAPI.h>
+#include <js/String.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
 #include <js/ValueArray.h>
 #include <js/Warnings.h>
-#include <jsapi.h>  // for JS_DefinePropertyById, JS_GetProp...
+#include <jsapi.h>  // for JS_NewPlainObject, JS_NewObject
 
 #include "gi/arg.h"
 #include "gi/boxed.h"
@@ -43,6 +49,7 @@
 #include "cjs/context-private.h"
 #include "cjs/global.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "cjs/module.h"
 #include "util/log.h"
 
@@ -156,7 +163,7 @@ repo_resolve(JSContext       *context,
              JS::HandleId     id,
              bool            *resolved)
 {
-    if (!JSID_IS_STRING(id)) {
+    if (!id.isString()) {
         *resolved = false;
         return true; /* not resolved, but no error */
     }
@@ -368,7 +375,8 @@ gjs_define_info(JSContext       *context,
             } else if (g_type_is_a (gtype, G_TYPE_OBJECT)) {
                 JS::RootedObject ignored1(context), ignored2(context);
                 if (!ObjectPrototype::define_class(context, in_object, info,
-                                                   gtype, &ignored1, &ignored2))
+                                                   gtype, nullptr, 0, &ignored1,
+                                                   &ignored2))
                     return false;
             } else if (G_TYPE_IS_INSTANTIATABLE(gtype)) {
                 JS::RootedObject ignored(context);
@@ -477,7 +485,7 @@ gjs_lookup_namespace_object(JSContext  *context,
     }
 
     JS::RootedId ns_name(context, gjs_intern_string_to_id(context, ns));
-    if (ns_name == JSID_VOID)
+    if (ns_name.isVoid())
         return nullptr;
     return gjs_lookup_namespace_object_by_name(context, ns_name);
 }
@@ -720,5 +728,5 @@ JSObject* gjs_new_object_with_generic_prototype(JSContext* cx,
     if (!proto)
         return nullptr;
 
-    return JS_NewObjectWithGivenProto(cx, JS_GetClass(proto), proto);
+    return JS_NewObjectWithGivenProto(cx, JS::GetClass(proto), proto);
 }

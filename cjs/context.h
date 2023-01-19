@@ -8,7 +8,7 @@
 #define GJS_CONTEXT_H_
 
 #if !defined(INSIDE_GJS_H) && !defined(GJS_COMPILATION)
-#    error "Only <cjs/gjs.h> can be included directly."
+#    error "Only <gjs/gjs.h> can be included directly."
 #endif
 
 #include <stdbool.h>    /* IWYU pragma: keep */
@@ -22,8 +22,8 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include <cjs/macros.h>
-#include <cjs/profiler.h>
+#include <gjs/macros.h>
+#include <gjs/profiler.h>
 
 G_BEGIN_DECLS
 

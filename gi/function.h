@@ -7,18 +7,20 @@
 
 #include <config.h>
 
+#include <stdint.h>
+
 #include <unordered_set>
 #include <vector>
 
 #include <ffi.h>
 #include <girepository.h>
+#include <girffi.h>  // for g_callable_info_get_closure_native_address
 #include <glib-object.h>
 #include <glib.h>
 
 #include <js/GCVector.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <js/Value.h>  // IWYU pragma: keep
 
 #include "gi/closure.h"
 #include "cjs/jsapi-util.h"
@@ -47,9 +49,24 @@ struct GjsCallbackTrampoline : public Gjs::Closure {
 
     ~GjsCallbackTrampoline();
 
-    constexpr ffi_closure* closure() const { return m_closure; }
+    void* closure() const {
+#if GI_CHECK_VERSION(1, 71, 0)
+        return g_callable_info_get_closure_native_address(m_info, m_closure);
+#else
+        return m_closure;
+#endif
+    }
+
+    ffi_closure* get_ffi_closure() const {
+        return m_closure;
+    }
+
+    void mark_forever();
+
+    static void prepare_shutdown();
 
  private:
+    ffi_closure* create_closure();
     GJS_JSAPI_RETURN_CONVENTION bool initialize();
     GjsCallbackTrampoline(JSContext* cx, JS::HandleFunction function,
                           GICallableInfo* callable_info, GIScopeType scope,
@@ -63,12 +80,14 @@ struct GjsCallbackTrampoline : public Gjs::Closure {
                                 int c_args_offset, void* result);
     void warn_about_illegal_js_callback(const char* when, const char* reason);
 
+    static std::vector<GjsAutoGClosure> s_forever_closure_list;
+
     GjsAutoCallableInfo m_info;
     ffi_closure* m_closure = nullptr;
     std::vector<GjsParamType> m_param_types;
     ffi_cif m_cif;
 
-    GIScopeType m_scope : 2;
+    GIScopeType m_scope : 3;
     bool m_is_vfunc : 1;
 };
 
@@ -84,7 +103,7 @@ class GjsFunctionCallState {
     JS::RootedValueVector return_values;
     GjsAutoError local_error;
     GICallableInfo* info;
-    int gi_argc = 0;
+    uint8_t gi_argc = 0;
     unsigned processed_c_args = 0;
     bool failed : 1;
     bool can_throw_gerror : 1;
@@ -115,6 +134,13 @@ class GjsFunctionCallState {
 
     constexpr int first_arg_offset() const { return is_method ? 2 : 1; }
 
+    // The list always contains the return value, and the arguments
+    constexpr GIArgument* instance() {
+        return is_method ? &m_in_cvalues[1] : nullptr;
+    }
+
+    constexpr GIArgument* return_value() { return &m_out_cvalues[0]; }
+
     constexpr GIArgument& in_cvalue(int index) const {
         return m_in_cvalues[index + first_arg_offset()];
     }
@@ -132,6 +158,10 @@ class GjsFunctionCallState {
     }
 
     constexpr bool call_completed() { return !failed && !did_throw_gerror(); }
+
+    constexpr uint8_t last_processed_index() {
+        return first_arg_offset() + processed_c_args;
+    }
 
     [[nodiscard]] GjsAutoChar display_name() {
         GIBaseInfo* container = g_base_info_get_container(info);  // !owned

@@ -40,12 +40,12 @@ FWD_DECLS_IN_HEADER = (
     'struct JSContext;',
     'struct JSClass;',
     'class JSFunction;',
-    'class JSFreeOp;',
     'class JSObject;',
     'struct JSRuntime;',
     'class JSScript;',
     'class JSString;',
-    'namespace js { class TempAllocPolicy; }'
+    'namespace js { class TempAllocPolicy; }',
+    'namespace JS { class GCContext; }',
     'namespace JS { struct PropertyKey; }',
     'namespace JS { class Symbol; }',
     'namespace JS { class BigInt; }',
@@ -70,24 +70,15 @@ FALSE_POSITIVES = (
     # std::vector::push_back()
     # https://github.com/include-what-you-use/include-what-you-use/issues/908
     ('gi/function.cpp', '#include <algorithm>', 'for max'),
+    ('gi/function.cpp', '#include <algorithm>', 'for fill_n, max'),  # also!
     ('gi/private.cpp', '#include <algorithm>', 'for max'),
+    ('gjs/context.cpp', '#include <algorithm>', 'for copy, max, find'),
     ('gjs/importer.cpp', '#include <algorithm>', 'for max'),
+    ('gjs/importer.cpp', '#include <algorithm>', 'for max, copy'),  # also!
     ('modules/cairo-context.cpp', '#include <algorithm>', 'for max'),
-
-    # False positive when using Mozilla vectors' append() and
-    # infallibleAppend()
-    # https://github.com/include-what-you-use/include-what-you-use/issues/926
-    # https://bugzilla.mozilla.org/show_bug.cgi?id=1713550
-    ('gi/function.cpp', '#include <utility>', 'for forward'),
-    ('gi/ns.cpp', '#include <utility>', 'for forward'),
-    ('gi/value.cpp', '#include <utility>', 'for forward'),
-    ('gjs/importer.cpp', '#include <utility>', 'for forward'),
-    ('gjs/module.cpp', '#include <utility>', 'for forward'),
-    ('gjs/objectbox.cpp', '#include <utility>', 'for forward'),
 
     # False positive when using EnumType operators
     # https://github.com/include-what-you-use/include-what-you-use/issues/927
-    ('gi/arg-cache.h', '#include <type_traits>', 'for enable_if_t'),
     ('modules/cairo-context.cpp', '#include <type_traits>', 'for enable_if_t'),
     ('modules/cairo-region.cpp', '#include <type_traits>', 'for enable_if_t'),
     ('modules/cairo-surface.cpp', '#include <type_traits>', 'for enable_if_t'),
@@ -95,7 +86,7 @@ FALSE_POSITIVES = (
     # False positive when using GjsAutoPointer
     # https://github.com/include-what-you-use/include-what-you-use/issues/927
     ('gi/boxed.cpp', '#include <type_traits>', 'for remove_reference<>::type'),
-    ('gi/object.cpp', '#include <type_traits>',
+    ('gi/interface.cpp', '#include <type_traits>',
      'for remove_reference<>::type'),
     ('gi/private.cpp', '#include <type_traits>',
      'for remove_reference<>::type'),
@@ -111,9 +102,28 @@ FALSE_POSITIVES = (
     ('test/gjs-test-jsapi-utils.cpp', '#include <type_traits>',
      'for remove_reference<>::type'),
 
-    # Weird false positive on some versions of IWYU
-    ('gi/arg.cpp', 'struct _GVariant;', ''),
-    ('gjs/profiler.cpp', '#include <cjs/profiler.h>', ''),
+    # False positive when constructing JS::GCHashMap
+    ('gi/boxed.h', '#include <utility>', 'for move'),
+    ('gi/object.h', '#include <utility>', 'for move'),
+    ('gjs/jsapi-util-error.cpp', '#include <utility>', 'for move'),
+    ('gjs/jsapi-util-error.h', '#include <utility>', 'for move'),
+
+    # Haven't managed to diagnose this one. It's triggered by replacing log.cpp
+    # with the following code, but not by that code in a standalone file.
+    # #include <vector>
+    # static std::vector<bool> v;
+    # void f() { v = std::vector<bool>(1, true); }
+    ('util/log.cpp', '#include <algorithm>', 'for copy'),
+
+    # For some reason IWYU wants these with angle brackets when they are
+    # already present with quotes
+    # https://github.com/include-what-you-use/include-what-you-use/issues/1087
+    ('gjs/context.cpp', '#include <gjs/context.h>', ''),
+    ('gjs/coverage.cpp', '#include <gjs/coverage.h>', ''),
+    ('gjs/error-types.cpp', '#include <gjs/error-types.h>', ''),
+    ('gjs/jsapi-util.cpp', '#include <gjs/jsapi-util.h>', ''),
+    ('gjs/mem.cpp', '#include <gjs/mem.h>', ''),
+    ('gjs/profiler.cpp', '#include <gjs/profiler.h>', ''),
 )
 
 

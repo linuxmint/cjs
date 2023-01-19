@@ -1,3 +1,5 @@
 In order to run those example scripts, do:
 
-  cjs-console script-filename.js
+```sh
+gjs -m script-filename.js
+```

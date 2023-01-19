@@ -15,12 +15,15 @@
 #include <glib.h>
 
 #include <js/CallArgs.h>
+#include <js/PropertyAndElement.h>
 #include <js/PropertySpec.h>
+#include <js/Realm.h>
 #include <js/RootingAPI.h>
+#include <js/String.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
-#include <jsapi.h>  // for JS_DefineFunctions, JS_NewStringCopyZ
+#include <jsapi.h>  // for JS_WrapObject
 
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
@@ -82,7 +85,7 @@ static bool do_readline(JSContext* cx, unsigned argc, JS::Value* vp) {
 
         /* EOF, return null */
         if (!line) {
-            args.rval().setUndefined();
+            args.rval().setNull();
             return true;
         }
     } while (line && line.get()[0] == '\0');

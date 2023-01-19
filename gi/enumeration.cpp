@@ -8,14 +8,16 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>  // for JS_DefineProperty, JS_NewPlainObject
+#include <jsapi.h>  // for JS_NewPlainObject
 
 #include "gi/cwrapper.h"
 #include "gi/enumeration.h"
 #include "gi/wrapperutils.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION

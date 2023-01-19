@@ -1,944 +1,1453 @@
-cjs (5.6.1) vera; urgency=medium
+gjs (1.74.1-1) unstable; urgency=medium
 
-  [ Fabio Fantoni ]
-  * debian: other small packaging improvements (#110)
+  * Team upload
+  * New upstream stable release
+  * Build-/test-depend on dbus-daemon instead of dbus.
+    This is sufficient to provide dbus-run-session.
+  * Update Lintian override syntax
+  * Set field Upstream-Name in debian/copyright
+  * Update standards version to 4.6.1 (no changes needed)
+  * d/upstream/metadata: Add
+  * d/watch, d/gbp.conf: Only watch for stable releases.
+    We'll follow 1.74.x for Debian 12.
 
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 21 Nov 2022 10:38:37 +0000
+ -- Simon McVittie <smcv@debian.org>  Tue, 15 Nov 2022 09:03:01 +0000
 
-cjs (5.6.0) vera; urgency=medium
+gjs (1.74.0-2) unstable; urgency=medium
 
-  [ Rick Calixte ]
-  * Fix .gitignore for builds
+  * Release to unstable
 
-  [ Michael Webster ]
-  * Use github instead of circleci.
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Sat, 24 Sep 2022 23:34:26 -0400
 
-  [ Fabio Fantoni ]
-  * remove d/control.in and add override about it in d/rules
-  * libcjs0f->libcjs0g, missed from gjs 1.70.0-4 rebase
-  * d/control: remove duplicate build-dep
-  * try to merge tests from debian package
-  * d/control: update build-dep min versions
+gjs (1.74.0-1) experimental; urgency=medium
 
-  [ Clement Lefebvre ]
-  * Rename libcj0g -> libcjs0
+  * New upstream release
 
- -- Clement Lefebvre <root@linuxmint.com>  Thu, 17 Nov 2022 12:04:09 +0000
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 21 Sep 2022 07:57:12 -0400
 
-cjs (5.4.1) vanessa; urgency=medium
+gjs (1.73.2-1) experimental; urgency=medium
 
-  [ Michael Webster ]
-  * Remove some links from the README
-  * Don't use max threads for tests.
-  * testCommandLine.sh: Skip a Gio.Subprocess test when inside of a circleci environment.
-  * debian/rules: Limit number of threads for the build.
+  * New upstream release
+  * Build against mozjs102
+  * debian/libgjs0g.symbols: Add new symbol
 
- -- Clement Lefebvre <root@linuxmint.com>  Fri, 15 Jul 2022 15:20:25 +0200
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 24 Aug 2022 14:43:34 -0400
 
-cjs (5.4.0) vanessa; urgency=medium
+gjs (1.73.1-2) unstable; urgency=medium
 
-  [ Michael Webster ]
-  * Rebase off of 1.70.0-4 (ubuntu 22.04)
+  * Rebuild against latest mozjs91 (Closes: #1017063)
 
-  [ Clement Lefebvre ]
-  * CI: Bring back config
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Fri, 12 Aug 2022 21:33:27 -0400
 
- -- Clement Lefebvre <root@linuxmint.com>  Fri, 10 Jun 2022 09:58:05 +0200
+gjs (1.73.1-1) unstable; urgency=medium
 
-cjs (5.2.0) una; urgency=medium
+  * New upstream release
+  * debian/control.in: Bump minimum meson to 0.54.0
 
-  * 5.2.0
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 03 Aug 2022 11:51:35 -0400
 
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 15 Nov 2021 11:39:00 +0000
-
-cjs (5.0.1) uma; urgency=medium
-
-  [ Eli Schwartz ]
-  * fix failing test checking for version number (#94)
-
-  [ Michael Webster ]
-  * object.cpp: Defer processing an object, rather than crash, when a toggle unref is already queued.
-
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 15 Nov 2021 11:19:43 +0000
-
-cjs (5.0.0) uma; urgency=medium
-
-  [ Leigh Scott ]
-  * fix readline build on certain systems
-  * overrides/Gtk: Set BuilderScope in class init
-  * gi/wrapperutils: Move gjs_get_string_id() into resolve() implementations
-  * Revert "arg-cache: Save space by not caching GType"
-  * Fixed error in _init() that prevented GType objects from being created. Improved the regression test, implementing Marco T's feedback.
-  * Update NEWS for 1.66.1
-  * Update NEWS for 1.66.2
-
- -- Clement Lefebvre <root@linuxmint.com>  Thu, 27 May 2021 15:00:53 +0100
-
-cjs (4.8.2) ulyssa; urgency=medium
-
-  [ Leigh Scott ]
-  * Rebase on 1.66.1 (#90)
-
- -- Clement Lefebvre <root@linuxmint.com>  Tue, 12 Jan 2021 11:10:48 +0000
-
-cjs (4.8.1) ulyssa; urgency=medium
-
-  [ Leigh Scott ]
-  * Fix bogus volatile caught by gcc-11
-  * fix build with clang
-
-  [ Michael Webster ]
-  * meson: Respect the minimum meson version required (0.49.2).
-
- -- Clement Lefebvre <root@linuxmint.com>  Tue, 08 Dec 2020 10:14:29 +0000
-
-cjs (4.8.0) ulyssa; urgency=medium
-
-  [ Leigh Scott ]
-  * Rebase on GJS 1.66 and Mozjs78 (#84)
-  * Fix tests (#85)
-
-  [ Michael Webster ]
-  * deprecation.cpp: Add additional info to ByteArray deprecation warning, and link to the xlet versioning tutorial page.
-
- -- Clement Lefebvre <root@linuxmint.com>  Wed, 25 Nov 2020 12:17:50 +0000
-
-cjs (4.6.0) ulyana; urgency=medium
-
-  [ Garry Filakhtov ]
-  * Fix two broken test cases
-
- -- Clement Lefebvre <root@linuxmint.com>  Tue, 12 May 2020 13:45:37 +0100
-
-cjs (4.4.0) tricia; urgency=medium
-
-  * 4.4.0
-
- -- Clement Lefebvre <root@linuxmint.com>  Sat, 16 Nov 2019 11:42:59 +0100
-
-cjs (4.2.0) tina; urgency=medium
-
-  [ Eli Schwartz ]
-  * update deprecated glib function (#72)
-
-  [ Leigh Scott ]
-  * Fix new autoconf-archive compile issue (#73)
-
- -- Clement Lefebvre <root@linuxmint.com>  Fri, 14 Jun 2019 12:43:24 +0100
-
-cjs (4.0.0) tessa; urgency=medium
-
-  [ Giovanni Campagna ]
-  * Add marshalling for native JS errors
-
-  [ Jason Hicks ]
-  * object: Associate callbacks with the object on which they're installed
-
-  [ Giovanni Campagna ]
-  * Use the GIVFuncInfo to hook up vfuncs instead of the GICallbackInfo
-  * Capture JS exceptions from invoked virtual functions
-
-  [ Jason Hicks ]
-  * global: Add a bootstrap system
-  * coverage: Use global bootstrap to add JS coverage code
-  * coverage: Don't error out on various files
-  * coverage: Scan ES6 classes for functions
-
-  [ Philip Chimento ]
-  * coverage: Correct AST walking for labelled statements
-  * coverage: Walk AST in more cases
-
-  [ Jason Hicks ]
-  * coverage: Refactor bootstrap code to use ES6 classes
-
-  [ Philip Chimento ]
-  * error: Use JSProtoKey to get Error constructor
-  * object: Remove hash-x32 implementation
-  * object: Merge weak_pointer_list and dissociate_list
-  * object: Remove vfunc list
-
-  [ Jason Hicks ]
-  * jsapi-util: Remove jsapi-private
-  * tests: Use assertions in coverage tests
-
-  [ Philip Chimento ]
-  * js: Convert scripts to UTF-16 before evaluating
-
-  [ Jason Hicks ]
-  * coverage: Use LCOV data from SpiderMonkey
-
-  [ Philip Chimento ]
-  * coverage: Propagate gjs_coverage_write_statistics() errors
-  * tests: Add regression test for vfunc crash avoidance
-  * jsapi-util-string: Use mozjs UTF8-to-JSString conversion
-  * jsapi-util-string: Missing error check
-  * importer: Missing error check
-  * jsapi-util: Improve check for SyntaxError
-  * js: Use JS_EncodeStringToUTF8() directly where advantageous
-  * param, importer: Spurious error when resolving non-string
-  * js: Don't convert to UTF-8 to compare ASCII names
-  * suppressions: Eliminate machine-dependent expressions
-
-  [ Marco Trevisan (Treviño) ]
-  * object: check in gjs_typecheck_object if the object has been finalized
-  * object: don't resolve or set,get properties on finalized elements
-  * object: add better logging when invalid access happens
-  * object: reset the keep alive flag on wrapper when object is disposed
-  * installed-tests/js: add testGObjectDestructionAccess to verify access to destryed objects
-
-  [ Philip Chimento ]
-  * object: Leave out param untouched on error
-
-  [ Jason Hicks ]
-  * maint: highlight the license
-  * release: Add NEWS for 1.51.3
-
-  [ Andy Holmes ]
-  * Amend gtk-application.js
-  * mv gtk-window.js to amend gtk.js, including suggestions
-
-  [ makepost ]
-  * arg: String as GdkAtom, and GdkAtom as string
-
-  [ Valentín Barros ]
-  * Test case improved in `installed-tests/js/testCairo.js` [fixes #27]
-
-  [ Marco Trevisan (Treviño) ]
-  * object: Only show critical errors on access to finalized objects
-    (Closes: #21)
-
-  [ Philip Chimento ]
-  * coverage: Remove unused JSCompartmentOptions
-  * js: Remove unnecessary property getters and setters
-
-  [ Marco Trevisan (Treviño) ]
-  * object: Show error when using proto functions (connect*, emit) on destroyed object
-  * object: make clear in toString() proto method when the object is finalized
-  * proxyutils: remove trailing spaces
-
-  [ Philip Chimento ]
-  * release: Prepare for 1.51.4
-  * arg: Marshal GType of 0 to null
-  * release: Include NEWS from 1.50.3
-
-  [ Jason Hicks ]
-  * profiler: add SPSProfiler implementation
-
-  [ Philip Chimento ]
-  * profiler: Implement --profile flag behaviour
-  * profiler: Allow enabling with GJS_ENABLE_PROFILER=1
-  * profiler: Disable profiler in interactive mode
-  * profiler: Disable SIGUSR2 start/stop
-
-  [ Jason Hicks ]
-  * profiler: Suppress cppcheck warning
-  * profiler: Allow configuring with --disable-profiler
-  * profiler: Always activate profiler if GJS_ENABLE_PROFILER=1
-
-  [ Philip Chimento ]
-  * foreign: Use gjs_eval_with_scope() instead of public API
-
-  [ Jason Hicks ]
-  * profiler: Reduce API surface
-
-  [ Philip Chimento ]
-  * object: Restore resolve return value
-  * tests: Don't compare Rooted<T> against NULL
-  * tests: Add pending test for composite template subclass
-  * maint: Fix obsolete comments on resolve hooks
-  * js: Remove context from GjsAutoJSChar
-
-  [ Jason Hicks ]
-  * Fix overwriting of libcjs_la_SOURCES
-
-  [ Philip Chimento ]
-  * jsapi-util-string: Fix return of gjs_get_string_id()
-  * Revert "object: reset the keep alive flag on wrapper when object is disposed"
-  * release: Include NEWS from 1.50.4
-  * maint: Update DOAP file
-
-  [ Jason Hicks ]
-  * Allow using GObject.signal_* functions in place of Object methods
+gjs (1.72.0-4) unstable; urgency=medium
 
   [ Simon McVittie ]
-  * gjs_callback_closure: Log uncatchable exceptions, don't just exit
-  * gjs_callback_closure: Use g_error, not exit, on uncatchable exceptions
-  * _gjs_context_run_jobs: Log uncatchable exceptions, except System.exit()
-  * gjs_context_eval: Use different GError message for uncatchable exceptions
-  * gjs_context_eval: Log a critical on uncatchable exceptions
+  * d/copyright: Replace CC0-1.0 text with a reference to common-licenses
 
-  [ Philip Chimento ]
-  * build: Install suppressions files
+  [ Jeremy Bicha ]
+  * Cherry-pick patch to fix memory leak seen when taking screenshots
+    (LP: #1973638)
 
-  [ Jason Hicks ]
-  * Rename gjs-1.0
-  * CI: use a more robuts test for profiling dumping
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 29 Jun 2022 08:40:12 -0400
 
-  [ Philip Chimento ]
-  * release: Prepare for 1.51.90
-  * build: Ignore -Wcast-function-type in G_DEFINE_TYPE
-  * jsapi-dynamic-class: Use interned strings to link prototype
+gjs (1.72.0-3) unstable; urgency=medium
 
-  [ Giovanni Campagna ]
-  * function: move completed trampolines out of gjs_invoke_c_function
+  * debian/patches: Correctly generate camelCase properties on all locales.
+    And particularly looking at Turkish one. (LP: #1969838)
 
-  [ Philip Chimento ]
-  * function: Fix outdated comment
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Thu, 28 Apr 2022 22:24:50 +0200
 
-  [ Giovanni Campagna ]
-  * tests: Add tests for GObject-valued properties
+gjs (1.72.0-2) unstable; urgency=medium
 
-  [ Philip Chimento ]
-  * profiler: Remove unused function in !ENABLE_PROFILER case
+  * Upload to unstable
 
-  [ Ting-Wei Lan ]
-  * profiler: Don't include alloca.h when disabled
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 23 Mar 2022 10:48:56 -0400
 
-  [ Philip Chimento ]
-  * toggle: Add debug logging
-  * context: Add more debug logging to dispose
-  * log: Allow logging thread ID of each message
-  * context: Shut down toggle queue before dispose notify
+gjs (1.72.0-1) experimental; urgency=medium
 
-  [ Jason Hicks ]
-  * context: Fix usage of g_idle_add for resolving promises
+  * New upstream release
 
-  [ Philip Chimento ]
-  * release: Prepare for 1.51.91
-  * function: Refactor "callback blocked" message into helper function
-  * function: Don't call into JS if on the wrong thread
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Tue, 22 Mar 2022 08:09:08 -0400
 
-  [ Jason Hicks ]
-  * Profiler: fix build on Debian/Ubuntu
-  * Revert "build: Install suppressions files"
-  * Remove test/travis-ci.sh
-  * Tests: Fix failures from gjs renaming
+gjs (1.71.90-1) experimental; urgency=medium
 
-  [ Philip Chimento ]
-  * console: Free profiler output path at different points
-  * sysprof: Initialize buffer in SpCaptureWriter
-  * tests: Reduce length of profiler start/stop test
+  [ Jeremy Bicha ]
+  * New upstream release
+  * Drop all patches: applied in new release
 
-  [ Florian Müllner ]
-  * overrides/Gio: Add D-Bus convenience to more proxy methods
+  [ Marco Trevisan (Treviño) ]
+  * debian/gjs.examples: Install JS examples
+  * debian/control: Use clearer short descriptions for packages
+  * debian/changelog: Remove trailing spaces
+  * debian/control: Remove libgjs-dev dependency on gjs
+  * debian/control: Remove duplicated build-dependency on libcairo2-dev
+  * debian/gjs-tests.lintian-overrides: Ignore link error on d'loaded libs
 
-  [ Philip Chimento ]
-  * context: Job queue should not swallow pending exceptions
-  * overrides: Add override for Cairo that merges in imports.cairo
+ -- Jeremy Bicha <jeremy.bicha@canonical.com>  Tue, 08 Mar 2022 15:37:21 -0500
+
+gjs (1.71.1-1) experimental; urgency=medium
+
+  * New upstream release:
+    - New JavaScript features! This version of GJS is based on SpiderMonkey 91
+      For more information, look them up on MDN or devdocs.io
+    - It's now possible to pass BigInt values to GObject-introspected functions
+      with 64-bit parameters
+  * debian/patches: Cherry-pick upstream test fixes
+  * debian/patches: Do not crash on instanceof checks on interfaces
+    (LP: #1960898)
+  * debian/patches: Correctly handle later handled promises rejections
+  * debian/control: Bump dependency on mozjs-91
+  * debian/libgjs0g.symbols: Include new symbols
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Tue, 22 Feb 2022 12:26:43 +0100
+
+gjs (1.70.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * Drop all patches: applied in new release
+
+ -- Jeremy Bicha <jeremy.bicha@canonical.com>  Tue, 08 Feb 2022 08:38:53 -0500
+
+gjs (1.70.0-4) unstable; urgency=medium
+
+  * Team upload
+  * d/p/arg-Replace-gsize-with-size_t.patch,
+    d/p/Handle-optional-out-parameters-in-callbacks.patch:
+    Include all patches from upstream gnome-41 branch up to
+    1.70.0-4-g62025d4a2
+    - Fix FTBFS on some 32-bit architectures where size_t is unsigned long
+      but gsize is unsigned int
+    - Allow optional 'out' parameters in callbacks to be NULL
+  * d/p/build-disable-gir-install-via-list-to-pacify-meson-0.60.2.patch:
+    Add patch from upstream to fix FTBFS with meson 0.60.2 (Closes: #1002101)
+  * d/p/installed-tests-Install-matchers.js.patch:
+    Make cosmetic changes to match the version applied upstream
+  * d/p/build-Link-with-libatomic-if-necessary.patch:
+    Mark as applied upstream
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 21 Dec 2021 19:39:35 +0000
+
+gjs (1.70.0-3) unstable; urgency=medium
+
+  * Team upload
+  * Upload to unstable
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 15 Oct 2021 09:36:07 +0100
+
+gjs (1.70.0-2) experimental; urgency=medium
+
+  * Team upload
+  * d/p/build-Link-with-libatomic-if-necessary.patch:
+    Add patch to link with libatomic if needed (Closes: #995930)
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 08 Oct 2021 12:28:11 +0100
+
+gjs (1.70.0-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release, required by GNOME Shell 41
+  * d/copyright: Update
+  * Update mozjs dependency version
+  * d/rules: Look for typelibs in build directory during smoke-test
+  * d/libgjs0g.symbols: Add new symbols
+  * d/libgjs0g.symbols: Ignore removal of private function gjs_open_bytes().
+    This was not in public headers, and is only exposed in the ABI so that
+    tests can call it.
+  * Use a UTF-8 locale to run installed-tests.
+    Some of the command-line tests rely on this.
+  * d/p/installed-tests-Install-matchers.js.patch:
+    Add patch to fix installed-tests failure
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 21 Sep 2021 17:01:56 +0100
+
+gjs (1.68.4-1) unstable; urgency=medium
+
+  * New upstream release
+  * debian/rules: Simplify a bit
+
+ -- Jeremy Bicha <jbicha@debian.org>  Sat, 18 Sep 2021 15:52:33 -0400
+
+gjs (1.68.3-1) unstable; urgency=medium
+
+  * New upstream stable release
+  * d/shlibs.local: Give gjs a lockstep dependency on libgjs0g.
+    For external packages like gnome-shell, ${shlibs:Depends} should generate
+    a dependency on libgjs0g (>= some version) as usual, but for binary
+    packages from the same source package we should not allow partial
+    upgrades.
+  * d/control.in: Move Breaks from gjs to libgjs0g.
+    It's really the updated libgjs that will break old GJS applications,
+    not the updated gjs command-line executable.
+  * d/control.in: Require a newer gnome-shell.
+    gnome-shell 3.38.6 has fixes for compatibility with this libgjs, so
+    bump the version in the Breaks accordingly.
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 26 Aug 2021 09:06:25 +0100
+
+gjs (1.68.1-2) unstable; urgency=medium
+
+  * Team upload
+  * d/copyright: Update
+  * Don't let debhelper 13.4+ make all the installed-tests executable
+  * Remove unnecessary .eslintrc.yml from installed-tests
+  * Silence a Lintian false-positive in the test data
+  * Add Lintian override documenting why libgjs0g is not libgjs0
+  * Standards-Version: 4.6.0 (no changes required)
+  * Release to unstable
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 25 Aug 2021 12:21:03 +0100
+
+gjs (1.68.1-1) experimental; urgency=medium
+
+  * New upstream release
+  * debian/patches: Drop all, they've been applied upstream
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Sat, 08 May 2021 23:39:49 +0200
+
+gjs (1.68.0-2) experimental; urgency=medium
+
+  * debian/patches: Cherry-pick upstream memory fixes
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Wed, 05 May 2021 05:53:50 +0200
+
+gjs (1.68.0-1) experimental; urgency=medium
+
+  * New upstream release
+    - Fixed session crashes in gjs on unlocking (sometimes)
+    - installed-tests installed despite explicitly disabled
+  * debian/patches: Drop all applied upstream
+  * d/p/GObject-Don-t-autogenerate-accessors-for-CONSTRUCT_ONLY-p.patch,
+    d/p/GObject-Define-camel-and-kebab-variants-of-CONSTRUCT_ONLY.patch,
+    d/p/overrides-Gio-Fix-_LocalFilePrototype.patch,
+    d/p/object-Return-undefined-and-not-the-actual-function-on-di.patch:
+    - Various fixes for JS GObject overrides
+  * d/p/cairo-Add-missing-semi-colons-from-dummy-class-declaratio.patch:
+    - Fix headers warning
+  * d/p/wrapperutils-Use-native-ostringstream-pointer-to-string-c.patch:
+    - Print the object address in hex format on toString()
+  * d/p/testFundamental-Ensure-a-fundamental-can-be-converted-to-.patch,
+    d/p/fundamental-Use-value-or-instance-pointer-when-no-get-set.patch:
+    - Correctly handle Gdk 4 Events
+  * d/p/object-Pass-the-instance-pointer-to-toggle-notify.patch,
+    d/p/object-Switch-back-to-normal-references-on-disposal.patch,
+    d/p/object-Discard-disposed-GObject-s-and-do-not-create-wrapp.patch,
+    d/p/object-Also-unset-the-object-qdata-during-wrapper-destruc.patch,
+    d/p/object-Never-try-to-add-a-toggle-reference-on-a-disposed-.patch,
+    d/p/object-Use-the-term-DISPOSED-for-objects-in-such-state-no.patch,
+    d/p/testGobjectDestructionAccess-Verify-usage-of-vfunc_dispos.patch,
+    d/p/object-Catch-finalized-objects-that-are-still-under-gjs-s.patch,
+    d/p/testGObjectDestructionAccess-Ensure-that-returned-dispose.patch,
+    d/p/testGObjectDestructionAccess-Verify-that-disposed-object-.patch,
+    d/p/object-Cancel-queued-toggles-on-dispose-notify.patch:
+    - Improve handling for diposed and finalized objects, fixing crashes
+  * d/p/object-Safely-handle-disposal-when-happening-from-other-t.patch,
+    d/p/installed-tests-Add-GjsTestTools-utilities-to-call-native.patch,
+    d/p/gjs-test-tools-Add-ability-to-ref-unref-and-dispose-from-.patch,
+    d/p/object-Discard-wrapper-when-GObject-is-disposed-from-main.patch,
+    d/p/object-Do-not-disassociate-a-JS-object-if-we-have-queued-.patch,
+    d/p/toggle-Initialize-private-variables-on-construction.patch,
+    d/p/toggle-Use-GWeakRef-s-to-track-objects-to-prevent-adding-.patch:
+    - Fix handling of dispose and unref hevent when happening in other threads
+      (LP: #1882410)
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Thu, 15 Apr 2021 09:17:17 +0200
+
+gjs (1.67.2-2) experimental; urgency=medium
+
+  [ Marco Trevisan (Treviño) ]
+  * debian/gbp.conf: Set upstream branch to upstream/latest
+  * debian/patches: Consistently handle undefined values for integer functions.
+    This was causing build failures in some architectures as per being NaN
+    dependent.
+
+  [ Olivier Tilloy ]
+  * Cherry-pick upstream commits to fix failing autopkgtests
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Mon, 08 Mar 2021 22:41:06 +0100
+
+gjs (1.67.2-1) experimental; urgency=medium
+
+  * New upstream release
+  * d/p/GCjsPrivate-Fix-indentation-in-function.patch,
+    d/p/GCjsPrivate-Remove-volatile-from-g_once_init_enter-flag.patch,
+    d/p/Gmaint-Avoid-g_once_init_enter-error-in-GCC-11.patch:
+    - Handle g_once_init_enter as newer GLib and gcc expects
+  * d/p/engine-Set-baseline-interpreter-to-enable_jit.patch:
+    - Ensure JIT can be fully disabled
+  * debian/libgjs0g.symbols: Update symbols
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Tue, 23 Feb 2021 16:49:06 +0100
+
+gjs (1.66.2-1) unstable; urgency=medium
+
+  * Team upload
+
+  [ Marco Trevisan (Treviño) ]
+  * debian/watch: Ignore '..' links as valid version value
+
+  [ Simon McVittie ]
+  * d/watch: Don't assume major version must be a single digit
+  * d/watch: Only look for stable-branch versions
+  * d/gbp.conf: Use upstream/1.66.x branch to import new versions.
+    The first 1.67.x release already happened, but we don't want it for
+    Debian 11.
+  * New upstream release
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 29 Jan 2021 18:13:21 +0000
+
+gjs (1.66.1-1) unstable; urgency=medium
+
+  * New upstream release:
+    - Throws on Unsupported caller allocates
+    - arg: Fix MIN/MAX safe big integer limits
+    - Fix leak when virtual function is unimplemented
+    - Cannot compile GJS 1.66.0 on macOS with llvm/clang 10.0.1
+    - console: fix typo in command-line option
+    - Prevent passing null pointers when not nullable
+    - Passing fundamentals to functions works again (LP: #1898393)
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Sun, 11 Oct 2020 01:00:09 +0200
+
+gjs (1.66.0-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Mon, 14 Sep 2020 12:51:25 +0200
+
+gjs (1.65.92-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release
+  * Drop patches, applied upstream
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 08 Sep 2020 16:53:38 +0100
+
+gjs (1.65.91-2) experimental; urgency=medium
+
+  * debian/patches: Fix BoxedInstance initialization causing a crash in s390x
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Wed, 02 Sep 2020 16:52:13 +0200
+
+gjs (1.65.91-1) experimental; urgency=medium
+
+  * New upstream release
+    - Using mozjs (SpiderMonkey) 78 as JavaScript engine, coming with:
+      + A new regular expression engine, supporting lookbehind and named capture
+        groups, among other things
+      + The ?? operator ("nullish coalescing operator") is now supported
+      + The ?. operator ("optional chaining operator") is now supported
+      + Public static class fields are now supported
+      + Separators in numeric literals are now supported: for example, 1_000_000
+      + String.replaceAll() for replacing all instances of a string inside
+        another string
+      + Promise.allSettled() for awaiting until all Promises in an array have
+        either fulfilled or rejected
+      + Intl.Locale
+      + Intl.ListFormat
+      + Intl.RelativeTimeFormat.formatToParts()
+    - New API: gjs_coverage_enable() allows the collection of code coverage
+      metrics
+  * debian/rules:
+    - BD on libmozjs-78
+  * debian/libgjs0g.symbols: Update, adding new sybmol
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Mon, 31 Aug 2020 23:58:06 +0200
+
+gjs (1.65.4-1) experimental; urgency=medium
+
+  [ Marco Trevisan (Treviño) ]
+  * New upstream release
+    - Allow one to promisify static methods
+    - No need to redefine getter and setter for GObject properties
+    - Less critical errors logging
+    - Add support for JS pubblic class fields
+    - Demarshalling fixes in 64-bit big-endian
+    - Crash and memory fixes, performance improvements
+    - Gtk.Widget is now an iterable object
+    - Fix installed-tests compatibility with GTK 4
+  * debian/rules:
+    - BD on debhelper 13
+    - Don't redefine HOME and XDG_RUNTIME_DIR (handled by dh 13)
+    - Use dh_auto_test instead of meson test (handled by dh 13)
+  * debian/libgjs0g.install: Use variables to get the multi-arch path
+  * debian/gjs-tests.install: Adapt to fixed installed-tests location
+
+  [ Simon McVittie ]
+  * d/rules: Show output of failing tests.
+    Otherwise it's impossible to debug things like #966923.
+  * d/p/function-Don-t-assume-FFI-argument-always-matches-GIArgum.patch:
+    - Correctly handle function arguments in 64-bit big endian
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Thu, 27 Aug 2020 06:29:16 +0200
+
+gjs (1.64.3-1) unstable; urgency=medium
+
+  * New upstream release:
+    - arg: Don't sink GClosure ref if it's a return value
+    - overrides/Gtk: Adjust gtk_container_child_set_property() check
+    - Use memory GSettings backend in tests
+    - Update debug message from trimLeft/trimRight to trimStart/trimEnd
+    - Various fixes for potential crash and memory issues
+  * debian/rules: Use timeout multiplier in tests
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Wed, 03 Jun 2020 15:35:51 +0200
+
+gjs (1.64.2-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream stable release
+    - Fix template use in GTK 4
+    - Don't crash if a callback doesn't return an expected array of values
+    - Fix a crash when passing integer to strv in constructor
+    - Skip some tests if GTK can't be initialised
+    - Fix gjs_log_exception() for InternalError
+    - Fix signal match mechanism
+    - Drop all patches, applied upstream
+  * Install installed-tests in default /usr/libexec/gjs/installed-tests
+  * Install libraries with multiarch paths
+  * Simplify dh_makeshlibs invocation using debhelper 12 defaults.
+    The incantation we previously had in -V is a longwinded way to write
+    dh_makeshlibs -VUpstream-Version (aka plain -V with no argument),
+    which is the default in compat level 12 anyway.
+  * Mark libgjs0g as Multi-Arch: same
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 01 May 2020 09:59:07 +0100
+
+gjs (1.64.1-3) unstable; urgency=medium
+
+  * Team upload
+  * Release to unstable (transition: #954422)
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 10 Apr 2020 14:32:50 +0100
+
+gjs (1.64.1-2) experimental; urgency=medium
+
+  * Team upload
+  * Add proposed patches to fix type-punning on big-endian LP64,
+    in particular s390x (Closes: #906022)
+  * d/test.sh: Make test failures fatal on all architectures
+  * d/rules: Go back to inlining testing instead of using a separate script.
+    Now that we are treating test failures as always bad, we don't need
+    that extra complexity.
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 08 Apr 2020 12:17:12 +0100
+
+gjs (1.64.1-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release
+  * d/gbp.conf: Use upstream/1.64.x branch.
+    There has already been a 1.65.1 release.
+  * d/p/Fix-failed-redirect-of-output-in-CommandLine-tests.patch:
+    Drop patch, applied upstream
+  * d/gjs-tests.install: Adjust to test libraries' new location
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 03 Apr 2020 23:03:07 +0100
+
+gjs (1.64.0-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release (no changes beyond version number)
+  * Explicitly disable profiler.
+    It wasn't enabled on the buildds in practice because we don't
+    build-depend on sysprof.
+  * Enable all optional features that are not explicitly disabled.
+    This gives us more deterministic builds and checks that we haven't
+    forgotten build-dependencies.
+  * Bump build-dependency on gobject-introspection to 1.64.
+    The upstream developers won't have tested arbitrary combinations of GNOME
+    3.34 and 3.36 components, so we should probably take an all-or-nothing
+    approach to the upgrade.
+  * d/test.sh: Reset XDG directories to safe temporary values.
+    In some build environments these end up set to inaccessible or otherwise
+    unsuitable locations, causing one test to fail.
+    This should become unnecessary in dh compat level 13, which does something
+    similar itself. (Closes: #954659)
+  * d/p/root-Always-expose-object-to-JS-before-reset.patch:
+    Drop a patch that was not applied upstream.
+    According to upstream !396, the bug this was meant to address has
+    been fixed differently in 1.63.92.
+  * d/p/Fix-failed-redirect-of-output-in-CommandLine-tests.patch:
+    Add patch from upstream master to fix a bashism in a test.
+    Thanks to Liban Parker.
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 24 Mar 2020 09:38:10 +0000
+
+gjs (1.63.92-1) experimental; urgency=medium
+
+  * New upstream release
+  * tests-Avoid-filename-conflict-when-tests-run-in-parallel.patch: Drop,
+    upstream
+
+ -- Iain Lane <laney@debian.org>  Tue, 03 Mar 2020 09:18:17 +0000
+
+gjs (1.63.91-1) experimental; urgency=medium
+
+  [ Marco Trevisan (Treviño) ]
+  * New upstream release
+    - Uses mozjs68
+    - Cache known unresolvable properties
+  * debian/control:
+    - Build depend on libmozjs-68-dev and meson
+    - Adjust gobject-introspection dependency version to match upstream
+  * debian/rules:
+    - Adapt configure parameters to meson
+    - Remove the ones that were already matching upstream default
+    - Don't try to remove *.la files anymore, as it's a no-op with meson
+    - Pass BUILDDIR to debian/test.sh
+  * debian/test.sh:
+    - Update binary paths to point to meson build path
+    - Use meson test to run tests
+    - Create a temporary home directory for running tests
+  * debian/docs,
+    debian/gjs.docs:
+    - Point to new Markdown README.md file
+  * debian/libgjs0g.symbols:
+    - Add symbols file
+  * debian/tests/installed-tests:
+    - Use $AUTOPKGTEST_TMP instead of the deprecated $ADTTMP
+  * d/p/root-Always-expose-object-to-JS-before-reset.patch,
+    d/p/tests-Avoid-filename-conflict-when-tests-run-in-parallel.patch:
+    - Avoid crashing during gargabe collection
+
+  [ Iain Lane ]
+  * debian/test.sh: Clean up the test dir when we exit
+  * debian/test.sh: The default build dir is DEB_HOST_GNU_TYPE.
+    Not DEB_HOST_BUILD_TYPE
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Mon, 24 Feb 2020 18:13:50 +0000
+
+gjs (1.58.1-2) unstable; urgency=medium
+
+  * Team upload
+  * d/tests/build: Fix various shellcheck warnings
+  * d/tests/build: Use correct compiler for proposed autopkgtest
+    cross-architecture testing support
+  * d/tests/build: Mark as superficial
+  * Bump Standards-Version to 4.5.0 (no changes required)
+  * Explicitly build-depend on libffi-dev.
+    gjs uses ffi_call(), so we should have our own B-D and not just rely
+    on libgirepository1.0-dev having a dependency.
+  * Adjust build-dependencies for libffi7 transition:
+    - Depend on a version of libffi-dev associated with libffi7
+    - Depend on a version of libgirepository1.0-dev that was definitely
+      built using libffi7
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 30 Jan 2020 08:56:41 +0000
+
+gjs (1.58.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * Build-Depend on dh-sequence-gir and dh-sequence-gnome
+
+ -- Jeremy Bicha <jbicha@debian.org>  Thu, 10 Oct 2019 06:12:11 -0400
+
+gjs (1.58.0-2) unstable; urgency=medium
+
+  * Team upload.
+  * Upload to unstable.
+
+ -- Andreas Henriksson <andreas@fatal.se>  Mon, 30 Sep 2019 13:57:02 +0200
+
+gjs (1.58.0-1) experimental; urgency=medium
+
+  * New upstream release
+  * d/control: update build-dep on gobject-introspection to 1.61.2
+  * d/rules: --with-xvfb-tests option has been removed
+  * d/test.sh: call xvfb-run from the test wrapper to start a server
+  * d/control: build-dep on xauth for xvfb-run
+
+ -- Tim Lunn <tim@feathertop.org>  Wed, 11 Sep 2019 22:02:08 +1000
+
+gjs (1.57.91-2) experimental; urgency=medium
+
+  * fix up depends so autopkgtests pass again
+  - debian/control:
+      - depend on libcairo2-dev, this was implicitly pulled by libgtk3 before
+      - runtime depend on gir1.2-gtk-3.0
+
+ -- Tim Lunn <tim@feathertop.org>  Sun, 01 Sep 2019 23:00:03 +1000
+
+gjs (1.57.91-1) experimental; urgency=medium
+
+  * New upstream release
+  * Build-depend on debhelper-compat (=12) and remove debian/compat
+  * debian/control:
+    - remove build-dep on libgtk3, gjs no longer links against gtk
+    - add build dep on gir1.2-gtk-3.0, required by tests
+  * Bump standards version to 4.4.0 no changes required
+
+ -- Tim Lunn <tim@feathertop.org>  Tue, 27 Aug 2019 18:34:40 +1000
+
+gjs (1.57.90-1) experimental; urgency=medium
+
+  * New upstream release
+  * control: bump glib build-dep to 1.58.0 as per configure.ac
+
+ -- Tim Lunn <tim@feathertop.org>  Tue, 13 Aug 2019 21:00:02 +1000
+
+gjs (1.57.4-1) experimental; urgency=medium
+
+  * New upstream release in the 1.57 series.
+  * rules: Don't build profiler support yet.
+    We need to split sysprof into a library, a -dev package and the client
+    applications for this, so that all gjs users don't get everything
+    installed.
+  * control: Bump gobject-introspection BDs to 1.59.2, per configure.ac
+
+ -- Iain Lane <laney@debian.org>  Thu, 18 Jul 2019 12:25:32 +0100
+
+gjs (1.56.2-1) experimental; urgency=medium
+
+  * New upstream release, fixing:
+    + Cairo conversion bugs
+    + console: Don't accept --profile after the script name
+    + Crash in BoxedInstance when struct could not be allocated directly
+    + Gjs crashes when binding inherited property to js added gobject-property
+
+ -- Iain Lane <laney@debian.org>  Wed, 08 May 2019 17:46:16 +0100
+
+gjs (1.56.1-1) experimental; urgency=medium
+
+  * New upstream stable release, fixing:
+    + Calling dumpHeap() on non-existent directory causes crash
+    + Using Gio.MemoryInputStream.new_from_data ("string") causes segfault
+    + Fix gjs_context_eval() for non-zero-terminated strings
+
+ -- Iain Lane <laney@debian.org>  Tue, 09 Apr 2019 09:51:55 +0100
+
+gjs (1.56.0-1) experimental; urgency=medium
+
+  * New upstream release
+  * Bump Standards-Version to 4.3.0
+  * debian/rules: Drop the "Provides=libgjs0-libmozjs-52-0". There aren't any
+    (currently buildable) references to this left in the archive.
+  * Update gbp.conf to standard settings.
+
+ -- Andrea Azzarone <andrea.azzarone@canonical.com>  Thu, 14 Mar 2019 16:19:03 +0000
+
+gjs (1.54.3-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream release
+  * Force time zone to UTC when running tests.
+    This hopefully fixes FTBFS in the pathological time zone used to test
+    reproducible builds.
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 15 Nov 2018 11:31:50 +0000
+
+gjs (1.54.2-1) unstable; urgency=medium
+
+  * Team upload
+  * Upload to unstable (starts transition: #906016)
+  * d/watch: Only watch for versions from a stable branch
+  * New upstream release
+  * Bump Standards-Version to 4.2.1 (no changes required)
+  * Use dpkg's default.mk to get upstream version number for dependencies.
+    This avoids relying on the differently-named variables in
+    gnome-get-source.mk, and also does the right thing if gjs ever gains
+    an epoch.
+  * d/rules: Remove gnome-get-source.mk (please use uscan instead)
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 02 Nov 2018 09:33:10 +0000
+
+gjs (1.54.1-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 05 Oct 2018 11:40:01 +0100
+
+gjs (1.54.0-1) experimental; urgency=medium
+
+  * Team upload
+
+  [ Simon McVittie ]
+  * New upstream development release (Closes: #904994)
+  * Depend and build-depend on mozjs60 instead of mozjs52
+  * d/copyright: Update
+  * Explicitly disable -Werror
+  * Drop build-dependency on gnome-common which does not appear to be
+    needed since 1.47.0
+  * d/gbp.conf: Don't number patches
+  * Add Breaks on gnome-documents, gnome-sound-recorder and polari
+    versions that use conditional catch clauses, which are a
+    Mozilla-specific extension that is no longer supported in mozjs60
+  * Add Breaks on gnome-shell (<< 3.29.90) for ByteArray changes
+  * dh_makeshlibs: Only generate a dependency on libgjs0g, not on the
+    virtual package libgjs0-libmozjs-60-0. Since the gjs-internals
+    module was removed in version 1.47.0, gjs does not expose mozjs
+    API/ABI in its own ABI, so it is unnecessary for gjs users like
+    gnome-shell, gnome-sushi and polari to depend on their gjs having
+    been compiled against a specific version of mozjs.
+  * Provide libgjs0-libmozjs-52-0 to indicate that our ABI is
+    compatible with the gjs that used libmozjs-52-0, until all
+    dependent packages have been rebuilt
+
+  [ Tim Lunn ]
+  * New upstream release
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 20 Sep 2018 10:32:06 +0100
+
+gjs (1.53.3-1) experimental; urgency=medium
+
+  [ Simon McVittie ]
+  * d/watch: Watch for development releases
+  * New upstream development release
+
+  [ Iain Lane ]
+  * New upstream development releases 1.53.2 and 1.53.3
+
+ -- Iain Lane <laney@debian.org>  Wed, 27 Jun 2018 18:20:12 +0100
+
+gjs (1.52.3-2) unstable; urgency=medium
+
+  * Team upload
+  * d/p/context-Add-API-to-force-GC-schedule.patch,
+    d/p/object-Queue-a-forced-GC-when-toggling-down.patch,
+    d/p/context-Ensure-force_gc-flag-is-not-lost-if-the-idle-is-s.patch:
+    Add patches from upstream version 1.53.1 to make GC more aggressive
+    (LP: #1672297)
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 17 May 2018 11:13:54 +0100
+
+gjs (1.52.3-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Tim Lunn <tim@feathertop.org>  Tue, 08 May 2018 17:18:07 +1000
+
+gjs (1.52.2-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Tim Lunn <tim@feathertop.org>  Fri, 20 Apr 2018 17:18:55 +1000
+
+gjs (1.52.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * Drop patch included in new release
+
+ -- Tim Lunn <tim@feathertop.org>  Thu, 12 Apr 2018 18:12:07 +1000
+
+gjs (1.52.0-2) unstable; urgency=medium
 
   [ James Cowgill ]
-  * profiler: Don't assume layout of struct sigaction
+  * Add mips-sigaction.patch to fix build on mips* (Closes: #893485)
 
-  [ Philip Chimento ]
-  * context: Always import byteArray
+ -- Jeremy Bicha <jbicha@debian.org>  Tue, 20 Mar 2018 07:35:20 -0400
 
-  [ Jason Hicks ]
-  * Remove dead code
+gjs (1.52.0-1) unstable; urgency=medium
 
-  [ Philip Chimento ]
-  * Gio: Remove obsolete code
-  * tests: Add missing async test parameter
-  * Remove unnecessary semicolons
+  * New upstream release
+  * Release to unstable
+  * Drop fix_build.patch: Applied in new release
 
-  [ Tommi Komulainen ]
-  * context: dump heaps on signal
+ -- Jeremy Bicha <jbicha@debian.org>  Sat, 17 Mar 2018 08:52:40 -0400
 
-  [ Claudio André ]
-  * installed-tests/js: skip a test GTK dependent, if no GTK
-
-  [ Karen Medina ]
-  * Update tweener.js -- 48 eslint errors fixed
-
-  [ Philip Chimento ]
-  * log: Remove unused debug topics
-  * object: Improve lifecycle logging
-  * engine: Free Cairo static data on shutdown
-  * object: Ensure weak ref callback is removed on finalize
+gjs (1.51.91-1) experimental; urgency=medium
 
-  [ Andy Holmes ]
-  * initial commit of heapgraph scripts
-  * rename README.md to heapgraph.md
-  * tweak heapgraph.md
-  * heapdot.py: remove shape compression
-  * omit 'self-hosting-global' unless explicitly targetted
+  [ Simon McVittie ]
+  * New upstream release
+    - Drop patches that were applied upstream
 
-  [ Jason Hicks ]
-  * release: Prepare for 1.52.1
+  [ Tim Lunn ]
+  * Install valgrind suppresion files into libgjs-dev
+  * d/p/fix_build.patch: explicitly link against librt
 
-  [ Philip Chimento ]
-  * Merge branch 'jaszhix/gjs-tweener-fix'
-  * Revert "engine: Free Cairo static data on shutdown"
+ -- Tim Lunn <tim@feathertop.org>  Tue, 20 Feb 2018 17:53:02 +1100
 
-  [ Andy Holmes ]
-  * heapgraph.py: adjust terminal output style * don't use colors in terminal output * remove unused label function
+gjs (1.50.3-2) unstable; urgency=medium
 
-  [ rockon999 ]
-  * Fix UTF8 encoding for some GJS string arrays. - The function that constructs string arrays for imports and argv utilized a JS_NewStringCopyZ call instead of the proper JS_NewStringCopyUTF8Z (the input is UTF8).
-  * Add testing for ARGV encoding changes.
-  * Automate testing for unicode encoding.
-  * Test new environment flag against pipeline.
+  * Team upload
+  * Add patch from upstream merge request 38 to prevent crashes in
+    certain error situations (possibly resolves #888052, #888199)
+  * Add patches to improve uncatchable exception reporting
+  * Revert some of the upstream changes from 1.50.3, which appear to
+    cause crashes (Closes: #888485; possibly also #888052, #888199)
 
-  [ Giovanni Campagna ]
-  * object: don't use toggle references unless necessary
+ -- Simon McVittie <smcv@debian.org>  Fri, 26 Jan 2018 13:57:40 +0000
 
-  [ Georges Basile Stavracas Neto ]
-  * object: properly disassociate wrappers
-  * context: Add API to force GC schedule
-  * object: Queue a forced GC when toggling down
-  * object: Only weak unref if GObject is still alive
+gjs (1.50.3-1) unstable; urgency=medium
 
-  [ Andy Holmes ]
-  * overrides: support Gtk template callbacks
+  * New upstream release
+  * Drop all patches since they were applied in new release
+  * Bump debhelper compat to 11
 
-  [ Carlos Garnacho ]
-  * context: Ensure force_gc flag is not lost if the idle is scheduled
-    (Closes: #150)
-  * object: Embed wrapped object list into ObjectInstance (Closes: #142)
+ -- Jeremy Bicha <jbicha@debian.org>  Sun, 21 Jan 2018 09:12:05 -0500
 
-  [ Philip Chimento ]
-  * jsapi-util-root: Add operator!=(nullptr_t)
+gjs (1.50.2-3) unstable; urgency=medium
 
-  [ Tomasz Miąsko ]
-  * Support interface signal handlers
+  * Team upload
+  * Add patches from upstream gnome-3-26 branch to mitigate bugs in
+    gnome-shell and its extensions involving reuse of objects that were
+    already disposed. Those bugs will now log critical warnings,
+    typically found in the systemd journal, instead.
+    (Mitigates: #881301, #880663, etc.)
+  * Change Vcs-* to point to salsa.debian.org
+  * Bump Standards-Version to 4.1.3 (no changes required)
+  * Drop Multi-Arch: same annotation from libgjs-dev. As long as this
+    package depends on gjs, it cannot be co-installed.
+  * Set Rules-Requires-Root to no
 
-  [ Philip Chimento ]
-  * importer: Refactor awkward 'goto out' situation
-  * log: Add gjs_debug_id()
-  * js: Don't convert to UTF-8 just for debug logging
+ -- Simon McVittie <smcv@debian.org>  Sat, 13 Jan 2018 11:47:50 +0000
 
-  [ Jason Hicks ]
-  * console: --jsversion shell option
+gjs (1.50.2-2) unstable; urgency=medium
 
-  [ Philip Chimento ]
-  * object: Adjust arguments of method
-  * object: Upgrade severity of toggle warning to error
-  * jsapi-util: Remove gjs_get_type_name()
-  * mem: Remove unused counters
+  [ Adrian Bunk ]
+  * debian/tests.sh: Don't mark architectures as expected test failures
+    where the tests actually do pass. (Closes: #882036)
 
-  [ Ole Jørgen Brønner ]
-  * importer: Retrieve names while iterating search path (Closes: #154)
+  [ Jeremy Bicha ]
+  * Update Vcs fields for conversion to git
+  * Add debian/gbp.conf
+  * Bump Standards-Version to 4.1.2
+  * Mark libgjs-dev as Multi-Arch: same
 
-  [ Philip Chimento ]
-  * function: Check for invalid closure
+ -- Jeremy Bicha <jbicha@debian.org>  Sat, 16 Dec 2017 11:52:33 -0500
 
-  [ Emmanuele Bassi ]
-  * Remove unnecessary inline
+gjs (1.50.2-1) unstable; urgency=medium
 
-  [ Philip Chimento ]
-  * jsapi-util-string: Fix object logging
+  [ Jeremy Bicha ]
+  * New upstream release
 
-  [ Carlos Garnacho ]
-  * util-root: Allow null notification functions when rooting (Closes: #144)
-  * object: Set up a single weak ref on the context (Closes: #144)
+  [ Simon McVittie ]
+  * d/rules: Actually run build-time tests. Thanks, Adrian Bunk
+    (Closes: #878610)
+    - d/rules: Run tests with VERBOSE=1 like dh_auto_test would
+    - d/test.sh: Wrap tests in a script, making failures non-fatal on
+      the same architectures as mozjs52
+    - d/test.sh: Run a smoke-test (a "hello world" program) to prove
+      that the interpreter has any sort of functionality at all
 
-  [ Philip Chimento ]
-  * object: Move context dispose notify to GjsContext
-  * object: Fix unused variable
-  * object: Change linked list size() to return size_t
-  * object: Fix logging statement
+ -- Jeremy Bicha <jbicha@debian.org>  Sun, 05 Nov 2017 12:56:31 -0500
 
-  [ Carlos Garnacho ]
-  * js: Schedule a compacting GC on gjs_gc_if_needed() (Closes: #151)
+gjs (1.50.1-2) unstable; urgency=medium
 
-  [ Philip Chimento ]
-  * boxed: Update outdated comment
-  * boxed: Remove limitation of 256 fields
-  * tests: Debug-log coverage output
-  * tests: Remove unused length argument in coverage tests
-  * tests: Correct typo in test name
-  * jsapi-util-string: Avoid unnecessary root
-  * boxed: Remove unnecessary roots
-
-  [ Clement Lefebvre ]
-  * CI: Remove Mint 18
-
- -- Clement Lefebvre <root@linuxmint.com>  Tue, 30 Oct 2018 13:45:13 +0000
-
-cjs (3.8.0) tara; urgency=medium
-
-  [ Cosimo Cecchi ]
-  * arg: don't crash when asked to convert a null strv to an array
-
-  [ Tom Schoonjans ]
-  * arg: Include headers for std::abs()
-
-  [ Claudio André ]
-  * maintenance: modernize shell scripts
-
-  [ Philip Chimento ]
-  * modules/console: Update fancy error reporter to mozjs38
-
-  [ Jason Hicks ]
-  * jsapi-util-args: Mark functions as always-inline
-
-  [ Patrick Griffis ]
-  * package: Support running Meson projects from source
-  * package: Fix initSubmodule() with Meson.
-  * package: Don't rely upon directory configuration for initSubmodule()
-  * package: Set GSETTINGS_SCHEMA_DIR when ran from source
-
-  [ Philip Chimento ]
-  * build: Autodetect SpiderMonkey's debug mode
-  * context: Use GThread to determine owner thread
-  * jsapi-constructor-proxy: Inherit from js::Wrapper
-  * system: Switch from JS::CallReceiver to JS::CallArgs
-  * coverage: Root using context, not runtime
-
-  [ Florian Müllner ]
-  * package: Add checkSymbol() to check for symbol availability
-  * package: Add requireSymbol() method
-
-  [ Patrick Griffis ]
-  * overrides: Implement Gio.ListStore[Symbol.iterator]
-
-  [ Juan Pablo Ugarte ]
-  * modules/system.cpp: added dumpHeapComplete() method
-
-  [ Chun-wei Fan ]
-  * Use std::unique_ptr instead of g_autofree/g_autoptr()
-  * modules/cairo-*-surface.cpp: Silence compiler warnings
-
-  [ Philip Chimento ]
-  * js: Stop using flags argument to String.replace()
-  * tests: Root using context, not runtime
-
-  [ Chun-wei Fan ]
-  * Windows: Build against SpiderMonkey 52
-  * Partially revert "Windows: Build against SpiderMonkey 52"
-
-  [ Philip Chimento ]
-  * autofree: Avoid using local typedefs in classes
-
-  [ Daniel Boles ]
-  * GjsAutoChar: Do not take ownership of const char*
-
-  [ Claudio André ]
-  * maint: fix a wrong sscanf argument
-
-  [ Philip Chimento ]
-  * js: Use autoptr in gjs_object_require_property()
-  * jsapi-util-string: Remove useless length calculation
-
-  [ Claudio André ]
-  * maint: add a static code analysis 'make target'
-
-  [ Tomas Popela ]
-  * Fix the build with debug logs enabled
-
-  [ Jason Hicks ]
-  * js: Module exports use ES6 scope rules
-  * console: Refactor read-eval-print loop
-  * js: Use a special object for modules
-  * js: Refactor global object creation
-
-  [ Philip Chimento ]
-  * build: Build with mozj45
-  * js: new JS_Enumerate API
-
-  [ Jason Hicks ]
-  * js: Switch from JS::NullPtr() to nullptr
-
-  [ Philip Chimento ]
-  * js: Global object is implicit in many functions
-  * js: JSCLASS_IMPLEMENTS_BARRIERS is now implicit
-  * js: Weak pointer callback API change
-  * js: setProperty operations with triple result state
-  * js: New JS_IsArrayObject() API
-  * js: Rename JS_InternString to JS_AtomizeAndPinString
-  * importer: API change in enumerate operation
-  * js: Set JSPROP_RESOLVING when defining properties
-  * modules/console: Update to js::PrintError from upstream
-
-  [ Jason Hicks ]
-  * js: Various API changes for SpiderMonkey 45
-
-  [ Philip Chimento ]
-  * coverage: Misc Javascript-side API changes
-  * importer: Seal import with JSPropertyDescriptor directly
-  * js: Update obsolete comments
-  * js: Adapt to new JS::TraceEdge<T> API
-  * build: Build with mozjs52
-
-  [ Chun-wei Fan ]
-  * Windows: Build against SpiderMonkey 52
-
-  [ Philip Chimento ]
-  * js: New JSClass struct layout
-  * js: Add JSCLASS_FOREGROUND_FINALIZE flag
-  * js: Adapt to options changes
-  * js: Report warnings and errors with encoding
-  * tests: Refactor to avoid error reporter
-  * js: Replace error reporter callbacks
-  * js: Replace JSRuntime APIs that now take JSContext
-
-  [ Jason Hicks ]
-  * js: Remove JSRuntime
-
-  [ Philip Chimento ]
-  * js: Adapt to misc API changes in SpiderMonkey 52
-  * js: Unbarriered read while in weak ptr callback
-
-  [ Jason Hicks ]
-  * docs: Overview of SpiderMonkey 52 features in NEWS
-  * GjsAutoChar: Add a proper operator= (const char*)
-
-  [ Philip Chimento ]
-  * js: Allow access to modules' lexical scope
-  * tests: Re-enable JIT
-  * release: Include NEWS from 1.48.5
-  * release: Prepare for 1.49.4
-  * build: Use 'always inline' macro in more places
-  * js: Use correct autoptr in gjs_string_to_filename()
-  * function: Better message about call during GC
-
-  [ Jason Hicks ]
-  * promise: Move to native promises
-
-  [ Philip Chimento ]
-  * promise: Report unhandled rejections
-  * context: Properly create const strings array
-  * importer: Give module objects a [Symbol.toStringTag]
-  * release: Include NEWS from 1.48.6
-
-  [ Jason Hicks ]
-  * object: Don't let a method shadow a property
-
-  [ luke.nukem.jones@gmail.com ]
-  * Backport of patch required for JSObject compare to nullptr
-  * Backport of patch required for vectors MOZ_MUST_USE returns
-
-  [ Jason Hicks ]
-  * Revert "js: Workaround for function with custom prototype"
-
-  [ Philip Chimento ]
-  * Revert "build: Allow compiling without RTTI"
-
-  [ Jason Hicks ]
-  * lang: Move all legacy Lang.Class code
-
-  [ Philip Chimento ]
-  * class: Move to ES6 classes in internal code
-
-  [ Jason Hicks ]
-  * GObject: Move all legacy GObject class code
-
-  [ Philip Chimento ]
-  * GObject: Adapt GObject class framework to ES6
-  * class: Move to ES6 GObject classes in internal code
-  * tests: Add ES6 class inheriting from legacy class
-  * build: Fix distcheck
-  * release: Prepare for 1.49.90
-
-  [ Jason Hicks ]
-  * Gtk: Use GObject.registerClass() for Gtk.Widgets
-
-  [ Philip Chimento ]
-  * legacy class: Add name property to class object
-  * legacy class: Reinstate Lang.getMetaClass()
-  * gerror: Use JS::CaptureCurrentStack for stack info
-  * stack: Remove gjs_context_get_frame_info()
-  * gerror: Define a columnNumber on GError-backed errors
-  * console: Print exception even when not from SpiderMonkey
-  * tests: Re-enable accidentally disabled tests
-
-  [ Benjamin Berg ]
-  * jsapi-util: Also rate limit checking the process size
-
-  [ Philip Chimento ]
-  * release: Prepare for 1.49.91
-  * object: Remove unused argument
-
-  [ Jason Hicks ]
-  * maint: add ASAN Address Sanitizer
-
-  [ Philip Chimento ]
-  * docs: Correct leftover mozjs38
-  * arg: Avoid assigning out-of-range values
-  * build: Add LSan suppression file
-  * build: Don't use the vptr sanitizer
-  * arg: Avoid taking abs() of -2^63
-  * tests: Suppress message about too-big integer
-  * main: Use g_option_context_parse_strv()
-
-  [ Jason Hicks ]
-  * build: Put dbus-run-session in AM_TESTS_ENVIRONMENT
-  * build: Don't use LOG_COMPILER for shell scripts
-
-  [ Philip Chimento ]
-  * object: Avoid taking address of empty vector
-  * context: Avoid null pointer dereference
-  * build: Update Valgrind suppressions rules
-  * build: Valgrind with AX_VALGRIND_CHECK
-  * maint: Add SpiderMonkey helgrind suppression rules
-  * tests: Split legacy Gtk.Widget tests out
-
-  [ Jason Hicks ]
-  * Revert freeing closures in idle handler
-
-  [ Philip Chimento ]
-  * closure: Debug message on invalidate signal
-  * object: Refactor out ConnectData
-  * closure: Prevent collection of invalidated closure
-  * release: Prepare for 1.49.92
-  * coverage: Correct licensing mistake
-  * release: Prepare for 1.50.0
-  * stack: Use js::DumpBacktrace() for gjs_dumpstack()
-  * coverage: Don't error out on various files
-  * coverage: Scan ES6 classes for functions
-  * coverage: Correct AST walking for labelled statements
-  * coverage: Walk AST in more cases
-  * tests: Create test ASTs by parsing JS
-  * coverage: Don't count literals as executable
-  * coverage: Don't mark empty var declarations executable
-  * coverage: Misc refactors
-  * coverage: Fix coverage prefixes
-  * release: Prepare for 1.50.1
-  * jsapi-util-args: Update out-of-date comments
-  * build: Tweak code coverage options
-
-  [ Jason Hicks ]
-  * tweener: Fix a couple of warnings
-
-  [ Florian Müllner ]
-  * legacy: Allow ES6 classes to inherit from abstract Lang.Class class
-
-  [ Philip Chimento ]
-  * release: Prepare for 1.50.2
-
-  [ Jason Hicks ]
-  * importer.cpp: Update search path for Cinnamon
-  * Remove valgrind configuration
-  * Fix DEBUG compiler error in Spidermonkey 52
-  * Depend on libmozjs-52
-  * Get most tests passing
-  * Fix usage of g_idle_add for resolving promises
-
-  [ Clement Lefebvre ]
-  * Add CI configuration
-
-  [ Jason Hicks ]
-  * Fix scope warning for restrictedWords in the tweener module (#64)
-
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 16 Apr 2018 12:14:11 +0100
-
-cjs (3.6.1) sylvia; urgency=medium
+  [ Jeremy Bicha ]
+  * Release to unstable
 
-  [ Simon Brown ]
-  * cairo: Free popped pattern (#59)
-  * value: Fix memory leak while marshalling GValue (#57)
-  * arg: Fix memory leaks (#58)
+  [ Simon McVittie ]
+  * d/control.in: Add Breaks on versions of various JS apps that are
+    not compatible with the ES6 syntax rules used since mozjs52
+    (Closes: #874693)
+    - No Breaks needed for lockstep upgrade of gnome-shell since old
+      Shell depends on libgjs0e or older, new Shell depends on libgjs0g,
+      and the two are already non-coinstallable
 
- -- Clement Lefebvre <root@linuxmint.com>  Thu, 09 Nov 2017 13:31:37 +0000
+ -- Jeremy Bicha <jbicha@debian.org>  Fri, 13 Oct 2017 16:18:11 -0400
 
-cjs (3.6.0) sylvia; urgency=medium
+gjs (1.50.1-1) experimental; urgency=medium
 
-  [ leigh123linux ]
-  * object: Keep proper track of pending closure invalidations
-  * revert b66d7c2965f20c2cf51628840682c404a01bf408
+  * New upstream release
+  * debian/control.in:
+    - Bump minimum gobject-introspection to 1.53.4
+  * Drop disable-property-shadow-test.patch:
+    - No longer needed with gobject-introspection 1.53.4
+  * Bump Standards-Version to 4.1.1
 
-  [ Michael Webster ]
-  * Add a debug package.
+ -- Jeremy Bicha <jbicha@debian.org>  Mon, 02 Oct 2017 21:29:12 -0400
 
-  [ Jason Hicks ]
-  * object: Zero out new ConnectData
+gjs (1.50.0-1) experimental; urgency=medium
 
-  [ Clement Lefebvre ]
-  * Update README
-  * Add a README.md
+  * New upstream release
 
-  [ Philip Chimento ]
-  * Revert freeing closures in idle handler
-  * closure: Prevent collection of invalidated closure
+ -- Jeremy Bicha <jbicha@debian.org>  Mon, 11 Sep 2017 15:30:35 -0400
 
- -- Clement Lefebvre <root@linuxmint.com>  Sat, 21 Oct 2017 13:49:00 +0100
+gjs (1.49.92-1) experimental; urgency=medium
 
-cjs (3.4.3) sonya; urgency=medium
+  * New upstream release
+  * Don't ignore test failures
 
-  [ Michael Webster ]
-  * object.cpp: Follow-up to 503fa20e07ce - handler ID's *must* be managed from start to finish - they should be initialized to 0, and re-set to 0 whenever they're finished being used.
+ -- Jeremy Bicha <jbicha@debian.org>  Mon, 04 Sep 2017 20:26:32 -0400
 
-  [ leigh123linux ]
-  * arg: don't crash when asked to convert a null strv to an array (#48)
+gjs (1.49.91-1) experimental; urgency=medium
 
-  [ Michael Webster ]
-  * Apply upstream: https://github.com/GNOME/gjs/commit/bace908922aa6ee9ee3885eef01b75816ece842f
+  [ Andreas Henriksson ]
+  * New upstream release.
+  * Update build-dependencies according to configure.ac changes.
+  * Switch to mozjs52
+  * Rename libgjs0e to libgjs0g and replace/conflict with the old name.
 
-  [ Philip Chimento ]
-  * closure: Remove pointer to runtime
-  * closure: Prevent use-after-free in closures
+  [ Jeremy Bicha ]
+  * debian/control.in:
+    - Have libgjs-dev depend on libgtk-3-dev, discovered via autopkgtest
+  * Bump Standards-Version to 4.1.0
+  * Drop 0001-installed-tests-Prepend-pkglibdir-to-library-path.patch:
+    - Applied in new release
+  * debian/control.in:
+    - Bump minimum GObject Introspection to 1.53.1
+  * Add disable-property-shadow-test.patch:
+    - Temporarily disable new installed test that fails
 
- -- Clement Lefebvre <root@linuxmint.com>  Thu, 06 Jul 2017 11:10:34 +0200
+ -- Andreas Henriksson <andreas@fatal.se>  Tue, 29 Aug 2017 13:51:26 +0200
 
-cjs (3.4.2) sonya; urgency=medium
+gjs (1.46.0-2) unstable; urgency=medium
 
-  [ leigh123linux ]
-  * tweener: Add undefined property check (#45)
+  [ Roland Hieber ]
+  * Fix typo in package description (Closes: #841138)
 
-  [ Michael Webster ]
-  * tweener.js: silence some additional warnings due to missing/unused properties.
+  [ Iain Lane ]
+  * debian/control{,.in}: Have libgjs0e depend on gir dependencies, since the
+    CjsPrivate library requires GObject, GLib and Gtk. gjs-tests depends
+    transitively on this package, so remove the gir1.2-gtk-3.0 dependency from
+    there.
+  * d/p/0001-installed-tests-Prepend-pkglibdir-to-library-path.patch: Backport
+    an upstream patch to look in pkglibdir for (private) libraries, in the
+    installed test runner. Should fix the installed tests, and thus the
+    autopkgtests.
 
-  [ leigh123linux ]
-  * object: Prevent use-after-free in signal connections
-  * util-root: Require GjsMaybeOwned callback to reset
+ -- Iain Lane <laney@debian.org>  Wed, 15 Mar 2017 11:21:32 +0000
 
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 26 Jun 2017 12:18:57 +0200
+gjs (1.46.0-1) unstable; urgency=medium
 
-cjs (3.4.1) sonya; urgency=medium
+  * New upstream release.
+  * Convert from cdbs to dh.
+  * Bump debhelper compat level to 10.
+  * Mark test dependencies with <!nocheck>.
 
-  [ Clement Lefebvre ]
-  * Packaging: Don't use build profiles in build-deps
+ -- Michael Biebl <biebl@debian.org>  Tue, 20 Sep 2016 23:39:45 +0200
 
-  [ Alexei Sorokin ]
-  * Better GLib and autotools compatibility (#44)
+gjs (1.45.4-2) unstable; urgency=medium
 
- -- Clement Lefebvre <root@linuxmint.com>  Tue, 23 May 2017 15:28:25 +0100
+  * debian/control{,.in}: Have gjs-tests depend on gjs, since
+    gjs/testSystemExit.test requires the gjs binary.
+  * debian/tests/installed-tests: Always run in C
 
-cjs (3.4.0) sonya; urgency=medium
+ -- Iain Lane <laney@debian.org>  Thu, 01 Sep 2016 17:46:52 +0100
 
-  [ Michael Webster ]
-  * Rebase to upstream gjs 1.48.0 (a7bcfb9f3e00ca9849bf44a).
-  * Always reload extension js modules.
+gjs (1.45.4-1) unstable; urgency=medium
 
-  [ pixunil ]
-  * min / max properties to specify a minimal / maximal value
+  * New upstream release.
+  * Replace Build-Depends on uuid-runtime with dbus (for dbus-uuidgen).
+  * Explicitly enable tests which require dbus and Xvfb.
+  * Bump Standards-Version to 3.9.8.
 
-  [ dalcde ]
-  * Throw error when attempting to instantiate abstract class
+ -- Michael Biebl <biebl@debian.org>  Thu, 28 Jul 2016 20:45:55 +0200
 
-  [ Dexter Chua ]
-  * signals.js: add signalHandlerIsConnected method
-  * Use python2 instead of python
+gjs (1.45.3-2) unstable; urgency=medium
 
-  [ pixunil ]
-  * importer.cpp: Add a method to the global imports object addSubImporter(name, path)
+  * Upload to unstable.
+  * Make test suite failures non-fatal again and dump the log files to stdout
+    if the test suite fails. There are currently known failing tests which
+    might point to real issues, but there is no fix available (yet) and this
+    blocks important fixes in other packages from entering testing. So this is
+    the lesser of two evils.
 
-  [ Michael Webster ]
-  * modules/GObject.js: Add access to handler_block and handler_unblock.
-  * Fix file location problem from rebasing
+ -- Michael Biebl <biebl@debian.org>  Wed, 11 May 2016 21:02:07 +0200
 
-  [ leigh123linux ]
-  * lost commit: remove aclocal
+gjs (1.45.3-1) experimental; urgency=medium
 
- -- Clement Lefebvre <root@linuxmint.com>  Fri, 14 Apr 2017 08:30:32 -0400
+  * New upstream development release.
+  * Bump glib build-dependency to >= 2.42.0 according to configure.ac changes.
+  * Upload to experimental.
 
-cjs (3.2.0) serena; urgency=medium
+ -- Andreas Henriksson <andreas@fatal.se>  Tue, 01 Mar 2016 18:10:13 +0100
 
-  [ Maximiliano Curia ]
-  * Migrate away from gnome-common deprecated vars and macros
+gjs (1.44.0-1) unstable; urgency=medium
 
-  [ Michael Webster ]
-  * modules/GObject.js: Add access to handler_block and handler_unblock.
+  [ Tim Lunn ]
+  * debian/control.in: libgjs-dev add dep on gjs, so GNOME apps can
+    pick up the path at build-time (Closes: #803215)
 
-  [ Clement Lefebvre ]
-  * Fixed build
+  [ Michael Biebl ]
+  * New upstream release.
+  * Drop debian/patches/0001-tests-Run-under-Xvfb.patch, merged upstream.
 
-  [ Maximiliano Curia ]
-  * Make AX_ macros optional
-  * Drop glib-gettextize, gtkdocize and intltoolize
+ -- Michael Biebl <biebl@debian.org>  Thu, 29 Oct 2015 02:41:13 +0100
 
-  [ leigh123linux ]
-  * build: Require C++11
+gjs (1.43.3-2) unstable; urgency=medium
 
-  [ Michael Webster ]
-  * Fix build when extra debugging is enabled (util/log.h)
+  * Upload to unstable.
+  * Update Homepage.
 
-  [ Clement Lefebvre ]
-  * pkg: Add missing autoconf-archive in debian/control.in
+ -- Michael Biebl <biebl@debian.org>  Sat, 20 Jun 2015 16:23:26 +0200
 
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 07 Nov 2016 10:28:25 +0000
+gjs (1.43.3-1) experimental; urgency=medium
 
-cjs (3.0.1) sarah; urgency=medium
+  * New upstream release 1.43.3
+    - GTypeClass and GTypeInterface methods, such as
+      g_object_class_list_properties(), are now available
+    - Added full automatic support for GTK widget templates
+    - Added control of JS Date caches to system module
+    - Misc bug fixes and memory leak fixes
+  * debian/watch: Find unstable versions too.
+  * debian/rules: Run dh_install with --fail-missing
+  * debian/control{,.in}: Standards-Version → 3.9.6
+  * debian/patches/0001-tests-Run-under-Xvfb.patch,
+    debian/rules, debian/control{,.in}: Make the testsuite fatal again. Run it
+    under Xvfb (cherry-picked from upstream bug #750688).
+  * debian/control{,.in}: Add missing test-dep on at-spi2-core - there's a
+    warning if it can't be bus activated which fails the test.
+  * debian/tests/installed-tests: Filter out successful activation messages
+    from the dbus daemon which come on stderr and fail the test unnecessarily.
 
-  [ Michael Webster ]
-  * repo.cpp: Add Gvc->Cvc mapping for backward compatibility of sound xlets.
+ -- Iain Lane <laney@debian.org>  Wed, 10 Jun 2015 11:40:37 +0100
 
- -- Clement Lefebvre <root@linuxmint.com>  Tue, 10 May 2016 16:26:22 +0100
+gjs (1.42.0-1) unstable; urgency=medium
 
-cjs (3.0.0) sarah; urgency=medium
+  * New upstream release.
 
-  * 3.0
+ -- Michael Biebl <biebl@debian.org>  Thu, 02 Oct 2014 00:31:50 +0200
 
- -- Clement Lefebvre <root@linuxmint.com>  Sat, 23 Apr 2016 10:50:03 +0100
+gjs (1.41.91-2) unstable; urgency=medium
 
-cjs (2.8.0) rosa; urgency=medium
+  * Upload to unstable.
 
-  [ pixunil ]
-  * importer.cpp: Add a method to the global imports object addSubImporter(name, path)
+ -- Andreas Henriksson <andreas@fatal.se>  Fri, 26 Sep 2014 15:46:04 +0200
 
- -- Clement Lefebvre <root@linuxmint.com>  Fri, 16 Oct 2015 13:56:06 +0100
+gjs (1.41.91-1) experimental; urgency=medium
 
-cjs (2.6.2) rafaela; urgency=medium
+  [ Jackson Doak ]
+  * New upstream development release
+  * debian/control: Bump Gi depends to 1.41.4
 
-  [ Dexter Chua ]
-  * signals.js: add signalHandlerIsConnected method
+  [ Tim Lunn ]
+  * debian/tests:
+    - control: Depend on xauth and dbus > 1.8
+    - Use dbus-run-session to run installed-tests
 
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 22 Jun 2015 22:45:02 +0200
+  [ Andreas Henriksson ]
+  * Don't install .la files in gjs-tests (only .so)
 
-cjs (2.6.1) rafaela; urgency=medium
+ -- Andreas Henriksson <andreas@fatal.se>  Sat, 06 Sep 2014 10:39:17 -0700
 
-  [ Dexter Chua ]
-  * Use python2 instead of python
+gjs (1.40.1-4) unstable; urgency=medium
 
- -- Clement Lefebvre <root@linuxmint.com>  Sun, 14 Jun 2015 12:44:28 +0200
+  * Actually include debian/tests this time (forgot to svn add it).
 
-cjs (2.6.0) rafaela; urgency=medium
+ -- Andreas Henriksson <andreas@fatal.se>  Mon, 25 Aug 2014 00:42:23 -0700
 
-  * 2.6.0
+gjs (1.40.1-3) unstable; urgency=medium
 
- -- Clement Lefebvre <root@linuxmint.com>  Tue, 19 May 2015 17:01:22 +0200
+  * Team upload
 
-cjs (2.5.0) unstable; urgency=medium
+  [ Tim Lunn ]
+  * Add installed-tests as autopkgtests
+    + debian/control.in:
+      - set XS-Testsuite for autopkgtests
+      - add -tests package for installed tests
+    + debian/tests: Add autopkgtests
+    + debian/rules:
+      - configure with --enable-installed-tests
+  * Drop lintian overrides no longer needed
 
-  * bump for development
+ -- Andreas Henriksson <andreas@fatal.se>  Sat, 23 Aug 2014 19:41:05 -0700
 
- -- Michael Webster <miketwebster@gmail.com>  Sat, 11 Apr 2015 09:02:17 -0400
+gjs (1.40.1-2) unstable; urgency=medium
 
-cjs (2.4.1) rebecca; urgency=medium
+  * Bump Standards-Version to 3.9.5
+  * Upload to unstable.
 
-  * Lowered gobject-introspection requirement to 1.38.0
-  * Imports: fixed GMenu-to-CMenu proxy for legacy applets.
+ -- Andreas Henriksson <andreas@fatal.se>  Mon, 14 Jul 2014 23:38:13 +0200
 
- -- Clement Lefebvre <root@linuxmint.com>  Sun, 23 Nov 2014 12:01:41 +0100
+gjs (1.40.1-1) experimental; urgency=medium
 
-cjs (2.4.0) rebecca; urgency=medium
+  * New upstream release.
 
-  * 2.4.0
+ -- Andreas Henriksson <andreas@fatal.se>  Fri, 09 May 2014 19:41:11 +0200
 
- -- Clement Lefebvre <root@linuxmint.com>  Thu, 30 Oct 2014 15:29:36 +0100
+gjs (1.40.0-1) experimental; urgency=medium
 
-cjs (2.3.1) unstable; urgency=medium
+  * New upstream release.
+  * Update build-dependencies according to configure.ac changes:
+    - Switch from libmozjs-17.0-dev to libmozjs-24-dev
+    - Add libgtk-3-dev
+    - Bump gobject-introspection & libgirepository1.0-dev to 1.39.3
+  * Update libgjs-dev dependency from libmozjs-17.0-dev to libmozjs-24-dev
+  * Don't install usr/share/gjs-1.0
+    - internal js modules are now bundled using GResource.
+  * Rename to libgjs0e
+    - also conflict/replace libgjs0d
 
-  * Rebase to upstream version:
-    - gjs 1.40.1 (gjs (1.40.1-0ubuntu0.2) trusty)
+ -- Andreas Henriksson <andreas@fatal.se>  Thu, 03 Apr 2014 19:00:08 +0200
 
- -- Michael Webster <miketwebster@gmail.com>  Tue, 12 Aug 2014 21:58:00 -0400
+gjs (1.38.1-1) experimental; urgency=low
 
-cjs (2.3.0) unstable; urgency=medium
+  [ Jackson Doak ]
+  * Bump debhelper to 9
 
-  * 2.3.0
+  [ Sjoerd Simons ]
+  * Sync from Ubuntu (1.37.6-0ubuntu1)
+    + Bump library package name to libgjs0d
+  * Bump build-dependency on gobject-introspect and libgirepository to 1.38
 
- -- Clement Lefebvre <root@linuxmint.com>  Fri, 27 Jun 2014 14:28:58 +0100
+ -- Sjoerd Simons <sjoerd@debian.org>  Fri, 01 Nov 2013 22:02:41 +0100
 
-cjs (2.2.1) qiana; urgency=medium
+gjs (1.36.1-2) unstable; urgency=low
 
-  * 2.2.1
+  [ Jeremy Bicha ]
+  * Update homepage
 
- -- Clement Lefebvre <root@linuxmint.com>  Wed, 21 May 2014 11:30:18 +0100
+  [ Michael Biebl ]
+  * Upload to unstable.
+  * Track stable releases in debian/watch.
 
-cjs (2.2.0) qiana; urgency=medium
+ -- Michael Biebl <biebl@debian.org>  Thu, 01 Aug 2013 17:06:25 +0200
 
-  * 2.2.0
+gjs (1.36.1-1) experimental; urgency=low
 
- -- Clement Lefebvre <root@linuxmint.com>  Sat, 12 Apr 2014 10:33:49 +0100
+  [ Thomas Bechtold ]
+  * New upstream release.
+  * debian/control: Bump Standards-Version to 3.9.4.
 
-cjs (2.0.0) petra; urgency=low
+ -- Michael Biebl <biebl@debian.org>  Fri, 24 May 2013 23:11:06 +0200
 
-  * 2.0.0
+gjs (1.36.0-1) experimental; urgency=low
 
- -- Clement Lefebvre <root@linuxmint.com>  Wed, 02 Oct 2013 13:43:45 +0100
+  * New upstream release.
+    + debian/control.in:
+      - Update build dependencies.
+    + debian/libgjs0c.install:
+      - Stop installing the modules, they are built into libgjs now.
 
-cjs (1.9.1) petra; urgency=low
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Thu, 28 Mar 2013 03:08:20 +0100
 
-  * Based on 1.34.0-0ubuntu1 quantal
+gjs (1.35.8-1) experimental; urgency=low
 
- -- Clement Lefebvre <root@linuxmint.com>  Mon, 30 Sep 2013 13:31:38 +0100
+  [ Josselin Mouette ]
+  * Add build-dependency on libreadline-dev.
+  * Rename libgjs0b to libgjs0c since there are new ABI changes.
+
+  [ Sjoerd Simons ]
+  * debian/control.in: Sync with Ubuntu, New upstream release,
+    bump libglib2.0-dev b-i
+  * debian/control.in: Bump gobject-introspection b-d for warnlib.c
+
+  [ Emilio Pozuelo Monfort ]
+  * Release to experimental.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 20 Mar 2013 18:00:00 +0100
+
+gjs (1.34.0-1) experimental; urgency=low
+
+  * New upstream release
+  * debian/patches/0001-Fold-libgjs-gdbus.so-into-libgjs.so.patch:
+    + Dropped, fixed upstream
+
+ -- Sjoerd Simons <sjoerd@debian.org>  Mon, 08 Oct 2012 20:36:14 +0200
+
+gjs (1.32.0-5) unstable; urgency=low
+
+  * 11_revert_abi_breakage.patch: new patch. Revert the ABI breakage
+    introduced by 03_gerror_details.patch.
+  * 05_log_typo.patch: upstream patch adapted. Fix a typo in a logging
+    function. Closes: #697211.
+
+ -- Josselin Mouette <joss@debian.org>  Thu, 03 Jan 2013 01:35:29 +0100
+
+gjs (1.32.0-4) unstable; urgency=low
+
+  * 04_gjs_dumpstack.patch: patch from upstream git. Fix the
+    gjs_dumpstack function after the changes introduced by 1.32.0-3.
+    Thanks to Niels Thykier’s awesome review for spotting this.
+
+ -- Josselin Mouette <joss@debian.org>  Wed, 12 Dec 2012 20:14:01 +0100
+
+gjs (1.32.0-3) unstable; urgency=low
+
+  * 02_gerror_class.patch, 03_gerror_details.patch: patches from
+    upstream git. Introduce a class to manage GError correctly.
+    Closes: #691551.
+  * Bump shblibs version since this extends the API.
+
+ -- Josselin Mouette <joss@debian.org>  Mon, 26 Nov 2012 11:06:48 +0100
+
+gjs (1.32.0-2) unstable; urgency=low
+
+  * Upload to unstable.
+  * Drop explicit Build-Depends on gir1.2-glib-2.0 and gir1.2-freedesktop.
+  * Fold libgjs-gdbus into libgjs and move the typelib file into a
+    package-private directory. Patch cherry-picked from upstream Git.
+  * Use dh-autoreconf to update the build system.
+  * Extract libmozjs soname from libgjs.so, not the gjs binary since the
+    latter doesn't directly link to libmozjs.
+
+ -- Michael Biebl <biebl@debian.org>  Thu, 26 Apr 2012 17:18:34 +0200
+
+gjs (1.32.0-1) experimental; urgency=low
+
+  [ Jeremy Bicha ]
+  * New upstream release.
+  * Add gir package
+  * debian/control.in:
+    - Bump minimum glib to 2.31 & gobject-introspection to 1.31.22
+    - Bump Standards-Version to 3.9.3
+  * Drop all patches since they've been applied upstream
+
+  [ Michael Biebl ]
+  * Remove chrpath hack, no longer necessary.
+  * debian/libgjs0b.install: Remove /usr/lib/gjs/*.typelib since the typelib
+    file is now installed system wide and shipped in a separate package.
+
+ -- Michael Biebl <biebl@debian.org>  Sun, 01 Apr 2012 07:55:16 +0200
+
+gjs (1.30.1-1) unstable; urgency=low
+
+  * New upstream release.
+  * Cherry-pick patches from upstream Git to correctly handle ffi return
+    values. Fixes test-suite failures on big-endian architectures.
+    Closes: #610256
+    - Add 02_function-Correctly-convert-from-ffi-return-values-to.patch.
+    - Add 03_function-Fix-ffi-return-value-handling-on-32-bit.patch
+
+ -- Michael Biebl <biebl@debian.org>  Tue, 31 Jan 2012 06:30:06 +0100
+
+gjs (1.30.0-3) unstable; urgency=low
+
+  [ Josselin Mouette ]
+  * Update repository URL.
+
+  [ Michael Biebl ]
+  * debian/watch: Track .xz tarballs.
+  * Build against libmozjs185. The libmozjs version built from iceweasel
+    proved to be too much of a moving target. Closes: #653051
+
+  [ Jordi Mallach ]
+  * Update Vcs-* URLs.
+
+ -- Jordi Mallach <jordi@debian.org>  Sat, 21 Jan 2012 00:31:27 +0100
+
+gjs (1.30.0-2) unstable; urgency=low
+
+  * Upload to unstable
+  * Triggers rebuild again libmozjs-dev 8.0 (Closes: #648840)
+
+ -- Sjoerd Simons <sjoerd@debian.org>  Sun, 20 Nov 2011 15:49:06 +0000
+
+gjs (1.30.0-1) experimental; urgency=low
+
+  * New upstream release
+  * debian/control.in: Update build-dep on gobject-introspection
+  * debian/*.install: Install gir and typelib for GjsDbus
+
+ -- Sjoerd Simons <sjoerd@debian.org>  Fri, 21 Oct 2011 20:40:36 +0200
+
+gjs (1.29.0-2) unstable; urgency=low
+
+  [ Laurent Bigonville ]
+  * debian/control.in:
+    - Update Vcs- fields to unstable branch
+
+  [ Josselin Mouette ]
+  * Generate a substitution variable for Provides that embeds the
+    libmozjs version.
+  * Add this variable to shlibs. Closes: #635174.
+  * Remove symbols file, it’s useless as long as mozjs is part of the
+    ABI.
+
+ -- Josselin Mouette <joss@debian.org>  Mon, 19 Sep 2011 17:08:10 +0200
+
+gjs (1.29.0-1) unstable; urgency=low
+
+  * New upstream release.
+    - Fix FTBFS with iceweasel 5.0 (Closes: #631043)
+  * debian/control.in:
+    - Bump priority to optional
+  * debian/rules: Make tests no-fatal for now, they require newer
+    gobject-introspection (>= 1.29.0)
+  * debian/libgjs0b.symbols: Adjusts .symbols file
+  * debian/watch:
+    - Switch to .bz2 tarballs.
+    - Do not call uupdate anymore
+  * debian/patches/01_remove_rpath_flags.patch: Refresh patch
+  * debian/patches/02_fix_bigendian_test.patch: Drop patch, hackish fix
+    according to upstream
+
+ -- Laurent Bigonville <bigon@debian.org>  Fri, 22 Jul 2011 20:30:44 +0200
+
+gjs (0.7.14-1) experimental; urgency=low
+
+  * New upstream release.
+  * debian/patches/02_fix_bigendian_test.patch: Should fix FTBFS on big-endian
+    arch (Closes: #610256)
+  * debian/control: Bump Standards-Version to 3.9.2 (no further changes)
+
+ -- Laurent Bigonville <bigon@debian.org>  Mon, 02 May 2011 23:58:46 +0200
+
+gjs (0.7.13-2) experimental; urgency=low
+
+  * debian/patches/01_remove_rpath_flags.patch:
+    + New patch. Don't add an rpath to Libs in the pkgconfig file, we don't
+      need it as our libmozjs is in /usr/lib.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Thu, 17 Mar 2011 23:57:30 +0000
+
+gjs (0.7.13-1) experimental; urgency=low
+
+  * New upstream release.
+
+ -- Frederic Peters <fpeters@debian.org>  Fri, 25 Feb 2011 17:28:35 +0100
+
+gjs (0.7.11-1) experimental; urgency=low
+
+  * New upstream release.
+  * debian/libgjs0b.symbols: update with two new symbols.
+
+ -- Frederic Peters <fpeters@debian.org>  Wed, 23 Feb 2011 10:09:19 +0100
+
+gjs (0.7.10-1) experimental; urgency=low
+
+  * New upstream release.
+  * debian/control.in:
+    - Drop build-depend on libmozjs-dev
+    - Make libgjs-dev depend on xulrunner-dev and libdbus-1-dev
+
+ -- Laurent Bigonville <bigon@debian.org>  Sun, 06 Feb 2011 13:01:02 +0100
+
+gjs (0.7.9-1) experimental; urgency=low
+
+  * debian/rules:
+    - Always depend on the latest upstream version in the shlibs file.
+    - Fail the build if the symbols file is outdated.
+    - Run the testsuite on !linux, but don't abort the build if it fails.
+  * New upstream release.
+    - debian/libgjs0b.symbols:
+      + Updated.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Sun, 16 Jan 2011 15:17:31 +0000
+
+gjs (0.7.8-2) experimental; urgency=low
+
+  * debian/control.in:
+    - Put the package under the GNOME team maintenance and use magic to
+      populate Uploaders
+    - Bump Standards-Version to 3.9.1 (no further changes)
+    - Add Vcs-{Svn,Browser} fields
+    - Add cdbs and gnome-pkg-tools and Build-dep
+    - Bump xulrunner-dev Build-dependency to 1.9.2 (Closes: #609895)
+    - Drop autoconf, automake1.11 and libtool, no needed for now
+    - Remove ${gir:Depends} substitution from libgjs0b package (Closes: #592694)
+    - Bump libgjs-deb package dependency against libmozjs-dev
+  * debian/rules:
+    - Use cdbs instead of dh7
+    - Do not run autoreconf
+    - Drop explicit shlibs version, we have .symbols file anyway
+    - Excludes libraries installed in /usr/lib/gjs-1.0/ from .symbols file
+    - Remove bashism (Closes: #581455)
+  * Bump debhelper compatibility to 8
+  * debian/copyright: Copy BSD licence instead of linking to it to please
+    lintian
+  * debian/watch: Fix URL pattern
+
+ -- Laurent Bigonville <bigon@debian.org>  Fri, 14 Jan 2011 01:25:12 +0100
+
+gjs (0.7.8-1) experimental; urgency=low
+
+  * New release.
+  * debian/control:
+  - adjust build-depends for gir1.2-* packages
+
+ -- Gustavo Noronha Silva <kov@debian.org>  Thu, 13 Jan 2011 13:43:51 -0200
+
+gjs (0.7.6-2) experimental; urgency=low
+
+  * debian/control:
+  - build-depend on automake1.11 (Closes: #603222)
+
+ -- Gustavo Noronha Silva <kov@debian.org>  Mon, 15 Nov 2010 19:26:16 -0200
+
+gjs (0.7.6-1) experimental; urgency=low
+
+  * debian/patches/*:
+  - removed; should no longer be needed
+  * debian/control:
+  - renamed library package to libgjs0b because of ABI breakage
+  - new version requires libmozjs-dev >= 1.9.2.
+  - build-depend on xulrunner-dev >= 1.9.2.12
+  - build-depend on gobject-introspection >= 0.9.2
+  - also build-depend on gir1.0-glib-2.0, and gir1.0-freedesktop >= 0.9.12
+  * debian/libgjs0b.symbols:
+  - updated
+
+ -- Gustavo Noronha Silva <kov@debian.org>  Tue, 09 Nov 2010 22:01:53 -0200
+
+gjs (0.7.1-1) unstable; urgency=low
+
+  * Not really an upstream release, just fixing the versioning of the
+    package from yesterday =(
+  * Convert package to new source format 3.0 (quilt)
+  * debian/patches/01_revert_machine_indep_types_removal.diff:
+  - revert removal of the handling of machine indep types - we are still
+    using these in stuff we have in Debian
+
+ -- Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk>  Thu, 15 Jul 2010 10:45:47 -0300
+
+gjs (0.7-1) unstable; urgency=low
+
+  * New upstream release
+  * Bumped Standards-Version with no changes
+  * debian/libgjs0a.{shlibs,symbols}:
+  - add shlibs and symbols information
+  * debian/rules:
+  - disable tests that seem to rely on stuff only added in the 0.9 branch
+    of G-I
+
+ -- Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk>  Wed, 26 May 2010 10:55:19 -0300
+
+gjs (0.6-1) unstable; urgency=low
+
+  * New upstream version.
+  - build-depends on cairo, so updated debian/control to match
+  - library package renamed to libgjs0a because it broke ABI without
+    changing soname
+  * debian/rules:
+  - only run tests on Linux, other platforms fail here trying to run
+    dbus (Closes: #571792)
+
+ -- Gustavo Noronha Silva <kov@debian.org>  Thu, 08 Apr 2010 19:53:12 -0300
+
+gjs (0.5-1) unstable; urgency=low
+
+  * New upstream release
+  * debian/control, debian/rules:
+  - Accepted patch from Ubuntu to enable the test suite
+    (Closes: #570182)
+
+ -- Gustavo Noronha Silva <kov@debian.org>  Sat, 27 Feb 2010 20:28:11 -0300
+
+gjs (0.5~git20100201-1) unstable; urgency=low
+
+  * Upstream snapshot
+
+ -- Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk>  Tue, 02 Feb 2010 21:58:35 -0200
+
+gjs (0.4-4) unstable; urgency=low
+
+  * debian/control, debian/rules:
+  - build inside a separate directory, and run autoreconf every time
+    (Closes: #558549)
+  - the change above requires debhelper 7.3
+  - also build-depends on autoconf, automake, and libtool
+  - use chrpath to remove rpath defined in libgjs
+
+ -- Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk>  Tue, 22 Dec 2009 19:02:43 -0200
+
+gjs (0.4-3) unstable; urgency=low
+
+  * debian/control:
+  - dev package was missing a dependency on the shared library package
+
+ -- Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk>  Tue, 20 Oct 2009 15:53:33 -0200
+
+gjs (0.4-2) unstable; urgency=low
+
+  * debian/control:
+  - transition to the new introspection policy
+  * debian/rules;
+  - make lintian happy by fixing the debhelper build-dependency
+
+ -- Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk>  Mon, 19 Oct 2009 15:20:47 -0200
+
+gjs (0.4-1) unstable; urgency=low
+
+  * Initial release (Closes: #550723)
+
+ -- Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk>  Mon, 12 Oct 2009 18:38:36 -0300

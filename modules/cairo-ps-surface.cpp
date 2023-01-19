@@ -21,7 +21,7 @@
 #    include <jsapi.h>  // for JS_NewObjectWithGivenProto
 #    include <jspubtd.h>  // for JSProtoKey
 
-#    include "cjs/jsapi-util-args.h"
+#    include "gjs/jsapi-util-args.h"
 #    include "modules/cairo-private.h"
 
 namespace JS {

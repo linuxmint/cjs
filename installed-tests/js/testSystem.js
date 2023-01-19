@@ -19,7 +19,7 @@ describe('System.addressOf()', function () {
 describe('System.version', function () {
     it('gives a plausible number', function () {
         expect(System.version).not.toBeLessThan(14700);
-        expect(System.version).toBeLessThan(100000);
+        expect(System.version).toBeLessThan(20000);
     });
 });
 

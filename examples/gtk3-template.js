@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2021 Andy Holmes <andyholmes@gnome.org>
 
-imports.gi.versions.Gtk = '3.0';
-const {GObject, Gio, Gtk} = imports.gi;
-
+import GObject from 'gi://GObject';
+import Gio from 'gi://Gio';
+import Gtk from 'gi://Gtk?version=3.0';
 
 Gtk.init(null);
-
 
 /* In this example the template contents are loaded from the file as a string.
  *
@@ -29,8 +28,8 @@ const ExampleWindow = GObject.registerClass({
         'button',
     ],
 }, class ExampleWindow extends Gtk.Window {
-    _init(params = {}) {
-        super._init(params);
+    constructor(params = {}) {
+        super(params);
 
         // The template has been initialized and you can access the children
         this.box.visible = true;

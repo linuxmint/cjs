@@ -50,18 +50,15 @@ const MyComplexGtkSubclass = GObject.registerClass({
     boundCallback(widget) {
         widget.callbackBoundTo = this;
     }
+
+    testChildrenExist() {
+        this._internalLabel = this.get_template_child(MyComplexGtkSubclass, 'label-child');
+        expect(this._internalLabel).toEqual(jasmine.anything());
+
+        expect(this.label_child2).toEqual(jasmine.anything());
+        expect(this._internal_label_child).toEqual(jasmine.anything());
+    }
 });
-
-// Sadly, putting this in the body of the class will prevent calling
-// get_template_child, since MyComplexGtkSubclass will be bound to the ES6
-// class name without the GObject goodies in it
-MyComplexGtkSubclass.prototype.testChildrenExist = function () {
-    this._internalLabel = this.get_template_child(MyComplexGtkSubclass, 'label-child');
-    expect(this._internalLabel).toEqual(jasmine.anything());
-
-    expect(this.label_child2).toEqual(jasmine.anything());
-    expect(this._internal_label_child).toEqual(jasmine.anything());
-};
 
 const MyComplexGtkSubclassFromResource = GObject.registerClass({
     Template: 'resource:///org/gjs/jsunit/complex4.ui',
@@ -184,10 +181,36 @@ describe('Gtk overrides', function () {
         expect(Gtk.Widget.get_css_name.call(MyComplexGtkSubclass)).toEqual('complex-subclass');
     });
 
+    it('static inheritance works', function () {
+        expect(MyComplexGtkSubclass.get_css_name()).toEqual('complex-subclass');
+    });
+
     it('can create a Gtk.TreeIter with accessible stamp field', function () {
         const iter = new Gtk.TreeIter();
         iter.stamp = 42;
         expect(iter.stamp).toEqual(42);
+    });
+
+    it('can create a Gtk.CustomSorter with callback', function () {
+        const sortFunc = jasmine.createSpy('sortFunc').and.returnValue(1);
+        const model = Gtk.StringList.new(['hello', 'world']);
+        const sorter = Gtk.CustomSorter.new(sortFunc);
+        void Gtk.SortListModel.new(model, sorter);
+        expect(sortFunc).toHaveBeenCalledOnceWith(jasmine.any(Gtk.StringObject), jasmine.any(Gtk.StringObject));
+    });
+
+    it('can change the callback of a Gtk.CustomSorter', function () {
+        const model = Gtk.StringList.new(['hello', 'world']);
+        const sorter = Gtk.CustomSorter.new(null);
+        void Gtk.SortListModel.new(model, sorter);
+
+        const sortFunc = jasmine.createSpy('sortFunc').and.returnValue(1);
+        sorter.set_sort_func(sortFunc);
+        expect(sortFunc).toHaveBeenCalledOnceWith(jasmine.any(Gtk.StringObject), jasmine.any(Gtk.StringObject));
+
+        sortFunc.calls.reset();
+        sorter.set_sort_func(null);
+        expect(sortFunc).not.toHaveBeenCalled();
     });
 });
 

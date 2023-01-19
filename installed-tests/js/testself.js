@@ -54,4 +54,18 @@ describe('SpiderMonkey features check', function () {
     it('Intl API was compiled into SpiderMonkey', function () {
         expect(Intl).toBeDefined();
     });
+
+    it('WeakRef is enabled', function () {
+        expect(WeakRef).toBeDefined();
+    });
+
+    it('class static blocks are enabled', function () {
+        class Test {
+            static {
+                Test.x = 4;
+            }
+        }
+
+        expect(Test.x).toBe(4);
+    });
 });

@@ -7,6 +7,7 @@
 #include <config.h>
 
 #include <assert.h>
+#include <stddef.h>  // for size_t
 
 #include <string>
 #include <type_traits>  // for integral_constant
@@ -15,13 +16,15 @@
 
 #include <js/CallArgs.h>
 #include <js/Class.h>
-#include <js/ComparisonOperators.h>
+#include <js/GlobalObject.h>  // for CurrentGlobalOrNull
 #include <js/Id.h>
+#include <js/Object.h>  // for GetClass
+#include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Value.h>
-#include <jsapi.h>
-#include <jspubtd.h>
+#include <jsapi.h>  // for JSFUN_CONSTRUCTOR, JS_NewPlainObject, JS_GetFuncti...
+#include <jspubtd.h>  // for JSProto_Object, JSProtoKey, JSProto_TypeError
 
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -80,8 +83,10 @@ class CWrapperPointerOps {
      */
     [[nodiscard]] static Wrapped* for_js(JSContext* cx,
                                          JS::HandleObject wrapper) {
-        return static_cast<Wrapped*>(
-            JS_GetInstancePrivate(cx, wrapper, &Base::klass, nullptr));
+        if (!JS_InstanceOf(cx, wrapper, &Base::klass, nullptr))
+            return nullptr;
+
+        return JS::GetMaybePtrFromReservedSlot<Wrapped>(wrapper, POINTER);
     }
 
     /*
@@ -116,7 +121,7 @@ class CWrapperPointerOps {
     static bool for_js_typecheck(JSContext* cx, JS::HandleObject wrapper,
                                  Wrapped** out) {
         if (!typecheck(cx, wrapper)) {
-            const JSClass* obj_class = JS_GetClass(wrapper);
+            const JSClass* obj_class = JS::GetClass(wrapper);
             gjs_throw_custom(cx, JSProto_TypeError, nullptr,
                              "Object %p is not a subclass of %s, it's a %s",
                              wrapper.get(), Base::klass.name, obj_class->name);
@@ -134,7 +139,45 @@ class CWrapperPointerOps {
      * (It can return null if no private data has been set yet on the wrapper.)
      */
     [[nodiscard]] static Wrapped* for_js_nocheck(JSObject* wrapper) {
-        return static_cast<Wrapped*>(JS_GetPrivate(wrapper));
+        return JS::GetMaybePtrFromReservedSlot<Wrapped>(wrapper, POINTER);
+    }
+
+ protected:
+    // The first reserved slot always stores the private pointer.
+    static const size_t POINTER = 0;
+
+    /*
+     * CWrapperPointerOps::has_private:
+     *
+     * Returns true if a private C pointer has already been associated with the
+     * wrapper object.
+     */
+    [[nodiscard]] static bool has_private(JSObject* wrapper) {
+        return !!JS::GetMaybePtrFromReservedSlot<Wrapped>(wrapper, POINTER);
+    }
+
+    /*
+     * CWrapperPointerOps::init_private:
+     *
+     * Call this to initialize the wrapper object's private C pointer. The
+     * pointer should not be null. This should not be called twice, without
+     * calling unset_private() in between.
+     */
+    static void init_private(JSObject* wrapper, Wrapped* ptr) {
+        assert(!has_private(wrapper) &&
+               "wrapper object should be a fresh object");
+        assert(ptr && "private pointer should not be null, use unset_private");
+        JS::SetReservedSlot(wrapper, POINTER, JS::PrivateValue(ptr));
+    }
+
+    /*
+     * CWrapperPointerOps::unset_private:
+     *
+     * Call this to remove the wrapper object's private C pointer. After calling
+     * this, it's okay to call init_private() again.
+     */
+    static void unset_private(JSObject* wrapper) {
+        JS::SetReservedSlot(wrapper, POINTER, JS::UndefinedValue());
     }
 };
 
@@ -161,7 +204,7 @@ class CWrapperPointerOps {
  *    class_spec's flags member.
  *  - static constexpr unsigned constructor_nargs: number of arguments that the
  *    constructor takes. If you implement constructor_impl() then also add this.
- *  - void finalize_impl(JSFreeOp*, Wrapped*): called when the JS object is
+ *  - void finalize_impl(JS::GCContext*, Wrapped*): called when the JS object is
  *    garbage collected, use this to free the C pointer and do any other cleanup
  *
  * Add optional functionality by setting members of class_spec:
@@ -213,7 +256,7 @@ class CWrapper : public CWrapperPointerOps<Base, Wrapped> {
         Wrapped* priv = Base::constructor_impl(cx, args);
         if (!priv)
             return false;
-        JS_SetPrivate(object, priv);
+        CWrapperPointerOps<Base, Wrapped>::init_private(object, priv);
 
         args.rval().setObject(*object);
         return true;
@@ -248,17 +291,16 @@ class CWrapper : public CWrapperPointerOps<Base, Wrapped> {
             debug_jsprop(message, gjs_debug_id(id).c_str(), obj);
     }
 
-    static void finalize(JSFreeOp* fop, JSObject* obj) {
+    static void finalize(JS::GCContext* gcx, JSObject* obj) {
         Wrapped* priv = Base::for_js_nocheck(obj);
 
         // Call only CWrapper's original method here, not any overrides; e.g.,
         // we don't want to deal with a read barrier.
         CWrapper::debug_lifecycle(priv, obj, "Finalize");
 
-        Base::finalize_impl(fop, priv);
+        Base::finalize_impl(gcx, priv);
 
-        // Remove the pointer from the JSObject
-        JS_SetPrivate(obj, nullptr);
+        CWrapperPointerOps<Base, Wrapped>::unset_private(obj);
     }
 
     static constexpr JSClassOps class_ops = {
@@ -465,7 +507,7 @@ class CWrapper : public CWrapperPointerOps<Base, Wrapped> {
                 in_obj = gjs_get_import_global(cx);
             JS::RootedId class_name(
                 cx, gjs_intern_string_to_id(cx, Base::klass.name));
-            if (class_name == JSID_VOID ||
+            if (class_name.isVoid() ||
                 !JS_DefinePropertyById(cx, in_obj, class_name, ctor_obj,
                                        GJS_MODULE_PROP_FLAGS))
                 return nullptr;
@@ -494,8 +536,8 @@ class CWrapper : public CWrapperPointerOps<Base, Wrapped> {
         if (!wrapper)
             return nullptr;
 
-        assert(!JS_GetPrivate(wrapper));
-        JS_SetPrivate(wrapper, Base::copy_ptr(ptr));
+        CWrapperPointerOps<Base, Wrapped>::init_private(wrapper,
+                                                        Base::copy_ptr(ptr));
 
         debug_lifecycle(ptr, wrapper, "from_c_ptr");
 

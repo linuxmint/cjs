@@ -7,6 +7,7 @@
 
 #include <config.h>
 
+#include <stddef.h>  // for size_t
 #include <stdint.h>
 
 #include <memory>  // for unique_ptr
@@ -15,6 +16,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/AllocPolicy.h>
 #include <js/GCHashTable.h>  // for GCHashMap
 #include <js/HashTable.h>    // for DefaultHasher
 #include <js/Id.h>
@@ -32,9 +34,6 @@ class BoxedInstance;
 class JSTracer;
 namespace JS {
 class CallArgs;
-}
-namespace js {
-class SystemAllocPolicy;
 }
 
 /* To conserve memory, we have two different kinds of private data for GBoxed
@@ -89,6 +88,7 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
     int m_default_constructor;  // -1 if none
     JS::Heap<jsid> m_default_constructor_name;
     std::unique_ptr<FieldMap> m_field_map;
+    bool m_can_allocate_directly_without_pointers : 1;
     bool m_can_allocate_directly : 1;
 
     explicit BoxedPrototype(GIStructInfo* info, GType gtype);
@@ -101,6 +101,9 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
     // Accessors
 
  public:
+    [[nodiscard]] bool can_allocate_directly_without_pointers() const {
+        return m_can_allocate_directly_without_pointers;
+    }
     [[nodiscard]] bool can_allocate_directly() const {
         return m_can_allocate_directly;
     }
@@ -156,11 +159,14 @@ class BoxedInstance
     friend class GIWrapperBase<BoxedBase, BoxedPrototype, BoxedInstance>;
     friend class BoxedBase;  // for field_getter, etc.
 
+    // Reserved slots
+    static const size_t PARENT_OBJECT = 1;
+
     bool m_allocated_directly : 1;
     bool m_owning_ptr : 1;  // if set, the JS wrapper owns the C memory referred
                             // to by m_ptr.
 
-    explicit BoxedInstance(JSContext* cx, JS::HandleObject obj);
+    explicit BoxedInstance(BoxedPrototype* prototype, JS::HandleObject obj);
     ~BoxedInstance(void);
 
     // Don't set GIWrapperBase::m_ptr directly. Instead, use one of these

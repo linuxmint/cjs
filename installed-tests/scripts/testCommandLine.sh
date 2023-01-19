@@ -4,9 +4,9 @@
 # SPDX-FileCopyrightText: 2016 Philip Chimento <philip.chimento@gmail.com>
 
 if test "$GJS_USE_UNINSTALLED_FILES" = "1"; then
-    gjs="$TOP_BUILDDIR/cjs-console"
+    gjs="$TOP_BUILDDIR/gjs-console"
 else
-    gjs="cjs-console"
+    gjs="gjs-console"
 fi
 
 # Avoid interference in the profiler tests from stray environment variable
@@ -148,14 +148,14 @@ report_xfail "Invalid option should exit with failure"
 $gjs --invalid-option 2>&1 | grep -q invalid-option
 report "Invalid option should print a relevant message"
 
-# Test that System.exit() works in cjs-console
+# Test that System.exit() works in gjs-console
 $gjs -c 'imports.system.exit(0)'
 report "System.exit(0) should exit successfully"
 $gjs -c 'imports.system.exit(42)'
 test $? -eq 42
 report "System.exit(42) should exit with the correct exit code"
 
-# Test the System.programPath works in cjs-console
+# Test the System.programPath works in gjs-console
 $gjs argv.js
 report "System.programPath should end in '/argv.js' when gjs argv.js is run"
 
@@ -295,12 +295,8 @@ report "main program exceptions are not swallowed by queued promise jobs"
 G_DEBUG="$OLD_G_DEBUG"
 
 # https://gitlab.gnome.org/GNOME/gjs/issues/26
-if test -n "$CIRCLECI"; then
-    skip "object unref from other thread after shutdown should not race" "Running in CircleCI"
-else
-    $gjs -c 'new imports.gi.Gio.Subprocess({argv: ["true"]}).init(null);'
-    report "object unref from other thread after shutdown should not race"
-fi
+$gjs -c 'new imports.gi.Gio.Subprocess({argv: ["true"]}).init(null);'
+report "object unref from other thread after shutdown should not race"
 
 # https://gitlab.gnome.org/GNOME/gjs/issues/212
 if test -n "$ENABLE_GTK"; then
