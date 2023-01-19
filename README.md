@@ -1,33 +1,34 @@
-JavaScript bindings for GNOME
-=============================
+[![License](https://img.shields.io/badge/License-LGPL%20v2%2B-blue.svg)](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/COPYING)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/COPYING)
 
-Use the GNOME platform libraries in your JavaScript programs.
-GJS powers GNOME Shell, Polari, GNOME Documents, and many other apps.
-Under the hood it uses SpiderMonkey, Mozilla's JavaScript engine
-originally developed for Firefox.
+CJS fork of GJS for Cinnamon. It is functionally identical, and is only
+to maintain stability with the Cinnamon release cycle, and between various
+distributions.
 
-## Installation
-
-Available as part of your GNOME distribution by default.
-In most package managers the package will be called `gjs`.
+CJS is a JavaScript runtime built on
+[Firefox's SpiderMonkey JavaScript engine](https://spidermonkey.dev/) and
+the [GNOME platform libraries](https://developer.gnome.org/).
 
 ## Usage
 
-GJS includes a command-line interpreter, usually installed in
-`/usr/bin/gjs`.
-Type `gjs` to start it and test out your JavaScript statements
+CJS includes a command-line interpreter, usually installed in
+`/usr/bin/cjs`.
+Type `cjs` to start it and test out your JavaScript statements
 interactively.
 Hit Ctrl+D to exit.
 
-`gjs filename.js` runs a whole program.
-`gjs -d filename.js` does that and starts a debugger as well.
+`cjs filename.js` runs a whole program.
+`cjs -d filename.js` does that and starts a debugger as well.
 
 There are also facilities for generating code coverage reports.
-Type `gjs --help` for more information.
+Type `cjs --help` for more information.
 
-`-d` only available in gjs >= 1.53.90
+_______
+.
+# Upstream
 
 ## Contributing
+[![Contributors](https://img.shields.io/github/contributors/GNOME/gjs.svg)](https://gitlab.gnome.org/GNOME/gjs/-/graphs/HEAD)
 
 For instructions on how to get started contributing to GJS, please read
 the contributing guide,
@@ -76,3 +77,12 @@ Dual licensed under LGPL 2.0+ and MIT.
 
 The form of this README was inspired by [Nadia Odunayo][hospitable] on
 the Greater Than Code podcast.
+
+[havocp]: https://blog.ometer.com/2008/08/25/embeddable-languages/
+[gscript]: https://gitlab.gnome.org/Archive/gscript/tree/HEAD/gscript
+[litl webbook]: https://en.wikipedia.org/wiki/Litl
+[GNOME Shell]: https://wiki.gnome.org/Projects/GnomeShell
+[treitter]: https://treitter.livejournal.com/14871.html
+[eos-knowledge-lib]: http://endlessm.github.io/eos-knowledge-lib/
+[Cinnamon]: https://en.wikipedia.org/wiki/Cinnamon_(software)
+[hospitable]: https://www.greaterthancode.com/code-hospitality

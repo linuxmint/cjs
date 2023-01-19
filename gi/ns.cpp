@@ -10,13 +10,14 @@
 #include <js/CallArgs.h>
 #include <js/Class.h>
 #include <js/ComparisonOperators.h>
-#include <js/Id.h>  // for JSID_IS_STRING
+#include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
+#include <js/Id.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
-#include <jsapi.h>       // for JS_GetPrivate, JS_NewObjectWithGivenProto
+#include <jsapi.h>       // for JS_NewObjectWithGivenProto
 
 #include "gi/cwrapper.h"
 #include "gi/ns.h"
@@ -80,7 +81,7 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
     GJS_JSAPI_RETURN_CONVENTION
     bool resolve_impl(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                       bool* resolved) {
-        if (!JSID_IS_STRING(id)) {
+        if (!id.isString()) {
             *resolved = false;
             return true;  // not resolved, but no error
         }
@@ -143,7 +144,7 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
             const char* name = info.name();
 
             jsid id = gjs_intern_string_to_id(cx, name);
-            if (id == JSID_VOID)
+            if (id.isVoid())
                 return false;
             properties.infallibleAppend(id);
         }
@@ -151,7 +152,7 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
         return true;
     }
 
-    static void finalize_impl(JSFreeOp* fop [[maybe_unused]], Ns* priv) {
+    static void finalize_impl(JS::GCContext*, Ns* priv) {
         g_assert(priv && "Finalize called on wrong object");
         delete priv;
     }
@@ -201,8 +202,8 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
 
     static constexpr JSClass klass = {
         "GIRepositoryNamespace",
-        JSCLASS_HAS_PRIVATE | JSCLASS_FOREGROUND_FINALIZE, &Ns::class_ops,
-        &Ns::class_spec};
+        JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_FOREGROUND_FINALIZE,
+        &Ns::class_ops, &Ns::class_spec};
 
  public:
     GJS_JSAPI_RETURN_CONVENTION
@@ -217,8 +218,7 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
             return nullptr;
 
         auto* priv = new Ns(ns_name);
-        g_assert(!JS_GetPrivate(ns));
-        JS_SetPrivate(ns, priv);
+        Ns::init_private(ns, priv);
 
         gjs_debug_lifecycle(GJS_DEBUG_GNAMESPACE,
                             "ns constructor, obj %p priv %p", ns.get(), priv);

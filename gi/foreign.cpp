@@ -16,12 +16,13 @@
 #include "cjs/jsapi-util.h"
 
 static struct {
-    char *gi_namespace;
-    char *module; // relative to "imports."
+    const char* gi_namespace;
     bool loaded;
 } foreign_modules[] = {
-    { (char*)"cairo", (char*)"cairo", false },
-    { NULL }
+    // clang-format off
+    {"cairo", false},
+    {nullptr}
+    // clang-format on
 };
 
 static GHashTable* foreign_structs_table = NULL;
@@ -55,7 +56,8 @@ static GHashTable* foreign_structs_table = NULL;
         script = g_strdup_printf("imports.%s;", gi_namespace);
         JS::RootedValue retval(context);
         GjsContextPrivate* gjs = GjsContextPrivate::from_cx(context);
-        if (!gjs->eval_with_scope(nullptr, script, -1, "<internal>", &retval)) {
+        if (!gjs->eval_with_scope(nullptr, script, strlen(script), "<internal>",
+                                  &retval)) {
             g_critical("ERROR importing foreign module %s\n", gi_namespace);
             g_free(script);
             return false;

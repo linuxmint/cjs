@@ -10,11 +10,14 @@
 
 #include <js/AllocPolicy.h>  // for SystemAllocPolicy
 #include <js/Class.h>
+#include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
 #include <js/GCHashTable.h>  // for WeakCache
+#include <js/Object.h>       // for GetClass
+#include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
-#include <jsapi.h>  // for InformalValueTypeName, JS_GetClass
+#include <jsapi.h>       // for InformalValueTypeName, JS_NewObjectWithGivenP...
 #include <mozilla/HashTable.h>
 
 #include "gi/arg-inl.h"
@@ -26,6 +29,7 @@
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "cjs/mem-private.h"
 #include "util/log.h"
 
@@ -33,8 +37,9 @@ namespace JS {
 class CallArgs;
 }
 
-FundamentalInstance::FundamentalInstance(JSContext* cx, JS::HandleObject obj)
-    : GIWrapperInstance(cx, obj) {
+FundamentalInstance::FundamentalInstance(FundamentalPrototype* prototype,
+                                         JS::HandleObject obj)
+    : GIWrapperInstance(prototype, obj) {
     GJS_INC_COUNTER(fundamental_instance);
 }
 
@@ -239,14 +244,13 @@ const struct JSClassOps FundamentalBase::class_ops = {
     nullptr,  // mayResolve
     &FundamentalBase::finalize,
     nullptr,  // call
-    nullptr,  // hasInstance
     nullptr,  // construct
     &FundamentalBase::trace
 };
 
 const struct JSClass FundamentalBase::klass = {
     "GFundamental_Object",
-    JSCLASS_HAS_PRIVATE | JSCLASS_FOREGROUND_FINALIZE,
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_FOREGROUND_FINALIZE,
     &FundamentalBase::class_ops
 };
 // clang-format on
@@ -408,7 +412,7 @@ JSObject* FundamentalInstance::object_for_c_ptr(JSContext* context,
         return nullptr;
 
     JS::RootedObject object(context, JS_NewObjectWithGivenProto(
-                                         context, JS_GetClass(proto), proto));
+                                         context, JS::GetClass(proto), proto));
 
     if (!object)
         return nullptr;

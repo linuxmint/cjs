@@ -4,48 +4,53 @@
 #include "cjs/internal.h"
 
 #include <config.h>
+
+#include <stddef.h>  // for size_t
+#include <string.h>
+
+#include <memory>  // for unique_ptr
+
 #include <gio/gio.h>
-#include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
-#include <js/Array.h>
-#include <js/Class.h>
+
+#include <js/CallAndConstruct.h>  // for JS_CallFunction
+#include <js/CallArgs.h>
+#include <js/CharacterEncoding.h>
 #include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
-#include <js/Conversions.h>
-#include <js/GCVector.h>  // for RootedVector
+#include <js/Exception.h>
+#include <js/GCAPI.h>  // for JS_AddExtraGCRootsTracer
 #include <js/Modules.h>
 #include <js/Promise.h>
+#include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>
+#include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/SourceText.h>
+#include <js/String.h>
+#include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
-#include <js/Wrapper.h>
-#include <jsapi.h>  // for JS_DefinePropertyById, ...
-#include <jsfriendapi.h>
-#include <stddef.h>     // for size_t
-#include <sys/types.h>  // for ssize_t
+#include <js/Utility.h>  // for UniqueChars
+#include <js/Value.h>
+#include <js/ValueArray.h>
+#include <jsapi.h>        // for JS_NewPlainObject, JS_ObjectIsFunction
+#include <jsfriendapi.h>  // for JS_GetObjectFunction, SetFunctionNativeReserved
+#include <jspubtd.h>  // for JSProto_Error
 
-#include <memory>   // for unique_ptr
-#include <string>   // for u16string
-#include <vector>
-
-#include "cjs/byteArray.h"
 #include "cjs/context-private.h"
-#include "cjs/context.h"
 #include "cjs/engine.h"
-#include "cjs/error-types.h"
 #include "cjs/global.h"
-#include "cjs/importer.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
-#include "cjs/mem-private.h"
+#include "cjs/macros.h"
 #include "cjs/module.h"
-#include "cjs/native.h"
 #include "util/log.h"
 #include "util/misc.h"
 
-#include "gi/repo.h"
+namespace mozilla {
+union Utf8Unit;
+}
 
 // NOTE: You have to be very careful in this file to only do operations within
 // the correct global!
@@ -87,17 +92,8 @@ bool gjs_load_internal_module(JSContext* cx, const char* identifier) {
     JS::RootedObject internal_global(cx, gjs_get_internal_global(cx));
     JSAutoRealm ar(cx, internal_global);
 
-    JS::RootedObject module(cx, JS::CompileModule(cx, options, buf));
-    JS::RootedObject registry(cx, gjs_get_module_registry(internal_global));
-
-    JS::RootedId key(cx, gjs_intern_string_to_id(cx, full_path));
-
-    if (!gjs_global_registry_set(cx, registry, key, module) ||
-        !JS::ModuleInstantiate(cx, module) || !JS::ModuleEvaluate(cx, module)) {
-        return false;
-    }
-
-    return true;
+    JS::RootedValue ignored(cx);
+    return JS::Evaluate(cx, options, buf, &ignored);
 }
 
 static bool handle_wrong_args(JSContext* cx) {
@@ -278,6 +274,7 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     using AutoHashTable =
         GjsAutoPointer<GHashTable, GHashTable, g_hash_table_destroy>;
     using AutoURI = GjsAutoPointer<GUri, GUri, g_uri_unref>;
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
 
     JS::CallArgs args = CallArgsFromVp(argc, vp);
     JS::RootedString string_arg(cx);
@@ -291,6 +288,8 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     GError* error = nullptr;
     AutoURI parsed = g_uri_parse(uri.get(), G_URI_FLAGS_NONE, &error);
     if (!parsed) {
+        JSAutoRealm ar(cx, gjs->global());
+
         gjs_throw_custom(cx, JSProto_Error, "ImportError",
                          "Attempted to import invalid URI: %s (%s)", uri.get(),
                          error->message);
@@ -307,6 +306,8 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
         AutoHashTable query =
             g_uri_parse_params(raw_query, -1, "&", G_URI_PARAMS_NONE, &error);
         if (!query) {
+            JSAutoRealm ar(cx, gjs->global());
+
             gjs_throw_custom(cx, JSProto_Error, "ImportError",
                              "Attempted to import invalid URI: %s (%s)",
                              uri.get(), error->message);
@@ -409,6 +410,9 @@ bool gjs_internal_load_resource_or_file(JSContext* cx, unsigned argc,
     GError* error = nullptr;
     if (!g_file_load_contents(file, /* cancellable = */ nullptr, &contents,
                               &length, /* etag_out = */ nullptr, &error)) {
+        GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
+        JSAutoRealm ar(cx, gjs->global());
+
         gjs_throw_custom(cx, JSProto_Error, "ImportError",
                          "Unable to load file from: %s (%s)", uri.get(),
                          error->message);
@@ -503,7 +507,10 @@ class PromiseData {
 static void load_async_callback(GObject* file, GAsyncResult* res, void* data) {
     std::unique_ptr<PromiseData> promise(PromiseData::from_ptr(data));
 
-    JSAutoRealm ac(promise->cx, gjs_get_import_global(promise->cx));
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(promise->cx);
+    gjs->main_loop_release();
+
+    JSAutoRealm ar(promise->cx, gjs->global());
 
     char* contents;
     size_t length;
@@ -551,6 +558,9 @@ static bool load_async_executor(JSContext* cx, unsigned argc, JS::Value* vp) {
 
     auto* data = new PromiseData(cx, JS_GetObjectFunction(resolve),
                                  JS_GetObjectFunction(reject));
+
+    // Hold the main loop until this function resolves...
+    GjsContextPrivate::from_cx(cx)->main_loop_hold();
     g_file_load_contents_async(file, nullptr, load_async_callback, data);
 
     args.rval().setUndefined();

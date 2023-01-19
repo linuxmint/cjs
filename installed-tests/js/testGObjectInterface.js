@@ -148,7 +148,7 @@ describe('GObject interface', function () {
             },
         }, class BadObject extends GObject.Object {});
         expect(() => new BadObject().requiredG())
-           .toThrowError(GObject.NotImplementedError);
+            .toThrowError(GObject.NotImplementedError);
     });
 
     it("doesn't have to have its optional function implemented", function () {
@@ -301,6 +301,138 @@ describe('GObject interface', function () {
     it('has a toString() defintion', function () {
         expect(new GObjectImplementingGObjectInterface().toString()).toMatch(
             /\[object instance wrapper GType:Gjs_GObjectImplementingGObjectInterface jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
+    });
+
+    it('has instance definition', function () {
+        const obj = new GObjectImplementingGObjectInterface();
+        const obj2 = new ImplementationOfTwoInterfaces();
+        const file = Gio.File.new_for_path('/');
+        expect(obj).toBeInstanceOf(AGObjectInterface);
+        expect(obj).not.toBeInstanceOf(InterfaceRequiringGObjectInterface);
+        expect(obj2).toBeInstanceOf(AGObjectInterface);
+        expect(obj2).toBeInstanceOf(InterfaceRequiringGObjectInterface);
+        expect(new GObject.Object()).not.toBeInstanceOf(AGObjectInterface);
+        expect(file).toBeInstanceOf(Gio.File);
+        expect(file).toBeInstanceOf(GObject.Object);
+    });
+
+    it('has instance definition for non-object type', function () {
+        expect(null).not.toBeInstanceOf(AGObjectInterface);
+        expect(true).not.toBeInstanceOf(AGObjectInterface);
+        expect(undefined).not.toBeInstanceOf(AGObjectInterface);
+        expect(123456).not.toBeInstanceOf(AGObjectInterface);
+        expect(54321n).not.toBeInstanceOf(AGObjectInterface);
+        expect('no way!').not.toBeInstanceOf(AGObjectInterface);
+        expect(new Date()).not.toBeInstanceOf(AGObjectInterface);
+    });
+
+    it('has instance definition for non-object type for native interface', function () {
+        expect(null).not.toBeInstanceOf(Gio.File);
+        expect(true).not.toBeInstanceOf(Gio.File);
+        expect(undefined).not.toBeInstanceOf(Gio.File);
+        expect(12345).not.toBeInstanceOf(Gio.File);
+        expect(54321n).not.toBeInstanceOf(Gio.File);
+        expect('no way!').not.toBeInstanceOf(Gio.File);
+        expect(new Date()).not.toBeInstanceOf(Gio.File);
+    });
+
+    describe('prototype', function () {
+        let file, originalDup;
+
+        beforeAll(function () {
+            file = Gio.File.new_for_path('/');
+            originalDup = Gio.File.prototype.dup;
+        });
+
+        it('toString is enumerable and defined', function () {
+            expect(Object.getOwnPropertyNames(Gio.File.prototype)).toContain('toString');
+            expect(Gio.File.prototype.toString).toBeDefined();
+        });
+
+        it('method properties are enumerated', function () {
+            const expectedMethods = [
+                'copy_attributes',
+                'copy_async',
+                'create_async',
+                'create_readwrite_async',
+                'delete_async',
+                'enumerate_children',
+            ];
+
+            const methods = Object.getOwnPropertyNames(Gio.File.prototype);
+            expect(methods).toEqual(jasmine.arrayContaining(expectedMethods));
+        });
+
+        it('method properties are defined', function () {
+            const methods = Object.getOwnPropertyNames(Gio.File.prototype);
+
+            for (const method of methods) {
+                expect(Gio.File.prototype[method]).toBeDefined();
+                expect(Gio.File.prototype[method]).toBeInstanceOf(Function);
+            }
+        });
+
+        it('overrides are inherited by implementing classes', function () {
+            spyOn(Gio.File.prototype, 'dup');
+
+            expect(file).toBeInstanceOf(Gio.File);
+            expect(file).toBeInstanceOf(Gio._LocalFilePrototype.constructor);
+
+            file.dup();
+            expect(Gio.File.prototype.dup).toHaveBeenCalledOnceWith();
+
+            Gio.File.prototype.dup = originalDup;
+            expect(file.dup).toBe(originalDup);
+        });
+
+        it('overrides cannot be changed by instances of child classes', function () {
+            spyOn(Gio.File.prototype, 'dup');
+
+            expect(file).toBeInstanceOf(Gio.File);
+            expect(file).toBeInstanceOf(Gio._LocalFilePrototype.constructor);
+
+            file.dup = 5;
+            expect(Gio.File.prototype.dup).not.toBe(5);
+            expect(Gio._LocalFilePrototype.dup).not.toBe(5);
+
+            file.dup = originalDup;
+            expect(file.dup).toBe(originalDup);
+        });
+
+        it('unknown properties are inherited by implementing classes', function () {
+            Gio.File.prototype._originalDup = originalDup;
+            expect(file._originalDup).toBe(originalDup);
+
+            Gio.File.prototype._originalDup = 5;
+            expect(file._originalDup).toBe(5);
+
+            delete Gio.File.prototype._originalDup;
+            expect(file._originalDup).not.toBeDefined();
+        });
+
+        it('original property can be shadowed by class prototype property', function () {
+            spyOn(Gio._LocalFilePrototype, 'dup').and.returnValue(5);
+
+            expect(file.dup()).toBe(5);
+            expect(Gio._LocalFilePrototype.dup).toHaveBeenCalled();
+        });
+
+        it('overridden property can be shadowed by class prototype property', function () {
+            spyOn(Gio._LocalFilePrototype, 'dup');
+            spyOn(Gio.File.prototype, 'dup');
+
+            file.dup();
+            expect(Gio._LocalFilePrototype.dup).toHaveBeenCalled();
+            expect(Gio.File.prototype.dup).not.toHaveBeenCalled();
+        });
+
+        it('shadowed property can be restored', function () {
+            Gio._LocalFilePrototype.dup = 5;
+            expect(file.dup).toBe(5);
+
+            delete Gio._LocalFilePrototype.dup;
+            expect(file.dup).toBeInstanceOf(Function);
+        });
     });
 });
 

@@ -6,18 +6,18 @@
 
 #include <stdint.h>
 
-#include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
 #include <js/ArrayBuffer.h>
 #include <js/CallArgs.h>
+#include <js/PropertyAndElement.h>
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>   // for UniqueChars
-#include <jsapi.h>        // for JS_DefineFunctionById, JS_DefineFun...
-#include <jsfriendapi.h>  // for JS_NewUint8ArrayWithBuffer, GetUint...
+#include <js/experimental/TypedData.h>
+#include <jsapi.h>  // for JS_NewPlainObject
 
 #include "gi/boxed.h"
 #include "cjs/atoms.h"
@@ -26,6 +26,7 @@
 #include "cjs/deprecation.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/macros.h"
 #include "cjs/text-encoding.h"
 #include "util/misc.h"  // for _gjs_memdup2
 
@@ -190,7 +191,7 @@ JSObject* gjs_byte_array_from_byte_array(JSContext* cx, GByteArray* array) {
 
 GBytes* gjs_byte_array_get_bytes(JSObject* obj) {
     bool is_shared_memory;
-    uint32_t len;
+    size_t len;
     uint8_t* data;
 
     js::GetUint8ArrayLengthAndData(obj, &len, &is_shared_memory, &data);

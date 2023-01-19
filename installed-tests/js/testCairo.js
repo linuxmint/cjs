@@ -105,6 +105,25 @@ describe('Cairo', function () {
             expect(cr.deviceToUserDistance(0, 0).length).toEqual(2);
         });
 
+        it('computes text extents', function () {
+            expect(cr.textExtents('')).toEqual({
+                xBearing: 0,
+                yBearing: 0,
+                width: 0,
+                height: 0,
+                xAdvance: 0,
+                yAdvance: 0,
+            });
+            expect(cr.textExtents('trailing spaces   ')).toEqual({
+                xBearing: 0,
+                yBearing: -8,
+                width: jasmine.any(Number),
+                height: jasmine.any(Number),
+                xAdvance: jasmine.any(Number),
+                yAdvance: 0,
+            });
+        });
+
         it('can call various, otherwise untested, methods without crashing', function () {
             expect(() => {
                 cr.save();

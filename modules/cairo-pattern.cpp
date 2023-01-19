@@ -9,12 +9,13 @@
 
 #include <js/CallArgs.h>
 #include <js/Class.h>
+#include <js/Object.h>              // for GetClass
 #include <js/PropertyDescriptor.h>  // for JSPROP_READONLY
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>  // for JS_GetPrivate, JS_GetClass, ...
 
+#include "gi/cwrapper.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -64,14 +65,13 @@ const JSFunctionSpec CairoPattern::proto_funcs[] = {
 
 /**
  * CairoPattern::finalize_impl:
- * @fop: the free op
  * @pattern: pointer to free
  *
  * Destroys the resources associated with a pattern wrapper.
  *
  * This is mainly used for subclasses.
  */
-void CairoPattern::finalize_impl(JSFreeOp*, cairo_pattern_t* pattern) {
+void CairoPattern::finalize_impl(JS::GCContext*, cairo_pattern_t* pattern) {
     if (!pattern)
         return;
     cairo_pattern_destroy(pattern);
@@ -132,9 +132,10 @@ cairo_pattern_t* CairoPattern::for_js(JSContext* cx,
         return nullptr;
     if (!is_pattern_subclass) {
         gjs_throw(cx, "Expected Cairo.Pattern but got %s",
-                  JS_GetClass(pattern_wrapper)->name);
+                  JS::GetClass(pattern_wrapper)->name);
         return nullptr;
     }
 
-    return static_cast<cairo_pattern_t*>(JS_GetPrivate(pattern_wrapper));
+    return JS::GetMaybePtrFromReservedSlot<cairo_pattern_t>(
+        pattern_wrapper, CairoPattern::POINTER);
 }

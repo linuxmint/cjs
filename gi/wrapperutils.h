@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 
+#include <new>
 #include <string>
 
 #include <girepository.h>
@@ -20,9 +21,11 @@
 #include <js/ComparisonOperators.h>
 #include <js/Id.h>
 #include <js/MemoryFunctions.h>
+#include <js/Object.h>
+#include <js/PropertyAndElement.h>  // for JS_DefineFunctionById
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsapi.h>       // for JS_GetPrivate, JS_SetPrivate, JS_Ge...
+#include <jsapi.h>       // for JS_GetPrototype
 #include <jspubtd.h>     // for JSProto_TypeError
 
 #include "gi/arg-inl.h"
@@ -297,6 +300,44 @@ class GIWrapperBase : public CWrapperPointerOps<Base> {
     }
 
  protected:
+    /**
+     * GIWrapperBase::resolve_prototype:
+     */
+    [[nodiscard]] static Prototype* resolve_prototype(JSContext* cx,
+                                                      JS::HandleObject proto) {
+        if (JS::GetClass(proto) == &Base::klass)
+            return Prototype::for_js(cx, proto);
+
+        const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
+
+        bool has_property = false;
+        if (!JS_HasOwnPropertyById(cx, proto, atoms.gobject_prototype(),
+                                   &has_property))
+            return nullptr;
+
+        if (!has_property) {
+            gjs_throw(cx, "Tried to construct an object without a GType");
+            return nullptr;
+        }
+
+        JS::RootedValue gobject_proto(cx);
+        if (!JS_GetPropertyById(cx, proto, atoms.gobject_prototype(),
+                                &gobject_proto))
+            return nullptr;
+
+        if (!gobject_proto.isObject()) {
+            gjs_throw(cx, "Tried to construct an object without a GType");
+            return nullptr;
+        }
+
+        JS::RootedObject obj(cx, &gobject_proto.toObject());
+        // gobject_prototype is an internal symbol so we can assert that it is
+        // only assigned to objects with &Base::klass definitions
+        g_assert(JS::GetClass(obj) == &Base::klass);
+
+        return Prototype::for_js(cx, obj);
+    }
+
     /*
      * GIWrapperBase::resolve:
      *
@@ -354,7 +395,7 @@ class GIWrapperBase : public CWrapperPointerOps<Base> {
      * necessary to include a finalize_impl() function in Prototype or Instance.
      * Any needed finalization should be done in ~Prototype() and ~Instance().
      */
-    static void finalize(JSFreeOp* fop, JSObject* obj) {
+    static void finalize(JS::GCContext* gcx, JSObject* obj) {
         Base* priv = Base::for_js_nocheck(obj);
         if (!priv)
             return;  // construction didn't finish
@@ -364,12 +405,11 @@ class GIWrapperBase : public CWrapperPointerOps<Base> {
         static_cast<GIWrapperBase*>(priv)->debug_lifecycle(obj, "Finalize");
 
         if (priv->is_prototype())
-            priv->to_prototype()->finalize_impl(fop, obj);
+            priv->to_prototype()->finalize_impl(gcx, obj);
         else
-            priv->to_instance()->finalize_impl(fop, obj);
+            priv->to_instance()->finalize_impl(gcx, obj);
 
-        // Remove the pointer from the JSObject
-        JS_SetPrivate(obj, nullptr);
+        Base::unset_private(obj);
     }
 
     /*
@@ -429,14 +469,14 @@ class GIWrapperBase : public CWrapperPointerOps<Base> {
         JS::RootedObject proto(cx);
         if (!JS_GetPrototype(cx, obj, &proto))
             return false;
-        if (JS_GetClass(proto) != &Base::klass) {
-            gjs_throw(cx, "Tried to construct an object without a GType");
+
+        Prototype* prototype = resolve_prototype(cx, proto);
+        if (!prototype)
             return false;
-        }
 
         args.rval().setUndefined();
 
-        Instance* priv = Instance::new_for_js_object(cx, obj);
+        Instance* priv = Instance::new_for_js_object(prototype, obj);
 
         {
             std::string fullName = priv->format_name();
@@ -641,6 +681,9 @@ class GIWrapperBase : public CWrapperPointerOps<Base> {
 template <class Base, class Prototype, class Instance,
           typename Info = GIObjectInfo>
 class GIWrapperPrototype : public Base {
+    using GjsAutoPrototype =
+        GjsAutoPointer<Prototype, void, g_atomic_rc_box_release>;
+
  protected:
     // m_info may be null in the case of JS-defined types, or internal types
     // not exposed through introspection, such as GLocalFile. Not all subclasses
@@ -775,7 +818,7 @@ class GIWrapperPrototype : public Base {
                   "Defined class for %s (%s), prototype %p, "
                   "JSClass %p, in object %p",
                   Base::name(), Base::type_name(), prototype.get(),
-                  JS_GetClass(prototype), in_object.get());
+                  JS::GetClass(prototype), in_object.get());
 
         return true;
     }
@@ -796,6 +839,22 @@ class GIWrapperPrototype : public Base {
             return true;  // no introspection means no methods to define
         return gjs_define_static_methods<Prototype::info_type_tag>(
             cx, constructor, m_gtype, m_info);
+    }
+
+    GJS_JSAPI_RETURN_CONVENTION
+    static Prototype* create_prototype(Info* info, GType gtype) {
+        g_assert(gtype != G_TYPE_INVALID);
+
+        // We have to keep the Prototype in an arcbox because some of its
+        // members are needed in some Instance destructors, e.g. m_gtype to
+        // figure out how to free the Instance's m_ptr, and m_info to figure out
+        // how many bytes to free if it is allocated directly. Storing a
+        // refcount on the prototype is cheaper than storing pointers to m_info
+        // and m_gtype on each instance.
+        Prototype* priv = g_atomic_rc_box_new0(Prototype);
+        new (priv) Prototype(info, gtype);
+
+        return priv;
     }
 
  public:
@@ -828,17 +887,8 @@ class GIWrapperPrototype : public Base {
                                    JS::MutableHandleObject constructor,
                                    JS::MutableHandleObject prototype) {
         g_assert(in_object);
-        g_assert(gtype != G_TYPE_INVALID);
 
-        // We have to keep the Prototype in an arcbox because some of its
-        // members are needed in some Instance destructors, e.g. m_gtype to
-        // figure out how to free the Instance's m_ptr, and m_info to figure out
-        // how many bytes to free if it is allocated directly. Storing a
-        // refcount on the prototype is cheaper than storing pointers to m_info
-        // and m_gtype on each instance.
-        GjsAutoPointer<Prototype, void, g_atomic_rc_box_release> priv =
-            g_atomic_rc_box_new0(Prototype);
-        new (priv) Prototype(info, gtype);
+        GjsAutoPrototype priv = create_prototype(info, gtype);
         if (!priv->init(cx))
             return nullptr;
 
@@ -852,7 +902,7 @@ class GIWrapperPrototype : public Base {
         // a garbage collection or error happens subsequently, then this object
         // might be traced and we would end up dereferencing a null pointer.
         Prototype* proto = priv.release();
-        JS_SetPrivate(prototype, proto);
+        Prototype::init_private(prototype, proto);
 
         if (!gjs_wrapper_define_gtype_prop(cx, constructor, gtype))
             return nullptr;
@@ -868,6 +918,45 @@ class GIWrapperPrototype : public Base {
         }
 
         if (!proto->define_static_methods(cx, constructor))
+            return nullptr;
+
+        return proto;
+    }
+
+    GJS_JSAPI_RETURN_CONVENTION
+    static Prototype* wrap_class(JSContext* cx, JS::HandleObject in_object,
+                                 Info* info, GType gtype,
+                                 JS::HandleObject constructor,
+                                 JS::MutableHandleObject prototype) {
+        g_assert(in_object);
+
+        GjsAutoPrototype priv = create_prototype(info, gtype);
+        if (!priv->init(cx))
+            return nullptr;
+
+        JS::RootedObject parent_proto(cx);
+        if (!priv->get_parent_proto(cx, &parent_proto))
+            return nullptr;
+
+        if (parent_proto) {
+            prototype.set(
+                JS_NewObjectWithGivenProto(cx, &Base::klass, parent_proto));
+        } else {
+            prototype.set(JS_NewObject(cx, &Base::klass));
+        }
+
+        if (!prototype)
+            return nullptr;
+
+        Prototype* proto = priv.release();
+        Prototype::init_private(prototype, proto);
+
+        if (!proto->define_static_methods(cx, constructor))
+            return nullptr;
+
+        GjsAutoChar class_name = g_strdup_printf("%s", proto->name());
+        if (!JS_DefineProperty(cx, in_object, class_name, constructor,
+                               GJS_MODULE_PROP_FLAGS))
             return nullptr;
 
         return proto;
@@ -924,7 +1013,7 @@ class GIWrapperPrototype : public Base {
     // JSClass operations
 
  protected:
-    void finalize_impl(JSFreeOp*, JSObject*) { release(); }
+    void finalize_impl(JS::GCContext*, JSObject*) { release(); }
 
     // Override if necessary
     void trace_impl(JSTracer*) {}
@@ -954,11 +1043,12 @@ class GIWrapperInstance : public Base {
  protected:
     GjsSmartPointer<Wrapped> m_ptr;
 
-    explicit GIWrapperInstance(JSContext* cx, JS::HandleObject obj)
-        : Base(Prototype::for_js_prototype(cx, obj)), m_ptr(nullptr) {
+    explicit GIWrapperInstance(Prototype* prototype, JS::HandleObject obj)
+        : Base(prototype), m_ptr(nullptr) {
         Base::m_proto->acquire();
         Base::GIWrapperBase::debug_lifecycle(obj, "Instance constructor");
     }
+
     ~GIWrapperInstance(void) { Base::m_proto->release(); }
 
  public:
@@ -970,13 +1060,22 @@ class GIWrapperInstance : public Base {
      */
     [[nodiscard]] static Instance* new_for_js_object(JSContext* cx,
                                                      JS::HandleObject obj) {
-        g_assert(!JS_GetPrivate(obj));
-        auto* priv = new Instance(cx, obj);
+        Prototype* prototype = Prototype::for_js_prototype(cx, obj);
+        auto* priv = new Instance(prototype, obj);
 
         // Init the private variable before we do anything else. If a garbage
         // collection happens when calling the constructor, then this object
         // might be traced and we would end up dereferencing a null pointer.
-        JS_SetPrivate(obj, priv);
+        Instance::init_private(obj, priv);
+
+        return priv;
+    }
+
+    [[nodiscard]] static Instance* new_for_js_object(Prototype* prototype,
+                                                     JS::HandleObject obj) {
+        auto* priv = new Instance(prototype, obj);
+
+        Instance::init_private(obj, priv);
 
         return priv;
     }
@@ -1009,7 +1108,7 @@ class GIWrapperInstance : public Base {
     // JSClass operations
 
  protected:
-    void finalize_impl(JSFreeOp*, JSObject*) {
+    void finalize_impl(JS::GCContext*, JSObject*) {
         delete static_cast<Instance*>(this);
     }
 

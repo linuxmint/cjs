@@ -92,6 +92,11 @@ class InterfacePrototype
     bool resolve_impl(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                       bool* resolved);
 
+    GJS_JSAPI_RETURN_CONVENTION
+    bool new_enumerate_impl(JSContext* cx, JS::HandleObject obj,
+                            JS::MutableHandleIdVector properties,
+                            bool only_enumerable);
+
     // JS methods
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -106,8 +111,9 @@ class InterfaceInstance
     friend class GIWrapperBase<InterfaceBase, InterfacePrototype,
                                InterfaceInstance>;
 
-    [[noreturn]] InterfaceInstance(JSContext* cx, JS::HandleObject obj)
-        : GIWrapperInstance(cx, obj) {
+    [[noreturn]] InterfaceInstance(InterfacePrototype* prototype,
+                                   JS::HandleObject obj)
+        : GIWrapperInstance(prototype, obj) {
         g_assert_not_reached();
     }
     [[noreturn]] ~InterfaceInstance(void) { g_assert_not_reached(); }

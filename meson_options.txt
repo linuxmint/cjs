@@ -12,7 +12,7 @@ option('profiler', type: 'feature', value: 'auto',
 
 # Flags
 
-option('installed_tests', type: 'boolean', value: true,
+option('installed_tests', type: 'boolean', value: false,
     description: 'Install test programs')
 option('dtrace', type: 'boolean', value: false,
     description: 'Include dtrace trace support')

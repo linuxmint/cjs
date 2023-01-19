@@ -137,17 +137,11 @@ jasmine_tests = [
     'Package',
     'ParamSpec',
     'Print',
+    'Promise',
     'Regress',
     'Signals',
     'System',
     'Tweener',
-]
-
-# FIXME(3v1n0): We should really address these issues
-non_thread_safe = [
-    'Gtk4',
-    'Importer',
-    'ESModules',
 ]
 
 if build_cairo
@@ -185,13 +179,9 @@ endif
 
 foreach test : jasmine_tests
     test_file = files('test@0@.js'.format(test))
-    suite = ['JS']
-    if test not in non_thread_safe
-        suite += 'thread-safe'
-    endif
 
     test(test, minijasmine, args: test_file, depends: tests_dependencies,
-        env: tests_environment, protocol: 'tap', suite: suite)
+        env: tests_environment, protocol: 'tap', suite: 'JS')
 
     test_description_subst = {
         'name': 'test@0@.js'.format(test),
@@ -242,10 +232,13 @@ endif
 # minijasmine flag
 
 modules_tests = [
+    'Async',
     'Console',
     'ESModules',
     'Encoding',
     'GLibLogWriter',
+    'Global',
+    'Timers',
 ]
 if build_cairo
     modules_tests += 'CairoModule'
@@ -253,13 +246,9 @@ endif
 
 foreach test : modules_tests
     test_file = files('test@0@.js'.format(test))
-    suite = ['JS']
-    if test not in non_thread_safe
-        suite += 'thread-safe'
-    endif
 
     test(test, minijasmine, args: [test_file, '-m'], env: tests_environment,
-        protocol: 'tap', suite: suite)
+        protocol: 'tap', suite: 'JS')
 
     esm_test_description_subst = {
         'name': 'test@0@.js'.format(test),

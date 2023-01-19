@@ -1,4 +1,4 @@
-# Modules: ECMAScript modules
+# ECMAScript Modules
 
 > _This documentation is inspired by [Node.js' documentation](https://github.com/nodejs/node/blob/HEAD/doc/api/esm.md)
 > on ECMAScript modules._
@@ -223,7 +223,7 @@ or if you want the path for the current file or directory
 ```js
 import GLib from 'gi://GLib';
 const [filename] = GLib.filename_from_uri(import.meta.url);
-const dirname = GLib.path_get_dirname(path);
+const dirname = GLib.path_get_dirname(filename);
 ```
 
 ## Interoperability with legacy `imports` modules

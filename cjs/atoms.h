@@ -18,6 +18,7 @@ class JSTracer;
 
 // clang-format off
 #define FOR_EACH_ATOM(macro) \
+    macro(cause, "cause") \
     macro(code, "code") \
     macro(column_number, "columnNumber") \
     macro(connect_after, "connect_after") \
@@ -51,6 +52,7 @@ class JSTracer;
     macro(name, "name") \
     macro(new_, "new") \
     macro(new_internal, "_new_internal") \
+    macro(override, "override") \
     macro(overrides, "overrides") \
     macro(param_spec, "ParamSpec") \
     macro(parent_module, "__parentModule__") \
@@ -74,6 +76,7 @@ class JSTracer;
     macro(zone, "zone")
 
 #define FOR_EACH_SYMBOL_ATOM(macro) \
+    macro(gobject_prototype, "__GObject__prototype") \
     macro(hook_up_vfunc, "__GObject__hook_up_vfunc") \
     macro(private_ns_marker, "__gjsPrivateNS") \
     macro(signal_find, "__GObject__signal_find") \

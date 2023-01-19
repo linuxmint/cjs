@@ -115,6 +115,112 @@ const MyObject = GObject.registerClass({
     }
 });
 
+const MyObjectWithCustomConstructor = GObject.registerClass({
+    Properties: {
+        'readwrite': GObject.ParamSpec.string('readwrite', 'ParamReadwrite',
+            'A read write parameter', GObject.ParamFlags.READWRITE, ''),
+        'readonly': GObject.ParamSpec.string('readonly', 'ParamReadonly',
+            'A readonly parameter', GObject.ParamFlags.READABLE, ''),
+        'construct': GObject.ParamSpec.string('construct', 'ParamConstructOnly',
+            'A readwrite construct-only parameter',
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+            ''),
+    },
+    Signals: {
+        'empty': {},
+        'minimal': {param_types: [GObject.TYPE_INT, GObject.TYPE_INT]},
+        'full': {
+            flags: GObject.SignalFlags.RUN_LAST,
+            accumulator: GObject.AccumulatorType.FIRST_WINS,
+            return_type: GObject.TYPE_INT,
+            param_types: [],
+        },
+        'run-last': {flags: GObject.SignalFlags.RUN_LAST},
+        'detailed': {
+            flags: GObject.SignalFlags.RUN_FIRST | GObject.SignalFlags.DETAILED,
+            param_types: [GObject.TYPE_STRING],
+        },
+    },
+}, class MyObjectWithCustomConstructor extends GObject.Object {
+    _readwrite;
+    _readonly;
+    _constructProp;
+
+    constructor({readwrite = 'foo', readonly = 'bar', construct = 'default'} = {}) {
+        super();
+
+        this._constructProp = construct;
+        this._readwrite = readwrite;
+        this._readonly = readonly;
+    }
+
+    get readwrite() {
+        return this._readwrite;
+    }
+
+    set readwrite(val) {
+        if (val === 'ignore')
+            return;
+
+        this._readwrite = val;
+    }
+
+    get readonly() {
+        return this._readonly;
+    }
+
+    set readonly(val) {
+        // this should never be called
+        void val;
+        this._readonly = 'bogus';
+    }
+
+    get construct() {
+        return this._constructProp;
+    }
+
+    notifyProp() {
+        this._readonly = 'changed';
+
+        this.notify('readonly');
+    }
+
+    emitEmpty() {
+        this.emit('empty');
+    }
+
+    emitMinimal(one, two) {
+        this.emit('minimal', one, two);
+    }
+
+    emitFull() {
+        return this.emit('full');
+    }
+
+    emitDetailed() {
+        this.emit('detailed::one');
+        this.emit('detailed::two');
+    }
+
+    emitRunLast(callback) {
+        this._run_last_callback = callback;
+        this.emit('run-last');
+    }
+
+    on_run_last() {
+        this._run_last_callback();
+    }
+
+    on_empty() {
+        this.empty_called = true;
+    }
+
+    on_full() {
+        this.full_default_handler_called = true;
+        return 79;
+    }
+});
+
 const MyAbstractObject = GObject.registerClass({
     GTypeFlags: GObject.TypeFlags.ABSTRACT,
 }, class MyAbstractObject extends GObject.Object {
@@ -144,6 +250,14 @@ const Derived = GObject.registerClass(class Derived extends MyObject {
         super._init({readwrite: 'yes'});
     }
 });
+
+const DerivedWithCustomConstructor = GObject.registerClass(class DerivedWithCustomConstructor extends MyObjectWithCustomConstructor {
+    constructor() {
+        super({readwrite: 'yes'});
+    }
+});
+
+const ObjectWithDefaultConstructor = GObject.registerClass(class ObjectWithDefaultConstructor extends GObject.Object {});
 
 const Cla$$ = GObject.registerClass(class Cla$$ extends MyObject {});
 
@@ -187,7 +301,7 @@ describe('GObject class with decorator', function () {
         GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_MESSAGE,
             '*Too many arguments*');
 
-        new MyObject({readwrite: 'baz'}, 'this is ignored', 123);
+        new ObjectWithDefaultConstructor({}, 'this is ignored', 123);
 
         GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'testGObjectClassTooManyArguments');
@@ -365,6 +479,67 @@ describe('GObject class with decorator', function () {
         expect(() => new InterfacePropObject({file})).not.toThrow();
     });
 
+    it('can have an int64 property', function () {
+        const PropInt64 = GObject.registerClass({
+            Properties: {
+                'int64': GObject.ParamSpec.int64('int64', 'int64', 'int64',
+                    GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+                    GLib.MININT64_BIGINT, GLib.MAXINT64_BIGINT, 0),
+            },
+        }, class PropInt64 extends GObject.Object {});
+
+        let int64 = GLib.MAXINT64_BIGINT - 5n;
+        let obj = new PropInt64({int64});
+        expect(obj.int64).toEqual(Number(int64));
+
+        int64 = GLib.MININT64_BIGINT + 555n;
+        obj = new PropInt64({int64});
+        expect(obj.int64).toEqual(Number(int64));
+    });
+
+    it('can have a default int64 property', function () {
+        const defaultValue = GLib.MAXINT64_BIGINT - 1000n;
+        const PropInt64Init = GObject.registerClass({
+            Properties: {
+                'int64': GObject.ParamSpec.int64('int64', 'int64', 'int64',
+                    GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+                    GLib.MININT64_BIGINT, GLib.MAXINT64_BIGINT,
+                    defaultValue),
+            },
+        }, class PropDefaultInt64Init extends GObject.Object {});
+
+        const obj = new PropInt64Init();
+        expect(obj.int64).toEqual(Number(defaultValue));
+    });
+
+    it('can have an uint64 property', function () {
+        const PropUint64 = GObject.registerClass({
+            Properties: {
+                'uint64': GObject.ParamSpec.uint64('uint64', 'uint64', 'uint64',
+                    GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+                    0, GLib.MAXUINT64_BIGINT, 0),
+            },
+        }, class PropUint64 extends GObject.Object {});
+
+        const uint64 = GLib.MAXUINT64_BIGINT - 5n;
+        const obj = new PropUint64({uint64});
+        expect(obj.uint64).toEqual(Number(uint64));
+    });
+
+    it('can have a default uint64 property', function () {
+        const defaultValue = GLib.MAXUINT64_BIGINT;
+        const PropUint64Init = GObject.registerClass({
+            Properties: {
+                'uint64': GObject.ParamSpec.uint64('uint64', 'uint64', 'uint64',
+                    GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+                    0n, GLib.MAXUINT64_BIGINT, defaultValue),
+            },
+        }, class PropDefaultUint64Init extends GObject.Object {});
+
+        const obj = new PropUint64Init();
+        expect(obj.uint64).toEqual(Number(defaultValue));
+    });
+
     it('can override a property from the parent class', function () {
         const OverrideObject = GObject.registerClass({
             Properties: {
@@ -461,6 +636,207 @@ describe('GObject class with decorator', function () {
             /\[object instance wrapper GType:Gjs_MyObject jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
         expect(new Derived().toString()).toMatch(
             /\[object instance wrapper GType:Gjs_Derived jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
+    });
+
+    it('does not clobber native parent interface vfunc definitions', function () {
+        const resetImplementationSpy = jasmine.createSpy('vfunc_reset');
+        expect(() => {
+            // This is a random interface in Gio with a virtual function
+            GObject.registerClass({
+                // Forgotten interface
+                // Implements: [Gio.Converter],
+            }, class MyZlibConverter extends Gio.ZlibCompressor {
+                vfunc_reset() {
+                    resetImplementationSpy();
+                }
+            });
+        }).toThrowError('Gjs_MyZlibConverter does not implement Gio.Converter, add Gio.Converter to your implements array');
+
+        let potentiallyClobbered = new Gio.ZlibCompressor();
+        potentiallyClobbered.reset();
+
+        expect(resetImplementationSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not clobber dynamic parent interface vfunc definitions', function () {
+        const resetImplementationSpy = jasmine.createSpy('vfunc_reset');
+
+        const MyJSConverter = GObject.registerClass({
+            Implements: [Gio.Converter],
+        }, class MyJSConverter extends GObject.Object {
+            vfunc_reset() {
+            }
+        });
+
+        expect(() => {
+            GObject.registerClass({
+                // Forgotten interface
+                // Implements: [Gio.Converter],
+            }, class MyBadConverter extends MyJSConverter {
+                vfunc_reset() {
+                    resetImplementationSpy();
+                }
+            });
+        }).toThrowError('Gjs_MyBadConverter does not implement Gio.Converter, add Gio.Converter to your implements array');
+
+        let potentiallyClobbered = new MyJSConverter();
+        potentiallyClobbered.reset();
+
+        expect(resetImplementationSpy).not.toHaveBeenCalled();
+    });
+});
+
+describe('GObject class with custom constructor', function () {
+    let myInstance;
+    beforeEach(function () {
+        myInstance = new MyObjectWithCustomConstructor();
+    });
+
+    it('throws an error when not used with a GObject-derived class', function () {
+        class Foo {}
+        expect(() => GObject.registerClass(class Bar extends Foo {})).toThrow();
+    });
+
+    it('constructs with default values for properties', function () {
+        expect(myInstance.readwrite).toEqual('foo');
+        expect(myInstance.readonly).toEqual('bar');
+        expect(myInstance.construct).toEqual('default');
+    });
+
+    it('has a toString() defintion', function () {
+        expect(myInstance.toString()).toMatch(
+            /\[object instance wrapper GType:Gjs_MyObjectWithCustomConstructor jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
+    });
+
+    it('constructs with a hash of property values', function () {
+        let myInstance2 = new MyObjectWithCustomConstructor({readwrite: 'baz', construct: 'asdf'});
+        expect(myInstance2.readwrite).toEqual('baz');
+        expect(myInstance2.readonly).toEqual('bar');
+        console.log(Object.getOwnPropertyDescriptor(myInstance2, 'construct'));
+        expect(myInstance2.construct).toEqual('asdf');
+    });
+
+    it('accepts a property hash that is not a plain object', function () {
+        expect(() => new MyObjectWithCustomConstructor(new GObject.Object())).not.toThrow();
+    });
+
+    const ui = `<interface>
+                  <object class="Gjs_MyObject" id="MyObject">
+                    <property name="readwrite">baz</property>
+                    <property name="construct">quz</property>
+                  </object>
+                </interface>`;
+
+    it('constructs with property values from Gtk.Builder', function () {
+        let builder = Gtk.Builder.new_from_string(ui, -1);
+        let myInstance3 = builder.get_object('MyObject');
+        expect(myInstance3.readwrite).toEqual('baz');
+        expect(myInstance3.readonly).toEqual('bar');
+        expect(myInstance3.construct).toEqual('quz');
+    });
+
+    it('does not allow changing CONSTRUCT_ONLY properties', function () {
+        myInstance.construct = 'val';
+        expect(myInstance.construct).toEqual('default');
+    });
+
+    it('has a name', function () {
+        expect(MyObjectWithCustomConstructor.name).toEqual('MyObjectWithCustomConstructor');
+    });
+
+    it('has a notify signal', function () {
+        let notifySpy = jasmine.createSpy('notifySpy');
+        myInstance.connect('notify::readonly', notifySpy);
+
+        myInstance.notifyProp();
+        myInstance.notifyProp();
+
+        expect(notifySpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('can define its own signals', function () {
+        let emptySpy = jasmine.createSpy('emptySpy');
+        myInstance.connect('empty', emptySpy);
+        myInstance.emitEmpty();
+
+        expect(emptySpy).toHaveBeenCalled();
+        expect(myInstance.empty_called).toBeTruthy();
+    });
+
+    it('passes emitted arguments to signal handlers', function () {
+        let minimalSpy = jasmine.createSpy('minimalSpy');
+        myInstance.connect('minimal', minimalSpy);
+        myInstance.emitMinimal(7, 5);
+
+        expect(minimalSpy).toHaveBeenCalledWith(myInstance, 7, 5);
+    });
+
+    it('can return values from signals', function () {
+        let fullSpy = jasmine.createSpy('fullSpy').and.returnValue(42);
+        myInstance.connect('full', fullSpy);
+        let result = myInstance.emitFull();
+
+        expect(fullSpy).toHaveBeenCalled();
+        expect(result).toEqual(42);
+    });
+
+    it('does not call first-wins signal handlers after one returns a value', function () {
+        let neverCalledSpy = jasmine.createSpy('neverCalledSpy');
+        myInstance.connect('full', () => 42);
+        myInstance.connect('full', neverCalledSpy);
+        myInstance.emitFull();
+
+        expect(neverCalledSpy).not.toHaveBeenCalled();
+        expect(myInstance.full_default_handler_called).toBeFalsy();
+    });
+
+    it('gets the return value of the default handler', function () {
+        let result = myInstance.emitFull();
+
+        expect(myInstance.full_default_handler_called).toBeTruthy();
+        expect(result).toEqual(79);
+    });
+
+    it('calls run-last default handler last', function () {
+        let stack = [];
+        let runLastSpy = jasmine.createSpy('runLastSpy')
+            .and.callFake(() => {
+                stack.push(1);
+            });
+        myInstance.connect('run-last', runLastSpy);
+        myInstance.emitRunLast(() => {
+            stack.push(2);
+        });
+
+        expect(stack).toEqual([1, 2]);
+    });
+
+    it('can be a subclass', function () {
+        let derived = new DerivedWithCustomConstructor();
+
+        expect(derived instanceof DerivedWithCustomConstructor).toBeTruthy();
+        expect(derived instanceof MyObjectWithCustomConstructor).toBeTruthy();
+
+        expect(derived.readwrite).toEqual('yes');
+    });
+
+    it('can override a property from the parent class', function () {
+        const OverrideObjectWithCustomConstructor = GObject.registerClass({
+            Properties: {
+                'readwrite': GObject.ParamSpec.override('readwrite', MyObjectWithCustomConstructor),
+            },
+        }, class OverrideObjectWithCustomConstructor extends MyObjectWithCustomConstructor {
+            get readwrite() {
+                return this._subclass_readwrite;
+            }
+
+            set readwrite(val) {
+                this._subclass_readwrite = `subclass${val}`;
+            }
+        });
+        let obj = new OverrideObjectWithCustomConstructor();
+        obj.readwrite = 'foo';
+        expect(obj.readwrite).toEqual('subclassfoo');
     });
 });
 
@@ -788,6 +1164,24 @@ describe('Property bindings', function () {
         expect(a.bool).toEqual(true);
         expect(b.string).toEqual('true');
     });
+
+    it('can be set up as a group', function () {
+        const group = new GObject.BindingGroup({source: a});
+        group.bind('string', b, 'string', GObject.BindingFlags.NONE);
+        a.string = 'foo';
+        expect(a.string).toEqual('foo');
+        expect(b.string).toEqual('foo');
+    });
+
+    it('can be set up as a group with custom mappings', function () {
+        const group = new GObject.BindingGroup({source: a});
+        group.bind_full('bool', b, 'string', GObject.BindingFlags.NONE,
+            (bind, source) => [true, `${source}`],
+            null);
+        a.bool = true;
+        expect(a.bool).toEqual(true);
+        expect(b.string).toEqual('true');
+    });
 });
 
 describe('Auto accessor generation', function () {
@@ -807,6 +1201,11 @@ describe('Auto accessor generation', function () {
                 'Construct-only property with a setter method',
                 GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
                 0, 100, 80),
+            'construct-only-was-invalid-in-turkish': GObject.ParamSpec.int(
+                'construct-only-was-invalid-in-turkish', 'Camel name in Turkish',
+                'Camel-cased property that was wrongly transformed in Turkish',
+                GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+                0, 100, 55),
             'snake-name': GObject.ParamSpec.int('snake-name', 'Snake name',
                 'Snake-cased property', GObject.ParamFlags.READWRITE, 0, 100, 36),
             'camel-name': GObject.ParamSpec.int('camel-name', 'Camel name',
@@ -926,6 +1325,21 @@ describe('Auto accessor generation', function () {
         expect(a._constructOnlySetterCalled).toEqual(1);
     });
 
+    it('set properties at construct time with locale', function () {
+        const {gettext: Gettext} = imports;
+        const prevLocale = Gettext.setlocale(Gettext.LocaleCategory.ALL, null);
+
+        Gettext.setlocale(Gettext.LocaleCategory.ALL, 'tr_TR');
+        a = new AutoAccessors({
+            'construct-only-was-invalid-in-turkish': 35,
+        });
+        Gettext.setlocale(Gettext.LocaleCategory.ALL, prevLocale);
+
+        expect(a.constructOnlyWasInvalidInTurkish).toEqual(35);
+        expect(a.construct_only_was_invalid_in_turkish).toEqual(35);
+        expect(a['construct-only-was-invalid-in-turkish']).toEqual(35);
+    });
+
     it('notify when the property changes', function () {
         const notify = jasmine.createSpy('notify');
         a.connect('notify::simple', notify);
@@ -983,7 +1397,7 @@ describe('Auto accessor generation', function () {
 const MyObjectWithJSObjectProperty = GObject.registerClass({
     Properties: {
         'jsobj-prop': GObject.ParamSpec.jsobject('jsobj-prop', 'jsobj-prop', 'jsobj-prop',
-            GObject.ParamFlags.CONSTRUCT | GObject.ParamFlags.READWRITE, ''),
+            GObject.ParamFlags.CONSTRUCT | GObject.ParamFlags.READWRITE),
     },
 }, class MyObjectWithJSObjectProperty extends GObject.Object {
 });

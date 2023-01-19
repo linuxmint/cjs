@@ -8,8 +8,8 @@
 #include <config.h>
 
 #include <stddef.h>  // for size_t
+#include <stdint.h>  // for uint32_t
 
-#include <forward_list>
 #include <functional>
 #include <vector>
 
@@ -17,13 +17,13 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/AllocPolicy.h>
 #include <js/GCHashTable.h>  // for GCHashMap
 #include <js/HashTable.h>    // for DefaultHasher
 #include <js/Id.h>
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
-#include <jsfriendapi.h>            // for JSID_IS_ATOM, JSID_TO_ATOM
 #include <mozilla/HashFunctions.h>  // for HashGeneric, HashNumber
 #include <mozilla/Likely.h>         // for MOZ_LIKELY
 
@@ -38,9 +38,6 @@ class GjsAtoms;
 class JSTracer;
 namespace JS {
 class CallArgs;
-}
-namespace js {
-class SystemAllocPolicy;
 }
 namespace Gjs {
 namespace Test {
@@ -169,11 +166,11 @@ class ObjectBase
 struct IdHasher {
     typedef jsid Lookup;
     static mozilla::HashNumber hash(jsid id) {
-        if (MOZ_LIKELY(JSID_IS_ATOM(id)))
-            return js::DefaultHasher<JSAtom*>::hash(JSID_TO_ATOM(id));
-        if (JSID_IS_SYMBOL(id))
-            return js::DefaultHasher<JS::Symbol*>::hash(JSID_TO_SYMBOL(id));
-        return mozilla::HashGeneric(JSID_BITS(id));
+        if (MOZ_LIKELY(id.isString()))
+            return js::DefaultHasher<JSString*>::hash(id.toString());
+        if (id.isSymbol())
+            return js::DefaultHasher<JS::Symbol*>::hash(id.toSymbol());
+        return mozilla::HashGeneric(id.asRawBits());
     }
     static bool match(jsid id1, jsid id2) { return id1 == id2; }
 };
@@ -197,7 +194,10 @@ class ObjectPrototype
     FieldCache m_field_cache;
     NegativeLookupCache m_unresolvable_cache;
     // a list of vfunc GClosures installed on this prototype, used when tracing
-    std::forward_list<GClosure*> m_vfuncs;
+    std::vector<GClosure*> m_vfuncs;
+    // a list of interface types explicitly associated with this prototype,
+    // by gjs_add_interface
+    std::vector<GType> m_interface_gtypes;
 
     ObjectPrototype(GIObjectInfo* info, GType gtype);
     ~ObjectPrototype();
@@ -211,6 +211,9 @@ class ObjectPrototype
  private:
     GJS_JSAPI_RETURN_CONVENTION
     bool get_parent_proto(JSContext* cx, JS::MutableHandleObject proto) const;
+    GJS_JSAPI_RETURN_CONVENTION
+    bool get_parent_constructor(JSContext* cx,
+                                JS::MutableHandleObject constructor) const;
 
     [[nodiscard]] bool is_vfunc_unchanged(GIVFuncInfo* info);
     static void vfunc_invalidated_notify(void* data, GClosure* closure);
@@ -230,6 +233,7 @@ class ObjectPrototype
                           const char* name, bool* resolved);
 
  public:
+    void set_interfaces(GType* interface_gtypes, uint32_t n_interface_gtypes);
     void set_type_qdata(void);
     GJS_JSAPI_RETURN_CONVENTION
     GParamSpec* find_param_spec_from_id(JSContext* cx, JS::HandleString key);
@@ -243,6 +247,8 @@ class ObjectPrototype
     GJS_JSAPI_RETURN_CONVENTION
     static bool define_class(JSContext* cx, JS::HandleObject in_object,
                              GIObjectInfo* info, GType gtype,
+                             GType* interface_gtypes,
+                             uint32_t n_interface_gtypes,
                              JS::MutableHandleObject constructor,
                              JS::MutableHandleObject prototype);
 
@@ -286,7 +292,7 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     GjsMaybeOwned<JSObject*> m_wrapper;
     // a list of all GClosures installed on this object (from signal connections
     // and scope-notify callbacks passed to methods), used when tracing
-    std::forward_list<GClosure*> m_closures;
+    std::vector<GClosure*> m_closures;
 
     bool m_wrapper_finalized : 1;
     bool m_gobj_disposed : 1;
@@ -302,7 +308,7 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     /* Constructors */
 
  private:
-    ObjectInstance(JSContext* cx, JS::HandleObject obj);
+    ObjectInstance(ObjectPrototype* prototype, JS::HandleObject obj);
     ~ObjectInstance();
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -327,18 +333,19 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     void discard_wrapper(void) { m_wrapper.reset(); }
     void switch_to_rooted(JSContext* cx) { m_wrapper.switch_to_rooted(cx); }
     void switch_to_unrooted(JSContext* cx) { m_wrapper.switch_to_unrooted(cx); }
-    [[nodiscard]] bool update_after_gc() { return m_wrapper.update_after_gc(); }
+    [[nodiscard]] bool update_after_gc(JSTracer* trc) {
+        return m_wrapper.update_after_gc(trc);
+    }
     [[nodiscard]] bool wrapper_is_rooted() const { return m_wrapper.rooted(); }
     void release_native_object(void);
     void associate_js_gobject(JSContext* cx, JS::HandleObject obj,
                               GObject* gobj);
     void disassociate_js_gobject(void);
     void handle_context_dispose(void);
-    [[nodiscard]] bool weak_pointer_was_finalized();
+    [[nodiscard]] bool weak_pointer_was_finalized(JSTracer* trc);
     static void ensure_weak_pointer_callback(JSContext* cx);
-    static void update_heap_wrapper_weak_pointers(JSContext* cx,
-                                                  JS::Compartment* compartment,
-                                                  void* data);
+    static void update_heap_wrapper_weak_pointers(JSTracer* trc,
+                                                  JS::Compartment*, void* data);
 
  public:
     void toggle_down(void);
@@ -412,7 +419,7 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     GJS_JSAPI_RETURN_CONVENTION
     bool add_property_impl(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                            JS::HandleValue value);
-    void finalize_impl(JSFreeOp* fop, JSObject* obj);
+    void finalize_impl(JS::GCContext*, JSObject* obj);
     void trace_impl(JSTracer* trc);
 
     /* JS property getters/setters */

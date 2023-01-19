@@ -1,10 +1,5 @@
-debian/*.debhelper.log
-debian/*.substvars
-debian/.debhelper/
-debian/cjs/
-debian/debhelper-build-stamp
-debian/files
-debian/libcjs-dbg/
-debian/libcjs-dev/
-debian/libcjs0f/
-debian/tmp/
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2020 Philip Chimento <philip.chimento@gmail.com>
+/tools/node_modules
+# artifact from ci-templates:
+/container-build-report.xml

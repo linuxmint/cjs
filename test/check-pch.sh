@@ -15,7 +15,7 @@ if [ -n "$SELFTEST" ]; then
         test_paths+=("$code_path")
         cd "$code_path"
         mkdir gjs gi
-        echo "#include <stlib.h>" >> gjs/gjs_pch.hh
+        echo "#include <stlib.h>" >> cjs/gjs_pch.hh
     }
 
     expect_success() {
@@ -53,12 +53,12 @@ if [ -n "$SELFTEST" ]; then
     expect_failure
 
     test_env
-    echo "#include <invalid.h>" >> gjs/gjs_pch.hh
+    echo "#include <invalid.h>" >> cjs/gjs_pch.hh
     echo "#include <stlib.h>" >> gi/code.c
     expect_failure
 
     test_env
-    echo "#include <invalid.h> // check-pch: ignore, yes" >> gjs/gjs_pch.hh
+    echo "#include <invalid.h> // check-pch: ignore, yes" >> cjs/gjs_pch.hh
     echo "#include <stlib.h>" >> gi/code.c
     expect_success
 
@@ -74,14 +74,14 @@ if [ -n "$SELFTEST" ]; then
 
     test_env
     echo "#include <stlib.h>" >> gi/code.c
-    echo '#include "local/header.h"' >> gjs/gjs_pch.hh
+    echo '#include "local/header.h"' >> cjs/gjs_pch.hh
     expect_failure
 
     test_env
     echo "#  		  include  		  <stlib.h>" >> gi/code.c
     echo "#  		  include  		  <other/include.h>" >> gi/code.c
     echo "  	   #  		  include  		  <other/include.h>" >> gi/other-file.c
-    echo "# include <other/include.h>" >> gjs/gjs_pch.hh
+    echo "# include <other/include.h>" >> cjs/gjs_pch.hh
     expect_success
 
     test_env
@@ -98,7 +98,7 @@ if [ -n "$SELFTEST" ]; then
     echo "#include <stlib.h>" >> gi/code.c
     echo "//#include <invalid.h>" >> gi/invalid-file.c
     echo "// #include <invalid.h>" >> gi/invalid-file.c
-    echo "//#include <invalid.h>" >> gjs/gjs_pch.hh
+    echo "//#include <invalid.h>" >> cjs/gjs_pch.hh
     expect_success
 
     test_env
@@ -114,7 +114,7 @@ if [ -n "$SELFTEST" ]; then
     exit 0
 fi
 
-PCH_FILES=(gjs/gjs_pch.hh)
+PCH_FILES=(cjs/gjs_pch.hh)
 IGNORE_COMMENT="check-pch: ignore"
 
 CODE_PATHS=(gjs gi)

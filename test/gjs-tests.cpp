@@ -17,20 +17,22 @@
 #include <glib.h>
 #include <glib/gstdio.h>  // for g_unlink
 
-#include <js/Array.h>
 #include <js/BigInt.h>
 #include <js/CharacterEncoding.h>
+#include <js/Exception.h>
 #include <js/Id.h>
+#include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
+#include <js/String.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
-#include <js/ValueArray.h>
-#include <jsapi.h>
+#include <jsapi.h>    // for JS_GetClassObject
 #include <jspubtd.h>  // for JSProto_Number
 #include <mozilla/Span.h>  // for MakeStringSpan
 
 #include "gi/arg-inl.h"
+#include "gi/js-value-inl.h"
 #include "cjs/context.h"
 #include "cjs/error-types.h"
 #include "cjs/jsapi-util.h"
@@ -72,6 +74,9 @@ T get_random_number() {
     } else if constexpr (std::is_pointer_v<T>) {
         return reinterpret_cast<T>(get_random_number<uintptr_t>());
     }
+
+    // COMPAT: Work around cppcheck bug https://trac.cppcheck.net/ticket/10731
+    g_assert_not_reached();
 }
 
 static void
@@ -298,6 +303,70 @@ static void gjstest_test_func_gjs_context_eval_module_file_fail_instantiate() {
     g_clear_error(&error);
 }
 
+static void gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_warning() {
+    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    GError* error = nullptr;
+
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "*foo*");
+
+    bool ok = gjs_context_eval_module_file(
+        gjs, "resource:///org/gnome/gjs/mock/test/modules/import.js", nullptr,
+        &error);
+
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+
+    g_test_assert_expected_messages();
+
+    g_clear_error(&error);
+}
+
+static void
+gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_no_warning() {
+    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    GError* error = nullptr;
+
+    bool ok = gjs_context_eval_module_file(
+        gjs, "resource:///org/gnome/gjs/mock/test/modules/default.js", nullptr,
+        &error);
+
+    g_assert_true(ok);
+    g_assert_no_error(error);
+    g_clear_error(&error);
+}
+
+static void gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw() {
+    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    GError* error = nullptr;
+
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
+
+    bool ok = gjs_context_eval_file(
+        gjs, "resource:///org/gnome/gjs/mock/test/modules/throws.js", nullptr,
+        &error);
+
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+
+    g_test_assert_expected_messages();
+
+    g_clear_error(&error);
+}
+
+static void gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw() {
+    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    GError* error = nullptr;
+
+    bool ok = gjs_context_eval_file(
+        gjs, "resource:///org/gnome/gjs/mock/test/modules/nothrows.js", nullptr,
+        &error);
+
+    g_assert_true(ok);
+    g_assert_no_error(error);
+
+    g_clear_error(&error);
+}
+
 static void gjstest_test_func_gjs_context_register_module_eval_module() {
     GjsAutoUnref<GjsContext> gjs = gjs_context_new();
     GError* error = nullptr;
@@ -364,6 +433,37 @@ static void gjstest_test_func_gjs_context_eval_module_unregistered() {
     g_clear_error(&error);
 }
 
+static void gjstest_test_func_gjs_context_eval_module_exit_code_omitted_throw() {
+    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    GError* error = nullptr;
+
+    bool ok = gjs_context_eval_module(gjs, "foo", nullptr, &error);
+
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+
+    g_clear_error(&error);
+}
+
+static void gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw() {
+    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    GError* error = nullptr;
+
+    bool ok = gjs_context_register_module(
+        gjs, "lies", "resource:///org/gnome/gjs/mock/test/modules/nothrows.js",
+        &error);
+
+    g_assert_true(ok);
+    g_assert_no_error(error);
+
+    ok = gjs_context_eval_module(gjs, "lies", NULL, &error);
+
+    g_assert_true(ok);
+    g_assert_no_error(error);
+
+    g_clear_error(&error);
+}
+
 #define JS_CLASS "\
 const GObject = imports.gi.GObject; \
 const FooBar = GObject.registerClass(class FooBar extends GObject.Object {}); \
@@ -415,6 +515,39 @@ static void gjstest_test_func_gjs_gobject_without_introspection(void) {
     g_assert_cmpint(val, ==, 1234);
 
 #undef TESTJS
+}
+
+static void gjstest_test_func_gjs_context_eval_exit_code_omitted_throw() {
+    GjsAutoUnref<GjsContext> context = gjs_context_new();
+    GError* error = nullptr;
+
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*wrong code*");
+
+    const char bad_js[] = "throw new Error('wrong code');";
+
+    bool ok = gjs_context_eval(context, bad_js, -1, "<input>", nullptr, &error);
+
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+
+    g_test_assert_expected_messages();
+
+    g_clear_error(&error);
+}
+
+static void gjstest_test_func_gjs_context_eval_exit_code_omitted_no_throw() {
+    GjsAutoUnref<GjsContext> context = gjs_context_new();
+    GError* error = nullptr;
+
+    const char good_js[] = "let num = 77;";
+
+    bool ok =
+        gjs_context_eval(context, good_js, -1, "<input>", nullptr, &error);
+
+    g_assert_true(ok);
+    g_assert_no_error(error);
+
+    g_clear_error(&error);
 }
 
 static void gjstest_test_func_gjs_jsapi_util_string_js_string_utf8(
@@ -472,6 +605,36 @@ static void gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture* fx,
     g_assert_true(&exc.toObject() == &previous.toObject());
 }
 
+static void test_jsapi_util_error_throw_cause(GjsUnitTestFixture* fx,
+                                              const void*) {
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
+                          "JS ERROR: Error: Exception 1\n"
+                          "Caused by: Error: Exception 2\n");
+
+    gjs_throw(fx->cx, "Exception 1");
+    gjs_throw(fx->cx, "Exception 2");
+    gjs_log_exception(fx->cx);
+
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
+                          "JS ERROR: Error: Exception 1\n"
+                          "Caused by: Error: Exception 2\n"
+                          "Caused by: Error: Exception 3\n");
+
+    gjs_throw(fx->cx, "Exception 1");
+    gjs_throw(fx->cx, "Exception 2");
+    gjs_throw(fx->cx, "Exception 3");
+    gjs_log_exception(fx->cx);
+
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "JS ERROR: 42");
+
+    JS::RootedValue non_object(fx->cx, JS::Int32Value(42));
+    JS_SetPendingException(fx->cx, non_object);
+    gjs_throw(fx->cx, "This exception will be dropped");
+    gjs_log_exception(fx->cx);
+
+    g_test_assert_expected_messages();
+}
+
 static void test_jsapi_util_string_utf8_nchars_to_js(GjsUnitTestFixture* fx,
                                                      const void*) {
     JS::RootedValue v_out(fx->cx);
@@ -526,44 +689,6 @@ static void test_jsapi_util_string_to_ucs4(GjsUnitTestFixture* fx,
     g_free(chars);
 }
 
-static void test_jsapi_util_debug_string_valid_utf8(GjsUnitTestFixture* fx,
-                                                    const void*) {
-    JS::RootedValue v_string(fx->cx);
-    g_assert_true(gjs_string_from_utf8(fx->cx, VALID_UTF8_STRING, &v_string));
-
-    std::string debug_output = gjs_value_debug_string(fx->cx, v_string);
-
-    g_assert_cmpstr("\"" VALID_UTF8_STRING "\"", ==, debug_output.c_str());
-}
-
-static void test_jsapi_util_debug_string_invalid_utf8(GjsUnitTestFixture* fx,
-                                                      const void*) {
-    g_test_skip("SpiderMonkey doesn't validate UTF-8 after encoding it");
-
-    JS::RootedValue v_string(fx->cx);
-    const char16_t invalid_unicode[] = { 0xffff, 0xffff };
-    v_string.setString(JS_NewUCStringCopyN(fx->cx, invalid_unicode, 2));
-
-    std::string debug_output = gjs_value_debug_string(fx->cx, v_string);
-    // g_assert_cmpstr("\"\\xff\\xff\\xff\\xff\"", ==, debug_output.c_str());
-}
-
-static void test_jsapi_util_debug_string_object_with_complicated_to_string(
-    GjsUnitTestFixture* fx, const void*) {
-    const char16_t desserts[] = {
-        0xd83c, 0xdf6a,  /* cookie */
-        0xd83c, 0xdf69,  /* doughnut */
-    };
-    JS::RootedValueArray<2> contents(fx->cx);
-    contents[0].setString(JS_NewUCStringCopyN(fx->cx, desserts, 2));
-    contents[1].setString(JS_NewUCStringCopyN(fx->cx, desserts + 2, 2));
-    JS::RootedObject array(fx->cx, JS::NewArrayObject(fx->cx, contents));
-    JS::RootedValue v_array(fx->cx, JS::ObjectValue(*array));
-    std::string debug_output = gjs_value_debug_string(fx->cx, v_array);
-
-    g_assert_cmpstr(u8"🍪,🍩", ==, debug_output.c_str());
-}
-
 static void test_gjs_debug_id_string_no_quotes(GjsUnitTestFixture* fx,
                                                const void*) {
     jsid id = gjs_intern_string_to_id(fx->cx, "prop_key");
@@ -582,10 +707,14 @@ static void test_gjs_debug_string_quotes(GjsUnitTestFixture* fx, const void*) {
 
 static void test_gjs_debug_value_bigint(GjsUnitTestFixture* fx, const void*) {
     JS::BigInt* bi = JS::NumberToBigInt(fx->cx, 42);
-    JS::Value v = JS::BigIntValue(bi);
-    std::string debug_output = gjs_debug_value(v);
+    std::string debug_output = gjs_debug_bigint(bi);
 
-    g_assert_cmpstr(debug_output.c_str(), ==, "42n");
+    g_assert_cmpstr(debug_output.c_str(), ==, "42n (modulo 2^64)");
+
+    bi = JS::NumberToBigInt(fx->cx, -42);
+    debug_output = gjs_debug_bigint(bi);
+
+    g_assert_cmpstr(debug_output.c_str(), ==, "-42n (modulo 2^64)");
 }
 
 static void test_gjs_debug_value_bigint_uint64(GjsUnitTestFixture* fx,
@@ -593,20 +722,25 @@ static void test_gjs_debug_value_bigint_uint64(GjsUnitTestFixture* fx,
     // gjs_debug_value(BigIntValue) prints whatever fits into int64_t, because
     // more complicated operations might be fallible
     JS::BigInt* bi = JS::NumberToBigInt(fx->cx, G_MAXUINT64);
-    JS::Value v = JS::BigIntValue(bi);
-    std::string debug_output = gjs_debug_value(v);
+    std::string debug_output = gjs_debug_bigint(bi);
 
-    g_assert_cmpstr(debug_output.c_str(), ==, "-1n");
+    g_assert_cmpstr(debug_output.c_str(), ==,
+                    "18446744073709551615n (modulo 2^64)");
 }
 
 static void test_gjs_debug_value_bigint_huge(GjsUnitTestFixture* fx,
                                              const void*) {
     JS::BigInt* bi = JS::SimpleStringToBigInt(
         fx->cx, mozilla::MakeStringSpan("10000000000000001"), 16);
-    JS::Value v = JS::BigIntValue(bi);
-    std::string debug_output = gjs_debug_value(v);
+    std::string debug_output = gjs_debug_bigint(bi);
 
-    g_assert_cmpstr(debug_output.c_str(), ==, "1n");
+    g_assert_cmpstr(debug_output.c_str(), ==, "1n (modulo 2^64)");
+
+    bi = JS::SimpleStringToBigInt(
+        fx->cx, mozilla::MakeStringSpan("-10000000000000001"), 16);
+    debug_output = gjs_debug_bigint(bi);
+
+    g_assert_cmpstr(debug_output.c_str(), ==, "-1n (modulo 2^64)");
 }
 
 static void test_gjs_debug_value_string_quotes(GjsUnitTestFixture* fx,
@@ -698,7 +832,8 @@ static void gjstest_test_safe_integer_max(GjsUnitTestFixture* fx, const void*) {
     g_assert_true(JS_GetProperty(fx->cx, number_class_object,
                                  "MAX_SAFE_INTEGER", &safe_value));
 
-    g_assert_cmpint(safe_value.toNumber(), ==, max_safe_big_number<int64_t>());
+    g_assert_cmpint(safe_value.toNumber(), ==,
+                    Gjs::max_safe_big_number<int64_t>());
 }
 
 static void gjstest_test_safe_integer_min(GjsUnitTestFixture* fx, const void*) {
@@ -710,7 +845,8 @@ static void gjstest_test_safe_integer_min(GjsUnitTestFixture* fx, const void*) {
     g_assert_true(JS_GetProperty(fx->cx, number_class_object,
                                  "MIN_SAFE_INTEGER", &safe_value));
 
-    g_assert_cmpint(safe_value.toNumber(), ==, min_safe_big_number<int64_t>());
+    g_assert_cmpint(safe_value.toNumber(), ==,
+                    Gjs::min_safe_big_number<int64_t>());
 }
 
 static void gjstest_test_args_set_get_unset() {
@@ -956,6 +1092,26 @@ main(int    argc,
     g_test_add_func("/gi/args/rounded_values",
                     gjstest_test_args_rounded_values);
 
+    g_test_add_func(
+        "/gjs/context/eval-module-file/exit-code-omitted-warning",
+        gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_warning);
+    g_test_add_func(
+        "/gjs/context/eval-module-file/exit-code-omitted-no-warning",
+        gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_no_warning);
+    g_test_add_func("/gjs/context/eval-file/exit-code-omitted-no-throw",
+                    gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw);
+    g_test_add_func("/gjs/context/eval-file/exit-code-omitted-throw",
+                    gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw);
+    g_test_add_func("/gjs/context/eval/exit-code-omitted-throw",
+                    gjstest_test_func_gjs_context_eval_exit_code_omitted_throw);
+    g_test_add_func("/gjs/context/eval/exit-code-omitted-no-throw",
+                    gjstest_test_func_gjs_context_eval_exit_code_omitted_no_throw);
+    g_test_add_func("/gjs/context/eval-module/exit-code-omitted-throw",
+                    gjstest_test_func_gjs_context_eval_module_exit_code_omitted_throw);
+    g_test_add_func(
+        "/gjs/context/eval-module/exit-code-omitted-no-throw",
+        gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw);
+
 #define ADD_JSAPI_UTIL_TEST(path, func)                            \
     g_test_add("/gjs/jsapi/util/" path, GjsUnitTestFixture, NULL,  \
                gjs_unit_test_fixture_setup, func,                  \
@@ -963,6 +1119,7 @@ main(int    argc,
 
     ADD_JSAPI_UTIL_TEST("error/throw",
                         gjstest_test_func_gjs_jsapi_util_error_throw);
+    ADD_JSAPI_UTIL_TEST("error/throw-cause", test_jsapi_util_error_throw_cause);
     ADD_JSAPI_UTIL_TEST("string/js/string/utf8",
                         gjstest_test_func_gjs_jsapi_util_string_js_string_utf8);
     ADD_JSAPI_UTIL_TEST("string/utf8-nchars-to-js",
@@ -971,12 +1128,6 @@ main(int    argc,
                         test_jsapi_util_string_char16_data);
     ADD_JSAPI_UTIL_TEST("string/to_ucs4",
                         test_jsapi_util_string_to_ucs4);
-    ADD_JSAPI_UTIL_TEST("debug_string/valid-utf8",
-                        test_jsapi_util_debug_string_valid_utf8);
-    ADD_JSAPI_UTIL_TEST("debug_string/invalid-utf8",
-                        test_jsapi_util_debug_string_invalid_utf8);
-    ADD_JSAPI_UTIL_TEST("debug_string/object-with-complicated-to-string",
-                        test_jsapi_util_debug_string_object_with_complicated_to_string);
 
     ADD_JSAPI_UTIL_TEST("gi/args/safe-integer/max",
                         gjstest_test_safe_integer_max);
