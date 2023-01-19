@@ -118,12 +118,12 @@ FALSE_POSITIVES = (
     # For some reason IWYU wants these with angle brackets when they are
     # already present with quotes
     # https://github.com/include-what-you-use/include-what-you-use/issues/1087
-    ('gjs/context.cpp', '#include <gjs/context.h>', ''),
-    ('gjs/coverage.cpp', '#include <gjs/coverage.h>', ''),
-    ('gjs/error-types.cpp', '#include <gjs/error-types.h>', ''),
-    ('gjs/jsapi-util.cpp', '#include <gjs/jsapi-util.h>', ''),
-    ('gjs/mem.cpp', '#include <gjs/mem.h>', ''),
-    ('gjs/profiler.cpp', '#include <gjs/profiler.h>', ''),
+    ('gjs/context.cpp', '#include <cjs/context.h>', ''),
+    ('gjs/coverage.cpp', '#include <cjs/coverage.h>', ''),
+    ('gjs/error-types.cpp', '#include <cjs/error-types.h>', ''),
+    ('gjs/jsapi-util.cpp', '#include <cjs/jsapi-util.h>', ''),
+    ('gjs/mem.cpp', '#include <cjs/mem.h>', ''),
+    ('gjs/profiler.cpp', '#include <cjs/profiler.h>', ''),
 )
 
 

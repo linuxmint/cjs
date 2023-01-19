@@ -6,7 +6,7 @@ Source: cjs
 Section: interpreters
 Priority: optional
 Maintainer: Debian GNOME Maintainers <pkg-gnome-maintainers@lists.alioth.debian.org>
-Uploaders: Iain Lane <laney@debian.org>, Jeremy Bicha <jbicha@ubuntu.com>, Tim Lunn <tim@feathertop.org>
+Uploaders: 
 Build-Depends: debhelper-compat (= 13),
                dh-sequence-gir,
                dh-sequence-gnome,
@@ -38,7 +38,13 @@ Description: Mozilla-based javascript bindings for the GNOME platform (cli tool)
  libraries using the JavaScript language. It's mainly based on the
  Mozilla JavaScript engine and the GObject introspection framework.
  .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
+ .
  This package contains the interactive console application.
+ .
+ This package contains test programs, designed to be run as part of a
+ regression testsuite.
 
 Package: libcjs0
 Architecture: any
@@ -62,6 +68,9 @@ Description: Mozilla-based javascript bindings for the GNOME platform
  libraries using the JavaScript language. It's mainly based on the
  Mozilla JavaScript engine and the GObject introspection framework.
  .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
+ .
  This is the shared library applications link to.
 
 Package: libcjs-dev
@@ -78,5 +87,24 @@ Description: Mozilla-based javascript bindings for the GNOME platform
  libraries using the JavaScript language. It's mainly based on the
  Mozilla JavaScript engine and the GObject introspection framework.
  .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
+ .
  This package contains the development files applications need to
  build against.
+
+Package: libcjs-dbg
+Section: debug
+Architecture: any
+Priority: extra
+Depends: libcjs0 (= ${binary:Version}), ${misc:Depends}
+Description: Mozilla-based javascript bindings for the Cinnamon platform
+ Makes it possible for applications to use all of Cinnamon's platform
+ libraries using the JavaScript language. It's mainly based on the
+ Mozilla JavaScript engine and the GObject introspection framework.
+ .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
+ .
+ This debug package contains unstripped binaries compiled with
+ debugging symbols needed by gdb.

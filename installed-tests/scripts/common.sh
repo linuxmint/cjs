@@ -3,9 +3,9 @@
 # SPDX-FileCopyrightText: 2016 Philip Chimento <philip.chimento@gmail.com>
 
 if test "$GJS_USE_UNINSTALLED_FILES" = "1"; then
-    gjs="$TOP_BUILDDIR/gjs-console"
+    gjs="$TOP_BUILDDIR/cjs-console"
 else
-    gjs="gjs-console"
+    gjs="cjs-console"
 fi
 
 # Avoid interference in the profiler tests from stray environment variable

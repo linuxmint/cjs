@@ -419,7 +419,7 @@ Note that the header `<config.h>` must be included before any
 SpiderMonkey headers.
 
 GJS headers should use quotes, _except_ in public header files (any
-header file included from `<gjs/gjs.h>`.)
+header file included from `<cjs/gjs.h>`.)
 
 If you need to include headers conditionally, add the conditional
 after the group that it belongs to, separated by a blank line.

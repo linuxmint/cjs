@@ -369,7 +369,7 @@ endif
 tapset_subst = configuration_data({
     'EXPANDED_LIBDIR': get_option('libdir'),
 })
-tapset = configure_file(input: 'gjs/gjs.stp.in', output: 'gjs.stp',
+tapset = configure_file(input: 'cjs/gjs.stp.in', output: 'gjs.stp',
     configuration: tapset_subst)
 if get_option('systemtap')
     install_data(tapset,

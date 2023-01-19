@@ -9,7 +9,7 @@
   "runtime": "org.gnome.Platform",
   "runtime-version": "master",
   "sdk": "org.gnome.Sdk",
-  "command": "gjs-console",
+  "command": "cjs-console",
   "finish-args": [
     "--share=ipc",
     "--socket=fallback-x11",

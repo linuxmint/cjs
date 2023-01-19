@@ -5,5 +5,5 @@
 [
   {"ref": "gjs-private-iwyu.imp"},
 
-  {"include": ["\"gjs/macros.h\"", "private", "<gjs/gjs.h>", "public"]}
+  {"include": ["\"cjs/macros.h\"", "private", "<cjs/gjs.h>", "public"]}
 ]
