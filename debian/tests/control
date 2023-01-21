@@ -1,5 +1,8 @@
+Tests: acc
+Depends: @, dh-acc, exuberant-ctags
+Restrictions: allow-stderr
+
 Tests: build
-Restrictions: superficial
 Depends: libcjs-dev, build-essential
 
 #Tests: installed-tests
