@@ -31,14 +31,19 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_dbus_implementation_emit_property_changed@Base 2.0.0
  gjs_dbus_implementation_emit_signal@Base 2.0.0
  gjs_dbus_implementation_get_type@Base 2.0.0
+ gjs_dbus_implementation_unexport@Base 5.7.0
+ gjs_dbus_implementation_unexport_from_connection@Base 5.7.0
  gjs_dumpstack@Base 2.0.0
  gjs_error_quark@Base 2.0.0
  gjs_format_int_alternative_output@Base 2.4.1
+ gjs_g_binding_group_bind_full@Base 5.7.0
  gjs_g_object_bind_property_full@Base 5.4.0
  gjs_get_js_version@Base 4.0.0
  gjs_gobject_class_info@Base 5.4.0
  gjs_gobject_interface_info@Base 5.4.0
  gjs_gtk_container_child_set_property@Base 2.4.1
+ gjs_gtk_custom_sorter_new@Base 5.7.0
+ gjs_gtk_custom_sorter_set_sort_func@Base 5.7.0
  gjs_importer_class@Base 5.4.0
  gjs_importer_proto_funcs@Base 5.4.0
  gjs_js_error_get_type@Base 4.0.0
@@ -49,6 +54,7 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_log_set_writer_default@Base 5.4.0
  gjs_log_set_writer_func@Base 5.4.0
  gjs_memory_report@Base 2.0.0
+ gjs_native_promise_module_funcs@Base 5.7.0
  gjs_param_class@Base 5.4.0
  gjs_param_spec_get_flags@Base 3.4.4
  gjs_param_spec_get_owner_type@Base 3.4.4
