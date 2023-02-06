@@ -1,6 +1,6 @@
 cjs (5.7.0) unstable; urgency=medium
 
-  * bump to gjs 1.74.1/mozjs102
+  * Rebase with gjs 1.74.1/mozjs102
 
  -- Michael Webster <miketwebster@gmail.com>  Thu, 19 Jan 2023 10:40:44 -0500
 
