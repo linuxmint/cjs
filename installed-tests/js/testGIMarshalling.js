@@ -357,6 +357,10 @@ describe('Fixed-size C array', function () {
         testReturnValue('array_fixed_int', [-1, 0, 1, 2]);
         testInParameter('array_fixed_int', [-1, 0, 1, 2]);
         testOutParameter('array_fixed', [-1, 0, 1, 2]);
+        testOutParameter('array_fixed_caller_allocated', [-1, 0, 1, 2], {
+            skip: GIMarshallingTests.array_fixed_caller_allocated_out
+                ? false : 'https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/370',
+        });
         testInoutParameter('array_fixed', [-1, 0, 1, 2], [2, 1, 0, -1]);
     });
 
@@ -369,6 +373,18 @@ describe('Fixed-size C array', function () {
         expect(GIMarshallingTests.array_fixed_out_struct()).toEqual([
             jasmine.objectContaining({long_: 7, int8: 6}),
             jasmine.objectContaining({long_: 6, int8: 7}),
+        ]);
+    });
+
+    it('marshals a fixed-size struct array as caller allocated out param', function () {
+        if (!GIMarshallingTests.array_fixed_caller_allocated_struct_out)
+            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/370');
+
+        expect(GIMarshallingTests.array_fixed_caller_allocated_struct_out()).toEqual([
+            jasmine.objectContaining({long_: -2, int8: -1}),
+            jasmine.objectContaining({long_: 1, int8: 2}),
+            jasmine.objectContaining({long_: 3, int8: 4}),
+            jasmine.objectContaining({long_: 5, int8: 6}),
         ]);
     });
 });
@@ -1410,17 +1426,18 @@ describe('Virtual function', function () {
         expect(tester.method_int8_out()).toEqual(40);
     });
 
-    xit('marshals a POD out argument', function () {
+    it('marshals a POD out argument', function () {
         expect(tester.method_int8_arg_and_out_caller(39)).toEqual(42);
-    }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/263');
+    });
 
     it('marshals a callee-allocated pointer out argument', function () {
         expect(tester.method_int8_arg_and_out_callee(38)).toEqual(42);
     });
 
-    xit('marshals a string out argument and return value', function () {
+    it('marshals a string out argument and return value', function () {
         expect(tester.method_str_arg_out_ret('a string')).toEqual(['Called with a string', 41]);
-    }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/263');
+        expect(tester.method_str_arg_out_ret('a 2nd string')).toEqual(['Called with a 2nd string', 41]);
+    });
 
     it('can override a default implementation in JS', function () {
         tester.method_with_default_implementation(40);
@@ -1643,7 +1660,7 @@ describe('Wrong virtual functions', function () {
 
     it('marshals multiple out parameters', function () {
         GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            'JS ERROR: Error: Function *vfunc_vfunc_multiple_out_parameters*Array*');
+            'JS ERROR: Error: *vfunc_vfunc_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_multiple_out_parameters()).toEqual([0, 0]);
 
@@ -1653,7 +1670,7 @@ describe('Wrong virtual functions', function () {
 
     it('marshals a return value and one out parameter', function () {
         GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            'JS ERROR: Error: Function *vfunc_return_value_and_one_out_parameter*Array*');
+            'JS ERROR: Error: *vfunc_return_value_and_one_out_parameter*Array*');
 
         expect(tester.vfunc_return_value_and_one_out_parameter()).toEqual([0, 0]);
 
@@ -1663,7 +1680,7 @@ describe('Wrong virtual functions', function () {
 
     it('marshals a return value and multiple out parameters', function () {
         GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            'JS ERROR: Error: Function *vfunc_return_value_and_multiple_out_parameters*Array*');
+            'JS ERROR: Error: *vfunc_return_value_and_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_return_value_and_multiple_out_parameters()).toEqual([0, 0, 0]);
 
@@ -1987,8 +2004,7 @@ describe('GObject properties', function () {
     testPropertyGetSetBigInt('int64', BigIntLimits.int64.min, BigIntLimits.int64.max);
     testPropertyGetSet('uint64', 42, 64);
     testPropertyGetSetBigInt('uint64', BigIntLimits.int64.max, BigIntLimits.int64.umax);
-    testPropertyGetSet('string', 'Gjs', 'is cool!',
-        'https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/268');
+    testPropertyGetSet('string', 'Gjs', 'is cool!');
 
     it('get and sets out-of-range values throws', function () {
         expect(() => {
@@ -2078,7 +2094,7 @@ xdescribe('GObject signals', function () {
             const signalId = obj.connect(signalName, signalCallback);
             obj[funcName]();
             obj.disconnect(signalId);
-        }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/259');
+        });
     }
 
     testSignalEmission('boxed-gptrarray-utf8', ['0', '1', '2']);

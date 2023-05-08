@@ -6,18 +6,20 @@
 
 #include <config.h>
 
-#include <memory>
-
 #include <glib-object.h>
 
 #include <js/TypeDecls.h>
 
+#include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 
 class JSTracer;
 
-struct ObjectBox {
-    using Ptr = std::unique_ptr<ObjectBox, void (*)(ObjectBox*)>;
+class ObjectBox {
+    static void destroy(ObjectBox*);
+
+ public:
+    using Ptr = GjsAutoPointer<ObjectBox, ObjectBox, ObjectBox::destroy>;
 
     [[nodiscard]] static GType gtype();
 
@@ -36,5 +38,6 @@ struct ObjectBox {
     static void boxed_free(void*);
 
     struct impl;
-    std::unique_ptr<impl> m_impl;
+    static void destroy_impl(impl*);
+    GjsAutoPointer<impl, impl, destroy_impl> m_impl;
 };

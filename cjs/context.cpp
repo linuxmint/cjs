@@ -65,7 +65,6 @@
 #include <js/friend/DumpFunctions.h>
 #include <jsapi.h>        // for JS_GetFunctionObject, JS_Ge...
 #include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
-#include <mozilla/UniquePtr.h>
 
 #include "gi/closure.h"  // for Closure::Ptr, Closure
 #include "gi/function.h"
@@ -353,6 +352,7 @@ void GjsContextPrivate::trace(JSTracer* trc, void* data) {
     JS::TraceEdge<JSObject*>(trc, &gjs->m_global, "GJS global object");
     JS::TraceEdge<JSObject*>(trc, &gjs->m_internal_global,
                              "GJS internal global object");
+    JS::TraceEdge<JSObject*>(trc, &gjs->m_main_loop_hook, "GJS main loop hook");
     gjs->m_atoms->trace(trc);
     gjs->m_job_queue.trace(trc);
     gjs->m_object_init_list.trace(trc);
@@ -464,6 +464,7 @@ void GjsContextPrivate::dispose(void) {
         JS_RemoveExtraGCRootsTracer(m_cx, &GjsContextPrivate::trace, this);
         m_global = nullptr;
         m_internal_global = nullptr;
+        m_main_loop_hook = nullptr;
 
         gjs_debug(GJS_DEBUG_CONTEXT, "Freeing allocated resources");
         delete m_fundamental_table;
@@ -530,6 +531,12 @@ static bool on_context_module_rejected_log_exception(JSContext* cx,
                                                      unsigned argc,
                                                      JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+    JSString* id =
+        JS_GetFunctionDisplayId(JS_GetObjectFunction(&args.callee()));
+    gjs_debug(GJS_DEBUG_IMPORTER, "Module evaluation promise rejected: %s",
+              gjs_debug_string(id).c_str());
+
     JS::HandleValue error = args.get(0);
 
     GjsContextPrivate* gjs_cx = GjsContextPrivate::from_cx(cx);
@@ -546,6 +553,12 @@ static bool on_context_module_rejected_log_exception(JSContext* cx,
 static bool on_context_module_resolved(JSContext* cx, unsigned argc,
                                        JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+    JSString* id =
+        JS_GetFunctionDisplayId(JS_GetObjectFunction(&args.callee()));
+    gjs_debug(GJS_DEBUG_IMPORTER, "Module evaluation promise resolved: %s",
+              gjs_debug_string(id).c_str());
+
     args.rval().setUndefined();
 
     GjsContextPrivate::from_cx(cx)->main_loop_release();
@@ -564,12 +577,12 @@ static bool add_promise_reactions(JSContext* cx, JS::HandleValue promise,
 
     JS::RootedFunction on_rejected(
         cx,
-        js::NewFunctionWithReserved(cx, reject, 1, 0, resolved_tag.c_str()));
+        js::NewFunctionWithReserved(cx, reject, 1, 0, rejected_tag.c_str()));
     if (!on_rejected)
         return false;
     JS::RootedFunction on_resolved(
         cx,
-        js::NewFunctionWithReserved(cx, resolve, 1, 0, rejected_tag.c_str()));
+        js::NewFunctionWithReserved(cx, resolve, 1, 0, resolved_tag.c_str()));
     if (!on_resolved)
         return false;
 
@@ -605,6 +618,12 @@ static void load_context_module(JSContext* cx, const char* uri,
         [](JSContext* cx, unsigned argc, JS::Value* vp) {
             JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
+            JSString* id =
+                JS_GetFunctionDisplayId(JS_GetObjectFunction(&args.callee()));
+            gjs_debug(GJS_DEBUG_IMPORTER,
+                      "Module evaluation promise rejected: %s",
+                      gjs_debug_string(id).c_str());
+
             JS::HandleValue error = args.get(0);
             // Abort because this module is required.
             gjs_log_exception_full(cx, error, nullptr, G_LOG_LEVEL_ERROR);
@@ -612,7 +631,7 @@ static void load_context_module(JSContext* cx, const char* uri,
             GjsContextPrivate::from_cx(cx)->main_loop_release();
             return false;
         },
-        "context");
+        debug_identifier);
 
     if (!ok) {
         gjs_log_exception(cx);
@@ -987,15 +1006,10 @@ bool GjsContextPrivate::should_exit(uint8_t* exit_code_p) const {
     return m_should_exit;
 }
 
-void GjsContextPrivate::start_draining_job_queue(void) {
-    gjs_debug(GJS_DEBUG_CONTEXT, "Starting promise job dispatcher");
-    m_dispatcher.start();
-}
+void GjsContextPrivate::start_draining_job_queue(void) { m_dispatcher.start(); }
 
 void GjsContextPrivate::stop_draining_job_queue(void) {
     m_draining_job_queue = false;
-
-    gjs_debug(GJS_DEBUG_CONTEXT, "Stopping promise job dispatcher");
     m_dispatcher.stop();
 }
 
@@ -1014,7 +1028,7 @@ bool GjsContextPrivate::enqueuePromiseJob(JSContext* cx [[maybe_unused]],
     g_assert(cx == m_cx);
     g_assert(from_cx(cx) == this);
 
-    gjs_debug(GJS_DEBUG_CONTEXT,
+    gjs_debug(GJS_DEBUG_MAINLOOP,
               "Enqueue job %s, promise=%s, allocation site=%s",
               gjs_debug_object(job).c_str(), gjs_debug_object(promise).c_str(),
               gjs_debug_object(allocation_site).c_str());
@@ -1031,12 +1045,10 @@ bool GjsContextPrivate::enqueuePromiseJob(JSContext* cx [[maybe_unused]],
 
 // Override of JobQueue::runJobs(). Called by js::RunJobs(), and when execution
 // of the job queue was interrupted by the debugger and is resuming.
-void GjsContextPrivate::runJobs(JSContext* cx) { runJobs(cx, nullptr); }
-
-void GjsContextPrivate::runJobs(JSContext* cx, GCancellable* cancellable) {
+void GjsContextPrivate::runJobs(JSContext* cx) {
     g_assert(cx == m_cx);
     g_assert(from_cx(cx) == this);
-    if (!run_jobs_fallible(cancellable))
+    if (!run_jobs_fallible())
         gjs_log_exception(cx);
 }
 
@@ -1052,7 +1064,7 @@ void GjsContextPrivate::runJobs(JSContext* cx, GCancellable* cancellable) {
  * Returns: false if one of the jobs threw an uncatchable exception;
  * otherwise true.
  */
-bool GjsContextPrivate::run_jobs_fallible(GCancellable* cancellable) {
+bool GjsContextPrivate::run_jobs_fallible() {
     bool retval = true;
 
     if (m_draining_job_queue || m_should_exit)
@@ -1069,8 +1081,11 @@ bool GjsContextPrivate::run_jobs_fallible(GCancellable* cancellable) {
      * it's crucial to recheck the queue length during each iteration. */
     for (size_t ix = 0; ix < m_job_queue.length(); ix++) {
         /* A previous job might have set this flag. e.g., System.exit(). */
-        if (m_should_exit || g_cancellable_is_cancelled(cancellable))
+        if (m_should_exit || !m_dispatcher.is_running()) {
+            gjs_debug(GJS_DEBUG_MAINLOOP, "Stopping jobs because of %s",
+                      m_should_exit ? "exit" : "main loop cancel");
             break;
+        }
 
         job = m_job_queue[ix];
 
@@ -1084,7 +1099,7 @@ bool GjsContextPrivate::run_jobs_fallible(GCancellable* cancellable) {
         m_job_queue[ix] = nullptr;
         {
             JSAutoRealm ar(m_cx, job);
-            gjs_debug(GJS_DEBUG_CONTEXT, "handling job %s",
+            gjs_debug(GJS_DEBUG_MAINLOOP, "handling job %zu, %s", ix,
                       gjs_debug_object(job).c_str());
             if (!JS::Call(m_cx, JS::UndefinedHandleValue, job, args, &rval)) {
                 /* Uncatchable exception - return false so that
@@ -1103,6 +1118,7 @@ bool GjsContextPrivate::run_jobs_fallible(GCancellable* cancellable) {
                 gjs_log_exception_uncaught(m_cx);
             }
         }
+        gjs_debug(GJS_DEBUG_MAINLOOP, "Completed job %zu", ix);
     }
 
     m_draining_job_queue = false;
@@ -1361,6 +1377,30 @@ bool GjsContextPrivate::handle_exit_code(bool no_sync_error_pending,
     return false;
 }
 
+bool GjsContextPrivate::set_main_loop_hook(JSObject* callable) {
+    g_assert(JS::IsCallable(callable) && "main loop hook must be a callable object");
+
+    if (!callable) {
+        m_main_loop_hook = nullptr;
+        return true;
+    }
+
+    if (m_main_loop_hook)
+        return false;
+
+    m_main_loop_hook = callable;
+    return true;
+}
+
+bool GjsContextPrivate::run_main_loop_hook() {
+    JS::RootedObject hook(m_cx, m_main_loop_hook.get());
+    m_main_loop_hook = nullptr;
+    gjs_debug(GJS_DEBUG_MAINLOOP, "Running and clearing main loop hook");
+    JS::RootedValue ignored_rval(m_cx);
+    return JS::Call(m_cx, JS::NullHandleValue, hook,
+                    JS::HandleValueArray::empty(), &ignored_rval);
+}
+
 bool GjsContextPrivate::eval(const char* script, size_t script_len,
                              const char* filename, int* exit_status_p,
                              GError** error) {
@@ -1373,15 +1413,38 @@ bool GjsContextPrivate::eval(const char* script, size_t script_len,
     JS::RootedValue retval(m_cx);
     bool ok = eval_with_scope(nullptr, script, script_len, filename, &retval);
 
-    /* The promise job queue should be drained even on error, to finish
-     * outstanding async tasks before the context is torn down. Drain after
-     * uncaught exceptions have been reported since draining runs callbacks.
-     *
-     * If the main loop returns false we cannot guarantee the state
-     * of our promise queue (a module promise could be pending) so
-     * instead of draining the queue we instead just exit.
-     */
-    if (!ok || m_main_loop.spin(this)) {
+    // If there are no errors and the mainloop hook is set, call it.
+    if (ok && m_main_loop_hook)
+        ok = run_main_loop_hook();
+
+    bool exiting = false;
+
+    // Spin the internal loop until the main loop hook is set or no holds
+    // remain.
+    // If the main loop returns false we cannot guarantee the state of our
+    // promise queue (a module promise could be pending) so instead of draining
+    // draining the queue we instead just exit.
+    if (ok && !m_main_loop.spin(this)) {
+        exiting = true;
+    }
+
+    // If the hook has been set again, enter a loop until an error is
+    // encountered or the main loop is quit.
+    while (ok && !exiting && m_main_loop_hook) {
+        ok = run_main_loop_hook();
+
+        // Additional jobs could have been enqueued from the
+        // main loop hook
+        if (ok && !m_main_loop.spin(this)) {
+            exiting = true;
+        }
+    }
+
+    // The promise job queue should be drained even on error, to finish
+    // outstanding async tasks before the context is torn down. Drain after
+    // uncaught exceptions have been reported since draining runs callbacks.
+    // We do not drain if we are exiting.
+    if (!ok && !exiting) {
         JS::AutoSaveExceptionState saved_exc(m_cx);
         ok = run_jobs_fallible() && ok;
     }
@@ -1443,18 +1506,35 @@ bool GjsContextPrivate::eval_module(const char* identifier,
 
         ok = add_promise_reactions(
             m_cx, evaluation_promise, on_context_module_resolved,
-            on_context_module_rejected_log_exception, "context");
+            on_context_module_rejected_log_exception, identifier);
     }
 
-    /* The promise job queue should be drained even on error, to finish
-     * outstanding async tasks before the context is torn down. Drain after
-     * uncaught exceptions have been reported since draining runs callbacks.
-     *
-     * If the main loop returns false we cannot guarantee the state
-     * of our promise queue (a module promise could be pending) so
-     * instead of draining the queue we instead just exit.
-     */
-    if (!ok || m_main_loop.spin(this)) {
+    bool exiting = false;
+
+    do {
+        // If there are no errors and the mainloop hook is set, call it.
+        if (ok && m_main_loop_hook)
+            ok = run_main_loop_hook();
+
+        // Spin the internal loop until the main loop hook is set or no holds
+        // remain.
+        //
+        // If the main loop returns false we cannot guarantee the state of our
+        // promise queue (a module promise could be pending) so instead of
+        // draining the queue we instead just exit.
+        //
+        // Additional jobs could have been enqueued from the
+        // main loop hook
+        if (ok && !m_main_loop.spin(this)) {
+            exiting = true;
+        }
+    } while (ok && !exiting && m_main_loop_hook);
+
+    // The promise job queue should be drained even on error, to finish
+    // outstanding async tasks before the context is torn down. Drain after
+    // uncaught exceptions have been reported since draining runs callbacks.
+    // We do not drain if we are exiting.
+    if (!ok && !exiting) {
         JS::AutoSaveExceptionState saved_exc(m_cx);
         ok = run_jobs_fallible() && ok;
     }

@@ -32,7 +32,7 @@ if gi.type_name() == 'internal'
     gi_tests_include = gi_subproject.get_variable('test_regress_incdirs')
     skip_warnlib = true
 else
-    gidatadir = gi.get_pkgconfig_variable('gidatadir')
+    gidatadir = gi.get_variable(pkgconfig: 'gidatadir')
     gi_tests = gidatadir / 'tests'
     regress_sources = [gi_tests / 'regress.c', gi_tests / 'regress.h']
     warnlib_sources = [gi_tests / 'warnlib.c', gi_tests / 'warnlib.h']
@@ -127,6 +127,7 @@ jasmine_tests = [
     'GObjectValue',
     'GTypeClass',
     'Importer',
+    'Importer2',
     'Introspection',
     'Lang',
     'LegacyByteArray',
@@ -154,10 +155,6 @@ if not get_option('skip_gtk_tests')
         'GObjectDestructionAccess',
         'LegacyGtk',
     ]
-
-    if have_gtk4
-        jasmine_tests += 'Gtk4'
-    endif
 endif
 
 installed_js_tests_dir = installed_tests_execdir / 'js'
@@ -202,31 +199,40 @@ if get_option('installed_tests')
     install_subdir('modules', install_dir: installed_js_tests_dir)
 endif
 
-# testGDBus.js is separate, because it can be skipped, and during build should
-# be run using dbus-run-session
+# testGDBus.js and testGtk4.js are separate, because they can be skipped, and
+# during build should be run using dbus-run-session
 
-if not get_option('skip_dbus_tests')
-    test_file = files('testGDBus.js')
+dbus_tests = ['GDBus']
+if have_gtk4 and not get_option('skip_gtk_tests')
+    # FIXME: find out why GTK4 tries to acquire a message bus
+    dbus_tests += 'Gtk4'
+endif
+
     bus_config = files('../../test/test-bus.conf')
-    test('GDBus', dbus_run_session,
+foreach test : dbus_tests
+    test_file = files('test@0@.js'.format(test))
+
+    if not get_option('skip_dbus_tests')
+        test(test, dbus_run_session,
         args: ['--config-file', bus_config, '--', minijasmine, test_file],
         env: tests_environment, protocol: 'tap', suite: 'dbus')
 endif
 
-gdbus_test_description_subst = {
-    'name': 'testGDBus.js',
+    dbus_test_description_subst = {
+        'name': 'test@0@.js'.format(test),
     'installed_tests_execdir': installed_tests_execdir,
 }
-gdbus_test_description = configure_file(
-    configuration: gdbus_test_description_subst,
-    input: '../minijasmine.test.in', output: 'testGDBus.test',
+    dbus_test_description = configure_file(
+        configuration: dbus_test_description_subst,
+        input: '../minijasmine.test.in',
+        output: 'test@0@.test'.format(test),
     install: get_option('installed_tests'),
     install_dir: installed_tests_metadir)
 
 if get_option('installed_tests')
-    install_data('matchers.js', 'testGDBus.js',
-        install_dir: installed_js_tests_dir)
+        install_data(test_file, install_dir: installed_js_tests_dir)
 endif
+endforeach
 
 # tests using ES modules are also separate because they need an extra
 # minijasmine flag
@@ -235,6 +241,7 @@ modules_tests = [
     'Async',
     'Console',
     'ESModules',
+    'AsyncMainloop',
     'Encoding',
     'GLibLogWriter',
     'Global',
@@ -265,3 +272,7 @@ foreach test : modules_tests
         install_data(test_file, install_dir: installed_js_tests_dir)
     endif
 endforeach
+
+if get_option('installed_tests')
+    install_data('matchers.js', install_dir: installed_js_tests_dir)
+endif

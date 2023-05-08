@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2011 Giovanni Campagna
 
-const ByteArray = imports.byteArray;
+const ByteArray = imports._byteArrayNative;
+const {setMainLoopHook} = imports._promiseNative;
 
 let GLib;
 
@@ -99,15 +100,12 @@ function _packVariant(signature, value) {
         }
         if (arrayType[0] === 'y') {
             // special case for array of bytes
-            let bytes;
             if (typeof value === 'string') {
-                let byteArray = ByteArray.fromString(value);
-                if (byteArray[byteArray.length - 1] !== 0)
-                    byteArray = Uint8Array.of(...byteArray, 0);
-                bytes = ByteArray.toGBytes(byteArray);
-            } else {
-                bytes = new GLib.Bytes(value);
+                value = ByteArray.fromString(value);
+                if (value[value.length - 1] !== 0)
+                    value = Uint8Array.of(...value, 0);
             }
+            const bytes = new GLib.Bytes(value);
             return GLib.Variant.new_from_bytes(new GLib.VariantType('ay'),
                 bytes, true);
         }
@@ -261,6 +259,18 @@ function _init() {
 
     GLib = this;
 
+    GLib.MainLoop.prototype.runAsync = function (...args) {
+        return new Promise((resolve, reject) => {
+            setMainLoopHook(() => {
+                try {
+                    resolve(this.run(...args));
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
+    };
+
     // For convenience in property min or max values, since GLib.MAXINT64 and
     // friends will log a warning when used
     this.MAXINT64_BIGINT = 0x7fff_ffff_ffff_ffffn;
@@ -322,35 +332,35 @@ function _init() {
 
     this.log_structured =
     /**
-     * @param {string} logDomain
-     * @param {GLib.LogLevelFlags} logLevel
-     * @param {Record<string, unknown>} stringFields
+     * @param {string} logDomain Log domain.
+     * @param {GLib.LogLevelFlags} logLevel Log level, either from GLib.LogLevelFlags, or a user-defined level.
+     * @param {Record<string, unknown>} fields Key-value pairs of structured data to add to the log entry.
      * @returns {void}
      */
-    function log_structured(logDomain, logLevel, stringFields) {
+    function log_structured(logDomain, logLevel, fields) {
         /** @type {Record<string, GLib.Variant>} */
-        let fields = {};
+        let variantFields = {};
 
-        for (let key in stringFields) {
-            const field = stringFields[key];
+        for (let key in fields) {
+            const field = fields[key];
 
             if (field instanceof Uint8Array) {
-                fields[key] = new GLib.Variant('ay', field);
+                variantFields[key] = new GLib.Variant('ay', field);
             } else if (typeof field === 'string') {
-                fields[key] = new GLib.Variant('s', field);
+                variantFields[key] = new GLib.Variant('s', field);
             } else if (field instanceof GLib.Variant) {
                 // GLib.log_variant converts all Variants that are
                 // not 'ay' or 's' type to strings by printing
                 // them.
                 //
                 // https://gitlab.gnome.org/GNOME/glib/-/blob/a380bfdf93cb3bfd3cd4caedc0127c4e5717545b/glib/gmessages.c#L1894
-                fields[key] = field;
+                variantFields[key] = field;
             } else {
                 throw new TypeError(`Unsupported value ${field}, log_structured supports GLib.Variant, Uint8Array, and string values.`);
             }
         }
 
-        GLib.log_variant(logDomain, logLevel, new GLib.Variant('a{sv}', fields));
+        GLib.log_variant(logDomain, logLevel, new GLib.Variant('a{sv}', variantFields));
     };
 
     // CjsPrivate depends on GLib so we cannot import it

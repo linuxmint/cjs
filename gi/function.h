@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 
+#include <memory>  // for unique_ptr
 #include <unordered_set>
 #include <vector>
 
@@ -21,6 +22,7 @@
 #include <js/GCVector.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
+#include <js/Value.h>
 
 #include "gi/closure.h"
 #include "cjs/jsapi-util.h"
@@ -43,9 +45,8 @@ using GjsAutoGClosure =
 
 struct GjsCallbackTrampoline : public Gjs::Closure {
     GJS_JSAPI_RETURN_CONVENTION static GjsCallbackTrampoline* create(
-        JSContext* cx, JS::HandleFunction function,
-        GICallableInfo* callable_info, GIScopeType scope, bool has_scope_object,
-        bool is_vfunc);
+        JSContext* cx, JS::HandleObject callable, GICallableInfo* callable_info,
+        GIScopeType scope, bool has_scope_object, bool is_vfunc);
 
     ~GjsCallbackTrampoline();
 
@@ -68,23 +69,23 @@ struct GjsCallbackTrampoline : public Gjs::Closure {
  private:
     ffi_closure* create_closure();
     GJS_JSAPI_RETURN_CONVENTION bool initialize();
-    GjsCallbackTrampoline(JSContext* cx, JS::HandleFunction function,
+    GjsCallbackTrampoline(JSContext* cx, JS::HandleObject callable,
                           GICallableInfo* callable_info, GIScopeType scope,
                           bool has_scope_object, bool is_vfunc);
 
     void callback_closure(GIArgument** args, void* result);
     GJS_JSAPI_RETURN_CONVENTION
     bool callback_closure_inner(JSContext* cx, JS::HandleObject this_object,
-                                JS::MutableHandleValue rval, GIArgument** args,
-                                GITypeInfo* ret_type, int n_args,
-                                int c_args_offset, void* result);
+                                GObject* gobject, JS::MutableHandleValue rval,
+                                GIArgument** args, GITypeInfo* ret_type,
+                                int n_args, int c_args_offset, void* result);
     void warn_about_illegal_js_callback(const char* when, const char* reason);
 
     static std::vector<GjsAutoGClosure> s_forever_closure_list;
 
     GjsAutoCallableInfo m_info;
     ffi_closure* m_closure = nullptr;
-    std::vector<GjsParamType> m_param_types;
+    std::unique_ptr<GjsParamType[]> m_param_types;
     ffi_cif m_cif;
 
     GIScopeType m_scope : 3;
@@ -100,7 +101,7 @@ class GjsFunctionCallState {
  public:
     std::unordered_set<GIArgument*> ignore_release;
     JS::RootedObject instance_object;
-    JS::RootedValueVector return_values;
+    JS::RootedVector<JS::Value> return_values;
     GjsAutoError local_error;
     GICallableInfo* info;
     uint8_t gi_argc = 0;

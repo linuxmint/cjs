@@ -6,9 +6,12 @@
 
 #include <stddef.h>  // for size_t
 
+#include <string>
+
 #include <gio/gio.h>
 #include <glib-object.h>
 
+#include <js/CallAndConstruct.h>  // for JS::IsCallable
 #include <js/CallArgs.h>
 #include <js/PropertyAndElement.h>  // for JS_DefineFunctions
 #include <js/PropertySpec.h>
@@ -17,9 +20,11 @@
 #include <jsapi.h>  // for JS_NewPlainObject
 
 #include "cjs/context-private.h"
+#include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "cjs/promise.h"
+#include "util/log.h"
 
 /**
  * promise.cpp - This file implements a custom GSource, PromiseJobQueueSource,
@@ -77,12 +82,8 @@ class PromiseJobDispatcher::Source : public GSource {
         // next one to execute. (it will starve the other sources)
         g_source_set_ready_time(this, -1);
 
-        // A reference to the current cancellable is needed in case any
-        // jobs reset PromiseJobDispatcher and thus replace the cancellable.
-        GjsAutoUnref<GCancellable> cancellable(m_cancellable,
-                                               GjsAutoTakeOwnership{});
         // Drain the job queue.
-        m_gjs->runJobs(m_gjs->context(), cancellable);
+        m_gjs->runJobs(m_gjs->context());
 
         return G_SOURCE_CONTINUE;
     }
@@ -133,6 +134,8 @@ class PromiseJobDispatcher::Source : public GSource {
         if (!g_cancellable_is_cancelled(m_cancellable))
             return;
 
+        gjs_debug(GJS_DEBUG_MAINLOOP, "Uncancelling promise job dispatcher");
+
         if (is_running())
             g_source_remove_child_source(this, m_cancellable_source);
         else
@@ -177,10 +180,14 @@ void PromiseJobDispatcher::start() {
     if (is_running())
         return;
 
+    gjs_debug(GJS_DEBUG_MAINLOOP, "Starting promise job dispatcher");
     g_source_attach(m_source.get(), m_main_context);
 }
 
-void PromiseJobDispatcher::stop() { m_source->cancel(); }
+void PromiseJobDispatcher::stop() {
+    gjs_debug(GJS_DEBUG_MAINLOOP, "Stopping promise job dispatcher");
+    m_source->cancel();
+}
 
 };  // namespace Gjs
 
@@ -195,8 +202,39 @@ bool drain_microtask_queue(JSContext* cx, unsigned argc, JS::Value* vp) {
     return true;
 }
 
+GJS_JSAPI_RETURN_CONVENTION
+bool set_main_loop_hook(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+    JS::RootedObject callback(cx);
+    if (!gjs_parse_call_args(cx, "setMainLoopHook", args, "o", "callback",
+                             &callback)) {
+        return false;
+    }
+
+    if (!JS::IsCallable(callback)) {
+        gjs_throw(cx, "Main loop hook must be callable");
+        return false;
+    }
+
+    gjs_debug(GJS_DEBUG_MAINLOOP, "Set main loop hook to %s",
+              gjs_debug_object(callback).c_str());
+
+    GjsContextPrivate* priv = GjsContextPrivate::from_cx(cx);
+    if (!priv->set_main_loop_hook(callback)) {
+        gjs_throw(
+            cx,
+            "A mainloop is already running. Did you already call runAsync()?");
+        return false;
+    }
+
+    args.rval().setUndefined();
+    return true;
+}
+
 JSFunctionSpec gjs_native_promise_module_funcs[] = {
-    JS_FN("drainMicrotaskQueue", &drain_microtask_queue, 0, 0), JS_FS_END};
+    JS_FN("drainMicrotaskQueue", &drain_microtask_queue, 0, 0),
+    JS_FN("setMainLoopHook", &set_main_loop_hook, 1, 0), JS_FS_END};
 
 bool gjs_define_native_promise_stuff(JSContext* cx,
                                      JS::MutableHandleObject module) {

@@ -39,7 +39,6 @@
 #include <js/ValueArray.h>
 #include <jsapi.h>        // for JS_InstanceOf
 #include <jsfriendapi.h>  // for ProtoKeyToClass
-#include <mozilla/HashTable.h>  // for HashSet::AddPtr
 
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"

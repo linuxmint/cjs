@@ -110,13 +110,13 @@ describe('Gio.Settings overrides', function () {
     });
 
     it("doesn't crash when forgetting to specify a schema path", function () {
-        expect(() => new Gio.Settings({schema: 'org.cinnamon.CjsTest.Sub'}))
+        expect(() => new Gio.Settings({schema: 'org.gnome.GjsTest.Sub'}))
             .toThrowError(/schema/);
     });
 
     it("doesn't crash when specifying conflicting schema paths", function () {
         expect(() => new Gio.Settings({
-            schema: 'org.cinnamon.CjsTest',
+            schema: 'org.gnome.GjsTest',
             path: '/conflicting/path/',
         })).toThrowError(/schema/);
     });
@@ -127,7 +127,7 @@ describe('Gio.Settings overrides', function () {
         let settings;
 
         beforeEach(function () {
-            settings = new Gio.Settings({schema: 'org.cinnamon.CjsTest'});
+            settings = new Gio.Settings({schema: 'org.gnome.GjsTest'});
         });
 
         it("doesn't crash when resetting a nonexistent key", function () {
@@ -309,6 +309,36 @@ describe('Gio.add_action_entries override', function () {
         ];
 
         expect(() => app.add_action_entries(entries)).toThrow();
+    });
+});
+
+describe('Gio.InputStream.prototype.createSyncIterator', function () {
+    it('iterates synchronously', function () {
+        const [file] = Gio.File.new_tmp(null);
+        file.replace_contents('hello ㊙ world', null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+
+        let totalRead = 0;
+        for (const value of file.read(null).createSyncIterator(2)) {
+            expect(value).toBeInstanceOf(GLib.Bytes);
+            totalRead += value.get_size();
+        }
+
+        expect(totalRead).toBe(15);
+    });
+});
+
+describe('Gio.InputStream.prototype.createAsyncIterator', function () {
+    it('iterates asynchronously', async function () {
+        const [file] = Gio.File.new_tmp(null);
+        file.replace_contents('hello ㊙ world', null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+
+        let totalRead = 0;
+        for await (const value of file.read(null).createAsyncIterator(2)) {
+            expect(value).toBeInstanceOf(GLib.Bytes);
+            totalRead += value.get_size();
+        }
+
+        expect(totalRead).toBe(15);
     });
 });
 

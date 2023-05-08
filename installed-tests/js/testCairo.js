@@ -115,8 +115,8 @@ describe('Cairo', function () {
                 yAdvance: 0,
             });
             expect(cr.textExtents('trailing spaces   ')).toEqual({
-                xBearing: 0,
-                yBearing: -8,
+                xBearing: jasmine.any(Number),
+                yBearing: jasmine.any(Number),
                 width: jasmine.any(Number),
                 height: jasmine.any(Number),
                 xAdvance: jasmine.any(Number),
@@ -282,6 +282,20 @@ describe('Cairo', function () {
             [x, y] = surface.getDeviceOffset();
             expect(x).toEqual(50);
             expect(y).toEqual(50);
+        });
+
+        it('can be finalized', function () {
+            expect(() => {
+                let _surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, 10, 10);
+                let _cr = new Cairo.Context(_surface);
+                _surface.finish();
+                _cr.stroke();
+            }).toThrow();
+            expect(() => {
+                let _surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, 10, 10);
+                _surface.finish();
+                _surface.flush();
+            }).not.toThrow();
         });
     });
 

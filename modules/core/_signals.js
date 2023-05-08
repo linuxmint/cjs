@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2008 litl, LLC
+// SPDX-FileCopyrightText: 2022 Canonical Ltd.
+// SPDX-FileContributor: Marco Trevisan <marco.trevisan@canonical.com>
 
 /* exported addSignalMethods */
 
@@ -9,7 +11,7 @@
 // 3) the expectation is that a given object will have a very small number of
 //    connections, but they may be to different signal names
 
-function _connect(name, callback) {
+function _connectFull(name, callback, after) {
     // be paranoid about callback arg since we'd start to throw from emit()
     // if it was messed up
     if (typeof callback !== 'function')
@@ -17,85 +19,85 @@ function _connect(name, callback) {
 
     // we instantiate the "signal machinery" only on-demand if anything
     // gets connected.
-    if (!('_signalConnections' in this)) {
-        this._signalConnections = [];
+    if (this._signalConnections === undefined) {
+        this._signalConnections = Object.create(null);
+        this._signalConnectionsByName = Object.create(null);
         this._nextConnectionId = 1;
     }
 
-    let id = this._nextConnectionId;
+    const id = this._nextConnectionId;
     this._nextConnectionId += 1;
 
-    // this makes it O(n) in total connections to emit, but I think
-    // it's right to optimize for low memory and reentrancy-safety
-    // rather than speed
-    this._signalConnections.push({
-        id,
+    this._signalConnections[id] = {
         name,
         callback,
-        'disconnected': false,
-    });
+        after,
+    };
+
+    const connectionsByName = this._signalConnectionsByName[name] ?? [];
+
+    if (!connectionsByName.length)
+        this._signalConnectionsByName[name] = connectionsByName;
+    connectionsByName.push(id);
+
     return id;
 }
 
+function _connect(name, callback) {
+    return _connectFull.call(this, name, callback, false);
+}
+
+function _connectAfter(name, callback) {
+    return _connectFull.call(this, name, callback, true);
+}
+
 function _disconnect(id) {
-    if ('_signalConnections' in this) {
-        let i;
-        let length = this._signalConnections.length;
-        for (i = 0; i < length; ++i) {
-            let connection = this._signalConnections[i];
-            if (connection.id === id) {
-                if (connection.disconnected)
-                    throw new Error(`Signal handler id ${id} already disconnected`);
+    const connection = this._signalConnections?.[id];
 
-                // set a flag to deal with removal during emission
-                connection.disconnected = true;
-                this._signalConnections.splice(i, 1);
+    if (!connection)
+        throw new Error(`No signal connection ${id} found`);
 
-                return;
-            }
-        }
-    }
-    throw new Error(`No signal connection ${id} found`);
+    if (connection.disconnected)
+        throw new Error(`Signal handler id ${id} already disconnected`);
+
+    connection.disconnected = true;
+    delete this._signalConnections[id];
+
+    const ids = this._signalConnectionsByName[connection.name];
+    if (!ids)
+        return;
+
+    const indexOfId = ids.indexOf(id);
+    if (indexOfId !== -1)
+        ids.splice(indexOfId, 1);
+
+    if (ids.length === 0)
+        delete this._signalConnectionsByName[connection.name];
 }
 
 function _signalHandlerIsConnected(id) {
-    if (!('_signalConnections' in this))
-        return false;
-
-    const {length} = this._signalConnections;
-    for (let i = 0; i < length; ++i) {
-        const connection = this._signalConnections[i];
-        if (connection.id === id)
-            return !connection.disconnected;
-    }
-
-    return false;
+    const connection = this._signalConnections?.[id];
+    return !!connection && !connection.disconnected;
 }
 
 function _disconnectAll() {
-    if ('_signalConnections' in this) {
-        while (this._signalConnections.length > 0)
-            _disconnect.call(this, this._signalConnections[0].id);
-    }
+    Object.values(this._signalConnections ?? {}).forEach(c => (c.disconnected = true));
+    delete this._signalConnections;
+    delete this._signalConnectionsByName;
 }
 
 function _emit(name, ...args) {
+    const connections = this._signalConnectionsByName?.[name];
+
     // may not be any signal handlers at all, if not then return
-    if (!('_signalConnections' in this))
+    if (!connections)
         return;
 
     // To deal with re-entrancy (removal/addition while
     // emitting), we copy out a list of what was connected
     // at emission start; and just before invoking each
     // handler we check its disconnected flag.
-    let handlers = [];
-    let i;
-    let length = this._signalConnections.length;
-    for (i = 0; i < length; ++i) {
-        let connection = this._signalConnections[i];
-        if (connection.name === name)
-            handlers.push(connection);
-    }
+    const handlers = connections.map(id => this._signalConnections[id]);
 
     // create arg array which is emitter + everything passed in except
     // signal name. Would be more convenient not to pass emitter to
@@ -103,27 +105,42 @@ function _emit(name, ...args) {
     // which does pass it in. Also if we pass in the emitter here,
     // people don't create closures with the emitter in them,
     // which would be a cycle.
-    let argArray = [this, ...args];
+    const argArray = [this, ...args];
 
-    length = handlers.length;
-    for (i = 0; i < length; ++i) {
-        let connection = handlers[i];
-        if (!connection.disconnected) {
-            try {
-                // since we pass "null" for this, the global object will be used.
-                let ret = connection.callback.apply(null, argArray);
+    const afterHandlers = [];
+    const beforeHandlers = handlers.filter(c => {
+        if (!c.after)
+            return true;
 
-                // if the callback returns true, we don't call the next
-                // signal handlers
-                if (ret === true)
-                    break;
-            } catch (e) {
-                // just log any exceptions so that callbacks can't disrupt
-                // signal emission
-                logError(e, `Exception in callback for signal: ${name}`);
-            }
+        afterHandlers.push(c);
+        return false;
+    });
+
+    if (!_callHandlers(beforeHandlers, argArray))
+        _callHandlers(afterHandlers, argArray);
+}
+
+function _callHandlers(handlers, argArray) {
+    for (const handler of handlers) {
+        if (handler.disconnected)
+            continue;
+
+        try {
+            // since we pass "null" for this, the global object will be used.
+            const ret = handler.callback.apply(null, argArray);
+
+            // if the callback returns true, we don't call the next
+            // signal handlers
+            if (ret === true)
+                return true;
+        } catch (e) {
+            // just log any exceptions so that callbacks can't disrupt
+            // signal emission
+            logError(e, `Exception in callback for signal: ${handler.name}`);
         }
     }
+
+    return false;
 }
 
 function _addSignalMethod(proto, functionName, func) {
@@ -135,6 +152,7 @@ function _addSignalMethod(proto, functionName, func) {
 
 function addSignalMethods(proto) {
     _addSignalMethod(proto, 'connect', _connect);
+    _addSignalMethod(proto, 'connectAfter', _connectAfter);
     _addSignalMethod(proto, 'disconnect', _disconnect);
     _addSignalMethod(proto, 'emit', _emit);
     _addSignalMethod(proto, 'signalHandlerIsConnected', _signalHandlerIsConnected);
