@@ -20,13 +20,19 @@
     exit(1);
 }
 
+[[noreturn]] static void bail_out(GjsContext* gjs_context, GError* error) {
+    g_print("Bail out! %s\n", error->message);
+    g_object_unref(gjs_context);
+    g_error_free(error);
+    exit(1);
+}
+
 int
 main(int argc, char **argv)
 {
     if (argc < 2)
         g_error("Need a test file");
 
-    /* The fact that this isn't the default is kind of lame... */
     g_setenv("GJS_DEBUG_OUTPUT", "stderr", false);
 
     setlocale(LC_ALL, "");
@@ -62,60 +68,29 @@ main(int argc, char **argv)
 
     GError *error = NULL;
     bool success;
-    int code;
-
+    uint8_t code;
+    uint8_t u8_exitcode_ignored;
     int exitcode_ignored;
-    if (!gjs_context_eval(cx, "imports.minijasmine;", -1, "<jasmine>",
-                          &exitcode_ignored, &error))
-        bail_out(cx, error->message);
+    if (!gjs_context_eval_module_file(
+            cx, "resource:///org/gjs/jsunit/minijasmine.js",
+            &u8_exitcode_ignored, &error))
+        bail_out(cx, error);
 
     bool eval_as_module = argc >= 3 && strcmp(argv[2], "-m") == 0;
     if (eval_as_module) {
-        uint8_t u8_exitcode_ignored;
         success = gjs_context_eval_module_file(cx, argv[1],
                                                &u8_exitcode_ignored, &error);
     } else {
         success = gjs_context_eval_file(cx, argv[1], &exitcode_ignored, &error);
     }
     if (!success)
-        bail_out(cx, error->message);
+        bail_out(cx, error);
 
-    /* jasmineEnv.execute() queues up all the tests and runs them
-     * asynchronously. This should start after the main loop starts, otherwise
-     * we will hit the main loop only after several tests have already run. For
-     * consistency we should guarantee that there is a main loop running during
-     * all tests. */
-    const char *start_suite_script =
-        "const GLib = imports.gi.GLib;\n"
-        "GLib.idle_add(GLib.PRIORITY_DEFAULT, function () {\n"
-        "    try {\n"
-        "        window._jasmineEnv.execute();\n"
-        "    } catch (e) {\n"
-        "        print('Bail out! Exception occurred inside Jasmine:', e);\n"
-        "        window._jasmineRetval = 1;\n"
-        "        window._jasmineMain.quit();\n"
-        "    }\n"
-        "    return GLib.SOURCE_REMOVE;\n"
-        "});\n"
-        "window._jasmineMain.run();\n"
-        "window._jasmineRetval;";
-    success = gjs_context_eval(cx, start_suite_script, -1, "<jasmine-start>",
-                               &code, &error);
+    success = gjs_context_eval_module_file(
+        cx, "resource:///org/gjs/jsunit/minijasmine-executor.js", &code,
+        &error);
     if (!success)
-        bail_out(cx, error->message);
-
-    if (code != 0) {
-        success = gjs_context_eval(cx, R"js(
-            printerr(globalThis._jasmineErrorsOutput.join('\n'));
-        )js",
-                                   -1, "<jasmine-error-logs>", &code, &error);
-
-        if (!success)
-            bail_out(cx, error->message);
-
-        if (code != 0)
-            g_print("# Test script failed; see test log for assertions\n");
-    }
+        bail_out(cx, error);
 
     if (coverage) {
         gjs_coverage_write_statistics(coverage);

@@ -1,17 +1,6 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2021 Evan Welsh <contact@evanwelsh.com>
 
-import GLib from 'gi://GLib';
-import CjsPrivate from 'gi://CjsPrivate';
-
-const sLogger = Symbol('Logger');
-const sPrinter = Symbol('Printer');
-const sFormatter = Symbol('Formatter');
-const sGroupIndentation = Symbol('GroupIndentation');
-const sTimeLabels = Symbol('Time Labels');
-const sCountLabels = Symbol('Count Labels');
-const sLogDomain = Symbol('Log Domain');
-
 const DEFAULT_LOG_DOMAIN = 'Gjs-Console';
 
 // A line-by-line implementation of https://console.spec.whatwg.org/.
@@ -66,45 +55,14 @@ function formatOptimally(item) {
     return JSON.stringify(item, null, 4);
 }
 
-const propertyAttributes = {
-    writable: true,
-    enumerable: false,
-    configurable: true,
-};
-
-/**
- * @typedef ConsoleInternalProps
- * @property {string} [sGroupIndentation]
- * @property {Record<string, number>} [sCountLabels]
- * @property {Record<string, number>} [sTimeLabels]
- * @property {string} [sLogDomain]
- */
-
 /**
  * Implementation of the WHATWG Console object.
- *
- * @implements {ConsoleInternalProps}
  */
-// @ts-expect-error Console does not actually implement ConsoleInternalProps,
-// once private class fields are merged we will remove the interface.
 class Console {
-    constructor() {
-        // Redefine the internal functions as non-enumerable.
-        Object.defineProperties(this, {
-            [sLogger]: {
-                ...propertyAttributes,
-                value: this[sLogger].bind(this),
-            },
-            [sFormatter]: {
-                ...propertyAttributes,
-                value: this[sFormatter].bind(this),
-            },
-            [sPrinter]: {
-                ...propertyAttributes,
-                value: this[sPrinter].bind(this),
-            },
-        });
-    }
+    #groupIndentation = '';
+    #countLabels = {};
+    #timeLabels = {};
+    #logDomain = DEFAULT_LOG_DOMAIN;
 
     get [Symbol.toStringTag]() {
         return 'Console';
@@ -126,7 +84,7 @@ class Console {
         if (condition)
             return;
 
-        let message = 'Assertion failed';
+        const message = 'Assertion failed';
 
         if (data.length === 0)
             data.push(message);
@@ -137,7 +95,7 @@ class Console {
             const first = data.shift();
             data.unshift(`${message}: ${first}`);
         }
-        this[sLogger]('assert', data);
+        this.#logger('assert', data);
     }
 
     /**
@@ -150,8 +108,8 @@ class Console {
      * @returns {void}
      */
     clear() {
-        this[sGroupIndentation] = '';
-        CjsPrivate.clear_terminal();
+        this.#groupIndentation = '';
+        imports.gi.CjsPrivate.clear_terminal();
     }
 
     /**
@@ -160,7 +118,7 @@ class Console {
      * @param  {...any} data formatting substitutions, if applicable
      */
     debug(...data) {
-        this[sLogger]('debug', data);
+        this.#logger('debug', data);
     }
 
     /**
@@ -171,7 +129,7 @@ class Console {
      * @param  {...any} data formatting substitutions, if applicable
      */
     error(...data) {
-        this[sLogger]('error', data);
+        this.#logger('error', data);
     }
 
     /**
@@ -180,7 +138,7 @@ class Console {
      * @param  {...any} data formatting substitutions, if applicable
      */
     info(...data) {
-        this[sLogger]('info', data);
+        this.#logger('info', data);
     }
 
     /**
@@ -189,7 +147,7 @@ class Console {
      * @param  {...any} data formatting substitutions, if applicable
      */
     log(...data) {
-        this[sLogger]('log', data);
+        this.#logger('log', data);
     }
 
     // 1.1.7 table(tabularData, properties)
@@ -205,21 +163,17 @@ class Console {
         if (data.length === 0)
             data = ['Trace'];
 
-        this[sPrinter]('trace', data, {
-            stackTrace:
-                // We remove the first line to avoid logging this line as part
-                // of the trace.
-                new Error().stack?.split('\n', 2)?.[1],
-        });
+        this.#logger('trace', data);
     }
 
     /**
+     * Logs a message with severity equal to {@see GLib.LogLevelFlags.WARNING}.
+     *
      * @param  {...any} data formatting substitutions, if applicable
      * @returns {void}
      */
     warn(...data) {
-        const {[sLogger]: Logger} = this;
-        Logger('warn', data);
+        this.#logger('warn', data);
     }
 
     /**
@@ -229,8 +183,7 @@ class Console {
      */
     dir(item, options) {
         const object = formatGenerically(item);
-
-        this[sPrinter]('dir', [object], options);
+        this.#printer('dir', [object], options);
     }
 
     /**
@@ -253,11 +206,11 @@ class Console {
      * @returns {void}
      */
     count(label) {
-        this[sCountLabels][label] = this[sCountLabels][label] ?? 0;
-        const count = ++this[sCountLabels][label];
+        this.#countLabels[label] ??= 0;
+        const count = ++this.#countLabels[label];
         const concat = `${label}: ${count}`;
 
-        this[sLogger]('count', [concat]);
+        this.#logger('count', [concat]);
     }
 
     /**
@@ -265,14 +218,11 @@ class Console {
      * @returns {void}
      */
     countReset(label) {
-        const {[sPrinter]: Printer} = this;
-
-        const count = this[sCountLabels][label];
-
+        const count = this.#countLabels[label];
         if (typeof count !== 'number')
-            Printer('reportWarning', [`No count found for label: '${label}'.`]);
+            this.#printer('reportWarning', [`No count found for label: '${label}'.`]);
         else
-            this[sCountLabels][label] = 0;
+            this.#countLabels[label] = 0;
     }
 
     // 1.3 Grouping functions
@@ -283,11 +233,8 @@ class Console {
      * @returns {void}
      */
     group(...data) {
-        const {[sLogger]: Logger} = this;
-
-        Logger('group', data);
-
-        this[sGroupIndentation] += '  ';
+        this.#logger('group', data);
+        this.#groupIndentation += '  ';
     }
 
     /**
@@ -306,7 +253,7 @@ class Console {
      * @returns {void}
      */
     groupEnd() {
-        this[sGroupIndentation] = this[sGroupIndentation].slice(0, -2);
+        this.#groupIndentation = this.#groupIndentation.slice(0, -2);
     }
 
     // 1.4 Timing functions
@@ -318,7 +265,7 @@ class Console {
      * @returns {void}
      */
     time(label) {
-        this[sTimeLabels][label] = GLib.get_monotonic_time();
+        this.#timeLabels[label] = imports.gi.GLib.get_monotonic_time();
     }
 
     /**
@@ -331,20 +278,18 @@ class Console {
      * @returns {void}
      */
     timeLog(label, ...data) {
-        const {[sPrinter]: Printer} = this;
-
-        const startTime = this[sTimeLabels][label];
+        const startTime = this.#timeLabels[label];
 
         if (typeof startTime !== 'number') {
-            Printer('reportWarning', [
+            this.#printer('reportWarning', [
                 `No time log found for label: '${label}'.`,
             ]);
         } else {
-            const durationMs = (GLib.get_monotonic_time() - startTime) / 1000;
+            const durationMs = (imports.gi.GLib.get_monotonic_time() - startTime) / 1000;
             const concat = `${label}: ${durationMs.toFixed(3)} ms`;
             data.unshift(concat);
 
-            Printer('timeLog', data);
+            this.#printer('timeLog', data);
         }
     }
 
@@ -357,20 +302,19 @@ class Console {
      * @returns {void}
      */
     timeEnd(label) {
-        const {[sPrinter]: Printer} = this;
-        const startTime = this[sTimeLabels][label];
+        const startTime = this.#timeLabels[label];
 
         if (typeof startTime !== 'number') {
-            Printer('reportWarning', [
+            this.#printer('reportWarning', [
                 `No time log found for label: '${label}'.`,
             ]);
         } else {
-            delete this[sTimeLabels][label];
+            delete this.#timeLabels[label];
 
-            const durationMs = (GLib.get_monotonic_time() - startTime) / 1000;
+            const durationMs = (imports.gi.GLib.get_monotonic_time() - startTime) / 1000;
             const concat = `${label}: ${durationMs.toFixed(3)} ms`;
 
-            Printer('timeEnd', [concat]);
+            this.#printer('timeEnd', [concat]);
         }
     }
 
@@ -410,14 +354,14 @@ class Console {
      * @returns {void}
      */
     setLogDomain(logDomain) {
-        this[sLogDomain] = String(logDomain);
+        this.#logDomain = String(logDomain);
     }
 
     /**
      * @returns {string}
      */
     get logDomain() {
-        return this[sLogDomain];
+        return this.#logDomain;
     }
 
     // 2. Supporting abstract operations
@@ -435,27 +379,25 @@ class Console {
      * @param {unknown[]} args the arguments to pass to the printer
      * @returns {void}
      */
-    [sLogger](logLevel, args) {
-        const {[sFormatter]: Formatter, [sPrinter]: Printer} = this;
-
+    #logger(logLevel, args) {
         if (args.length === 0)
             return;
 
-        let [first, ...rest] = args;
+        const [first, ...rest] = args;
 
         if (rest.length === 0) {
-            Printer(logLevel, [first]);
+            this.#printer(logLevel, [first]);
             return undefined;
         }
 
         // If first does not contain any format specifiers, don't call Formatter
         if (typeof first !== 'string' || !hasFormatSpecifiers(first)) {
-            Printer(logLevel, args);
+            this.#printer(logLevel, args);
             return undefined;
         }
 
         // Otherwise, perform print the result of Formatter.
-        Printer(logLevel, Formatter([first, ...rest]));
+        this.#printer(logLevel, this.#formatter([first, ...rest]));
 
         return undefined;
     }
@@ -467,16 +409,14 @@ class Console {
      * @param {[string, ...any[]]} args an array of format strings followed by
      *   their arguments
      */
-    [sFormatter](args) {
-        const {[sFormatter]: Formatter} = this;
-
+    #formatter(args) {
         // The initial formatting string is the first arg
         let target = args[0];
 
         if (args.length === 1)
             return target;
 
-        let current = args[1];
+        const current = args[1];
 
         // Find the index of the first format specifier.
         const specifierIndex = specifierTest.exec(target).index;
@@ -523,7 +463,7 @@ class Console {
          *
          * @type {[string, ...any[]]}
          */
-        let result = [target, ...args.slice(2)];
+        const result = [target, ...args.slice(2)];
 
         if (!hasFormatSpecifiers(target))
             return result;
@@ -531,12 +471,12 @@ class Console {
         if (result.length === 1)
             return result;
 
-        return Formatter(result);
+        return this.#formatter(result);
     }
 
     /**
      * @typedef {object} PrinterOptions
-     * @param {string} [stackTrace] an error stacktrace to append
+     * @param {Array.<string[]>} [stackTrace] an error stacktrace to append
      * @param {Record<string, any>} [fields] fields to include in the structured
      *   logging call
      */
@@ -556,7 +496,8 @@ class Console {
      *   printer
      * @returns {void}
      */
-    [sPrinter](logLevel, args, options) {
+    #printer(logLevel, args, options) {
+        const GLib = imports.gi.GLib;
         let severity;
 
         switch (logLevel) {
@@ -590,7 +531,7 @@ class Console {
             severity = GLib.LogLevelFlags.LEVEL_MESSAGE;
         }
 
-        let output = args
+        const output = args
             .map(a => {
                 if (a === null)
                     return 'null';
@@ -607,39 +548,54 @@ class Console {
             })
             .join(' ');
 
-        let formattedOutput = this[sGroupIndentation] + output;
+        let formattedOutput = this.#groupIndentation + output;
+        const extraFields = {};
 
-        if (logLevel === 'trace') {
-            formattedOutput =
-                `${output}\n${options?.stackTrace}` ?? 'No trace available';
+        let stackTrace = options?.stackTrace;
+        if (!stackTrace &&
+            (logLevel === 'trace' || severity <= GLib.LogLevelFlags.LEVEL_WARNING)) {
+            stackTrace = new Error().stack;
+            const currentFile = stackTrace.match(/^[^@]*@(.*):\d+:\d+$/m)?.at(1);
+            const index = stackTrace.lastIndexOf(currentFile) + currentFile.length;
+
+            stackTrace = stackTrace.substring(index).split('\n');
+            // Remove the remainder of the first line
+            stackTrace.shift();
         }
 
-        GLib.log_structured(this[sLogDomain], severity, {
+        if (logLevel === 'trace') {
+            if (stackTrace?.length) {
+                formattedOutput += `\n${stackTrace.map(s =>
+                    `${this.#groupIndentation}${s}`).join('\n')}`;
+            } else {
+                formattedOutput +=
+                    `\n${this.#groupIndentation}No trace available`;
+            }
+        }
+
+        if (stackTrace?.length) {
+            const [stackLine] = stackTrace;
+            const match = stackLine.match(/^([^@]*)@(.*):(\d+):\d+$/);
+
+            if (match) {
+                const [_, func, file, line] = match;
+
+                if (func)
+                    extraFields.CODE_FUNC = func;
+                if (file)
+                    extraFields.CODE_FILE = file;
+                if (line)
+                    extraFields.CODE_LINE = line;
+            }
+        }
+
+        GLib.log_structured(this.#logDomain, severity, {
             MESSAGE: formattedOutput,
+            ...extraFields,
+            ...options?.fields ?? {},
         });
     }
 }
-
-Object.defineProperties(Console.prototype, {
-    [sGroupIndentation]: {
-        ...propertyAttributes,
-        value: '',
-    },
-    [sCountLabels]: {
-        ...propertyAttributes,
-        /** @type {Record<string, number>} */
-        value: {},
-    },
-    [sTimeLabels]: {
-        ...propertyAttributes,
-        /** @type {Record<string, number>} */
-        value: {},
-    },
-    [sLogDomain]: {
-        ...propertyAttributes,
-        value: DEFAULT_LOG_DOMAIN,
-    },
-});
 
 const console = new Console();
 

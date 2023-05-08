@@ -18,6 +18,7 @@
 #include <js/String.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
+#include <js/Value.h>
 
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"

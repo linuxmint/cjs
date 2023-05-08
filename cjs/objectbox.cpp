@@ -22,7 +22,7 @@
 #include "cjs/objectbox.h"
 #include "util/log.h"
 
-/* cjs/objectbox.cpp - GObject boxed type used to "box" a JS object so that it
+/* gjs/objectbox.cpp - GObject boxed type used to "box" a JS object so that it
  * can be passed to or returned from a GObject signal, or used as the type of a
  * GObject property.
  */
@@ -80,11 +80,14 @@ struct ObjectBox::impl {
     gatomicrefcount m_refcount;
 };
 
-ObjectBox::ObjectBox(JSObject* obj)
-    : m_impl(std::make_unique<ObjectBox::impl>(this, obj)) {}
+ObjectBox::ObjectBox(JSObject* obj) : m_impl(new ObjectBox::impl(this, obj)) {}
+
+void ObjectBox::destroy(ObjectBox* object) { object->m_impl->unref(); }
+
+void ObjectBox::destroy_impl(ObjectBox::impl* impl) { delete impl; }
 
 ObjectBox::Ptr ObjectBox::boxed(JSContext* cx, JSObject* obj) {
-    ObjectBox* box = nullptr;
+    ObjectBox::Ptr box;
 
     ObjectBox** found =
         std::find_if(m_wrappers.begin(), m_wrappers.end(),
@@ -96,10 +99,10 @@ ObjectBox::Ptr ObjectBox::boxed(JSContext* cx, JSObject* obj) {
     } else {
         box = new ObjectBox(obj);
         if (!box->m_impl->init(cx))
-            return ObjectBox::Ptr(nullptr, [](ObjectBox*) {});
+            return nullptr;
     }
 
-    return ObjectBox::Ptr(box, [](ObjectBox* b) { b->m_impl->unref(); });
+    return box;
 }
 
 JSObject* ObjectBox::object_for_c_ptr(JSContext* cx, ObjectBox* box) {

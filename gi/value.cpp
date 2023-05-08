@@ -27,6 +27,7 @@
 #include <js/ValueArray.h>
 #include <js/experimental/TypedData.h>
 #include <jsapi.h>  // for InformalValueTypeName, JS_Get...
+#include <jsfriendapi.h>  // for JS_GetObjectFunction
 
 #include "gi/arg-inl.h"
 #include "gi/arg.h"
@@ -160,8 +161,7 @@ void Gjs::Closure::marshal(GValue* return_value, unsigned n_param_values,
         return;
     }
 
-    JSFunction* func = callable();
-    JSAutoRealm ar(context, JS_GetFunctionObject(func));
+    JSAutoRealm ar(context, callable());
 
     if (marshal_data) {
         /* we are used for a signal handler */
@@ -273,9 +273,12 @@ void Gjs::Closure::marshal(GValue* return_value, unsigned n_param_values,
                 exit(code);
 
             // Some other uncatchable exception, e.g. out of memory
-            JSFunction* fn = callable();
-            g_error("Function %s terminated with uncatchable exception",
-                    gjs_debug_string(JS_GetFunctionDisplayId(fn)).c_str());
+            JSFunction* fn = JS_GetObjectFunction(callable());
+            std::string descr =
+                fn ? "function " + gjs_debug_string(JS_GetFunctionDisplayId(fn))
+                   : "callable object " + gjs_debug_object(callable());
+            g_error("Call to %s terminated with uncatchable exception",
+                    descr.c_str());
         }
     }
 
@@ -455,11 +458,11 @@ gjs_value_to_g_value_internal(JSContext      *context,
             return throw_expect_type(context, value, "string");
         }
     } else if (gtype == G_TYPE_CHAR) {
-        gint32 i;
+        int32_t i;
         if (Gjs::js_value_to_c_checked<signed char>(context, value, &i,
                                                     &out_of_range) &&
             !out_of_range) {
-            g_value_set_schar(gvalue, (signed char)i);
+            g_value_set_schar(gvalue, static_cast<signed char>(i));
         } else {
             return throw_expect_type(context, value, "char", 0, out_of_range);
         }
@@ -878,7 +881,7 @@ gjs_value_from_g_value_internal(JSContext             *context,
                 return false;
         }
     } else if (gtype == G_TYPE_CHAR) {
-        char v;
+        signed char v;
         v = g_value_get_schar(gvalue);
         value_p.setInt32(v);
     } else if (gtype == G_TYPE_UCHAR) {
@@ -1027,7 +1030,7 @@ gjs_value_from_g_value_internal(JSContext             *context,
             else
                 obj = BoxedInstance::new_for_c_struct(context, info, gboxed);
         } else if (type == GI_INFO_TYPE_UNION) {
-            obj = gjs_union_from_c_union(context, info, gboxed);
+            obj = UnionInstance::new_for_c_union(context, info, gboxed);
         } else {
             gjs_throw(context, "Unexpected introspection type %d for %s",
                       info.type(), g_type_name(gtype));

@@ -17,7 +17,6 @@
 #include <utility>  // for pair
 #include <vector>
 
-#include <gio/gio.h>
 #include <glib-object.h>
 #include <glib.h>
 
@@ -64,6 +63,7 @@ class GjsContextPrivate : public JS::JobQueue {
  private:
     GjsContext* m_public_context;
     JSContext* m_cx;
+    JS::Heap<JSObject*> m_main_loop_hook;
     JS::Heap<JSObject*> m_global;
     JS::Heap<JSObject*> m_internal_global;
     std::thread::id m_owner_thread;
@@ -139,6 +139,7 @@ class GjsContextPrivate : public JS::JobQueue {
     void start_draining_job_queue(void);
     void stop_draining_job_queue(void);
 
+    GJS_JSAPI_RETURN_CONVENTION bool run_main_loop_hook();
     [[nodiscard]] bool handle_exit_code(bool no_sync_error_pending,
                                         const char* source_type,
                                         const char* identifier,
@@ -175,6 +176,8 @@ class GjsContextPrivate : public JS::JobQueue {
     [[nodiscard]] GjsContext* public_context() const {
         return m_public_context;
     }
+    [[nodiscard]] bool set_main_loop_hook(JSObject* callable);
+    [[nodiscard]] bool has_main_loop_hook() { return !!m_main_loop_hook; }
     [[nodiscard]] JSContext* context() const { return m_cx; }
     [[nodiscard]] JSObject* global() const { return m_global.get(); }
     [[nodiscard]] JSObject* internal_global() const {
@@ -244,13 +247,11 @@ class GjsContextPrivate : public JS::JobQueue {
                            JS::HandleObject allocation_site,
                            JS::HandleObject incumbent_global) override;
     void runJobs(JSContext* cx) override;
-    void runJobs(JSContext* cx, GCancellable* cancellable);
     [[nodiscard]] bool empty() const override { return m_job_queue.empty(); }
     js::UniquePtr<JS::JobQueue::SavedJobQueue> saveJobQueue(
         JSContext* cx) override;
 
-    GJS_JSAPI_RETURN_CONVENTION bool run_jobs_fallible(
-        GCancellable* cancellable = nullptr);
+    GJS_JSAPI_RETURN_CONVENTION bool run_jobs_fallible();
     void register_unhandled_promise_rejection(uint64_t id, GjsAutoChar&& stack);
     void unregister_unhandled_promise_rejection(uint64_t id);
     void warn_about_unhandled_promise_rejections();

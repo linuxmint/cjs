@@ -233,7 +233,7 @@ function _addDBusConvenience() {
 function _makeProxyWrapper(interfaceXml) {
     var info = _newInterfaceInfo(interfaceXml);
     var iname = info.name;
-    return function (bus, name, object, asyncCallback, cancellable,
+    function wrapper(bus, name, object, asyncCallback, cancellable,
         flags = Gio.DBusProxyFlags.NONE) {
         var obj = new Gio.DBusProxy({
             g_connection: bus,
@@ -247,24 +247,29 @@ function _makeProxyWrapper(interfaceXml) {
         if (!cancellable)
             cancellable = null;
         if (asyncCallback) {
-            obj.init_async(GLib.PRIORITY_DEFAULT, cancellable, (initable, result) => {
-                let caughtErrorWhenInitting = null;
-                try {
-                    initable.init_finish(result);
-                } catch (e) {
-                    caughtErrorWhenInitting = e;
-                }
-
-                if (caughtErrorWhenInitting === null)
-                    asyncCallback(initable, null);
-                else
-                    asyncCallback(null, caughtErrorWhenInitting);
-            });
+            obj.init_async(GLib.PRIORITY_DEFAULT, cancellable).then(
+                () => asyncCallback(obj, null)).catch(e => asyncCallback(null, e));
         } else {
             obj.init(cancellable);
         }
         return obj;
+    }
+    wrapper.newAsync = function newAsync(bus, name, object, cancellable,
+        flags = Gio.DBusProxyFlags.NONE) {
+        const obj = new Gio.DBusProxy({
+            g_connection: bus,
+            g_interface_name: info.name,
+            g_interface_info: info,
+            g_name: name,
+            g_flags: flags,
+            g_object_path: object,
+        });
+
+        return new Promise((resolve, reject) =>
+            obj.init_async(GLib.PRIORITY_DEFAULT, cancellable ?? null).then(
+                () => resolve(obj)).catch(reject));
     };
+    return wrapper;
 }
 
 
@@ -378,7 +383,9 @@ function _handleMethodCall(info, impl, methodName, parameters, invocation) {
 function _handlePropertyGet(info, impl, propertyName) {
     let propInfo = info.lookup_property(propertyName);
     let jsval = this[propertyName];
-    if (jsval !== undefined)
+    if (jsval?.get_type_string?.() === propInfo.signature)
+        return jsval;
+    else if (jsval !== undefined)
         return new GLib.Variant(propInfo.signature, jsval);
     else
         return null;
@@ -472,6 +479,8 @@ function _warnNotIntrospectable(funcName, replacement) {
 
 function _init() {
     Gio = this;
+
+    Gio.Application.prototype.runAsync = GLib.MainLoop.prototype.runAsync;
 
     Gio.DBus = {
         // Namespace some functions
@@ -607,6 +616,41 @@ function _init() {
         }
     };
 
+    Gio.InputStream.prototype.createSyncIterator = function* createSyncIterator(count) {
+        while (true) {
+            const bytes = this.read_bytes(count, null);
+            if (bytes.get_size() === 0)
+                return;
+            yield bytes;
+        }
+    };
+
+    Gio.InputStream.prototype.createAsyncIterator = async function* createAsyncIterator(
+        count, ioPriority = GLib.PRIORITY_DEFAULT) {
+        const self = this;
+
+        function next() {
+            return new Promise((resolve, reject) => {
+                self.read_bytes_async(count, ioPriority, null, (_self, res) => {
+                    try {
+                        const bytes = self.read_bytes_finish(res);
+                        resolve(bytes);
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            });
+        }
+
+        while (true) {
+            // eslint-disable-next-line no-await-in-loop
+            const bytes = await next(count);
+            if (bytes.get_size() === 0)
+                return;
+            yield bytes;
+        }
+    };
+
     Gio.FileEnumerator.prototype[Symbol.iterator] = function* FileEnumeratorIterator() {
         while (true) {
             try {
@@ -622,12 +666,12 @@ function _init() {
         this.close(null);
     };
 
-    Gio.FileEnumerator.prototype[Symbol.asyncIterator] = async function* AsyncFileEnumatorIterator() {
+    Gio.FileEnumerator.prototype[Symbol.asyncIterator] = async function* AsyncFileEnumeratorIterator() {
         const self = this;
 
         function next() {
             return new Promise((resolve, reject) => {
-                self.next_files_async(1, Gio.PRIORITY_DEFAULT, null, (_self, res) => {
+                self.next_files_async(1, GLib.PRIORITY_DEFAULT, null, (_self, res) => {
                     try {
                         const files = self.next_files_finish(res);
                         resolve(files.length === 0 ? null : files[0]);
@@ -640,7 +684,7 @@ function _init() {
 
         function close() {
             return new Promise((resolve, reject) => {
-                self.close_async(Gio.PRIORITY_DEFAULT, null, (_self, res) => {
+                self.close_async(GLib.PRIORITY_DEFAULT, null, (_self, res) => {
                     try {
                         resolve(self.close_finish(res));
                     } catch (err) {

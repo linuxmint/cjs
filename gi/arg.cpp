@@ -20,6 +20,7 @@
 #include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
 #include <js/Exception.h>
 #include <js/GCVector.h>            // for RootedVector, MutableWrappedPtrOp...
+#include <js/Id.h>
 #include <js/PropertyAndElement.h>  // for JS_GetElement, JS_HasPropertyById
 #include <js/PropertyDescriptor.h>  // for JSPROP_ENUMERATE
 #include <js/RootingAPI.h>
@@ -29,8 +30,7 @@
 #include <js/Value.h>
 #include <js/ValueArray.h>
 #include <js/experimental/TypedData.h>
-#include <jsapi.h>        // for InformalValueTypeName, IdVector
-#include <jsfriendapi.h>  // for JS_GetObjectFunction
+#include <jsapi.h>  // for InformalValueTypeName, IdVector
 
 #include "gi/arg-inl.h"
 #include "gi/arg-types-inl.h"
@@ -973,11 +973,10 @@ static bool gjs_array_to_array(JSContext* context, JS::HandleValue array_value,
     }
 }
 
-static GArray* garray_new_for_storage_type(unsigned length,
-                                           GITypeTag storage_type) {
-    guint element_size;
+size_t gjs_array_get_element_size(GITypeTag element_type) {
+    size_t element_size;
 
-    switch (storage_type) {
+    switch (element_type) {
     case GI_TYPE_TAG_BOOLEAN:
         element_size = sizeof(gboolean);
         break;
@@ -1024,6 +1023,12 @@ static GArray* garray_new_for_storage_type(unsigned length,
         g_assert_not_reached();
     }
 
+    return element_size;
+}
+
+static GArray* garray_new_for_storage_type(unsigned length,
+                                           GITypeTag storage_type) {
+    size_t element_size = gjs_array_get_element_size(storage_type);
     return g_array_sized_new(true, false, element_size, length);
 }
 
@@ -1337,8 +1342,8 @@ static bool value_to_interface_gi_argument(
 
             } else if (g_type_is_a(gtype, G_TYPE_BOXED)) {
                 if (g_type_is_a(gtype, G_TYPE_CLOSURE)) {
-                    GClosure* closure = Gjs::Closure::create_marshaled(
-                        cx, JS_GetObjectFunction(obj), "boxed");
+                    GClosure* closure =
+                        Gjs::Closure::create_marshaled(cx, obj, "boxed");
                     // GI doesn't know about floating GClosure references. We
                     // guess that if this is a return value going from JS::Value
                     // to GArgument, it's intended to be passed to a C API that
@@ -2676,7 +2681,7 @@ gjs_value_from_g_argument (JSContext             *context,
             }
 
             if (interface_type == GI_INFO_TYPE_UNION) {
-                JSObject* obj = gjs_union_from_c_union(
+                JSObject* obj = UnionInstance::new_for_c_union(
                     context, static_cast<GIUnionInfo*>(interface_info),
                     gjs_arg_get<void*>(arg));
                 if (!obj)
