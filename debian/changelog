@@ -1,3 +1,13 @@
+cjs (5.8.0) victoria; urgency=medium
+
+  [ Michael Webster ]
+  * Rebase off gjs 1.74.2 (mozjs102)
+  * github workflow: Add optional ssh session.
+  * GObject: Handle versions of GLib without GBindingGroup
+  * Debian improvements
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 01 Jun 2023 13:42:35 +0100
+
 cjs (5.7.0) unstable; urgency=medium
 
   * Rebase with gjs 1.74.1/mozjs102
