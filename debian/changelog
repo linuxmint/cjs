@@ -1,3 +1,13 @@
+cjs (6.0.0) virginia; urgency=medium
+
+  [ Dominik Opyd ]
+  * fix(build, tests): move `have_gtk4` to the appropriate place
+
+  [ Rick Calixte ]
+  * Fix meson.build deprecations up to 0.56.0 (#119)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 16 Nov 2023 13:54:46 +0000
+
 cjs (5.8.0) victoria; urgency=medium
 
   [ Michael Webster ]
