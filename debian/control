@@ -92,6 +92,7 @@ Depends:
  ${gir:Depends},
  ${misc:Depends},
  ${shlibs:Depends},
+ gir1.2-girepository-2.0,
 Conflicts:
  libcjs0a,
  libcjs0c,
