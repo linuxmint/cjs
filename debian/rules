@@ -4,6 +4,7 @@ built_binaries := $(shell dh_listpackages)
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,-z,defs
+export DPKG_GENSYMBOLS_CHECK_LEVEL = 2
 
 include /usr/share/dpkg/default.mk
 
