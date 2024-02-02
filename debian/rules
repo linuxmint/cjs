@@ -17,11 +17,23 @@ override_dh_auto_configure:
 	dh_auto_configure -- \
 		-Dauto_features=enabled \
 		-Dprofiler=disabled \
-		-Dinstalled_tests=false \
+		-Dinstalled_tests=true \
 		$(NULL)
+
+execute_after_dh_auto_install:
+	rm -f debian/tmp/usr/libexec/installed-tests/cjs/js/modules/*/.eslintrc.yml
 
 override_dh_girepository:
 	dh_girepository -l $(BUILDDIR) /usr/lib/$(DEB_HOST_MULTIARCH)/cjs/girepository-1.0
+
+# debhelper >= 13.4 makes all of /usr/libexec executable, which is not
+# quite right for installed-tests
+override_dh_fixperms:
+	dh_fixperms -Xusr/libexec/installed-tests
+ifneq ($(filter %-tests,$(built_binaries)),)
+	chmod --changes u=rw,og=r debian/*-tests/usr/libexec/installed-tests/cjs/*.so
+	chmod --recursive --changes a+rX,u+w,og-w debian/*-tests/usr/libexec/installed-tests
+endif
 
 override_dh_auto_test:
 	GI_TYPELIB_PATH=$(CURDIR)/obj-$(DEB_HOST_GNU_TYPE) \

@@ -40,6 +40,20 @@ Description: Mozilla-based javascript bindings for the Cinnamon platform (cli to
  uses.
  .
  This package contains the interactive console application.
+
+Package: cjs-tests
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         cjs,
+         at-spi2-core
+Description: Mozilla-based javascript bindings for the Cinnamon platform (tests)
+ Makes it possible for applications to use all of Cinnamon's platform
+ libraries using the JavaScript language. It's mainly based on the
+ Mozilla JavaScript engine and the GObject introspection framework.
+ .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
  .
  This package contains test programs, designed to be run as part of a
  regression testsuite.
