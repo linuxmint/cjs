@@ -27,7 +27,10 @@ Vcs-Git: https://github.com/linuxmint/cjs.git
 
 Package: cjs
 Architecture: any
-Depends: gir1.2-gtk-3.0, ${misc:Depends}, ${shlibs:Depends}
+Depends:
+ gir1.2-gtk-3.0,
+ ${misc:Depends},
+ ${shlibs:Depends},
 Description: Mozilla-based javascript bindings for the Cinnamon platform (cli tool)
  Makes it possible for applications to use all of Cinnamon's platform
  libraries using the JavaScript language. It's mainly based on the
@@ -37,6 +40,20 @@ Description: Mozilla-based javascript bindings for the Cinnamon platform (cli to
  uses.
  .
  This package contains the interactive console application.
+
+Package: cjs-tests
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         cjs,
+         at-spi2-core
+Description: Mozilla-based javascript bindings for the Cinnamon platform (tests)
+ Makes it possible for applications to use all of Cinnamon's platform
+ libraries using the JavaScript language. It's mainly based on the
+ Mozilla JavaScript engine and the GObject introspection framework.
+ .
+ This package is the frozen version of gjs that the cinnamon desktop currently
+ uses.
  .
  This package contains test programs, designed to be run as part of a
  regression testsuite.
@@ -45,7 +62,9 @@ Package: libcjs-dbg
 Section: debug
 Architecture: any
 Priority: extra
-Depends: libcjs0 (= ${binary:Version}), ${misc:Depends}
+Depends:
+ libcjs0 (= ${binary:Version}),
+ ${misc:Depends},
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon platform
  libraries using the JavaScript language. It's mainly based on the
@@ -82,9 +101,24 @@ Package: libcjs0
 Architecture: any
 Multi-Arch: same
 Section: libs
-Depends: ${gir:Depends}, ${misc:Depends}, ${shlibs:Depends}
-Conflicts: libcjs0a, libcjs0c, libcjs0e, libcjs0f
-Replaces: libcjs0a, libcjs0c, libcjs0e, libcjs0f
+Depends:
+ ${gir:Depends},
+ ${misc:Depends},
+ ${shlibs:Depends},
+ gir1.2-gio-2.0,
+ gir1.2-girepository-2.0,
+ gir1.2-glib-2.0,
+ gir1.2-gobject-2.0,
+Conflicts:
+ libcjs0a,
+ libcjs0c,
+ libcjs0e,
+ libcjs0f,
+Replaces:
+ libcjs0a,
+ libcjs0c,
+ libcjs0e,
+ libcjs0f,
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon platform
  libraries using the JavaScript language. It's mainly based on the
