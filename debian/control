@@ -28,7 +28,10 @@ Vcs-Git: https://github.com/linuxmint/cjs.git
 
 Package: cjs
 Architecture: any
-Depends: gir1.2-gtk-3.0, ${misc:Depends}, ${shlibs:Depends}
+Depends:
+ gir1.2-gtk-3.0,
+ ${misc:Depends},
+ ${shlibs:Depends},
 Description: Mozilla-based javascript bindings for the Cinnamon platform (cli tool)
  Makes it possible for applications to use all of Cinnamon's platform
  libraries using the JavaScript language. It's mainly based on the
@@ -46,7 +49,9 @@ Package: libcjs-dbg
 Section: debug
 Architecture: any
 Priority: extra
-Depends: libcjs0 (= ${binary:Version}), ${misc:Depends}
+Depends:
+ libcjs0 (= ${binary:Version}),
+ ${misc:Depends},
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon platform
  libraries using the JavaScript language. It's mainly based on the
@@ -83,9 +88,20 @@ Package: libcjs0
 Architecture: any
 Multi-Arch: same
 Section: libs
-Depends: ${gir:Depends}, ${misc:Depends}, ${shlibs:Depends}
-Conflicts: libcjs0a, libcjs0c, libcjs0e, libcjs0f
-Replaces: libcjs0a, libcjs0c, libcjs0e, libcjs0f
+Depends:
+ ${gir:Depends},
+ ${misc:Depends},
+ ${shlibs:Depends},
+Conflicts:
+ libcjs0a,
+ libcjs0c,
+ libcjs0e,
+ libcjs0f,
+Replaces:
+ libcjs0a,
+ libcjs0c,
+ libcjs0e,
+ libcjs0f,
 Description: Mozilla-based javascript bindings for the Cinnamon platform
  Makes it possible for applications to use all of Cinnamon platform
  libraries using the JavaScript language. It's mainly based on the
