@@ -34,6 +34,7 @@
 #include <js/CompileOptions.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
+#include <js/GlobalObject.h>  // for CurrentGlobalOrNull
 #include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
 #include <js/SourceText.h>
@@ -224,7 +225,7 @@ gjs_console_interact(JSContext *context,
 {
     JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);
     volatile bool eof, exit_warning;  // accessed after setjmp()
-    JS::RootedObject global(context, gjs_get_import_global(context));
+    JS::RootedObject global{context, JS::CurrentGlobalOrNull(context)};
     char* temp_buf;
     volatile int lineno;     // accessed after setjmp()
     volatile int startline;  // accessed after setjmp()
@@ -300,7 +301,7 @@ gjs_console_interact(JSContext *context,
         if (!ok) {
             /* If this was an uncatchable exception, throw another uncatchable
              * exception on up to the surrounding JS::Evaluate() in main(). This
-             * happens when you run gjs-console and type imports.system.exit(0);
+             * happens when you run cjs-console and type imports.system.exit(0);
              * at the prompt. If we don't throw another uncatchable exception
              * here, then it's swallowed and main() won't exit. */
             return false;

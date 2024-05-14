@@ -15,6 +15,7 @@
 #include <iterator>  // for distance
 #include <memory>    // for unique_ptr
 #include <string>    // for u16string
+#include <tuple>     // for tuple
 
 #include <gio/gio.h>
 #include <glib-object.h>
@@ -23,7 +24,7 @@
 #include <js/ArrayBuffer.h>
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>
-#include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
+#include <js/ErrorReport.h>  // for JS_ReportOutOfMemory, JSEXN_TYPEERR
 #include <js/Exception.h>    // for JS_ClearPendingException, JS_...
 #include <js/GCAPI.h>  // for AutoCheckCannotGC
 #include <js/PropertyAndElement.h>
@@ -36,10 +37,9 @@
 #include <js/experimental/TypedData.h>
 #include <jsapi.h>        // for JS_NewPlainObject, JS_InstanceOf
 #include <jsfriendapi.h>  // for ProtoKeyToClass
-#include <jspubtd.h>      // for JSProto_TypeError, JSProto_InternalError
+#include <jspubtd.h>      // for JSProto_InternalError
 #include <mozilla/Maybe.h>
 #include <mozilla/Span.h>
-#include <mozilla/Tuple.h>
 #include <mozilla/Unused.h>
 
 #include "cjs/jsapi-util-args.h"
@@ -53,11 +53,10 @@ static void gfree_arraybuffer_contents(void* contents, void*) {
     g_free(contents);
 }
 
-static std::nullptr_t gjs_throw_type_error_from_gerror(JSContext* cx,
-                                                       GError* error) {
+static std::nullptr_t gjs_throw_type_error_from_gerror(
+    JSContext* cx, GjsAutoError const& error) {
     g_return_val_if_fail(error, nullptr);
-    gjs_throw_custom(cx, JSProto_TypeError, nullptr, "%s", error->message);
-    g_error_free(error);
+    gjs_throw_custom(cx, JSEXN_TYPEERR, nullptr, "%s", error->message);
     return nullptr;
 }
 
@@ -77,7 +76,7 @@ GJS_JSAPI_RETURN_CONVENTION
 static JSString* gjs_lossy_decode_from_uint8array_slow(
     JSContext* cx, const uint8_t* bytes, size_t bytes_len,
     const char* from_codeset) {
-    GError* error = nullptr;
+    GjsAutoError error;
     GjsAutoUnref<GCharsetConverter> converter(
         g_charset_converter_new(UTF16_CODESET, from_codeset, &error));
 
@@ -122,13 +121,15 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
     std::u16string output_str = u"";
 
     do {
+        GjsAutoError local_error;
+
         // Create a buffer to convert into.
         std::unique_ptr<char[]> buffer = std::make_unique<char[]>(buffer_size);
         size_t bytes_written = 0, bytes_read = 0;
 
         g_converter_convert(G_CONVERTER(converter.get()), input, input_len,
                             buffer.get(), buffer_size, G_CONVERTER_INPUT_AT_END,
-                            &bytes_read, &bytes_written, &error);
+                            &bytes_read, &bytes_written, &local_error);
 
         // If bytes were read, adjust input.
         if (bytes_read > 0) {
@@ -142,7 +143,7 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
             char16_t* utf16_buffer = reinterpret_cast<char16_t*>(buffer.get());
             // std::u16string uses exactly 2 bytes for every character.
             output_str.append(utf16_buffer, bytes_written / 2);
-        } else if (error) {
+        } else if (local_error) {
             // A PARTIAL_INPUT error can only occur if the user does not provide
             // the full sequence for a multi-byte character, we skip over the
             // next character and insert a unicode fallback.
@@ -150,8 +151,10 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
             // An INVALID_DATA error occurs when there is no way to decode a
             // given byte into UTF-16 or the given byte does not exist in the
             // source encoding.
-            if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA) ||
-                g_error_matches(error, G_IO_ERROR, G_IO_ERROR_PARTIAL_INPUT)) {
+            if (g_error_matches(local_error, G_IO_ERROR,
+                                G_IO_ERROR_INVALID_DATA) ||
+                g_error_matches(local_error, G_IO_ERROR,
+                                G_IO_ERROR_PARTIAL_INPUT)) {
                 // If we're already at the end of the string, don't insert a
                 // fallback.
                 if (input_len > 0) {
@@ -162,9 +165,6 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
                     // Append the unicode fallback character to the output
                     output_str.append(u"\ufffd", 1);
                 }
-
-                // Clear the error.
-                g_clear_error(&error);
             } else if (g_error_matches(error, G_IO_ERROR,
                                        G_IO_ERROR_NO_SPACE)) {
                 // If the buffer was full increase the buffer
@@ -180,9 +180,6 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
                 } else {
                     buffer_size += bytes_len;
                 }
-
-                // Clear the error.
-                g_clear_error(&error);
             }
         }
 
@@ -215,7 +212,7 @@ static JSString* gjs_decode_from_uint8array_slow(JSContext* cx,
     }
 
     size_t bytes_written, bytes_read;
-    GError* error = nullptr;
+    GjsAutoError error;
 
     GjsAutoChar bytes =
         g_convert(reinterpret_cast<const char*>(input), input_len,
@@ -326,7 +323,7 @@ JSString* gjs_decode_from_uint8array(JSContext* cx, JS::HandleObject byte_array,
                 // Clear the existing exception.
                 JS_ClearPendingException(cx);
                 gjs_throw_custom(
-                    cx, JSProto_TypeError, nullptr,
+                    cx, JSEXN_TYPEERR, nullptr,
                     "The provided encoded data was not valid UTF-8");
             }
 
@@ -412,7 +409,7 @@ JSObject* gjs_encode_to_uint8array(JSContext* cx, JS::HandleString str,
         if (array_buffer)
             mozilla::Unused << utf8.release();
     } else {
-        GError* error = nullptr;
+        GjsAutoError error;
         GjsAutoChar encoded = nullptr;
         size_t bytes_written;
 
@@ -475,7 +472,7 @@ static bool gjs_encode_into_uint8array(JSContext* cx, JS::HandleString str,
                                        JS::HandleObject uint8array,
                                        JS::MutableHandleValue rval) {
     if (!JS_IsUint8Array(uint8array)) {
-        gjs_throw_custom(cx, JSProto_TypeError, nullptr,
+        gjs_throw_custom(cx, JSEXN_TYPEERR, nullptr,
                          "Argument to encodeInto() must be a Uint8Array");
         return false;
     }
@@ -488,7 +485,7 @@ static bool gjs_encode_into_uint8array(JSContext* cx, JS::HandleString str,
         return false;
     }
 
-    mozilla::Maybe<mozilla::Tuple<size_t, size_t>> results;
+    mozilla::Maybe<std::tuple<size_t, size_t>> results;
 
     {
         JS::AutoCheckCannotGC nogc(cx);
@@ -507,7 +504,7 @@ static bool gjs_encode_into_uint8array(JSContext* cx, JS::HandleString str,
     }
 
     size_t read, written;
-    mozilla::Tie(read, written) = *results;
+    std::tie(read, written) = *results;
 
     g_assert(written <= len);
 

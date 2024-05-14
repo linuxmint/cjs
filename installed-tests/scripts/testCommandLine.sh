@@ -148,14 +148,14 @@ report_xfail "Invalid option should exit with failure"
 $gjs --invalid-option 2>&1 | grep -q invalid-option
 report "Invalid option should print a relevant message"
 
-# Test that System.exit() works in gjs-console
+# Test that System.exit() works in cjs-console
 $gjs -c 'imports.system.exit(0)'
 report "System.exit(0) should exit successfully"
 $gjs -c 'imports.system.exit(42)'
 test $? -eq 42
 report "System.exit(42) should exit with the correct exit code"
 
-# Test the System.programPath works in gjs-console
+# Test the System.programPath works in cjs-console
 $gjs argv.js
 report "System.programPath should end in '/argv.js' when gjs argv.js is run"
 
@@ -327,7 +327,8 @@ report "avoid statically importing two versions of the same module"
 # https://gitlab.gnome.org/GNOME/gjs/-/issues/19
 echo "# VALGRIND = $VALGRIND"
 if test -z $VALGRIND; then
-    ASAN_OPTIONS=detect_leaks=0 output=$($gjs -m signalexit.js)
+    output=$(env LSAN_OPTIONS=detect_leaks=0 ASAN_OPTIONS=detect_leaks=0 \
+        $gjs -m signalexit.js)
     test $? -eq 15
     report "exit with correct code from a signal callback"
     test -n "$output" -a -z "${output##*click 1*}"

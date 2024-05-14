@@ -39,6 +39,7 @@
 #include <js/ValueArray.h>
 #include <jsapi.h>        // for JS_InstanceOf
 #include <jsfriendapi.h>  // for ProtoKeyToClass
+#include <jspubtd.h>      // for JSProto_InternalError, JSProto_SyntaxError
 
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
@@ -330,8 +331,6 @@ static std::string format_exception_with_cause(
         out << '\n' << utf8_stack.get();
     JS_ClearPendingException(cx);
 
-    // COMPAT: use JS::GetExceptionCause, mozjs 91.6 and later, on Error objects
-    // in order to avoid side effects
     JS::RootedValue v_cause(cx);
     if (!JS_GetPropertyById(cx, exc_obj, atoms.cause(), &v_cause))
         JS_ClearPendingException(cx);
@@ -556,56 +555,18 @@ gjs_maybe_gc (JSContext *context)
     gjs_gc_if_needed(context);
 }
 
-/**
- * gjs_get_import_global:
- * @context: a #JSContext
- *
- * Gets the "import global" for the context's runtime. The import
- * global object is the global object for the context. It is used
- * as the root object for the scope of modules loaded by GJS in this
- * runtime, and should also be used as the globals 'obj' argument passed
- * to JS_InitClass() and the parent argument passed to JS_ConstructObject()
- * when creating a native classes that are shared between all contexts using
- * the runtime. (The standard JS classes are not shared, but we share
- * classes such as GObject proxy classes since objects of these classes can
- * easily migrate between contexts and having different classes depending
- * on the context where they were first accessed would be confusing.)
- *
- * Return value: the "import global" for the context's
- *  runtime. Will never return %NULL while GJS has an active context
- *  for the runtime.
- */
-JSObject* gjs_get_import_global(JSContext* cx) {
-    return GjsContextPrivate::from_cx(cx)->global();
-}
-
-/**
- * gjs_get_internal_global:
- *
- * @brief Gets the "internal global" for the context's runtime. The internal
- * global object is the global object used for all "internal" JavaScript
- * code (e.g. the module loader) that should not be accessible from users'
- * code.
- *
- * @param cx a #JSContext
- *
- * @returns the "internal global" for the context's
- *  runtime. Will never return %NULL while GJS has an active context
- *  for the runtime.
- */
-JSObject* gjs_get_internal_global(JSContext* cx) {
-    return GjsContextPrivate::from_cx(cx)->internal_global();
-}
-
 const char* gjs_explain_gc_reason(JS::GCReason reason) {
     if (JS::InternalGCReason(reason))
         return JS::ExplainGCReason(reason);
 
     static const char* reason_strings[] = {
+        // clang-format off
         "RSS above threshold",
         "GjsContext disposed",
         "Big Hammer hit",
         "gjs_context_gc() called",
+        "Memory usage is low",
+        // clang-format on
     };
     static_assert(G_N_ELEMENTS(reason_strings) == Gjs::GCReason::N_REASONS,
                   "Explanations must match the values in Gjs::GCReason");

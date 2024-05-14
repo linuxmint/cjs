@@ -1,4 +1,4 @@
-#!/usr/bin/env cjs
+#!/usr/bin/env -S cjs -m
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2016 Philip Chimento <philip.chimento@gmail.com>
 
@@ -122,10 +122,11 @@ if (valgrind || (gcZeal && (gcZeal === '2' || gcZeal.startsWith('2,') || gcZeal 
 export let mainloopLock = null;
 
 /**
- * Stops the mainloop but prevents the minijasmine-executor from
- * exiting.
+ * Stops the main loop but prevents the minijasmine-executor from
+ * exiting. This is used for testing the main loop itself.
  *
- * @returns a callback which returns control to minijasmine-executor
+ * @returns a callback which returns control of the main loop to
+ *   minijasmine-executor
  */
 export function acquireMainloop() {
     let resolve;

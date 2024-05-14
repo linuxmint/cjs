@@ -23,8 +23,8 @@ else:
 
 if os.name == 'nt':
     # Using symlinks on Windows often require administrative privileges,
-    # which is not what we want.  Instead, copy gjs-console.exe.
-    shutil.copyfile('gjs-console.exe', os.path.join(installed_bin_dir, 'gjs.exe'))
+    # which is not what we want.  Instead, copy cjs-console.exe.
+    shutil.copyfile('cjs-console.exe', os.path.join(installed_bin_dir, 'cjs.exe'))
 else:
     try:
         temp_link = tempfile.mktemp(dir=installed_bin_dir)

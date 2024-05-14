@@ -200,6 +200,21 @@ try {
 }
 ```
 
+Note that for "finish" methods that normally return an array with a success
+boolean, a wrapped function will automatically remove it from the return value:
+
+```js
+Gio._promisify(Gio.File.prototype, 'load_contents_async',
+    'load_contents_finish');
+
+try {
+    const file = Gio.File.new_for_path('file.txt');
+    const [contents, len, etag] = await file.load_contents_async(null);
+} catch (e) {
+    logError(e, 'Failed to load file contents');
+}
+```
+
 ### Gio.FileEnumerator[Symbol.asyncIterator]
 
 [Gio.FileEnumerator](gio-fileenumerator) are [async iterators](async-iterators).
@@ -312,6 +327,19 @@ for (const bytes of inputStream.createSyncIterator(4)) {
 [gbytes]: https://gjs-docs.gnome.org/glib20/glib.bytes
 [ginputstream]: https://gjs-docs.gnome.org/gio20/gio.inputstream
 
+### Gio.Application.runAsync()
+
+Returns:
+* (`Promise`)
+
+Similar to [`Gio.Application.run`][gio-application-run] but return a Promise which resolves when
+the main loop ends, instead of blocking while the main loop runs.
+
+This helps avoid the situation where Promises never resolved if you didn't
+run the application inside a callback.
+
+[gio-application-run]: https://gjs-docs.gnome.org/gio20~2.0/gio.application#method-run
+
 ## [GLib](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/core/overrides/GLib.js)
 
 The `GLib` override includes a number of utilities and conveniences for working
@@ -379,6 +407,18 @@ Note that this method will unpack source values (e.g. `uint32`) to native values
 (e.g. `Number`), so some type information may not be fully represented in the
 result.
 
+### GLib.MainLoop.runAsync()
+
+Returns:
+* (`Promise`)
+
+Similar to [`GLib.MainLoop.run`][glib-mainloop-run] but return a Promise which resolves when
+the main loop ends, instead of blocking while the main loop runs.
+
+This helps avoid the situation where Promises never resolved if you didn't
+run the main loop inside a callback.
+
+[glib-mainloop-run]: https://gjs-docs.gnome.org/glib20/glib.mainloop#method-run
 
 ## [GObject](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/core/overrides/GObject.js)
 
@@ -419,6 +459,12 @@ log(GObject.type_from_name('GObject'));
 Note that the GType name for user-defined subclasses will be prefixed with
 `Gjs_` (i.e. `Gjs_MyObject`), unless the `GTypeName` class property is specified
 when calling [`GObject.registerClass()`](#gobject-registerclass).
+
+Some applications, notably GNOME Shell, may set
+[`GObject.gtypeNameBasedOnJSPath`](#gobject-gtypenamebasedonjspath) to `true`
+which changes the prefix from `Gjs_` to `Gjs_<import path>`. For example, the
+GNOME Shell class `Notification` in `ui/messageTray.js` has the GType name
+`Gjs_ui_messageTray_Notification`.
 
 [gtypefromname]: https://gjs-docs.gnome.org/gobject20/gobject.type_from_name
 [gtype-objects]: https://gjs-docs.gnome.org/gjs/mapping.md#gtype-objects
@@ -787,6 +833,29 @@ Returns:
 Disconnects all handlers on an instance that match `data`.
 
 [gobject]: https://gjs-docs.gnome.org/gobject20/gobject.object
+
+### GObject.gtypeNameBasedOnJSPath
+
+> Warning: This property is for advanced use cases. Never set this property in
+> a GNOME Shell Extension, or a loadable script in a GJS application.
+
+Type:
+* `Boolean`
+
+Flags:
+* Read / Write
+
+The property controls the default prefix for the [GType name](#gtype-objects) of
+a user-defined class, if not set manually.
+
+By default this property is set to `false`, and any class that does not define
+`GTypeName` when calling [`GObject.registerClass()`](#gobject-registerclass)
+will be assigned a GType name of `Gjs_<JavaScript class name>`.
+
+If set to `true`, the prefix will include the import path, which can avoid
+conflicts if the application has multiple modules containing classes with the
+same name. For example, the GNOME Shell class `Notification` in
+`ui/messageTray.js` has the GType name `Gjs_ui_messageTray_Notification`.
 
 
 ## [Gtk](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/modules/core/overrides/Gtk.js)

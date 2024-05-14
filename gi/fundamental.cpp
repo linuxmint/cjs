@@ -12,6 +12,7 @@
 #include <js/Class.h>
 #include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
 #include <js/GCHashTable.h>  // for WeakCache
+#include <js/HashTable.h>    // for DefaultHasher via WeakCache
 #include <js/Object.h>       // for GetClass
 #include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
@@ -26,6 +27,7 @@
 #include "gi/function.h"
 #include "gi/fundamental.h"
 #include "gi/repo.h"
+#include "gi/value.h"
 #include "gi/wrapperutils.h"
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
@@ -483,11 +485,11 @@ bool FundamentalBase::to_gvalue(JSContext* cx, JS::HandleObject obj,
             return true;
         } else if (g_value_type_transformable(instance->gtype(),
                                               G_VALUE_TYPE(gvalue))) {
-            GValue instance_value = {0};
+            Gjs::AutoGValue instance_value;
             g_value_init(&instance_value, instance->gtype());
             g_value_set_instance(&instance_value, instance->m_ptr);
-            g_value_transform(&instance_value, gvalue);
-            return true;
+            if (g_value_transform(&instance_value, gvalue))
+                return true;
         }
 
         gjs_throw(cx,

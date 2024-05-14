@@ -121,6 +121,14 @@ static bool report_invalid_null(JSContext* cx, const char* arg_name) {
     return false;
 }
 
+// Overload operator| so that Visual Studio won't complain
+// when converting unsigned char to GjsArgumentFlags
+GjsArgumentFlags operator|(
+    GjsArgumentFlags const& v1, GjsArgumentFlags const& v2) {
+    return static_cast<GjsArgumentFlags>(std::underlying_type<GjsArgumentFlags>::type(v1) |
+                                         std::underlying_type<GjsArgumentFlags>::type(v2));
+}
+
 namespace Gjs {
 namespace Arg {
 
@@ -170,14 +178,6 @@ struct Nullable {
     }
 };
 
-// Overload operator| so that Visual Studio won't complain
-// when converting unsigned char to GjsArgumentFlags
-GjsArgumentFlags operator|(
-    GjsArgumentFlags const& v1, GjsArgumentFlags const& v2) {
-    return static_cast<GjsArgumentFlags>(std::underlying_type<GjsArgumentFlags>::type(v1) |
-                                         std::underlying_type<GjsArgumentFlags>::type(v2));
-}
-
 struct Positioned {
     void set_arg_pos(int pos) {
         g_assert(pos <= Argument::MAX_ARGS &&
@@ -216,30 +216,31 @@ struct BaseInfo {
 };
 
 // boxed / union / GObject
-struct RegisteredType {
+struct GTypedType {
+    explicit GTypedType(GType gtype) : m_gtype(gtype) {}
+    constexpr GType gtype() const { return m_gtype; }
+
+ protected:
+    GType m_gtype;
+};
+
+struct RegisteredType : GTypedType {
     RegisteredType(GType gtype, GIInfoType info_type)
-        : m_gtype(gtype), m_info_type(info_type) {}
+        : GTypedType(gtype), m_info_type(info_type) {}
     explicit RegisteredType(GIBaseInfo* info)
-        : m_gtype(g_registered_type_info_get_g_type(info)),
+        : GTypedType(g_registered_type_info_get_g_type(info)),
           m_info_type(g_base_info_get_type(info)) {
         g_assert(m_gtype != G_TYPE_NONE &&
                  "Use RegisteredInterface for this type");
     }
 
-    constexpr GType gtype() const { return m_gtype; }
-
-    GType m_gtype;
     GIInfoType m_info_type : 5;
 };
 
-struct RegisteredInterface : BaseInfo {
+struct RegisteredInterface : BaseInfo, GTypedType {
     explicit RegisteredInterface(GIBaseInfo* info)
         : BaseInfo(info, GjsAutoTakeOwnership{}),
-          m_gtype(g_registered_type_info_get_g_type(m_info)) {}
-
-    constexpr GType gtype() const { return m_gtype; }
-
-    GType m_gtype;
+          GTypedType(g_registered_type_info_get_g_type(m_info)) {}
 };
 
 struct Callback : Nullable, BaseInfo {
@@ -574,6 +575,8 @@ struct GBytesIn : BoxedIn {
     using BoxedIn::BoxedIn;
     bool in(JSContext*, GjsFunctionCallState*, GIArgument*,
             JS::HandleValue) override;
+    bool release(JSContext* cx, GjsFunctionCallState* state, GIArgument* in_arg,
+                 GIArgument* out_arg) override;
 };
 
 struct GBytesInTransferNone : GBytesIn {
@@ -711,6 +714,12 @@ struct CallerAllocatesOut : GenericOut, CallerAllocates {
     GjsArgumentFlags flags() const override {
         return GenericOut::flags() | GjsArgumentFlags::CALLER_ALLOCATES;
     }
+};
+
+struct BoxedCallerAllocatesOut : CallerAllocatesOut, GTypedType {
+    using GTypedType::GTypedType;
+    bool release(JSContext*, GjsFunctionCallState*, GIArgument*,
+                 GIArgument*) override;
 };
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -1200,6 +1209,7 @@ bool GBytesIn::in(JSContext* cx, GjsFunctionCallState* state, GIArgument* arg,
 
     JS::RootedObject object(cx, &value.toObject());
     if (JS_IsUint8Array(object)) {
+        state->ignore_release.insert(arg);
         gjs_arg_set(arg, gjs_byte_array_get_bytes(object));
         return true;
     }
@@ -1208,6 +1218,15 @@ bool GBytesIn::in(JSContext* cx, GjsFunctionCallState* state, GIArgument* arg,
     // ownership, so we need to do the same here.
     return BoxedBase::transfer_to_gi_argument(
         cx, object, arg, GI_DIRECTION_IN, GI_TRANSFER_EVERYTHING, G_TYPE_BYTES);
+}
+
+GJS_JSAPI_RETURN_CONVENTION
+bool GBytesIn::release(JSContext* cx, GjsFunctionCallState* state,
+                       GIArgument* in_arg, GIArgument* out_arg) {
+    if (state->ignore_release.erase(in_arg))
+        return BoxedIn::release(cx, state, in_arg, out_arg);
+
+    return BoxedInTransferNone::release(cx, state, in_arg, out_arg);
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -1330,7 +1349,8 @@ bool ExplicitArrayInOut::out(JSContext* cx, GjsFunctionCallState* state,
     GIArgument* length_arg = &(state->out_cvalue(m_length_pos));
     size_t length = gjs_g_argument_get_array_length(m_tag, length_arg);
 
-    return gjs_value_from_explicit_array(cx, value, &m_type_info, arg, length);
+    return gjs_value_from_explicit_array(cx, value, &m_type_info, m_transfer,
+                                         arg, length);
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -1414,6 +1434,13 @@ bool CallerAllocatesOut::release(JSContext*, GjsFunctionCallState*,
                                  GIArgument* in_arg,
                                  GIArgument* out_arg [[maybe_unused]]) {
     g_free(gjs_arg_steal<void*>(in_arg));
+    return true;
+}
+
+GJS_JSAPI_RETURN_CONVENTION
+bool BoxedCallerAllocatesOut::release(JSContext*, GjsFunctionCallState*,
+                                      GIArgument* in_arg, GIArgument*) {
+    g_boxed_free(m_gtype, gjs_arg_steal<void*>(in_arg));
     return true;
 }
 
@@ -1518,16 +1545,16 @@ constexpr size_t argument_maximum_size() {
 #endif
 
 template <typename T, Arg::Kind ArgKind, typename... Args>
-std::unique_ptr<T> Argument::make(uint8_t index, const char* name,
-                                  GITypeInfo* type_info, GITransfer transfer,
-                                  GjsArgumentFlags flags, Args&&... args) {
+GjsAutoCppPointer<T> Argument::make(uint8_t index, const char* name,
+                                    GITypeInfo* type_info, GITransfer transfer,
+                                    GjsArgumentFlags flags, Args&&... args) {
 #ifdef GJS_DO_ARGUMENTS_SIZE_CHECK
     static_assert(
         sizeof(T) <= argument_maximum_size<T>(),
         "Think very hard before increasing the size of Gjs::Arguments. "
         "One is allocated for every argument to every introspected function.");
 #endif
-    auto arg = std::make_unique<T>(args...);
+    auto arg = new T(args...);
 
     if constexpr (ArgKind == Arg::Kind::INSTANCE) {
         g_assert(index == Argument::ABSENT &&
@@ -1563,10 +1590,6 @@ std::unique_ptr<T> Argument::make(uint8_t index, const char* name,
     return arg;
 }
 
-//  Needed for unique_ptr with incomplete type
-ArgsCache::ArgsCache() = default;
-ArgsCache::~ArgsCache() = default;
-
 bool ArgsCache::initialize(JSContext* cx, GICallableInfo* callable) {
     if (!callable) {
         gjs_throw(cx, "Invalid callable provided");
@@ -1597,38 +1620,35 @@ bool ArgsCache::initialize(JSContext* cx, GICallableInfo* callable) {
         return false;
     }
 
-    m_args = std::make_unique<Argument::UniquePtr[]>(size);
+    m_args = new ArgumentPtr[size]{};
     return true;
 }
 
-void ArgsCache::clear() {
-    m_args.reset();
-}
-
 template <typename T, Arg::Kind ArgKind, typename... Args>
-T* ArgsCache::set_argument(uint8_t index, const char* name,
-                           GITypeInfo* type_info, GITransfer transfer,
-                           GjsArgumentFlags flags, Args&&... args) {
-    std::unique_ptr<T> arg = Argument::make<T, ArgKind>(
+constexpr T* ArgsCache::set_argument(uint8_t index, const char* name,
+                                     GITypeInfo* type_info, GITransfer transfer,
+                                     GjsArgumentFlags flags, Args&&... args) {
+    GjsAutoCppPointer<T> arg = Argument::make<T, ArgKind>(
         index, name, type_info, transfer, flags, args...);
-    arg_get<ArgKind>(index) = std::move(arg);
+    arg_get<ArgKind>(index) = arg.release();
     return static_cast<T*>(arg_get<ArgKind>(index).get());
 }
 
 template <typename T, Arg::Kind ArgKind, typename... Args>
-T* ArgsCache::set_argument(uint8_t index, const char* name, GITransfer transfer,
-                           GjsArgumentFlags flags, Args&&... args) {
+constexpr T* ArgsCache::set_argument(uint8_t index, const char* name,
+                                     GITransfer transfer,
+                                     GjsArgumentFlags flags, Args&&... args) {
     return set_argument<T, ArgKind>(index, name, nullptr, transfer, flags,
                                     args...);
 }
 
 template <typename T, Arg::Kind ArgKind, typename... Args>
-T* ArgsCache::set_argument_auto(Args&&... args) {
+constexpr T* ArgsCache::set_argument_auto(Args&&... args) {
     return set_argument<T, ArgKind>(std::forward<Args>(args)...);
 }
 
 template <typename T, Arg::Kind ArgKind, typename Tuple, typename... Args>
-T* ArgsCache::set_argument_auto(Tuple&& tuple, Args&&... args) {
+constexpr T* ArgsCache::set_argument_auto(Tuple&& tuple, Args&&... args) {
     // TODO(3v1n0): Would be nice to have a simple way to check we're handling a
     // tuple
     return std::apply(
@@ -1640,23 +1660,17 @@ T* ArgsCache::set_argument_auto(Tuple&& tuple, Args&&... args) {
 }
 
 template <typename T>
-T* ArgsCache::set_return(GITypeInfo* type_info, GITransfer transfer,
-                         GjsArgumentFlags flags) {
+constexpr T* ArgsCache::set_return(GITypeInfo* type_info, GITransfer transfer,
+                                   GjsArgumentFlags flags) {
     return set_argument<T, Arg::Kind::RETURN_VALUE>(Argument::ABSENT, nullptr,
                                                     type_info, transfer, flags);
 }
 
 template <typename T>
-T* ArgsCache::set_instance(GITransfer transfer, GjsArgumentFlags flags) {
+constexpr T* ArgsCache::set_instance(GITransfer transfer,
+                                     GjsArgumentFlags flags) {
     return set_argument<T, Arg::Kind::INSTANCE>(Argument::ABSENT, nullptr,
                                                 transfer, flags);
-}
-
-Argument* ArgsCache::instance() const {
-    if (!m_is_method)
-        return nullptr;
-
-    return arg_get<Arg::Kind::INSTANCE>().get();
 }
 
 GType ArgsCache::instance_type() const {
@@ -1664,13 +1678,6 @@ GType ArgsCache::instance_type() const {
         return G_TYPE_NONE;
 
     return instance()->as_instance()->gtype();
-}
-
-Argument* ArgsCache::return_value() const {
-    if (!m_has_return)
-        return nullptr;
-
-    return arg_get<Arg::Kind::RETURN_VALUE>().get();
 }
 
 GITypeInfo* ArgsCache::return_type() const {
@@ -1681,7 +1688,7 @@ GITypeInfo* ArgsCache::return_type() const {
     return const_cast<GITypeInfo*>(rval->as_return_value()->type_info());
 }
 
-void ArgsCache::set_skip_all(uint8_t index, const char* name) {
+constexpr void ArgsCache::set_skip_all(uint8_t index, const char* name) {
     set_argument<Arg::SkipAll>(index, name, GI_TRANSFER_NOTHING,
                                GjsArgumentFlags::SKIP_ALL);
 }
@@ -2100,21 +2107,6 @@ void ArgsCache::build_instance(GICallableInfo* callable) {
         GjsArgumentFlags::NONE);
 }
 
-static size_t get_type_info_interface_size(GITypeInfo* type_info) {
-    GjsAutoBaseInfo interface_info = g_type_info_get_interface(type_info);
-    g_assert(interface_info);
-
-    GIInfoType interface_type = g_base_info_get_type(interface_info);
-
-    if (interface_type == GI_INFO_TYPE_STRUCT) {
-        return g_struct_info_get_size(interface_info);
-    } else if (interface_type == GI_INFO_TYPE_UNION) {
-        return g_union_info_get_size(interface_info);
-    }
-
-    return 0;
-}
-
 void ArgsCache::build_arg(uint8_t gi_index, GIDirection direction,
                           GIArgInfo* arg, GICallableInfo* callable,
                           bool* inc_counter_out) {
@@ -2160,26 +2152,33 @@ void ArgsCache::build_arg(uint8_t gi_index, GIDirection direction,
                     param_info = g_type_info_get_param_type(&type_info, 0);
                     GITypeTag param_tag = g_type_info_get_tag(param_info);
 
-                    if (param_tag == GI_TYPE_TAG_INTERFACE) {
-                        size = get_type_info_interface_size(param_info);
-                    } else {
-                        size = gjs_array_get_element_size(param_tag);
-                    }
-
+                    size = gjs_type_get_element_size(param_tag, param_info);
                     size *= n_elements;
                     break;
                 }
                 default:
                     break;
             }
-        } else if (type_tag == GI_TYPE_TAG_INTERFACE) {
-            size = get_type_info_interface_size(&type_info);
+        } else {
+            size = gjs_type_get_element_size(type_tag, &type_info);
         }
 
         if (!size) {
             set_argument_auto<Arg::NotIntrospectable>(
                 common_args, OUT_CALLER_ALLOCATES_NON_STRUCT);
             return;
+        }
+
+        if (type_tag == GI_TYPE_TAG_INTERFACE) {
+            GjsAutoBaseInfo interface_info =
+                g_type_info_get_interface(&type_info);
+            GType gtype = g_registered_type_info_get_g_type(interface_info);
+            if (g_type_is_a(gtype, G_TYPE_BOXED)) {
+                auto* gjs_arg = set_argument_auto<Arg::BoxedCallerAllocatesOut>(
+                    common_args, gtype);
+                gjs_arg->m_allocates_size = size;
+                return;
+            }
         }
 
         auto* gjs_arg = set_argument_auto<Arg::CallerAllocatesOut>(common_args);

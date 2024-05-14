@@ -22,7 +22,7 @@
 #include <js/CharacterEncoding.h>
 #include <js/Class.h>
 #include <js/ComparisonOperators.h>
-#include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
+#include <js/ErrorReport.h>  // for JS_ReportOutOfMemory, JSEXN_ERR
 #include <js/Exception.h>
 #include <js/GlobalObject.h>  // for CurrentGlobalOrNull
 #include <js/Id.h>  // for PropertyKey
@@ -36,8 +36,7 @@
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
-#include <jsapi.h>    // for JS_NewPlainObject, IdVector, JS_...
-#include <jspubtd.h>  // for JSProto_Error
+#include <jsapi.h>  // for JS_NewPlainObject, IdVector, JS_...
 #include <mozilla/Maybe.h>
 #include <mozilla/UniquePtr.h>
 
@@ -283,7 +282,7 @@ gjs_import_native_module(JSContext       *cx,
     gjs_debug(GJS_DEBUG_IMPORTER, "Importing '%s'", parse_name);
 
     JS::RootedObject native_registry(
-        cx, gjs_get_native_registry(gjs_get_import_global(cx)));
+        cx, gjs_get_native_registry(JS::CurrentGlobalOrNull(cx)));
 
     JS::RootedId id(cx, gjs_intern_string_to_id(cx, parse_name));
     if (id.isVoid())
@@ -310,7 +309,7 @@ import_module_init(JSContext       *context,
                    JS::HandleObject module_obj)
 {
     gsize script_len = 0;
-    GError *error = NULL;
+    GjsAutoError error;
 
     GjsContextPrivate* gjs = GjsContextPrivate::from_cx(context);
     JS::RootedValue ignored(context);
@@ -325,7 +324,6 @@ import_module_init(JSContext       *context,
             return false;
         }
 
-        g_error_free(error);
         return true;
     }
     g_assert(script);
@@ -607,7 +605,7 @@ static bool do_import(JSContext* context, JS::HandleObject obj,
     /* If no exception occurred, the problem is just that we got to the
      * end of the path. Be sure an exception is set. */
     g_assert(!JS_IsExceptionPending(context));
-    gjs_throw_custom(context, JSProto_Error, "ImportError",
+    gjs_throw_custom(context, JSEXN_ERR, "ImportError",
                      "No JS module '%s' found in search path", name.get());
     return false;
 }
@@ -701,8 +699,7 @@ static bool importer_new_enumerate(JSContext* context, JS::HandleObject object,
                     JS_ReportOutOfMemory(context);
                     return false;
                 }
-            } else if (g_str_has_suffix(filename, "." G_MODULE_SUFFIX) ||
-                       g_str_has_suffix(filename, ".js")) {
+            } else if (g_str_has_suffix(filename, ".js")) {
                 GjsAutoChar filename_noext =
                     g_strndup(filename, strlen(filename) - 3);
                 jsid id = gjs_intern_string_to_id(context, filename_noext);

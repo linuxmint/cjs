@@ -58,7 +58,6 @@
 #include "gi/wrapperutils.h"
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
-#include "cjs/context.h"
 #include "cjs/deprecation.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util.h"
@@ -165,10 +164,9 @@ bool ObjectInstance::check_gobject_disposed_or_finalized(
         "Object %s.%s (%p), has been already %s — impossible to %s "
         "it. This might be caused by the object having been destroyed from C "
         "code using something such as destroy(), dispose(), or remove() "
-        "vfuncs.",
+        "vfuncs.\n%s",
         ns(), name(), m_ptr.get(), m_gobj_finalized ? "finalized" : "disposed",
-        for_what);
-    gjs_dumpstack();
+        for_what, gjs_dumpstack_string().c_str());
     return false;
 }
 
@@ -315,7 +313,8 @@ bool ObjectBase::prop_getter(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::RootedString name(cx,
         gjs_dynamic_property_private_slot(&args.callee()).toString());
 
-    std::string fullName = priv->format_name() + "." + gjs_debug_string(name);
+    std::string fullName{priv->format_name() + "[" + gjs_debug_string(name) +
+                         "]"};
     AutoProfilerLabel label(cx, "property getter", fullName.c_str());
 
     priv->debug_jsprop("Property getter", name, obj);
@@ -438,8 +437,9 @@ bool ObjectInstance::field_getter_impl(JSContext* cx, JS::HandleString name,
         return false;
     }
 
-    return gjs_value_from_g_argument(cx, rval, type, &arg, true);
-    /* copy_structs is irrelevant because g_field_info_get_field() doesn't
+    return gjs_value_from_g_argument(cx, rval, type, GJS_ARGUMENT_FIELD,
+                                     GI_TRANSFER_EVERYTHING, &arg);
+    /* transfer is irrelevant because g_field_info_get_field() doesn't
      * handle boxed types */
 }
 
@@ -451,7 +451,8 @@ bool ObjectBase::prop_setter(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::RootedString name(cx,
         gjs_dynamic_property_private_slot(&args.callee()).toString());
 
-    std::string fullName = priv->format_name() + "." + gjs_debug_string(name);
+    std::string fullName{priv->format_name() + "[" + gjs_debug_string(name) +
+                         "]"};
     AutoProfilerLabel label(cx, "property setter", fullName.c_str());
 
     priv->debug_jsprop("Property setter", name, obj);
@@ -486,8 +487,12 @@ bool ObjectInstance::prop_setter_impl(JSContext* cx, JS::HandleString name,
         /* prevent setting the prop even in JS */
         return gjs_wrapper_throw_readonly_field(cx, gtype(), param_spec->name);
 
-    if (param_spec->flags & G_PARAM_DEPRECATED)
-        _gjs_warn_deprecated_once_per_callsite(cx, DeprecatedGObjectProperty);
+    if (param_spec->flags & G_PARAM_DEPRECATED) {
+        const std::string& class_name = format_name();
+        _gjs_warn_deprecated_once_per_callsite(
+            cx, DeprecatedGObjectProperty,
+            {class_name.c_str(), param_spec->name});
+    }
 
     gjs_debug_jsprop(GJS_DEBUG_GOBJECT, "Setting GObject prop %s",
                      param_spec->name);
@@ -507,7 +512,8 @@ bool ObjectBase::field_setter(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::RootedString name(cx,
         gjs_dynamic_property_private_slot(&args.callee()).toString());
 
-    std::string fullName = priv->format_name() + "." + gjs_debug_string(name);
+    std::string fullName{priv->format_name() + "[" + gjs_debug_string(name) +
+                         "]"};
     AutoProfilerLabel label(cx, "field setter", fullName.c_str());
 
     priv->debug_jsprop("Field setter", name, obj);
@@ -547,21 +553,17 @@ bool ObjectInstance::field_setter_not_impl(JSContext* cx,
 }
 
 bool ObjectPrototype::is_vfunc_unchanged(GIVFuncInfo* info) {
+    GjsAutoError error;
     GType ptype = g_type_parent(m_gtype);
-    GError *error = NULL;
     gpointer addr1, addr2;
 
     addr1 = g_vfunc_info_get_address(info, m_gtype, &error);
-    if (error) {
-        g_clear_error(&error);
+    if (error)
         return false;
-    }
 
     addr2 = g_vfunc_info_get_address(info, ptype, &error);
-    if (error) {
-        g_clear_error(&error);
+    if (error)
         return false;
-    }
 
     return addr1 == addr2;
 }
@@ -2082,7 +2084,7 @@ GIFieldInfo* ObjectPrototype::lookup_cached_field_info(JSContext* cx,
     }
 
     gjs_debug_jsprop(GJS_DEBUG_GOBJECT,
-                     "Looking up cached field info for '%s' in '%s' prototype",
+                     "Looking up cached field info for %s in '%s' prototype",
                      gjs_debug_string(key).c_str(), g_type_name(m_gtype));
     auto entry = m_field_cache.lookupForAdd(key);
     if (entry)

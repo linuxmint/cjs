@@ -12,6 +12,7 @@
 
 #include <girepository.h>
 #include <glib-object.h>
+#include <glib.h>  // for GHashTable
 
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
@@ -41,6 +42,10 @@ enum class GjsArgumentFlags : uint8_t {
     ARG_INOUT = ARG_IN | ARG_OUT,
 };
 
+// Overload operator| so that Visual Studio won't complain
+// when converting unsigned char to GjsArgumentFlags
+GjsArgumentFlags operator|(GjsArgumentFlags const& v1, GjsArgumentFlags const& v2);
+
 [[nodiscard]] char* gjs_argument_display_name(const char* arg_name,
                                               GjsArgumentType arg_type);
 
@@ -55,7 +60,7 @@ bool gjs_array_to_explicit_array(JSContext* cx, JS::HandleValue value,
                                  GjsArgumentFlags flags, void** contents,
                                  size_t* length_p);
 
-size_t gjs_array_get_element_size(GITypeTag element_type);
+size_t gjs_type_get_element_size(GITypeTag element_type, GITypeInfo* type_info);
 
 void gjs_gi_argument_init_default(GITypeInfo* type_info, GIArgument* arg);
 
@@ -76,18 +81,36 @@ bool inline gjs_value_to_g_argument(JSContext* cx, JS::HandleValue value,
 }
 
 GJS_JSAPI_RETURN_CONVENTION
-bool gjs_value_from_g_argument(JSContext             *context,
+bool gjs_value_from_g_argument(JSContext* context,
                                JS::MutableHandleValue value_p,
-                               GITypeInfo            *type_info,
-                               GIArgument            *arg,
-                               bool                   copy_structs);
+                               GITypeInfo* type_info,
+                               GjsArgumentType argument_type,
+                               GITransfer transfer, GIArgument* arg);
 
 GJS_JSAPI_RETURN_CONVENTION
-bool gjs_value_from_explicit_array(JSContext             *context,
+inline bool gjs_value_from_g_argument(JSContext* cx,
+                                      JS::MutableHandleValue value_p,
+                                      GITypeInfo* type_info, GIArgument* arg,
+                                      bool copy_structs) {
+    return gjs_value_from_g_argument(
+        cx, value_p, type_info, GJS_ARGUMENT_ARGUMENT,
+        copy_structs ? GI_TRANSFER_EVERYTHING : GI_TRANSFER_NOTHING, arg);
+}
+
+GJS_JSAPI_RETURN_CONVENTION
+bool gjs_value_from_explicit_array(JSContext* context,
                                    JS::MutableHandleValue value_p,
-                                   GITypeInfo            *type_info,
-                                   GIArgument            *arg,
-                                   int                    length);
+                                   GITypeInfo* type_info, GITransfer transfer,
+                                   GIArgument* arg, int length);
+
+GJS_JSAPI_RETURN_CONVENTION
+inline bool gjs_value_from_explicit_array(JSContext* context,
+                                          JS::MutableHandleValue value_p,
+                                          GITypeInfo* type_info,
+                                          GIArgument* arg, int length) {
+    return gjs_value_from_explicit_array(context, value_p, type_info,
+                                         GI_TRANSFER_EVERYTHING, arg, length);
+}
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_g_argument_release(JSContext*, GITransfer, GITypeInfo*,
@@ -135,6 +158,13 @@ bool gjs_array_to_strv (JSContext   *context,
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_array_from_g_value_array(JSContext* cx, JS::MutableHandleValue value_p,
-                                  GITypeInfo* param_info, const GValue* gvalue);
+                                  GITypeInfo* param_info, GITransfer,
+                                  const GValue* gvalue);
+
+GJS_JSAPI_RETURN_CONVENTION
+bool gjs_object_from_g_hash(JSContext* cx, JS::MutableHandleValue,
+                            GITypeInfo* key_param_info,
+                            GITypeInfo* val_param_info, GITransfer transfer,
+                            GHashTable* hash);
 
 #endif  // GI_ARG_H_
