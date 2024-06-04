@@ -110,15 +110,27 @@ describe('Gio.Settings overrides', function () {
     });
 
     it("doesn't crash when forgetting to specify a schema path", function () {
-        expect(() => new Gio.Settings({schema: 'org.gnome.GjsTest.Sub'}))
+        expect(() => new Gio.Settings({schema: 'org.cinnamon.CjsTest.Sub'}))
             .toThrowError(/schema/);
     });
 
     it("doesn't crash when specifying conflicting schema paths", function () {
         expect(() => new Gio.Settings({
-            schema: 'org.gnome.GjsTest',
+            schema: 'org.cinnamon.CjsTest',
             path: '/conflicting/path/',
         })).toThrowError(/schema/);
+    });
+
+    it('can construct with a settings schema object', function () {
+        const source = Gio.SettingsSchemaSource.get_default();
+        const settingsSchema = source.lookup('org.cinnamon.CjsTest', false);
+        expect(() => new Gio.Settings({settingsSchema})).not.toThrow();
+    });
+
+    it('throws proper error message when settings schema is specified with a wrong type', function () {
+        expect(() => new Gio.Settings({
+            settings_schema: 'string.path',
+        }).toThrowError('is not of type Gio.SettingsSchema'));
     });
 
     describe('with existing schema', function () {
@@ -127,7 +139,7 @@ describe('Gio.Settings overrides', function () {
         let settings;
 
         beforeEach(function () {
-            settings = new Gio.Settings({schema: 'org.gnome.GjsTest'});
+            settings = new Gio.Settings({schema: 'org.cinnamon.CjsTest'});
         });
 
         it("doesn't crash when resetting a nonexistent key", function () {

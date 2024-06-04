@@ -19,6 +19,7 @@
 #include <js/CharacterEncoding.h>
 #include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
+#include <js/ErrorReport.h>  // for JSEXN_ERR
 #include <js/Exception.h>
 #include <js/GCAPI.h>  // for JS_AddExtraGCRootsTracer
 #include <js/Modules.h>
@@ -36,7 +37,6 @@
 #include <js/ValueArray.h>
 #include <jsapi.h>        // for JS_NewPlainObject, JS_ObjectIsFunction
 #include <jsfriendapi.h>  // for JS_GetObjectFunction, SetFunctionNativeReserved
-#include <jspubtd.h>  // for JSProto_Error
 
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
@@ -89,8 +89,7 @@ bool gjs_load_internal_module(JSContext* cx, const char* identifier) {
     options.setFileAndLine(full_path, 1);
     options.setSelfHostingMode(false);
 
-    JS::RootedObject internal_global(cx, gjs_get_internal_global(cx));
-    JSAutoRealm ar(cx, internal_global);
+    Gjs::AutoInternalRealm ar{cx};
 
     JS::RootedValue ignored(cx);
     return JS::Evaluate(cx, options, buf, &ignored);
@@ -181,8 +180,7 @@ bool gjs_internal_compile_internal_module(JSContext* cx, unsigned argc,
                                           JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
-    JS::RootedObject global(cx, gjs_get_internal_global(cx));
-    JSAutoRealm ar(cx, global);
+    Gjs::AutoInternalRealm ar{cx};
 
     JS::UniqueChars uri;
     JS::RootedString source(cx);
@@ -196,10 +194,10 @@ bool gjs_internal_compile_internal_module(JSContext* cx, unsigned argc,
 /**
  * gjs_internal_compile_module:
  *
- * @brief Compiles a module source text within the import global's realm.
+ * @brief Compiles a module source text within the main realm.
  *
  * NOTE: Modules compiled with this function can only be executed
- * within the import global's realm.
+ * within the main realm.
  *
  * @param cx the current JSContext
  * @param argc
@@ -210,8 +208,7 @@ bool gjs_internal_compile_internal_module(JSContext* cx, unsigned argc,
 bool gjs_internal_compile_module(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
-    JS::RootedObject global(cx, gjs_get_import_global(cx));
-    JSAutoRealm ar(cx, global);
+    Gjs::AutoMainRealm ar{cx};
 
     JS::UniqueChars uri;
     JS::RootedString source(cx);
@@ -274,7 +271,6 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     using AutoHashTable =
         GjsAutoPointer<GHashTable, GHashTable, g_hash_table_destroy>;
     using AutoURI = GjsAutoPointer<GUri, GUri, g_uri_unref>;
-    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
 
     JS::CallArgs args = CallArgsFromVp(argc, vp);
     JS::RootedString string_arg(cx);
@@ -285,15 +281,14 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!uri)
         return false;
 
-    GError* error = nullptr;
+    GjsAutoError error;
     AutoURI parsed = g_uri_parse(uri.get(), G_URI_FLAGS_NONE, &error);
     if (!parsed) {
-        JSAutoRealm ar(cx, gjs->global());
+        Gjs::AutoMainRealm ar{cx};
 
-        gjs_throw_custom(cx, JSProto_Error, "ImportError",
+        gjs_throw_custom(cx, JSEXN_ERR, "ImportError",
                          "Attempted to import invalid URI: %s (%s)", uri.get(),
                          error->message);
-        g_clear_error(&error);
         return false;
     }
 
@@ -306,12 +301,11 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
         AutoHashTable query =
             g_uri_parse_params(raw_query, -1, "&", G_URI_PARAMS_NONE, &error);
         if (!query) {
-            JSAutoRealm ar(cx, gjs->global());
+            Gjs::AutoMainRealm ar{cx};
 
-            gjs_throw_custom(cx, JSProto_Error, "ImportError",
+            gjs_throw_custom(cx, JSEXN_ERR, "ImportError",
                              "Attempted to import invalid URI: %s (%s)",
                              uri.get(), error->message);
-            g_clear_error(&error);
             return false;
         }
 
@@ -407,16 +401,14 @@ bool gjs_internal_load_resource_or_file(JSContext* cx, unsigned argc,
 
     char* contents;
     size_t length;
-    GError* error = nullptr;
+    GjsAutoError error;
     if (!g_file_load_contents(file, /* cancellable = */ nullptr, &contents,
                               &length, /* etag_out = */ nullptr, &error)) {
-        GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
-        JSAutoRealm ar(cx, gjs->global());
+        Gjs::AutoMainRealm ar{cx};
 
-        gjs_throw_custom(cx, JSProto_Error, "ImportError",
+        gjs_throw_custom(cx, JSEXN_ERR, "ImportError",
                          "Unable to load file from: %s (%s)", uri.get(),
                          error->message);
-        g_clear_error(&error);
         return false;
     }
 
@@ -510,18 +502,17 @@ static void load_async_callback(GObject* file, GAsyncResult* res, void* data) {
     GjsContextPrivate* gjs = GjsContextPrivate::from_cx(promise->cx);
     gjs->main_loop_release();
 
-    JSAutoRealm ar(promise->cx, gjs->global());
+    Gjs::AutoMainRealm ar{gjs};
 
     char* contents;
     size_t length;
-    GError* error = nullptr;
+    GjsAutoError error;
     if (!g_file_load_contents_finish(G_FILE(file), res, &contents, &length,
                                      /* etag_out = */ nullptr, &error)) {
         GjsAutoChar uri = g_file_get_uri(G_FILE(file));
-        gjs_throw_custom(promise->cx, JSProto_Error, "ImportError",
+        gjs_throw_custom(promise->cx, JSEXN_ERR, "ImportError",
                          "Unable to load file from: %s (%s)", uri.get(),
                          error->message);
-        g_clear_error(&error);
         promise->reject_with_pending_exception();
         return;
     }

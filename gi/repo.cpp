@@ -4,7 +4,6 @@
 
 #include <config.h>
 
-#include <stdint.h>
 #include <string.h>  // for strlen
 
 #if GJS_VERBOSE_ENABLE_GI_USAGE
@@ -83,8 +82,6 @@ GJS_JSAPI_RETURN_CONVENTION
 static bool resolve_namespace_object(JSContext* context,
                                      JS::HandleObject repo_obj,
                                      JS::HandleId ns_id) {
-    GError *error;
-
     JS::UniqueChars version;
     if (!get_version_for_ns(context, repo_obj, ns_id, &version))
         return false;
@@ -108,14 +105,12 @@ static bool resolve_namespace_object(JSContext* context,
                       ns_name.get(), nversions))
         return false;
 
-    error = NULL;
+    GjsAutoError error;
     g_irepository_require(nullptr, ns_name.get(), version.get(),
                           GIRepositoryLoadFlags(0), &error);
-    if (error != NULL) {
+    if (error) {
         gjs_throw(context, "Requiring %s, version %s: %s", ns_name.get(),
                   version ? version.get() : "none", error->message);
-
-        g_error_free(error);
         return false;
     }
 
@@ -491,31 +486,23 @@ gjs_lookup_namespace_object(JSContext  *context,
     return gjs_lookup_namespace_object_by_name(context, ns_name);
 }
 
-/* Check if an exception's 'name' property is equal to compare_name. Ignores
+/* Check if an exception's 'name' property is equal to ImportError. Ignores
  * all errors that might arise. */
-[[nodiscard]] static bool error_has_name(JSContext* cx,
-                                         JS::HandleValue thrown_value,
-                                         JSString* compare_name) {
+[[nodiscard]] static bool is_import_error(JSContext* cx,
+                                          JS::HandleValue thrown_value) {
     if (!thrown_value.isObject())
         return false;
 
     JS::AutoSaveExceptionState saved_exc(cx);
     JS::RootedObject exc(cx, &thrown_value.toObject());
     JS::RootedValue exc_name(cx);
-    bool retval = false;
     const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
+    bool eq;
+    bool retval =
+        JS_GetPropertyById(cx, exc, atoms.name(), &exc_name) &&
+        JS_StringEqualsLiteral(cx, exc_name.toString(), "ImportError", &eq) &&
+        eq;
 
-    if (!JS_GetPropertyById(cx, exc, atoms.name(), &exc_name))
-        goto out;
-
-    int32_t cmp_result;
-    if (!JS_CompareStrings(cx, exc_name.toString(), compare_name, &cmp_result))
-        goto out;
-
-    if (cmp_result == 0)
-        retval = true;
-
-out:
     saved_exc.restore();
     return retval;
 }
@@ -528,7 +515,7 @@ lookup_override_function(JSContext             *cx,
 {
     JS::AutoSaveExceptionState saved_exc(cx);
 
-    JS::RootedObject global(cx, gjs_get_import_global(cx));
+    JS::RootedObject global{cx, JS::CurrentGlobalOrNull(cx)};
     JS::RootedValue importer(
         cx, gjs_get_global_slot(global, GjsGlobalSlot::IMPORTS));
     g_assert(importer.isObject());
@@ -538,7 +525,7 @@ lookup_override_function(JSContext             *cx,
     const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
     if (!gjs_object_require_property(cx, importer_obj, "importer",
                                      atoms.overrides(), &overridespkg))
-        goto fail;
+        return false;
 
     if (!gjs_object_require_property(cx, overridespkg,
                                      "GI repository object", ns_name,
@@ -548,12 +535,12 @@ lookup_override_function(JSContext             *cx,
 
         /* If the exception was an ImportError (i.e., module not found) then
          * we simply didn't have an override, don't throw an exception */
-        if (error_has_name(cx, exc, JS_AtomizeAndPinString(cx, "ImportError"))) {
+        if (is_import_error(cx, exc)) {
             saved_exc.restore();
             return true;
         }
 
-        goto fail;
+        return false;
     }
 
     // If the override module is present, it must have a callable _init(). An
@@ -563,13 +550,9 @@ lookup_override_function(JSContext             *cx,
                                      atoms.init(), function) ||
         !function.isObject() || !JS::IsCallable(&function.toObject())) {
         gjs_throw(cx, "Unexpected value for _init in overrides module");
-        goto fail;
+        return false;
     }
     return true;
-
-fail:
-    saved_exc.drop();
-    return false;
 }
 
 GJS_JSAPI_RETURN_CONVENTION

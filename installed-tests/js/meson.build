@@ -73,10 +73,9 @@ libregress = library('regress', regress_sources,
 regress_gir = gnome.generate_gir(libregress, includes: regress_gir_includes,
     sources: regress_sources, namespace: 'Regress', nsversion: '1.0',
     identifier_prefix: 'Regress', symbol_prefix: 'regress_',
-    extra_args: ['--warn-all'] + regress_gir_c_args,
+    extra_args: ['--warn-all', '--warn-error'] + regress_gir_c_args,
     install: get_option('installed_tests'), install_dir_gir: false,
-    install_dir_typelib: installed_tests_execdir,
-    fatal_warnings: get_option('werror'))
+    install_dir_typelib: installed_tests_execdir)
 regress_typelib = regress_gir[1]
 
 if not skip_warnlib
@@ -105,7 +104,7 @@ libgimarshallingtests = library('gimarshallingtests',
 gimarshallingtests_gir = gnome.generate_gir(libgimarshallingtests,
     includes: ['Gio-2.0'], sources: gimarshallingtests_sources,
     namespace: 'GIMarshallingTests', nsversion: '1.0',
-    symbol_prefix: 'gi_marshalling_tests_', fatal_warnings: get_option('werror'),
+    symbol_prefix: 'gi_marshalling_tests_', extra_args: '--warn-error',
     install: get_option('installed_tests'), install_dir_gir: false,
     install_dir_typelib: installed_tests_execdir)
 gimarshallingtests_typelib = gimarshallingtests_gir[1]
@@ -165,6 +164,7 @@ gschemas_compiled = gnome.compile_schemas(
 
 tests_dependencies = [
     gschemas_compiled,
+    gjs_private_typelib,
     gjstest_tools_typelib,
     gimarshallingtests_typelib,
     regress_typelib,
@@ -213,30 +213,30 @@ if not get_option('skip_gtk_tests')
     endif
 endif
 
-    bus_config = files('../../test/test-bus.conf')
+bus_config = files('../../test/test-bus.conf')
 foreach test : dbus_tests
     test_file = files('test@0@.js'.format(test))
 
     if not get_option('skip_dbus_tests')
         test(test, dbus_run_session,
-        args: ['--config-file', bus_config, '--', minijasmine, test_file],
-        env: tests_environment, protocol: 'tap', suite: 'dbus')
-endif
+            args: ['--config-file', bus_config, '--', minijasmine, test_file],
+            env: tests_environment, protocol: 'tap', suite: 'dbus')
+    endif
 
     dbus_test_description_subst = {
         'name': 'test@0@.js'.format(test),
-    'installed_tests_execdir': installed_tests_execdir,
-}
+        'installed_tests_execdir': installed_tests_execdir,
+    }
     dbus_test_description = configure_file(
         configuration: dbus_test_description_subst,
         input: '../minijasmine.test.in',
         output: 'test@0@.test'.format(test),
-    install: get_option('installed_tests'),
-    install_dir: installed_tests_metadir)
+        install: get_option('installed_tests'),
+        install_dir: installed_tests_metadir)
 
-if get_option('installed_tests')
+    if get_option('installed_tests')
         install_data(test_file, install_dir: installed_js_tests_dir)
-endif
+    endif
 endforeach
 
 # tests using ES modules are also separate because they need an extra

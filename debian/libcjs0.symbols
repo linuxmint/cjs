@@ -22,6 +22,7 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_context_new_with_search_path@Base 2.0.0
  gjs_context_print_stack_stderr@Base 2.0.0
  gjs_context_register_module@Base 5.4.0
+ gjs_context_run_in_realm@Base 6.0.0
  gjs_context_set_argv@Base 5.4.0
  gjs_context_setup_debugger_console@Base 4.6.0
  gjs_coverage_enable@Base 4.6.0

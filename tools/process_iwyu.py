@@ -73,16 +73,10 @@ FALSE_POSITIVES = (
     ('gi/function.cpp', '#include <algorithm>', 'for max'),
     ('gi/function.cpp', '#include <algorithm>', 'for fill_n, max'),  # also!
     ('gi/private.cpp', '#include <algorithm>', 'for max'),
-    ('gjs/context.cpp', '#include <algorithm>', 'for copy, max, find'),
     ('gjs/importer.cpp', '#include <algorithm>', 'for max'),
     ('gjs/importer.cpp', '#include <algorithm>', 'for max, copy'),  # also!
-    ('modules/cairo-context.cpp', '#include <algorithm>', 'for max'),
-
-    # False positive when using EnumType operators
-    # https://github.com/include-what-you-use/include-what-you-use/issues/927
-    ('modules/cairo-context.cpp', '#include <type_traits>', 'for enable_if_t'),
-    ('modules/cairo-region.cpp', '#include <type_traits>', 'for enable_if_t'),
-    ('modules/cairo-surface.cpp', '#include <type_traits>', 'for enable_if_t'),
+    ('gjs/module.cpp', '#include <algorithm>', 'for copy'),
+    ('util/log.cpp', '#include <algorithm>', 'for fill_n'),
 
     # False positive when constructing JS::GCHashMap
     ('gi/boxed.h', '#include <utility>', 'for move'),
@@ -92,12 +86,12 @@ FALSE_POSITIVES = (
     # For some reason IWYU wants these with angle brackets when they are
     # already present with quotes
     # https://github.com/include-what-you-use/include-what-you-use/issues/1087
-    ('gjs/context.cpp', '#include <cjs/context.h>', ''),
-    ('gjs/coverage.cpp', '#include <cjs/coverage.h>', ''),
-    ('gjs/error-types.cpp', '#include <cjs/error-types.h>', ''),
-    ('gjs/jsapi-util.cpp', '#include <cjs/jsapi-util.h>', ''),
-    ('gjs/mem.cpp', '#include <cjs/mem.h>', ''),
-    ('gjs/profiler.cpp', '#include <cjs/profiler.h>', ''),
+    ('gjs/context.cpp', '#include <gjs/context.h>', ''),
+    ('gjs/coverage.cpp', '#include <gjs/coverage.h>', ''),
+    ('gjs/error-types.cpp', '#include <gjs/error-types.h>', ''),
+    ('gjs/jsapi-util.cpp', '#include <gjs/jsapi-util.h>', ''),
+    ('gjs/mem.cpp', '#include <gjs/mem.h>', ''),
+    ('gjs/profiler.cpp', '#include <gjs/profiler.h>', ''),
 )
 
 

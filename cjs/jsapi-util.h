@@ -23,12 +23,12 @@
 #include <glib.h>
 
 #include <js/BigInt.h>
+#include <js/ErrorReport.h>  // for JSExnType
 #include <js/GCAPI.h>
 #include <js/GCPolicyAPI.h>  // for IgnoreGCPolicy
 #include <js/Id.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
-#include <jspubtd.h>     // for JSProtoKey
 
 #include "cjs/macros.h"
 #include "util/log.h"
@@ -37,7 +37,6 @@
 #    include "gi/arg-types-inl.h"  // for static_type_name
 #endif
 
-class JSErrorReport;
 namespace JS {
 class CallArgs;
 
@@ -73,6 +72,10 @@ struct GjsAutoPointer {
         std::conditional_t<std::is_array_v<T>, std::remove_extent_t<T>, T>;
     using Ptr = std::add_pointer_t<Tp>;
     using ConstPtr = std::add_pointer_t<std::add_const_t<Tp>>;
+    using RvalueRef = std::add_lvalue_reference_t<Tp>;
+
+ protected:
+    using BaseType = GjsAutoPointer<T, F, free_func, ref_func>;
 
  private:
     template <typename FunctionType, FunctionType function>
@@ -138,6 +141,18 @@ struct GjsAutoPointer {
         return m_ptr;
     }
 
+    template <typename U = T>
+    constexpr std::enable_if_t<std::is_array_v<U>, RvalueRef> operator[](
+        int index) {
+        return m_ptr[index];
+    }
+
+    template <typename U = T>
+    constexpr std::enable_if_t<std::is_array_v<U>, std::add_const_t<RvalueRef>>
+    operator[](int index) const {
+        return m_ptr[index];
+    }
+
     constexpr Tp operator*() const { return *m_ptr; }
     constexpr operator Ptr() { return m_ptr; }
     constexpr operator Ptr() const { return m_ptr; }
@@ -146,7 +161,7 @@ struct GjsAutoPointer {
 
     constexpr Ptr get() const { return m_ptr; }
     constexpr Ptr* out() { return &m_ptr; }
-    constexpr ConstPtr* out() const { return &m_ptr; }
+    constexpr ConstPtr* out() const { return const_cast<ConstPtr*>(&m_ptr); }
 
     constexpr Ptr release() {
         auto* ptr = m_ptr;
@@ -220,8 +235,20 @@ using GjsAutoChar16 = GjsAutoPointer<uint16_t, void, &g_free>;
 struct GjsAutoErrorFuncs {
     static GError* error_copy(GError* error) { return g_error_copy(error); }
 };
-using GjsAutoError =
-    GjsAutoPointer<GError, GError, g_error_free, GjsAutoErrorFuncs::error_copy>;
+
+struct GjsAutoError : GjsAutoPointer<GError, GError, g_error_free,
+                                     GjsAutoErrorFuncs::error_copy> {
+    using BaseType::BaseType;
+    using BaseType::operator=;
+
+    constexpr BaseType::ConstPtr* operator&()  // NOLINT(runtime/operator)
+        const {
+        return out();
+    }
+    constexpr BaseType::Ptr* operator&() {  // NOLINT(runtime/operator)
+        return out();
+    }
+};
 
 using GjsAutoStrv = GjsAutoPointer<char*, char*, g_strfreev, g_strdupv>;
 
@@ -279,12 +306,16 @@ struct GjsAutoInfo : GjsAutoBaseInfo {
     // to conform to the interface of std::unique_ptr here.
     GjsAutoInfo(GIBaseInfo* ptr = nullptr)  // NOLINT(runtime/explicit)
         : GjsAutoBaseInfo(ptr) {
+#ifndef G_DISABLE_CAST_CHECKS
         validate();
+#endif
     }
 
     void reset(GIBaseInfo* other = nullptr) {
         GjsAutoBaseInfo::reset(other);
+#ifndef G_DISABLE_CAST_CHECKS
         validate();
+#endif
     }
 
     // You should not need this method, because you already know the answer.
@@ -297,6 +328,7 @@ struct GjsAutoInfo : GjsAutoBaseInfo {
     }
 };
 
+using GjsAutoArgInfo = GjsAutoInfo<GI_INFO_TYPE_ARG>;
 using GjsAutoEnumInfo = GjsAutoInfo<GI_INFO_TYPE_ENUM>;
 using GjsAutoFieldInfo = GjsAutoInfo<GI_INFO_TYPE_FIELD>;
 using GjsAutoFunctionInfo = GjsAutoInfo<GI_INFO_TYPE_FUNCTION>;
@@ -304,6 +336,7 @@ using GjsAutoInterfaceInfo = GjsAutoInfo<GI_INFO_TYPE_INTERFACE>;
 using GjsAutoObjectInfo = GjsAutoInfo<GI_INFO_TYPE_OBJECT>;
 using GjsAutoPropertyInfo = GjsAutoInfo<GI_INFO_TYPE_PROPERTY>;
 using GjsAutoStructInfo = GjsAutoInfo<GI_INFO_TYPE_STRUCT>;
+using GjsAutoSignalInfo = GjsAutoInfo<GI_INFO_TYPE_SIGNAL>;
 using GjsAutoTypeInfo = GjsAutoInfo<GI_INFO_TYPE_TYPE>;
 using GjsAutoValueInfo = GjsAutoInfo<GI_INFO_TYPE_VALUE>;
 using GjsAutoVFuncInfo = GjsAutoInfo<GI_INFO_TYPE_VFUNC>;
@@ -358,6 +391,8 @@ struct GjsSmartPointer<GIBaseInfo> : GjsAutoBaseInfo {
 template <>
 struct GjsSmartPointer<GError> : GjsAutoError {
     using GjsAutoError::GjsAutoError;
+    using GjsAutoError::operator=;
+    using GjsAutoError::operator&;
 };
 
 template <>
@@ -415,10 +450,6 @@ struct GCPolicy<GjsAutoParam> : public IgnoreGCPolicy<GjsAutoParam> {};
     if (!args.computeThis(cx, &to))                   \
         return false;
 
-[[nodiscard]] JSObject* gjs_get_import_global(JSContext* cx);
-
-[[nodiscard]] JSObject* gjs_get_internal_global(JSContext* cx);
-
 void gjs_throw_constructor_error             (JSContext       *context);
 
 void gjs_throw_abstract_constructor_error(JSContext* cx,
@@ -437,12 +468,12 @@ JSObject* gjs_define_string_array(JSContext* cx, JS::HandleObject obj,
 [[gnu::format(printf, 2, 3)]] void gjs_throw(JSContext* cx, const char* format,
                                              ...);
 [[gnu::format(printf, 4, 5)]] void gjs_throw_custom(JSContext* cx,
-                                                    JSProtoKey error_kind,
+                                                    JSExnType error_kind,
                                                     const char* error_name,
                                                     const char* format, ...);
 void        gjs_throw_literal                (JSContext       *context,
                                               const char      *string);
-bool gjs_throw_gerror_message(JSContext* cx, GError* error);
+bool gjs_throw_gerror_message(JSContext* cx, GjsAutoError const&);
 
 bool        gjs_log_exception                (JSContext       *context);
 
@@ -588,7 +619,8 @@ bool gjs_object_require_converted_property(JSContext       *context,
     macro(LINUX_RSS_TRIGGER, 0)   \
     macro(GJS_CONTEXT_DISPOSE, 1) \
     macro(BIG_HAMMER, 2)          \
-    macro(GJS_API_CALL, 3)
+    macro(GJS_API_CALL, 3)        \
+    macro(LOW_MEMORY, 4)
 // clang-format on
 
 namespace Gjs {

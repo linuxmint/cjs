@@ -559,6 +559,9 @@ describe('Zero-terminated C array', function () {
 
         ['none', 'container', 'full'].forEach(transfer => {
             it(`marshals as a transfer-${transfer} in and out parameter`, function () {
+                if (transfer === 'full')
+                    pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/399');
+
                 const returnedArray =
                     GIMarshallingTests[`array_gvariant_${transfer}_in`](variantArray);
                 expect(returnedArray.map(v => v.deepUnpack())).toEqual([27, 'Hello']);
@@ -892,6 +895,13 @@ describe('GValue', function () {
 
     it('array can be passed as an out argument and unpacked', function () {
         expect(GIMarshallingTests.return_gvalue_flat_array())
+            .toEqual([42, '42', true]);
+    });
+
+    it('array can be passed as an out argument and unpacked when zero-terminated', function () {
+        if (!GIMarshallingTests.return_gvalue_zero_terminated_array)
+            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/397');
+        expect(GIMarshallingTests.return_gvalue_zero_terminated_array())
             .toEqual([42, '42', true]);
     });
 
@@ -2074,7 +2084,7 @@ describe('GObject properties', function () {
     });
 });
 
-xdescribe('GObject signals', function () {
+describe('GObject signals', function () {
     let obj;
     beforeEach(function () {
         obj = new GIMarshallingTests.SignalsObject();
@@ -2085,15 +2095,13 @@ xdescribe('GObject signals', function () {
             if (skip)
                 pending(skip);
 
-            function signalCallback(o, arg) {
-                expect(value).toEqual(arg);
-            }
-
+            const signalCallback = jasmine.createSpy('signalCallback');
             const signalName = `some_${type}`;
-            const funcName = `emit_${type}`.replace(/-/g, '_');
+            const funcName = `emit_${type}`.replaceAll('-', '_');
             const signalId = obj.connect(signalName, signalCallback);
             obj[funcName]();
             obj.disconnect(signalId);
+            expect(signalCallback).toHaveBeenCalledOnceWith(obj, value);
         });
     }
 
@@ -2103,4 +2111,13 @@ xdescribe('GObject signals', function () {
         new GIMarshallingTests.BoxedStruct({long_: 43}),
         new GIMarshallingTests.BoxedStruct({long_: 44}),
     ]);
+
+    testSignalEmission('hash-table-utf8-int', {
+        '-1': 1,
+        '0': 0,
+        '1': -1,
+        '2': -2,
+    }, !GIMarshallingTests.SignalsObject.prototype.emit_hash_table_utf8_int
+        ? 'https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/409'
+        : false);
 });

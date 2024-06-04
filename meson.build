@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 # SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
 
-project('cjs', 'cpp', 'c', version: '6.0.0', license: ['MIT', 'LGPL2+'],
+project('cjs', 'cpp', 'c', version: '6.1.0', license: ['MIT', 'LGPL2+'],
     meson_version: '>=0.56.0',
     default_options: ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99',
         'warning_level=2', 'b_pch=true' ])
@@ -39,7 +39,7 @@ if cc.get_id() == 'msvc'
     add_project_arguments(cxx.get_supported_arguments([
         '-utf-8',  # Use UTF-8 mode
         '/Zc:externConstexpr',  # Required for 'extern constexpr' on MSVC
-        '/Zc:preprocessor',     # Required to consume the mozjs-102 headers on MSVC
+        '/Zc:preprocessor',     # Required to consume the mozjs-115 headers on MSVC
 
         # Ignore spurious compiler warnings for things that GLib and SpiderMonkey
         # header files commonly do
@@ -128,7 +128,7 @@ gio = dependency('gio-2.0', version: glib_required_version,
 ffi = dependency('libffi', fallback: ['libffi', 'ffi_dep'])
 gi = dependency('gobject-introspection-1.0', version: '>= 1.66.0',
     fallback: ['gobject-introspection', 'girepo_dep'])
-spidermonkey = dependency('mozjs-102')
+spidermonkey = dependency('mozjs-115')
 
 # We might need to look for the headers and lib's for Cairo
 # manually on MSVC/clang-cl builds...
@@ -330,6 +330,9 @@ header_conf.set('HAVE_DTRACE', get_option('dtrace'),
     description: 'Using dtrace probes')
 header_conf.set('HAVE_PRINTF_ALTERNATIVE_INT', have_printf_alternative_int,
     description: 'printf() accepts "%Id" for alternative integer output')
+header_conf.set('HAVE_OPEN_MEMSTREAM',
+    cxx.has_function('open_memstream', prefix : '#include <stdio.h>'),
+    description: 'open_memstream() is available')
 if build_readline
     header_conf.set('HAVE_READLINE_READLINE_H',
         cxx.check_header('readline/readline.h', prefix: '#include <cstdio>',
@@ -587,7 +590,7 @@ libgjs_dep = declare_dependency(link_with: [libgjs, libgjs_jsapi],
 gjs_private_gir = gnome.generate_gir(libgjs,
     includes: ['GObject-2.0', 'Gio-2.0'], sources: libgjs_private_sources,
     namespace: 'CjsPrivate', nsversion: '1.0', identifier_prefix: 'Gjs',
-    symbol_prefix: 'gjs_', fatal_warnings: get_option('werror'), install: true,
+    symbol_prefix: 'gjs_', extra_args: '--warn-error', install: true,
     install_dir_gir: false, install_dir_typelib: pkglibdir / 'girepository-1.0')
 gjs_private_typelib = gjs_private_gir[1]
 
@@ -634,7 +637,7 @@ js_tests_builddir = meson.current_build_dir() / 'installed-tests' / 'js'
 libgjs_test_tools_builddir = js_tests_builddir / 'libgjstesttools'
 # GJS_PATH is empty here since we want to force the use of our own
 # resources. G_FILENAME_ENCODING ensures filenames are not UTF-8
-tests_environment.set('TOP_BUILDDIR', meson.project_build_root())
+tests_environment.set('TOP_BUILDDIR', meson.build_root())
 tests_environment.set('GJS_USE_UNINSTALLED_FILES', '1')
 tests_environment.set('GJS_PATH', '')
 tests_environment.set('GJS_DEBUG_OUTPUT', 'stderr')
@@ -653,6 +656,7 @@ tests_environment.set('LSAN_OPTIONS',
 tests_environment.set('TSAN_OPTIONS',
     'history_size=5,force_seq_cst_atomics=1,suppressions=@0@'.format(
         meson.current_source_dir() / 'installed-tests' / 'extra' / 'tsan.supp'))
+tests_environment.set('G_SLICE', 'always-malloc')
 tests_environment.set('NO_AT_BRIDGE', '1')
 tests_environment.set('GSETTINGS_SCHEMA_DIR', js_tests_builddir)
 tests_environment.set('GSETTINGS_BACKEND', 'memory')
@@ -809,3 +813,10 @@ summary({
     'Dtrace debugging': get_option('dtrace'),
     'Systemtap debugging': get_option('systemtap'),
 }, section: 'Optional features', bool_yn: true)
+
+### Maintainer scripts #########################################################
+
+run_target('maintainer-upload-release',
+  command: ['build/maintainer-upload-release.sh',
+            meson.project_name(),
+            meson.project_version()])

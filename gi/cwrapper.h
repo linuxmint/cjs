@@ -9,13 +9,13 @@
 #include <assert.h>
 #include <stddef.h>  // for size_t
 
-#include <string>
 #include <type_traits>  // for integral_constant
 
 #include <glib-object.h>  // for GType
 
 #include <js/CallArgs.h>
 #include <js/Class.h>
+#include <js/ErrorReport.h>  // for JSEXN_TYPEERR
 #include <js/GlobalObject.h>  // for CurrentGlobalOrNull
 #include <js/Id.h>
 #include <js/Object.h>  // for GetClass
@@ -24,7 +24,7 @@
 #include <js/TypeDecls.h>
 #include <js/Value.h>
 #include <jsapi.h>  // for JSFUN_CONSTRUCTOR, JS_NewPlainObject, JS_GetFuncti...
-#include <jspubtd.h>  // for JSProto_Object, JSProtoKey, JSProto_TypeError
+#include <jspubtd.h>  // for JSProto_Object, JSProtoKey
 
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -122,7 +122,7 @@ class CWrapperPointerOps {
                                  Wrapped** out) {
         if (!typecheck(cx, wrapper)) {
             const JSClass* obj_class = JS::GetClass(wrapper);
-            gjs_throw_custom(cx, JSProto_TypeError, nullptr,
+            gjs_throw_custom(cx, JSEXN_TYPEERR, nullptr,
                              "Object %p is not a subclass of %s, it's a %s",
                              wrapper.get(), Base::klass.name, obj_class->name);
             return false;
@@ -504,7 +504,7 @@ class CWrapper : public CWrapperPointerOps<Base, Wrapped> {
         if (ctor_obj) {
             JS::RootedObject in_obj(cx, module);
             if (!in_obj)
-                in_obj = gjs_get_import_global(cx);
+                in_obj = global;
             JS::RootedId class_name(
                 cx, gjs_intern_string_to_id(cx, Base::klass.name));
             if (class_name.isVoid() ||

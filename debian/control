@@ -15,8 +15,9 @@ Build-Depends:
  libffi-dev (>= 3.3),
  libgirepository1.0-dev (>= 1.71),
  libglib2.0-dev (>= 2.58.0),
- libmozjs-102-dev,
+ libmozjs-115-dev,
  libreadline-dev,
+ libxml2-utils,
  meson (>= 0.54.0),
  pkg-config (>= 0.28),
  xauth <!nocheck>,
@@ -65,7 +66,7 @@ Depends:
  libcairo2-dev,
  libcjs0 (= ${binary:Version}),
  libgirepository1.0-dev (>= 1.64),
- libmozjs-102-dev,
+ libmozjs-115-dev,
  ${misc:Depends},
 Description: Mozilla-based javascript bindings for Cinnamon platform
  Makes it possible for applications to use all of Cinnamon platform

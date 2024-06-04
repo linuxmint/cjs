@@ -6,8 +6,9 @@
 
 #include <signal.h>  // for sigaction, SIGUSR1, sa_handler
 #include <stdint.h>
-#include <stdio.h>      // for FILE, fclose, size_t
-#include <string.h>     // for memset
+#include <stdio.h>   // for FILE, fclose, size_t
+#include <stdlib.h>  // for exit
+#include <string.h>  // for memset
 
 #ifdef HAVE_UNISTD_H
 #    include <unistd.h>  // for getpid
@@ -18,7 +19,6 @@
 #ifdef DEBUG
 #    include <algorithm>  // for find
 #endif
-#include <atomic>
 #include <new>
 #include <string>       // for u16string
 #include <thread>       // for get_id
@@ -48,6 +48,7 @@
 #include <js/GCHashTable.h>         // for WeakCache
 #include <js/GCVector.h>            // for RootedVector
 #include <js/GlobalObject.h>        // for CurrentGlobalOrNull
+#include <js/HashTable.h>           // for DefaultHasher via WeakCache
 #include <js/Id.h>
 #include <js/Modules.h>
 #include <js/Promise.h>             // for JobQueue::SavedJobQueue
@@ -60,6 +61,7 @@
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/UniquePtr.h>
+#include <js/Utility.h>  // for DeletePolicy via WeakCache
 #include <js/Value.h>
 #include <js/ValueArray.h>
 #include <js/friend/DumpFunctions.h>
@@ -121,10 +123,6 @@ void GjsContextPrivate::EnvironmentPreparer::invoke(JS::HandleObject scope,
 
 struct _GjsContext {
     GObject parent;
-};
-
-struct _GjsContextClass {
-    GObjectClass parent;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE(GjsContext, gjs_context, G_TYPE_OBJECT);
@@ -471,6 +469,9 @@ void GjsContextPrivate::dispose(void) {
         delete m_gtype_table;
         delete m_atoms;
 
+        m_job_queue.clear();
+        m_object_init_list.clear();
+
         /* Tear down JS */
         JS_DestroyContext(m_cx);
         m_cx = nullptr;
@@ -601,7 +602,7 @@ static void load_context_module(JSContext* cx, const char* uri,
         g_error("Failed to load %s module.", debug_identifier);
     }
 
-    if (!JS::ModuleInstantiate(cx, loader)) {
+    if (!JS::ModuleLink(cx, loader)) {
         gjs_log_exception(cx);
         g_error("Failed to instantiate %s module.", debug_identifier);
     }
@@ -644,6 +645,7 @@ GjsContextPrivate::GjsContextPrivate(JSContext* cx, GjsContext* public_context)
       m_cx(cx),
       m_owner_thread(std::this_thread::get_id()),
       m_dispatcher(this),
+      m_memory_monitor(g_memory_monitor_dup_default()),
       m_environment_preparer(cx) {
     JS_SetGCCallback(
         cx,
@@ -685,9 +687,8 @@ GjsContextPrivate::GjsContextPrivate(JSContext* cx, GjsContext* public_context)
         g_error("Failed to initialize internal global object");
     }
 
-    JSAutoRealm ar(m_cx, internal_global);
-
     m_internal_global = internal_global;
+    Gjs::AutoInternalRealm ar{this};
     JS_AddExtraGCRootsTracer(m_cx, &GjsContextPrivate::trace, this);
 
     if (!m_atoms->init_atoms(m_cx)) {
@@ -714,7 +715,7 @@ GjsContextPrivate::GjsContextPrivate(JSContext* cx, GjsContext* public_context)
     m_global = global;
 
     {
-        JSAutoRealm ar(cx, global);
+        Gjs::AutoMainRealm ar{this};
 
         std::vector<std::string> paths;
         if (m_search_path)
@@ -756,7 +757,7 @@ GjsContextPrivate::GjsContextPrivate(JSContext* cx, GjsContext* public_context)
     }
 
     {
-        JSAutoRealm ar(cx, global);
+        Gjs::AutoMainRealm ar{this};
         load_context_module(
             cx, "resource:///org/gnome/gjs/modules/esm/_bootstrap/default.js",
             "ESM bootstrap");
@@ -764,6 +765,19 @@ GjsContextPrivate::GjsContextPrivate(JSContext* cx, GjsContext* public_context)
 
     [[maybe_unused]] bool success = m_main_loop.spin(this);
     g_assert(success && "bootstrap should not call system.exit()");
+
+    g_signal_connect_object(
+        m_memory_monitor, "low-memory-warning",
+        G_CALLBACK(+[](GjsContext* js_cx, GMemoryMonitorWarningLevel level) {
+            auto* cx =
+                static_cast<JSContext*>(gjs_context_get_native_context(js_cx));
+            JS::PrepareForFullGC(cx);
+            JS::GCOptions gc_strength = JS::GCOptions::Normal;
+            if (level > G_MEMORY_MONITOR_WARNING_LEVEL_LOW)
+                gc_strength = JS::GCOptions::Shrink;
+            JS::NonIncrementalGC(cx, gc_strength, Gjs::GCReason::LOW_MEMORY);
+        }),
+        m_public_context, G_CONNECT_SWAPPED);
 
     start_draining_job_queue();
 }
@@ -1004,6 +1018,12 @@ bool GjsContextPrivate::should_exit(uint8_t* exit_code_p) const {
     if (exit_code_p != NULL)
         *exit_code_p = m_exit_code;
     return m_should_exit;
+}
+
+void GjsContextPrivate::exit_immediately(uint8_t exit_code) {
+    warn_about_unhandled_promise_rejections();
+
+    ::exit(exit_code);
 }
 
 void GjsContextPrivate::start_draining_job_queue(void) { m_dispatcher.start(); }
@@ -1311,7 +1331,7 @@ bool GjsContextPrivate::auto_profile_enter() {
         (_gjs_profiler_is_running(m_profiler) || m_should_listen_sigusr2))
         auto_profile = false;
 
-    JSAutoRealm ar(m_cx, m_global);
+    Gjs::AutoMainRealm ar{this};
 
     if (auto_profile)
         gjs_profiler_start(m_profiler);
@@ -1408,7 +1428,7 @@ bool GjsContextPrivate::eval(const char* script, size_t script_len,
 
     bool auto_profile = auto_profile_enter();
 
-    JSAutoRealm ar(m_cx, m_global);
+    Gjs::AutoMainRealm ar{this};
 
     JS::RootedValue retval(m_cx);
     bool ok = eval_with_scope(nullptr, script, script_len, filename, &retval);
@@ -1474,7 +1494,7 @@ bool GjsContextPrivate::eval_module(const char* identifier,
 
     bool auto_profile = auto_profile_enter();
 
-    JSAutoRealm ac(m_cx, m_global);
+    Gjs::AutoMainRealm ar{this};
 
     JS::RootedObject registry(m_cx, gjs_get_module_registry(m_global));
     JS::RootedId key(m_cx, gjs_intern_string_to_id(m_cx, identifier));
@@ -1488,7 +1508,7 @@ bool GjsContextPrivate::eval_module(const char* identifier,
         return false;
     }
 
-    if (!JS::ModuleInstantiate(m_cx, obj)) {
+    if (!JS::ModuleLink(m_cx, obj)) {
         gjs_log_exception(m_cx);
         g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
                     "Failed to resolve imports for module: '%s'", identifier);
@@ -1551,7 +1571,7 @@ bool GjsContextPrivate::eval_module(const char* identifier,
 
 bool GjsContextPrivate::register_module(const char* identifier, const char* uri,
                                         GError** error) {
-    JSAutoRealm ar(m_cx, m_global);
+    Gjs::AutoMainRealm ar{this};
 
     if (gjs_module_load(m_cx, identifier, uri))
         return true;
@@ -1704,7 +1724,7 @@ gjs_context_define_string_array(GjsContext  *js_context,
     g_return_val_if_fail(GJS_IS_CONTEXT(js_context), false);
     GjsContextPrivate* gjs = GjsContextPrivate::from_object(js_context);
 
-    JSAutoRealm ar(gjs->context(), gjs->global());
+    Gjs::AutoMainRealm ar{gjs};
 
     std::vector<std::string> strings;
     if (array_values) {
@@ -1758,6 +1778,44 @@ gjs_context_make_current (GjsContext *context)
     current_context = context;
 }
 
+namespace Gjs {
+/*
+ * Gjs::AutoMainRealm:
+ * @gjs: a #GjsContextPrivate
+ *
+ * Enters the realm of the "main global" for the context, and leaves when the
+ * object is destructed at the end of the scope. The main global is the global
+ * object under which all user JS code is executed. It is used as the root
+ * object for the scope of modules loaded by GJS in this context.
+ *
+ * Only code in a different realm, such as the debugger code or the module
+ * loader code, uses a different global object.
+ */
+AutoMainRealm::AutoMainRealm(GjsContextPrivate* gjs)
+    : JSAutoRealm(gjs->context(), gjs->global()) {}
+
+AutoMainRealm::AutoMainRealm(JSContext* cx)
+    : AutoMainRealm(static_cast<GjsContextPrivate*>(JS_GetContextPrivate(cx))) {
+}
+
+/*
+ * Gjs::AutoInternalRealm:
+ * @gjs: a #GjsContextPrivate
+ *
+ * Enters the realm of the "internal global" for the context, and leaves when
+ * the object is destructed at the end of the scope. The internal global is only
+ * used for executing the module loader code, to keep it separate from user
+ * code.
+ */
+AutoInternalRealm::AutoInternalRealm(GjsContextPrivate* gjs)
+    : JSAutoRealm(gjs->context(), gjs->internal_global()) {}
+
+AutoInternalRealm::AutoInternalRealm(JSContext* cx)
+    : AutoInternalRealm(
+          static_cast<GjsContextPrivate*>(JS_GetContextPrivate(cx))) {}
+
+}  // namespace Gjs
+
 /**
  * gjs_context_get_profiler:
  * @self: the #GjsContext
@@ -1784,4 +1842,26 @@ const char *
 gjs_get_js_version(void)
 {
     return JS_GetImplementationVersion();
+}
+
+/**
+ * gjs_context_run_in_realm:
+ * @self: the #GjsContext
+ * @func: (scope call): function to run
+ * @user_data: (closure func): pointer to pass to @func
+ *
+ * Runs @func immediately, not asynchronously, after entering the JS context's
+ * main realm. After @func completes, leaves the realm again.
+ *
+ * You only need this if you are using JSAPI calls from the SpiderMonkey API
+ * directly.
+ */
+void gjs_context_run_in_realm(GjsContext* self, GjsContextInRealmFunc func,
+                              void* user_data) {
+    g_return_if_fail(GJS_IS_CONTEXT(self));
+    g_return_if_fail(func);
+
+    GjsContextPrivate* gjs = GjsContextPrivate::from_object(self);
+    Gjs::AutoMainRealm ar{gjs};
+    func(self, user_data);
 }

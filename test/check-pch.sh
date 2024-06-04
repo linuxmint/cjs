@@ -14,7 +14,7 @@ if [ -n "$SELFTEST" ]; then
         local code_path="$(mktemp -t -d "check-pch-XXXXXX")"
         test_paths+=("$code_path")
         cd "$code_path"
-        mkdir gjs gi
+        mkdir cjs gi
         echo "#include <stlib.h>" >> cjs/gjs_pch.hh
     }
 
@@ -117,7 +117,7 @@ fi
 PCH_FILES=(cjs/gjs_pch.hh)
 IGNORE_COMMENT="check-pch: ignore"
 
-CODE_PATHS=(gjs gi)
+CODE_PATHS=(cjs gi)
 INCLUDED_FILES=(
     \*.c
     \*.cpp

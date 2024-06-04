@@ -17,6 +17,7 @@
 #include <utility>  // for pair
 #include <vector>
 
+#include <gio/gio.h>  // for GMemoryMonitor
 #include <glib-object.h>
 #include <glib.h>
 
@@ -27,12 +28,12 @@
 #include <js/GCVector.h>
 #include <js/HashTable.h>  // for DefaultHasher
 #include <js/Promise.h>
+#include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/UniquePtr.h>
 #include <js/ValueArray.h>
 #include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
-#include <mozilla/Vector.h>
 
 #include "gi/closure.h"
 #include "cjs/context.h"
@@ -82,6 +83,7 @@ class GjsContextPrivate : public JS::JobQueue {
     JobQueueStorage m_job_queue;
     Gjs::PromiseJobDispatcher m_dispatcher;
     Gjs::MainLoop m_main_loop;
+    GjsAutoUnref<GMemoryMonitor> m_memory_monitor;
 
     std::vector<std::pair<DestroyNotify, void*>> m_destroy_notifications;
     std::vector<Gjs::Closure::Ptr> m_async_closures;
@@ -138,6 +140,8 @@ class GjsContextPrivate : public JS::JobQueue {
     class SavedQueue;
     void start_draining_job_queue(void);
     void stop_draining_job_queue(void);
+
+    void warn_about_unhandled_promise_rejections();
 
     GJS_JSAPI_RETURN_CONVENTION bool run_main_loop_hook();
     [[nodiscard]] bool handle_exit_code(bool no_sync_error_pending,
@@ -216,6 +220,9 @@ class GjsContextPrivate : public JS::JobQueue {
     [[nodiscard]] static const GjsAtoms& atoms(JSContext* cx) {
         return *(from_cx(cx)->m_atoms);
     }
+    [[nodiscard]] static JSObject* global(JSContext* cx) {
+        return from_cx(cx)->global();
+    }
 
     [[nodiscard]] bool eval(const char* script, size_t script_len,
                             const char* filename, int* exit_status_p,
@@ -237,6 +244,7 @@ class GjsContextPrivate : public JS::JobQueue {
     void report_unhandled_exception() { m_unhandled_exception = true; }
     void exit(uint8_t exit_code);
     [[nodiscard]] bool should_exit(uint8_t* exit_code_p) const;
+    [[noreturn]] void exit_immediately(uint8_t exit_code);
 
     // Implementations of JS::JobQueue virtual functions
     GJS_JSAPI_RETURN_CONVENTION
@@ -254,7 +262,6 @@ class GjsContextPrivate : public JS::JobQueue {
     GJS_JSAPI_RETURN_CONVENTION bool run_jobs_fallible();
     void register_unhandled_promise_rejection(uint64_t id, GjsAutoChar&& stack);
     void unregister_unhandled_promise_rejection(uint64_t id);
-    void warn_about_unhandled_promise_rejections();
 
     void register_notifier(DestroyNotify notify_func, void* data);
     void unregister_notifier(DestroyNotify notify_func, void* data);
@@ -271,4 +278,21 @@ class GjsContextPrivate : public JS::JobQueue {
     void free_profiler(void);
     void dispose(void);
 };
+
+std::string gjs_dumpstack_string();
+
+namespace Gjs {
+class AutoMainRealm : public JSAutoRealm {
+ public:
+    explicit AutoMainRealm(GjsContextPrivate* gjs);
+    explicit AutoMainRealm(JSContext* cx);
+};
+
+class AutoInternalRealm : public JSAutoRealm {
+ public:
+    explicit AutoInternalRealm(GjsContextPrivate* gjs);
+    explicit AutoInternalRealm(JSContext* cx);
+};
+}  // namespace Gjs
+
 #endif  // GJS_CONTEXT_PRIVATE_H_

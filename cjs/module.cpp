@@ -7,8 +7,6 @@
 #include <stddef.h>     // for size_t
 #include <string.h>
 
-#include <string>  // for u16string
-
 #include <gio/gio.h>
 #include <glib.h>
 
@@ -29,7 +27,6 @@
 #include <js/Promise.h>
 #include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>
-#include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/ScriptPrivate.h>
 #include <js/SourceText.h>
@@ -44,6 +41,7 @@
 
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
+#include "cjs/deprecation.h"
 #include "cjs/global.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
@@ -153,7 +151,7 @@ class GjsScriptModule {
                 JS::HandleObject module,
                 GFile           *file)
     {
-        GError *error = nullptr;
+        GjsAutoError error;
         GjsAutoChar script;
         size_t script_len = 0;
 
@@ -194,14 +192,9 @@ class GjsScriptModule {
          * be supported according to ES6. For compatibility with earlier GJS,
          * we treat it as if it were a real property, but warn about it. */
 
-        g_warning(
-            "Some code accessed the property '%s' on the module '%s'. That "
-            "property was defined with 'let' or 'const' inside the module. "
-            "This was previously supported, but is not correct according to "
-            "the ES6 standard. Any symbols to be exported from a module must "
-            "be defined with 'var'. The property access will work as "
-            "previously for the time being, but please fix your code anyway.",
-            gjs_debug_id(id).c_str(), m_name.get());
+        _gjs_warn_deprecated_once_per_callsite(
+            cx, GjsDeprecationMessageId::ModuleExportedLetOrConst,
+            {gjs_debug_id(id).c_str(), m_name});
 
         JS::Rooted<JS::PropertyDescriptor> desc(cx, maybe_desc.value());
         return JS_DefinePropertyById(cx, module, id, desc);
@@ -427,8 +420,8 @@ static bool import_native_module_sync(JSContext* cx, unsigned argc,
     if (!gjs_parse_call_args(cx, "importSync", args, "s", "identifier", &id))
         return false;
 
-    JS::RootedObject global(cx, gjs_get_import_global(cx));
-    JSAutoRealm ar(cx, global);
+    Gjs::AutoMainRealm ar{cx};
+    JS::RootedObject global{cx, JS::CurrentGlobalOrNull(cx)};
 
     JS::AutoSaveExceptionState exc_state(cx);
 
@@ -505,7 +498,7 @@ bool gjs_populate_module_meta(JSContext* cx, JS::HandleValue private_ref,
  * Hook SpiderMonkey calls to resolve import specifiers.
  *
  * @param importingModulePriv the private value of the #Module object initiating
- *   the import.
+ *   the import, or a JS null value
  * @param specifier the import specifier to resolve
  *
  * @returns whether an error occurred while resolving the specifier.
@@ -516,9 +509,6 @@ JSObject* gjs_module_resolve(JSContext* cx, JS::HandleValue importingModulePriv,
               gjs_global_is_type(cx, GjsGlobalType::INTERNAL)) &&
              "gjs_module_resolve can only be called from module-enabled "
              "globals.");
-    g_assert(importingModulePriv.isObject() &&
-             "the importing module can't be null, don't add import to the "
-             "bootstrap script");
     JS::RootedString specifier(
         cx, JS::GetModuleRequestSpecifier(cx, module_request));
 
@@ -533,9 +523,9 @@ JSObject* gjs_module_resolve(JSContext* cx, JS::HandleValue importingModulePriv,
     args[1].setString(specifier);
 
     gjs_debug(GJS_DEBUG_IMPORTER,
-              "Module resolve hook for module '%s' (relative to %p), global %p",
+              "Module resolve hook for module %s (relative to %s), global %p",
               gjs_debug_string(specifier).c_str(),
-              &importingModulePriv.toObject(), global.get());
+              gjs_debug_value(importingModulePriv).c_str(), global.get());
 
     JS::RootedValue result(cx);
     if (!JS::Call(cx, loader, "moduleResolveHook", args, &result))
@@ -543,6 +533,23 @@ JSObject* gjs_module_resolve(JSContext* cx, JS::HandleValue importingModulePriv,
 
     g_assert(result.isObject() && "resolve hook failed to return an object!");
     return &result.toObject();
+}
+
+// Note: exception is never pending after this function finishes, even if it
+// returns null. The return value is intended to be passed to
+// JS::FinishDynamicModuleImport().
+static JSObject* reject_new_promise_with_pending_exception(JSContext* cx) {
+    JS::ExceptionStack stack{cx};
+    if (!JS::StealPendingExceptionStack(cx, &stack)) {
+        gjs_log_exception(cx);
+        return nullptr;
+    }
+    JS::RootedObject rejected{cx, JS::NewPromiseObject(cx, nullptr)};
+    if (!rejected || !JS::RejectPromise(cx, rejected, stack.exception())) {
+        gjs_log_exception(cx);
+        return nullptr;
+    }
+    return rejected;
 }
 
 // Call JS::FinishDynamicModuleImport() with the values stashed in the function.
@@ -586,9 +593,12 @@ static bool finish_import(JSContext* cx, JS::HandleObject evaluation_promise,
 // case we must not call JS::FinishDynamicModuleImport().
 GJS_JSAPI_RETURN_CONVENTION
 static bool fail_import(JSContext* cx, const JS::CallArgs& args) {
-    if (JS_IsExceptionPending(cx))
-        return finish_import(cx, nullptr, args);
-    return false;
+    if (!JS_IsExceptionPending(cx))
+        return false;
+
+    JS::RootedObject rejected_promise{
+        cx, reject_new_promise_with_pending_exception(cx)};
+    return finish_import(cx, rejected_promise, args);
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -597,12 +607,16 @@ static bool import_rejected(JSContext* cx, unsigned argc, JS::Value* vp) {
 
     gjs_debug(GJS_DEBUG_IMPORTER, "Async import promise rejected");
 
-    // Throw the value that the promise is rejected with, so that
-    // FinishDynamicModuleImport will reject the internal_promise with it.
-    JS_SetPendingException(cx, args.get(0),
-                           JS::ExceptionStackBehavior::DoNotCapture);
+    // Reject a new promise with the rejection value of the async import
+    // promise, so that FinishDynamicModuleImport will reject the
+    // internal_promise with it.
+    JS::RootedObject rejected{cx, JS::NewPromiseObject(cx, nullptr)};
+    if (!rejected || !JS::RejectPromise(cx, rejected, args.get(0))) {
+        gjs_log_exception(cx);
+        return finish_import(cx, nullptr, args);
+    }
 
-    return finish_import(cx, nullptr, args);
+    return finish_import(cx, rejected, args);
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -611,14 +625,13 @@ static bool import_resolved(JSContext* cx, unsigned argc, JS::Value* vp) {
 
     gjs_debug(GJS_DEBUG_IMPORTER, "Async import promise resolved");
 
-    JS::RootedObject global(cx, gjs_get_import_global(cx));
-    JSAutoRealm ar(cx, global);
+    Gjs::AutoMainRealm ar{cx};
 
     g_assert(args[0].isObject());
     JS::RootedObject module(cx, &args[0].toObject());
 
     JS::RootedValue evaluation_promise(cx);
-    if (!JS::ModuleInstantiate(cx, module) ||
+    if (!JS::ModuleLink(cx, module) ||
         !JS::ModuleEvaluate(cx, module, &evaluation_promise))
         return fail_import(cx, args);
 
@@ -638,7 +651,7 @@ bool gjs_dynamic_module_resolve(JSContext* cx,
              "global.");
 
     JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
-    JSAutoRealm ar(cx, global);
+    g_assert(global && "gjs_dynamic_module_resolve must be in a realm");
 
     JS::RootedValue v_loader(
         cx, gjs_get_global_slot(global, GjsGlobalSlot::MODULE_LOADER));
@@ -659,13 +672,13 @@ bool gjs_dynamic_module_resolve(JSContext* cx,
 
     if (importing_module_priv.isObject()) {
         gjs_debug(GJS_DEBUG_IMPORTER,
-                  "Async module resolve hook for module '%s' (relative to %p), "
+                  "Async module resolve hook for module %s (relative to %p), "
                   "global %p",
                   gjs_debug_string(specifier).c_str(),
                   &importing_module_priv.toObject(), global.get());
     } else {
         gjs_debug(GJS_DEBUG_IMPORTER,
-                  "Async module resolve hook for module '%s' (unknown path), "
+                  "Async module resolve hook for module %s (unknown path), "
                   "global %p",
                   gjs_debug_string(specifier).c_str(), global.get());
     }
@@ -675,9 +688,16 @@ bool gjs_dynamic_module_resolve(JSContext* cx,
     args[1].setString(specifier);
 
     JS::RootedValue result(cx);
-    if (!JS::Call(cx, loader, "moduleResolveAsyncHook", args, &result))
-        return JS::FinishDynamicModuleImport(cx, nullptr, importing_module_priv,
+    if (!JS::Call(cx, loader, "moduleResolveAsyncHook", args, &result)) {
+        if (!JS_IsExceptionPending(cx))
+            return false;
+
+        JS::RootedObject rejected_promise{
+            cx, reject_new_promise_with_pending_exception(cx)};
+        return JS::FinishDynamicModuleImport(cx, rejected_promise,
+                                             importing_module_priv,
                                              module_request, internal_promise);
+    }
 
     // Release in finish_import
     GjsContextPrivate* priv = GjsContextPrivate::from_cx(cx);
