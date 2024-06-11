@@ -1,5 +1,11 @@
-Tests: build
-Depends: build-essential, libcjs-dev
+Tests: acc
+Depends: @, dh-acc, exuberant-ctags
+Restrictions: allow-stderr, superficial
 
-#Tests: installed-tests
-#Depends: dbus-daemon, dbus-x11, cjs-tests, gnome-desktop-testing, xauth, xvfb
+Tests: build
+Depends: libcjs-dev, build-essential
+Restrictions: superficial
+
+Tests: installed-tests
+Depends: dbus-daemon, dbus-x11, cjs-tests, gnome-desktop-testing, xauth, xvfb
+
