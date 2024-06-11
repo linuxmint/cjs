@@ -1,3 +1,20 @@
+cjs (6.2.0) wilma; urgency=medium
+
+  [ Clement Lefebvre ]
+  * packaging: Forbid compilation if the symbols file is outdated
+
+  [ Leigh Scott ]
+  * Port to mozjs115 (#122)
+
+  [ Fabio Fantoni ]
+  * debian: wrap and sort
+
+  [ Simon McVittie ]
+  * d/control: libcjs0 Depends on gir1.2-girepository-2.0
+  * d/control: libcjs0 Depends on typelibs imported by built-in modules
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 11 Jun 2024 15:25:49 +0100
+
 cjs (6.0.0) virginia; urgency=medium
 
   [ Dominik Opyd ]
