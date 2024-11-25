@@ -1,3 +1,13 @@
+cjs (6.4.0) xia; urgency=medium
+
+  [ Leigh Scott ]
+  * Fix meson.build deprecations up to 0.56.0 (#119) (#125)
+
+  [ Rick Calixte ]
+  * gjs-util: Backport private closure annotations patch (#126)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 25 Nov 2024 12:17:11 +0000
+
 cjs (6.2.0) wilma; urgency=medium
 
   [ Clement Lefebvre ]

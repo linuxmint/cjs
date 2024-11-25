@@ -3,13 +3,13 @@
 # SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
 
 project(
-    'cjs',
-    'cpp',
-    'c',
-    version : '6.2.0',
-    license : ['MIT', 'LGPL2+'],
-    meson_version : '>=0.56.0',
-    default_options : ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99', 'warning_level=2', 'b_pch=true']
+  'cjs',
+  'cpp',
+  'c',
+version : '6.4.0',
+license : ['MIT', 'LGPL2+'],
+meson_version : '>=0.56.0',
+default_options : ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99', 'warning_level=2', 'b_pch=true']
 )
 
 # cpp_rtti: SpiderMonkey can be compiled with or without runtime type
