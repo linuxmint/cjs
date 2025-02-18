@@ -12,13 +12,13 @@
 
 #ifdef HAVE_UNISTD_H
 #    include <unistd.h>  // for getpid
-#elif defined (_WIN32)
-#    include <process.h>
 #endif
 
-#ifdef DEBUG
-#    include <algorithm>  // for find
+#ifdef G_OS_WIN32
+#    include <process.h>
+#    include <windows.h>
 #endif
+
 #include <new>
 #include <string>       // for u16string
 #include <thread>       // for get_id
@@ -30,10 +30,6 @@
 #include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
-
-#ifdef G_OS_WIN32
-#include <windows.h>
-#endif
 
 #include <js/AllocPolicy.h>  // for SystemAllocPolicy
 #include <js/CallAndConstruct.h>  // for Call, JS_CallFunctionValue
@@ -48,7 +44,7 @@
 #include <js/GCHashTable.h>         // for WeakCache
 #include <js/GCVector.h>            // for RootedVector
 #include <js/GlobalObject.h>        // for CurrentGlobalOrNull
-#include <js/HashTable.h>           // for DefaultHasher via WeakCache
+#include <js/HeapAPI.h>             // for ExposeObjectToActiveJS
 #include <js/Id.h>
 #include <js/Modules.h>
 #include <js/Promise.h>             // for JobQueue::SavedJobQueue
@@ -67,6 +63,7 @@
 #include <js/friend/DumpFunctions.h>
 #include <jsapi.h>        // for JS_GetFunctionObject, JS_Ge...
 #include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
+#include <mozilla/UniquePtr.h>  // for UniquePtr::get
 
 #include "gi/closure.h"  // for Closure::Ptr, Closure
 #include "gi/function.h"
@@ -93,7 +90,10 @@
 #include "cjs/profiler.h"
 #include "cjs/promise.h"
 #include "cjs/text-encoding.h"
-#include "modules/modules.h"
+#include "modules/cairo-module.h"
+#include "modules/console.h"
+#include "modules/print.h"
+#include "modules/system.h"
 #include "util/log.h"
 
 namespace mozilla {
@@ -126,8 +126,6 @@ struct _GjsContext {
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE(GjsContext, gjs_context, G_TYPE_OBJECT);
-
-Gjs::NativeModuleRegistry& registry = Gjs::NativeModuleRegistry::get();
 
 GjsContextPrivate* GjsContextPrivate::from_object(GObject* js_context) {
     g_return_val_if_fail(GJS_IS_CONTEXT(js_context), nullptr);
@@ -336,13 +334,16 @@ gjs_context_class_init(GjsContextClass *klass)
 #endif
         g_irepository_prepend_search_path(priv_typelib_dir);
     }
+    auto& registry = Gjs::NativeModuleDefineFuncs::get();
     registry.add("_promiseNative", gjs_define_native_promise_stuff);
     registry.add("_byteArrayNative", gjs_define_byte_array_stuff);
     registry.add("_encodingNative", gjs_define_text_encoding_stuff);
     registry.add("_gi", gjs_define_private_gi_stuff);
     registry.add("gi", gjs_define_repo);
-
-    gjs_register_static_modules();
+    registry.add("cairoNative", gjs_js_define_cairo_stuff);
+    registry.add("system", gjs_js_define_system_stuff);
+    registry.add("console", gjs_define_console_stuff);
+    registry.add("_print", gjs_define_print_stuff);
 }
 
 void GjsContextPrivate::trace(JSTracer* trc, void* data) {
@@ -353,12 +354,13 @@ void GjsContextPrivate::trace(JSTracer* trc, void* data) {
     JS::TraceEdge<JSObject*>(trc, &gjs->m_main_loop_hook, "GJS main loop hook");
     gjs->m_atoms->trace(trc);
     gjs->m_job_queue.trace(trc);
+    gjs->m_cleanup_tasks.trace(trc);
     gjs->m_object_init_list.trace(trc);
 }
 
 void GjsContextPrivate::warn_about_unhandled_promise_rejections(void) {
     for (auto& kv : m_unhandled_rejection_stacks) {
-        const char *stack = kv.second;
+        const char* stack = kv.second.get();
         g_warning("Unhandled promise rejection. To suppress this warning, add "
                   "an error handler to your promise chain with .catch() or a "
                   "try-catch block around your await expression. %s%s",
@@ -533,10 +535,8 @@ static bool on_context_module_rejected_log_exception(JSContext* cx,
                                                      JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
-    JSString* id =
-        JS_GetFunctionDisplayId(JS_GetObjectFunction(&args.callee()));
     gjs_debug(GJS_DEBUG_IMPORTER, "Module evaluation promise rejected: %s",
-              gjs_debug_string(id).c_str());
+              gjs_debug_callable(&args.callee()).c_str());
 
     JS::HandleValue error = args.get(0);
 
@@ -555,10 +555,8 @@ static bool on_context_module_resolved(JSContext* cx, unsigned argc,
                                        JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
-    JSString* id =
-        JS_GetFunctionDisplayId(JS_GetObjectFunction(&args.callee()));
     gjs_debug(GJS_DEBUG_IMPORTER, "Module evaluation promise resolved: %s",
-              gjs_debug_string(id).c_str());
+              gjs_debug_callable(&args.callee()).c_str());
 
     args.rval().setUndefined();
 
@@ -619,11 +617,9 @@ static void load_context_module(JSContext* cx, const char* uri,
         [](JSContext* cx, unsigned argc, JS::Value* vp) {
             JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
-            JSString* id =
-                JS_GetFunctionDisplayId(JS_GetObjectFunction(&args.callee()));
             gjs_debug(GJS_DEBUG_IMPORTER,
                       "Module evaluation promise rejected: %s",
-                      gjs_debug_string(id).c_str());
+                      gjs_debug_callable(&args.callee()).c_str());
 
             JS::HandleValue error = args.get(0);
             // Abort because this module is required.
@@ -759,7 +755,7 @@ GjsContextPrivate::GjsContextPrivate(JSContext* cx, GjsContext* public_context)
     {
         Gjs::AutoMainRealm ar{this};
         load_context_module(
-            cx, "resource:///org/gnome/gjs/modules/esm/_bootstrap/default.js",
+            cx, "resource:///org/cinnamon/cjs/modules/esm/_bootstrap/default.js",
             "ESM bootstrap");
     }
 
@@ -886,6 +882,11 @@ void GjsContextPrivate::schedule_gc_internal(bool force_gc) {
     m_auto_gc_id = g_timeout_add_seconds_full(G_PRIORITY_LOW, 10,
                                               trigger_gc_if_needed, this,
                                               nullptr);
+
+    if (force_gc)
+        g_source_set_name_by_id(m_auto_gc_id, "[gjs] Garbage Collection (Big Hammer)");
+    else
+        g_source_set_name_by_id(m_auto_gc_id, "[gjs] Garbage Collection");
 }
 
 /*
@@ -903,17 +904,14 @@ void GjsContextPrivate::schedule_gc_if_needed(void) {
 }
 
 void GjsContextPrivate::on_garbage_collection(JSGCStatus status, JS::GCReason reason) {
-    int64_t now = 0;
     if (m_profiler)
-        now = g_get_monotonic_time() * 1000L;
+        _gjs_profiler_set_gc_status(m_profiler, status, reason);
 
     switch (status) {
         case JSGC_BEGIN:
-            m_gc_begin_time = now;
-            m_gc_reason = gjs_explain_gc_reason(reason);
             gjs_debug_lifecycle(GJS_DEBUG_CONTEXT,
                                 "Begin garbage collection because of %s",
-                                m_gc_reason);
+                                gjs_explain_gc_reason(reason));
 
             // We finalize any pending toggle refs before doing any garbage
             // collection, so that we can collect the JS wrapper objects, and in
@@ -925,83 +923,8 @@ void GjsContextPrivate::on_garbage_collection(JSGCStatus status, JS::GCReason re
             m_async_closures.shrink_to_fit();
             break;
         case JSGC_END:
-            if (m_profiler && m_gc_begin_time != 0) {
-                _gjs_profiler_add_mark(m_profiler, m_gc_begin_time,
-                                       now - m_gc_begin_time, "GJS",
-                                       "Garbage collection", m_gc_reason);
-            }
-            m_gc_begin_time = 0;
-            m_gc_reason = nullptr;
-
             m_destroy_notifications.shrink_to_fit();
             gjs_debug_lifecycle(GJS_DEBUG_CONTEXT, "End garbage collection");
-            break;
-        default:
-            g_assert_not_reached();
-    }
-}
-
-void GjsContextPrivate::set_finalize_status(JSFinalizeStatus status) {
-    // Implementation note for mozjs-24:
-    //
-    // Sweeping happens in two phases, in the first phase all GC things from the
-    // allocation arenas are queued for sweeping, then the actual sweeping
-    // happens. The first phase is marked by JSFINALIZE_GROUP_START, the second
-    // one by JSFINALIZE_GROUP_END, and finally we will see
-    // JSFINALIZE_COLLECTION_END at the end of all GC. (see jsgc.cpp,
-    // BeginSweepPhase/BeginSweepingZoneGroup and SweepPhase, all called from
-    // IncrementalCollectSlice).
-    //
-    // Incremental GC muddies the waters, because BeginSweepPhase is always run
-    // to entirety, but SweepPhase can be run incrementally and mixed with JS
-    // code runs or even native code, when MaybeGC/IncrementalGC return.
-    //
-    // Luckily for us, objects are treated specially, and are not really queued
-    // for deferred incremental finalization (unless they are marked for
-    // background sweeping). Instead, they are finalized immediately during
-    // phase 1, so the following guarantees are true (and we rely on them):
-    // - phase 1 of GC will begin and end in the same JSAPI call (i.e., our
-    //   callback will be called with GROUP_START and the triggering JSAPI call
-    //   will not return until we see a GROUP_END)
-    // - object finalization will begin and end in the same JSAPI call
-    // - therefore, if there is a finalizer frame somewhere in the stack,
-    //   GjsContextPrivate::sweeping() will return true.
-    //
-    // Comments in mozjs-24 imply that this behavior might change in the future,
-    // but it hasn't changed in mozilla-central as of 2014-02-23. In addition to
-    // that, the mozilla-central version has a huge comment in a different
-    // portion of the file, explaining why finalization of objects can't be
-    // mixed with JS code, so we can probably rely on this behavior.
-
-    int64_t now = 0;
-
-    if (m_profiler)
-        now = g_get_monotonic_time() * 1000L;
-
-    switch (status) {
-        case JSFINALIZE_GROUP_PREPARE:
-            m_in_gc_sweep = true;
-            m_sweep_begin_time = now;
-            break;
-        case JSFINALIZE_GROUP_START:
-            m_group_sweep_begin_time = now;
-            break;
-        case JSFINALIZE_GROUP_END:
-            if (m_profiler && m_group_sweep_begin_time != 0) {
-                _gjs_profiler_add_mark(m_profiler, m_group_sweep_begin_time,
-                                       now - m_group_sweep_begin_time, "GJS",
-                                       "Group sweep", nullptr);
-            }
-            m_group_sweep_begin_time = 0;
-            break;
-        case JSFINALIZE_COLLECTION_END:
-            m_in_gc_sweep = false;
-            if (m_profiler && m_sweep_begin_time != 0) {
-                _gjs_profiler_add_mark(m_profiler, m_sweep_begin_time,
-                                       now - m_sweep_begin_time, "GJS", "Sweep",
-                                       nullptr);
-            }
-            m_sweep_begin_time = 0;
             break;
         default:
             g_assert_not_reached();
@@ -1096,6 +1019,14 @@ bool GjsContextPrivate::run_jobs_fallible() {
     JS::HandleValueArray args(JS::HandleValueArray::empty());
     JS::RootedValue rval(m_cx);
 
+    if (m_job_queue.length() == 0) {
+        // Check FinalizationRegistry cleanup tasks at least once if there are
+        // no microtasks queued. This may enqueue more microtasks, which will be
+        // appended to m_job_queue.
+        if (!run_finalization_registry_cleanup())
+            retval = false;
+    }
+
     /* Execute jobs in a loop until we've reached the end of the queue.
      * Since executing a job can trigger enqueueing of additional jobs,
      * it's crucial to recheck the queue length during each iteration. */
@@ -1139,12 +1070,55 @@ bool GjsContextPrivate::run_jobs_fallible() {
             }
         }
         gjs_debug(GJS_DEBUG_MAINLOOP, "Completed job %zu", ix);
+
+        // Run FinalizationRegistry cleanup tasks after each job. Cleanup tasks
+        // may enqueue more microtasks, which will be appended to m_job_queue.
+        if (!run_finalization_registry_cleanup())
+            retval = false;
     }
 
     m_draining_job_queue = false;
     m_job_queue.clear();
     warn_about_unhandled_promise_rejections();
     JS::JobQueueIsEmpty(m_cx);
+    return retval;
+}
+
+bool GjsContextPrivate::run_finalization_registry_cleanup() {
+    bool retval = true;
+
+    JS::Rooted<FunctionVector> tasks{m_cx};
+    std::swap(tasks.get(), m_cleanup_tasks);
+    g_assert(m_cleanup_tasks.empty());
+
+    JS::RootedFunction task{m_cx};
+    JS::RootedValue unused_rval{m_cx};
+    for (JSFunction* func : tasks) {
+        gjs_debug(GJS_DEBUG_MAINLOOP,
+                  "Running FinalizationRegistry cleanup callback");
+
+        task.set(func);
+        JS::ExposeObjectToActiveJS(JS_GetFunctionObject(func));
+
+        JSAutoRealm ar{m_cx, JS_GetFunctionObject(func)};
+        if (!JS_CallFunction(m_cx, nullptr, task, JS::HandleValueArray::empty(),
+                             &unused_rval)) {
+            // Same logic as above
+            if (!JS_IsExceptionPending(m_cx)) {
+                if (!should_exit(nullptr))
+                    g_critical(
+                        "FinalizationRegistry callback terminated with "
+                        "uncatchable exception");
+                retval = false;
+                continue;
+            }
+            gjs_log_exception_uncaught(m_cx);
+        }
+
+        gjs_debug(GJS_DEBUG_MAINLOOP,
+                  "Completed FinalizationRegistry cleanup callback");
+    }
+
     return retval;
 }
 
@@ -1187,7 +1161,7 @@ js::UniquePtr<JS::JobQueue::SavedJobQueue> GjsContextPrivate::saveJobQueue(
 }
 
 void GjsContextPrivate::register_unhandled_promise_rejection(
-    uint64_t id, GjsAutoChar&& stack) {
+    uint64_t id, JS::UniqueChars&& stack) {
     m_unhandled_rejection_stacks[id] = std::move(stack);
 }
 
@@ -1200,6 +1174,11 @@ void GjsContextPrivate::unregister_unhandled_promise_rejection(uint64_t id) {
                    "as unhandled",
                    id);
     }
+}
+
+bool GjsContextPrivate::queue_finalization_registry_cleanup(
+    JSFunction* cleanup_task) {
+    return m_cleanup_tasks.append(cleanup_task);
 }
 
 void GjsContextPrivate::async_closure_enqueue_for_gc(Gjs::Closure* trampoline) {

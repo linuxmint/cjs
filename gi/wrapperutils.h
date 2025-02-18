@@ -20,6 +20,7 @@
 #include <js/CallArgs.h>
 #include <js/ComparisonOperators.h>
 #include <js/ErrorReport.h>  // for JSEXN_TYPEERR
+#include <js/GCVector.h>     // for MutableHandleIdVector
 #include <js/Id.h>
 #include <js/MemoryFunctions.h>
 #include <js/Object.h>
@@ -33,7 +34,7 @@
 #include "gi/cwrapper.h"
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
-#include "cjs/jsapi-class.h"  // IWYU pragma: keep
+#include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "cjs/profiler-private.h"

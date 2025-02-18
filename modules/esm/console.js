@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2021 Evan Welsh <contact@evanwelsh.com>
 
-const DEFAULT_LOG_DOMAIN = 'Gjs-Console';
+const DEFAULT_LOG_DOMAIN = 'Cjs-Console';
 
 // A line-by-line implementation of https://console.spec.whatwg.org/.
 
@@ -40,8 +40,9 @@ function formatGenerically(item) {
  * @returns {string}
  */
 function formatOptimally(item) {
+    const GLib = imports.gi.GLib;
     // Handle optimal error formatting.
-    if (item instanceof Error) {
+    if (item instanceof Error || item instanceof GLib.Error) {
         return `${item.toString()}${item.stack ? '\n' : ''}${item.stack
             ?.split('\n')
             // Pad each stacktrace line.
@@ -52,6 +53,12 @@ function formatOptimally(item) {
     // TODO: Enhance 'optimal' formatting.
     // There is a current work on a better object formatter for GJS in
     // https://gitlab.gnome.org/GNOME/gjs/-/merge_requests/587
+    if (typeof item === 'object' && item !== null) {
+        if (item.constructor?.name !== 'Object')
+            return `${item.constructor?.name} ${JSON.stringify(item, null, 4)}`;
+        else if (item[Symbol.toStringTag] === 'GIRepositoryNamespace')
+            return `[${item[Symbol.toStringTag]} ${item.__name__}]`;
+    }
     return JSON.stringify(item, null, 4);
 }
 

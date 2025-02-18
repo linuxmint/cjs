@@ -7,9 +7,8 @@
 // SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 
 // Load overrides for GIMarshallingTests
-imports.overrides.searchPath.unshift('resource:///org/gjs/jsunit/modules/overrides');
+imports.overrides.searchPath.unshift('resource:///org/cjs/jsunit/modules/overrides');
 
-const ByteArray = imports.byteArray;
 const GIMarshallingTests = imports.gi.GIMarshallingTests;
 
 // We use Gio and GLib to have some objects that we know exist
@@ -52,6 +51,18 @@ function testOutParameter(root, value, {omit, skip, funcName = `${root}_out`} = 
     });
 }
 
+function testUninitializedOutParameter(root, defaultValue, {omit, skip, funcName = `${root}_out_uninitialized`} = {}) {
+    if (omit)
+        return;
+    it("picks a reasonable default value when the function doesn't set the out parameter", function () {
+        if (skip)
+            pending(skip);
+        const [success, defaultVal] = GIMarshallingTests[funcName]();
+        expect(success).toBeFalse();
+        expect(defaultVal).toEqual(defaultValue);
+    });
+}
+
 function testInoutParameter(root, inValue, outValue,
     {omit, skip, funcName = `${root}_inout`} = {}) {
     if (omit)
@@ -63,16 +74,17 @@ function testInoutParameter(root, inValue, outValue,
     });
 }
 
-function testSimpleMarshalling(root, value, inoutValue, options = {}) {
+function testSimpleMarshalling(root, value, inoutValue, defaultValue, options = {}) {
     testReturnValue(root, value, options.returnv);
     testInParameter(root, value, options.in);
     testOutParameter(root, value, options.out);
+    testUninitializedOutParameter(root, defaultValue, options.uninitOut);
     testInoutParameter(root, value, inoutValue, options.inout);
 }
 
-function testTransferMarshalling(root, value, inoutValue, options = {}) {
+function testTransferMarshalling(root, value, inoutValue, defaultValue, options = {}) {
     describe('with transfer none', function () {
-        testSimpleMarshalling(`${root}_none`, value, inoutValue, options.none);
+        testSimpleMarshalling(`${root}_none`, value, inoutValue, defaultValue, options.none);
     });
     describe('with transfer full', function () {
         const fullOptions = {
@@ -84,12 +96,12 @@ function testTransferMarshalling(root, value, inoutValue, options = {}) {
             },
         };
         Object.assign(fullOptions, options.full);
-        testSimpleMarshalling(`${root}_full`, value, inoutValue, fullOptions);
+        testSimpleMarshalling(`${root}_full`, value, inoutValue, defaultValue, fullOptions);
     });
 }
 
-function testContainerMarshalling(root, value, inoutValue, options = {}) {
-    testTransferMarshalling(root, value, inoutValue, options);
+function testContainerMarshalling(root, value, inoutValue, defaultValue, options = {}) {
+    testTransferMarshalling(root, value, inoutValue, defaultValue, options);
     describe('with transfer container', function () {
         const containerOptions = {
             in: {
@@ -100,7 +112,7 @@ function testContainerMarshalling(root, value, inoutValue, options = {}) {
             },
         };
         Object.assign(containerOptions, options.container);
-        testSimpleMarshalling(`${root}_container`, value, inoutValue, containerOptions);
+        testSimpleMarshalling(`${root}_container`, value, inoutValue, defaultValue, containerOptions);
     });
 }
 
@@ -166,12 +178,12 @@ if (GLib.SIZEOF_SSIZE_T === 8) {
 // each other. That's fine for now. Then we just have to suppress the warnings.
 function warn64(is64bit, func, ...args) {
     if (is64bit) {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
     }
     const retval = func(...args);
     if (is64bit) {
-        GLib.test_assert_expected_messages_internal('Gjs',
+        GLib.test_assert_expected_messages_internal('Cjs',
             'testGIMarshalling.js', 0, 'Ignore message');
     }
     return retval;
@@ -187,7 +199,7 @@ function skip64(is64bit) {
 describe('Boolean', function () {
     [true, false].forEach(bool => {
         describe(`${bool}`, function () {
-            testSimpleMarshalling('boolean', bool, !bool, {
+            testSimpleMarshalling('boolean', bool, !bool, false, {
                 returnv: {
                     funcName: `boolean_return_${bool}`,
                 },
@@ -197,12 +209,17 @@ describe('Boolean', function () {
                 out: {
                     funcName: `boolean_out_${bool}`,
                 },
+                uninitOut: {
+                    omit: true,
+                },
                 inout: {
                     funcName: `boolean_inout_${bool}_${!bool}`,
                 },
             });
         });
     });
+
+    testUninitializedOutParameter('boolean', false);
 });
 
 describe('Integer', function () {
@@ -224,6 +241,8 @@ describe('Integer', function () {
                 expect(warn64(bit64, GIMarshallingTests[`${type}_out_min`])).toEqual(min);
             });
 
+            testUninitializedOutParameter(type, 0);
+
             it('marshals as an inout parameter', function () {
                 skip64(bit64);
                 expect(GIMarshallingTests[`${type}_inout_max_min`](max)).toEqual(min);
@@ -242,6 +261,8 @@ describe('Integer', function () {
             it('marshals unsigned value as an out parameter', function () {
                 expect(warn64(bit64, GIMarshallingTests[`${utype}_out`])).toEqual(umax);
             });
+
+            testUninitializedOutParameter(utype, 0);
 
             it('marshals unsigned value as an inout parameter', function () {
                 skip64(bit64);
@@ -292,25 +313,32 @@ describe('Floating point', function () {
                 expect(GIMarshallingTests[`${type}_out`]()).toBeCloseTo(max, 10);
             });
 
+            testUninitializedOutParameter(type, 0);
+
             it('marshals value as an inout parameter', function () {
                 expect(GIMarshallingTests[`${type}_inout`](max)).toBeCloseTo(min, 10);
+            });
+
+            it('can handle noncanonical NaN', function () {
+                expect(GIMarshallingTests[`${type}_noncanonical_nan_out`]()).toBeNaN();
             });
         });
     });
 });
 
 describe('time_t', function () {
-    testSimpleMarshalling('time_t', 1234567890, 0);
+    testSimpleMarshalling('time_t', 1234567890, 0, 0);
 });
 
 describe('GType', function () {
     describe('void', function () {
-        testSimpleMarshalling('gtype', GObject.TYPE_NONE, GObject.TYPE_INT);
+        testSimpleMarshalling('gtype', GObject.TYPE_NONE, GObject.TYPE_INT, null);
     });
 
     describe('string', function () {
-        testSimpleMarshalling('gtype_string', GObject.TYPE_STRING, null, {
+        testSimpleMarshalling('gtype_string', GObject.TYPE_STRING, null, null, {
             inout: {omit: true},
+            uninitOut: {omit: true},
         });
     });
 
@@ -324,7 +352,11 @@ describe('GType', function () {
 });
 
 describe('UTF-8 string', function () {
-    testTransferMarshalling('utf8', 'const ♥ utf8', '');
+    testTransferMarshalling('utf8', 'const ♥ utf8', '', null, {
+        full: {
+            uninitOut: {omit: true}, // covered by utf8_dangling_out() test below
+        },
+    });
 
     it('marshals value as a byte array', function () {
         expect(() => GIMarshallingTests.utf8_as_uint8array_in('const ♥ utf8')).not.toThrow();
@@ -341,15 +373,17 @@ describe('In-out array in the style of gtk_init()', function () {
         expect(newArray).toEqual([]);
     });
 
-    xit('marshals an inout empty array', function () {
-        const [, newArray] = GIMarshallingTests.init_function([]);
+    it('marshals an inout empty array', function () {
+        const [ret, newArray] = GIMarshallingTests.init_function([]);
+        expect(ret).toBeTrue();
         expect(newArray).toEqual([]);
-    }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/88');
+    });
 
-    xit('marshals an inout array', function () {
-        const [, newArray] = GIMarshallingTests.init_function(['--foo', '--bar']);
+    it('marshals an inout array', function () {
+        const [ret, newArray] = GIMarshallingTests.init_function(['--foo', '--bar']);
+        expect(ret).toBeTrue();
         expect(newArray).toEqual(['--foo']);
-    }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/88');
+    });
 });
 
 describe('Fixed-size C array', function () {
@@ -357,10 +391,7 @@ describe('Fixed-size C array', function () {
         testReturnValue('array_fixed_int', [-1, 0, 1, 2]);
         testInParameter('array_fixed_int', [-1, 0, 1, 2]);
         testOutParameter('array_fixed', [-1, 0, 1, 2]);
-        testOutParameter('array_fixed_caller_allocated', [-1, 0, 1, 2], {
-            skip: GIMarshallingTests.array_fixed_caller_allocated_out
-                ? false : 'https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/370',
-        });
+        testOutParameter('array_fixed_caller_allocated', [-1, 0, 1, 2]);
         testInoutParameter('array_fixed', [-1, 0, 1, 2], [2, 1, 0, -1]);
     });
 
@@ -377,9 +408,6 @@ describe('Fixed-size C array', function () {
     });
 
     it('marshals a fixed-size struct array as caller allocated out param', function () {
-        if (!GIMarshallingTests.array_fixed_caller_allocated_struct_out)
-            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/370');
-
         expect(GIMarshallingTests.array_fixed_caller_allocated_struct_out()).toEqual([
             jasmine.objectContaining({long_: -2, int8: -1}),
             jasmine.objectContaining({long_: 1, int8: 2}),
@@ -398,7 +426,7 @@ describe('C array with length', function () {
         });
     }
 
-    testSimpleMarshalling('array', [-1, 0, 1, 2], [-2, -1, 0, 1, 2]);
+    testSimpleMarshalling('array', [-1, 0, 1, 2], [-2, -1, 0, 1, 2], []);
 
     it('can be returned along with other arguments', function () {
         let [array, sum] = GIMarshallingTests.array_return_etc(9, 5);
@@ -423,7 +451,7 @@ describe('C array with length', function () {
     it('marshals a byte array as an in parameter', function () {
         expect(() => GIMarshallingTests.array_uint8_in('abcd')).not.toThrow();
         expect(() => GIMarshallingTests.array_uint8_in([97, 98, 99, 100])).not.toThrow();
-        expect(() => GIMarshallingTests.array_uint8_in(ByteArray.fromString('abcd')))
+        expect(() => GIMarshallingTests.array_uint8_in(new TextEncoder().encode('abcd')))
             .not.toThrow();
     });
 
@@ -510,6 +538,57 @@ describe('C array with length', function () {
         expect(() => GIMarshallingTests.array_in_guint8_len([-1, 0, 1, 2])).not.toThrow();
     });
 
+    it('can be an in-out argument', function () {
+        const array = GIMarshallingTests.array_inout([-1, 0, 1, 2]);
+        expect(array).toEqual([-2, -1, 0, 1, 2]);
+    });
+
+    it('can be an in-out argument with in length', function () {
+        if (!GIMarshallingTests.array_inout_length_in)
+            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/407');
+        const array = GIMarshallingTests.array_inout_length_in([-1, 0, 1, 2]);
+        expect(array).toEqual([-2, -1, 1, 2]);
+    });
+
+    xit('can be an out argument with in-out length', function () {
+        const array = GIMarshallingTests.array_out_length_inout(5);
+        expect(array).toEqual([-2, -4, -6, 8, -10, -12]);
+    }).pend('https://gitlab.gnome.org/GNOME/gjs/-/issues/560');
+
+    it('cannot be an out argument with in-out length', function () {
+        // TODO(3v1n0): remove this test when fixing
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/560
+        if (!GIMarshallingTests.array_out_length_inout)
+            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/407');
+        expect(() => GIMarshallingTests.array_out_length_inout(5)).toThrow();
+    });
+
+    xit('can be an in-out argument with out length', function () {
+        const array = GIMarshallingTests.array_inout_length_out([-1, 0, 1, 2]);
+        expect(array).toEqual([-2, -1, 0, 1, 2]);
+    }).pend('https://gitlab.gnome.org/GNOME/gjs/-/issues/560');
+
+    it('cannot be an in-out argument with out length', function () {
+        // TODO(3v1n0): remove this test when fixing
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/560
+        if (!GIMarshallingTests.array_inout_length_out)
+            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/407');
+        expect(() => GIMarshallingTests.array_inout_length_out([-1, 0, 1, 2])).toThrow();
+    });
+
+    xit('can be an out argument with in length', function () {
+        const array = GIMarshallingTests.array_out_length_in([-1, 0, 1, 2]);
+        expect(array).toEqual([-2, 0, -2, -4]);
+    }).pend('https://gitlab.gnome.org/GNOME/gjs/-/issues/560');
+
+    it('cannot be an out argument with in length', function () {
+        // TODO(3v1n0): remove this test when fixing
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/560
+        if (!GIMarshallingTests.array_out_length_in)
+            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/407');
+        expect(() => GIMarshallingTests.array_out_length_in([-1, 0, 1, 2])).toThrow();
+    });
+
     it('can be an out argument along with other arguments', function () {
         let [array, sum] = GIMarshallingTests.array_out_etc(9, 5);
         expect(sum).toEqual(14);
@@ -530,7 +609,7 @@ describe('C array with length', function () {
 describe('Zero-terminated C array', function () {
     describe('of strings', function () {
         testSimpleMarshalling('array_zero_terminated', ['0', '1', '2'],
-            ['-1', '0', '1', '2']);
+            ['-1', '0', '1', '2'], null);
     });
 
     it('marshals null as a zero-terminated array return value', function () {
@@ -559,9 +638,6 @@ describe('Zero-terminated C array', function () {
 
         ['none', 'container', 'full'].forEach(transfer => {
             it(`marshals as a transfer-${transfer} in and out parameter`, function () {
-                if (transfer === 'full')
-                    pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/399');
-
                 const returnedArray =
                     GIMarshallingTests[`array_gvariant_${transfer}_in`](variantArray);
                 expect(returnedArray.map(v => v.deepUnpack())).toEqual([27, 'Hello']);
@@ -582,7 +658,7 @@ describe('GArray', function () {
     });
 
     describe('of strings', function () {
-        testContainerMarshalling('garray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1']);
+        testContainerMarshalling('garray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1'], null);
 
         it('marshals as a transfer-full caller-allocated out parameter', function () {
             expect(GIMarshallingTests.garray_utf8_full_out_caller_allocated())
@@ -621,7 +697,7 @@ describe('GArray', function () {
 
 describe('GPtrArray', function () {
     describe('of strings', function () {
-        testContainerMarshalling('gptrarray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1']);
+        testContainerMarshalling('gptrarray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1'], null);
     });
 
     describe('of structs', function () {
@@ -663,7 +739,7 @@ describe('GBytes', function () {
         expect(bytes.toArray()).toEqual(refByteArray);
     });
 
-    it('can be implicitly converted from a ByteArray', function () {
+    it('can be implicitly converted from a Uint8Array', function () {
         expect(() => GIMarshallingTests.gbytes_none_in(refByteArray))
             .not.toThrow();
     });
@@ -671,18 +747,6 @@ describe('GBytes', function () {
     it('can be created from a string and is encoded in UTF-8', function () {
         let bytes = GLib.Bytes.new('const \u2665 utf8');
         expect(() => GIMarshallingTests.utf8_as_uint8array_in(bytes.toArray()))
-            .not.toThrow();
-    });
-
-    it('turns into a GByteArray on assignment', function () {
-        let bytes = GIMarshallingTests.gbytes_full_return();
-        let array = bytes.toArray();  // Array should just be holding a ref, not a copy
-        expect(array[1]).toEqual(49);
-        array[1] = 42;  // Assignment should force to GByteArray
-        expect(array[1]).toEqual(42);
-        array[1] = 49;  // Flip the value back
-        // Now convert back to GBytes
-        expect(() => GIMarshallingTests.gbytes_none_in(ByteArray.toGBytes(array)))
             .not.toThrow();
     });
 
@@ -694,7 +758,57 @@ describe('GBytes', function () {
 });
 
 describe('GStrv', function () {
-    testSimpleMarshalling('gstrv', ['0', '1', '2'], ['-1', '0', '1', '2']);
+    testSimpleMarshalling('gstrv', ['0', '1', '2'], ['-1', '0', '1', '2'], null);
+});
+
+describe('Array of GStrv', function () {
+    ['length', 'fixed', 'zero_terminated'].forEach(arrayKind =>
+        ['none', 'container', 'full'].forEach(transfer => {
+            const testFunction = returnMode => {
+                const commonName = 'array_of_gstrv_transfer';
+                const funcName = [arrayKind, commonName, transfer, returnMode].join('_');
+                const func = GIMarshallingTests[funcName];
+                if (!func)
+                    pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/407');
+                return func;
+            };
+
+            ['out', 'return'].forEach(returnMode =>
+                it(`${arrayKind} ${returnMode} transfer ${transfer}`, function () {
+                    const func = testFunction(returnMode);
+                    expect(func()).toEqual([
+                        ['0', '1', '2'], ['3', '4', '5'], ['6', '7', '8'],
+                    ]);
+                }));
+
+            it(`${arrayKind} in transfer ${transfer}`, function () {
+                const func = testFunction('in');
+                if (transfer === 'container')
+                    pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
+
+                expect(() => func([
+                    ['0', '1', '2'], ['3', '4', '5'], ['6', '7', '8'],
+                ])).not.toThrow();
+            });
+
+            it(`${arrayKind} inout transfer ${transfer}`, function () {
+                const func = testFunction('inout');
+
+                if (transfer === 'container')
+                    pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
+
+                const expectedReturn = [
+                    ['-1', '0', '1', '2'], ['-1', '3', '4', '5'], ['-1', '6', '7', '8'],
+                ];
+
+                if (arrayKind !== 'fixed')
+                    expectedReturn.push(['-1', '9', '10', '11']);
+
+                expect(func([
+                    ['0', '1', '2'], ['3', '4', '5'], ['6', '7', '8'],
+                ])).toEqual(expectedReturn);
+            });
+        }));
 });
 
 ['GList', 'GSList'].forEach(listKind => {
@@ -715,7 +829,7 @@ describe('GStrv', function () {
 
         describe('of strings', function () {
             testContainerMarshalling(`${list}_utf8`, ['0', '1', '2'],
-                ['-2', '-1', '0', '1']);
+                ['-2', '-1', '0', '1'], []);
         });
     });
 });
@@ -751,7 +865,7 @@ describe('GHashTable', function () {
             0: '0',
             1: '1',
         };
-        testContainerMarshalling('ghashtable_utf8', stringDict, stringDictOut);
+        testContainerMarshalling('ghashtable_utf8', stringDict, stringDictOut, null);
     });
 
     describe('with double values', function () {
@@ -795,10 +909,18 @@ describe('GHashTable', function () {
 });
 
 describe('GValue', function () {
-    testSimpleMarshalling('gvalue', 42, '42', {
+    testSimpleMarshalling('gvalue', 42, '42', null, {
         inout: {
             skip: 'https://gitlab.gnome.org/GNOME/gobject-introspection/issues/192',
         },
+    });
+
+    it('can handle noncanonical float NaN', function () {
+        expect(GIMarshallingTests.gvalue_noncanonical_nan_float()).toBeNaN();
+    });
+
+    it('can handle noncanonical double NaN', function () {
+        expect(GIMarshallingTests.gvalue_noncanonical_nan_double()).toBeNaN();
     });
 
     it('marshals as an int64 in parameter', function () {
@@ -899,8 +1021,6 @@ describe('GValue', function () {
     });
 
     it('array can be passed as an out argument and unpacked when zero-terminated', function () {
-        if (!GIMarshallingTests.return_gvalue_zero_terminated_array)
-            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/397');
         expect(GIMarshallingTests.return_gvalue_zero_terminated_array())
             .toEqual([42, '42', true]);
     });
@@ -1056,7 +1176,7 @@ describe('Raw pointers', function () {
 
 describe('Registered enum type', function () {
     testSimpleMarshalling('genum', GIMarshallingTests.GEnum.VALUE3,
-        GIMarshallingTests.GEnum.VALUE1, {
+        GIMarshallingTests.GEnum.VALUE1, 0, {
             returnv: {
                 funcName: 'genum_returnv',
             },
@@ -1065,7 +1185,7 @@ describe('Registered enum type', function () {
 
 describe('Bare enum type', function () {
     testSimpleMarshalling('enum', GIMarshallingTests.Enum.VALUE3,
-        GIMarshallingTests.Enum.VALUE1, {
+        GIMarshallingTests.Enum.VALUE1, 0, {
             returnv: {
                 funcName: 'enum_returnv',
             },
@@ -1074,7 +1194,7 @@ describe('Bare enum type', function () {
 
 describe('Registered flags type', function () {
     testSimpleMarshalling('flags', GIMarshallingTests.Flags.VALUE2,
-        GIMarshallingTests.Flags.VALUE1, {
+        GIMarshallingTests.Flags.VALUE1, 0, {
             returnv: {
                 funcName: 'flags_returnv',
             },
@@ -1087,7 +1207,7 @@ describe('Registered flags type', function () {
 
 describe('Bare flags type', function () {
     testSimpleMarshalling('no_type_flags', GIMarshallingTests.NoTypeFlags.VALUE2,
-        GIMarshallingTests.NoTypeFlags.VALUE1, {
+        GIMarshallingTests.NoTypeFlags.VALUE1, 0, {
             returnv: {
                 funcName: 'no_type_flags_returnv',
             },
@@ -1669,82 +1789,82 @@ describe('Wrong virtual functions', function () {
     }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/311');
 
     it('marshals multiple out parameters', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: *vfunc_vfunc_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_multiple_out_parameters()).toEqual([0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a return value and one out parameter', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: *vfunc_return_value_and_one_out_parameter*Array*');
 
         expect(tester.vfunc_return_value_and_one_out_parameter()).toEqual([0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a return value and multiple out parameters', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: *vfunc_return_value_and_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_return_value_and_multiple_out_parameters()).toEqual([0, 0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an array out parameter', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type gfloat for Argument*undefined*');
 
         expect(tester.vfunc_array_out_parameter()).toEqual(null);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an enum return value', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type enum for Return*undefined*');
 
         expect(tester.vfunc_return_enum()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an enum out parameter', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type enum for Argument*undefined*');
 
         expect(tester.vfunc_out_enum()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a flags return value', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type flags for Return*undefined*');
 
         expect(tester.vfunc_return_flags()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a flags out parameter', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type flags for Argument*undefined*');
 
         expect(tester.vfunc_out_flags()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 });
@@ -1900,7 +2020,10 @@ describe('GError', function () {
     });
 
     it('marshals a GError** at the end of the signature as an exception', function () {
-        expect(() => GIMarshallingTests.gerror_array_in([-1, 0, 1, 2])).toThrow();
+        expect(() => GIMarshallingTests.gerror_array_in([-1, 0, 1, 2])).toThrowMatching(e =>
+            e.matches(GLib.quark_from_static_string(GIMarshallingTests.CONSTANT_GERROR_DOMAIN),
+                GIMarshallingTests.CONSTANT_GERROR_CODE) &&
+            e.message === GIMarshallingTests.CONSTANT_GERROR_MESSAGE);
     });
 
     it('marshals a GError** elsewhere in the signature as an out parameter', function () {
@@ -1983,22 +2106,47 @@ describe('GObject properties', function () {
     });
 
     function testPropertyGetSet(type, value1, value2, skip = false) {
-        it(`gets and sets a ${type} property`, function () {
-            if (skip)
-                pending(skip);
-            obj[`some_${type}`] = value1;
-            expect(obj[`some_${type}`]).toEqual(value1);
-            obj[`some_${type}`] = value2;
-            expect(obj[`some_${type}`]).toEqual(value2);
+        const snakeCase = `some_${type}`;
+        const paramCase = snakeCase.replaceAll('_', '-');
+        const camelCase = snakeCase.replace(/(_\w)/g,
+            match => match.toUpperCase().replace('_', ''));
+
+        [snakeCase, paramCase, camelCase].forEach(propertyName => {
+            it(`gets and sets a ${type} property as ${propertyName}`, function () {
+                if (skip)
+                    pending(skip);
+                const handler = jasmine.createSpy(`handle-${paramCase}`);
+                const id = obj.connect(`notify::${paramCase}`, handler);
+
+                obj[propertyName] = value1;
+                expect(obj[propertyName]).toEqual(value1);
+                expect(handler).toHaveBeenCalledTimes(1);
+
+                obj[propertyName] = value2;
+                expect(obj[propertyName]).toEqual(value2);
+                expect(handler).toHaveBeenCalledTimes(2);
+
+                obj.disconnect(id);
+            });
         });
     }
 
     function testPropertyGetSetBigInt(type, value1, value2) {
+        const snakeCase = `some_${type}`;
+        const paramCase = snakeCase.replaceAll('_', '-');
         it(`gets and sets a ${type} property with a bigint`, function () {
-            obj[`some_${type}`] = value1;
-            expect(obj[`some_${type}`]).toEqual(Number(value1));
-            obj[`some_${type}`] = value2;
-            expect(obj[`some_${type}`]).toEqual(Number(value2));
+            const handler = jasmine.createSpy(`handle-${paramCase}`);
+            const id = obj.connect(`notify::${paramCase}`, handler);
+
+            obj[snakeCase] = value1;
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(obj[snakeCase]).toEqual(Number(value1));
+
+            obj[snakeCase] = value2;
+            expect(handler).toHaveBeenCalledTimes(2);
+            expect(obj[snakeCase]).toEqual(Number(value2));
+
+            obj.disconnect(id);
         });
     }
 
@@ -2014,7 +2162,8 @@ describe('GObject properties', function () {
     testPropertyGetSetBigInt('int64', BigIntLimits.int64.min, BigIntLimits.int64.max);
     testPropertyGetSet('uint64', 42, 64);
     testPropertyGetSetBigInt('uint64', BigIntLimits.int64.max, BigIntLimits.int64.umax);
-    testPropertyGetSet('string', 'Gjs', 'is cool!');
+    testPropertyGetSet('string', 'Cjs', 'is cool!');
+    testPropertyGetSet('string', 'and supports', null);
 
     it('get and sets out-of-range values throws', function () {
         expect(() => {
@@ -2041,22 +2190,40 @@ describe('GObject properties', function () {
     });
 
     it('gets and sets a float property', function () {
+        const handler = jasmine.createSpy('handle-some-float');
+        const id = obj.connect('notify::some-float', handler);
+
         obj.some_float = Math.E;
+        expect(handler).toHaveBeenCalledTimes(1);
         expect(obj.some_float).toBeCloseTo(Math.E);
+
         obj.some_float = Math.PI;
+        expect(handler).toHaveBeenCalledTimes(2);
         expect(obj.some_float).toBeCloseTo(Math.PI);
+
+        obj.disconnect(id);
     });
 
     it('gets and sets a double property', function () {
+        const handler = jasmine.createSpy('handle-some-double');
+        const id = obj.connect('notify::some-double', handler);
+
         obj.some_double = Math.E;
+        expect(handler).toHaveBeenCalledTimes(1);
         expect(obj.some_double).toBeCloseTo(Math.E);
+
         obj.some_double = Math.PI;
+        expect(handler).toHaveBeenCalledTimes(2);
         expect(obj.some_double).toBeCloseTo(Math.PI);
+
+        obj.disconnect(id);
     });
 
     testPropertyGetSet('strv', ['0', '1', '2'], []);
     testPropertyGetSet('boxed_struct', new GIMarshallingTests.BoxedStruct(),
         new GIMarshallingTests.BoxedStruct({long_: 42}));
+    testPropertyGetSet('boxed_struct', new GIMarshallingTests.BoxedStruct(),
+        null);
     testPropertyGetSet('boxed_glist', null, null);
     testPropertyGetSet('gvalue', 42, 'foo');
     testPropertyGetSetBigInt('gvalue', BigIntLimits.int64.umax, BigIntLimits.int64.min);
@@ -2068,12 +2235,16 @@ describe('GObject properties', function () {
         new GLib.Variant('t', BigIntLimits.int64.umax));
     testPropertyGetSet('object', new GObject.Object(),
         new GIMarshallingTests.Object({int: 42}));
+    testPropertyGetSet('object', new GIMarshallingTests.PropertiesObject({
+        'some-int': 23, 'some-string': '👾',
+    }), null);
     testPropertyGetSet('flags', GIMarshallingTests.Flags.VALUE2,
         GIMarshallingTests.Flags.VALUE1 | GIMarshallingTests.Flags.VALUE2);
     testPropertyGetSet('enum', GIMarshallingTests.GEnum.VALUE2,
         GIMarshallingTests.GEnum.VALUE3);
     testPropertyGetSet('byte_array', Uint8Array.of(1, 2, 3),
-        ByteArray.fromString('👾'));
+        new TextEncoder().encode('👾'));
+    testPropertyGetSet('byte_array', Uint8Array.of(3, 2, 1), null);
 
     it('gets a read-only property', function () {
         expect(obj.some_readonly).toEqual(42);
@@ -2081,6 +2252,114 @@ describe('GObject properties', function () {
 
     it('throws when setting a read-only property', function () {
         expect(() => (obj.some_readonly = 35)).toThrow();
+    });
+
+    it('allows to set/get deprecated properties', function () {
+        if (!GObject.Object.find_property.call(
+            GIMarshallingTests.PropertiesObject, 'some-deprecated-int'))
+            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/410');
+
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*GObject property*.some-deprecated-int is deprecated*');
+        obj.some_deprecated_int = 35;
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+            'testAllowToSetGetDeprecatedProperties');
+
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*GObject property*.some-deprecated-int is deprecated*');
+        expect(obj.some_deprecated_int).toBe(35);
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+            'testAllowToSetGetDeprecatedProperties');
+    });
+
+    const JSOverridingProperty = GObject.registerClass(
+        class Overriding extends GIMarshallingTests.PropertiesObject {
+            constructor(params) {
+                super(params);
+                this.intValue = 55;
+                this.stringValue = 'a string';
+            }
+
+            set some_int(v) {
+                this.intValue = v;
+            }
+
+            get someInt() {
+                return this.intValue;
+            }
+
+            set someString(v) {
+                this.stringValue = v;
+            }
+
+            get someString() {
+                return this.stringValue;
+            }
+        });
+
+    it('can be overridden from JS', function () {
+        const intHandler = jasmine.createSpy('handle-some-int');
+        const stringHandler = jasmine.createSpy('handle-some-string');
+        const overriding = new JSOverridingProperty({
+            'someInt': 45,
+            'someString': 'other string',
+        });
+        const ids = [];
+        ids.push(overriding.connect('notify::some-int', intHandler));
+        ids.push(overriding.connect('notify::some-string', stringHandler));
+
+        expect(overriding['some-int']).toBe(45);
+        expect(overriding.someInt).toBe(55);
+        expect(overriding.some_int).toBeUndefined();
+        expect(overriding.intValue).toBe(55);
+        expect(overriding.someString).toBe('a string');
+        expect(overriding.some_string).toBe('other string');
+        expect(intHandler).not.toHaveBeenCalled();
+        expect(stringHandler).not.toHaveBeenCalled();
+
+        overriding.some_int = 35;
+        expect(overriding['some-int']).toBe(45);
+        expect(overriding.some_int).toBeUndefined();
+        expect(overriding.someInt).toBe(35);
+        expect(overriding.intValue).toBe(35);
+        expect(intHandler).not.toHaveBeenCalled();
+
+        overriding.someInt = 85;
+        expect(overriding['some-int']).toBe(45);
+        expect(overriding.someInt).toBe(35);
+        expect(overriding.some_int).toBeUndefined();
+        expect(overriding.intValue).toBe(35);
+        expect(intHandler).not.toHaveBeenCalled();
+
+        overriding['some-int'] = 123;
+        expect(overriding['some-int']).toBe(123);
+        expect(overriding.someInt).toBe(35);
+        expect(overriding.some_int).toBeUndefined();
+        expect(overriding.intValue).toBe(35);
+        expect(intHandler).toHaveBeenCalledTimes(1);
+
+        overriding['some-string'] = '🐧';
+        expect(overriding['some-string']).toBe('🐧');
+        expect(overriding.some_string).toBe('🐧');
+        expect(overriding.someString).toBe('a string');
+        expect(overriding.stringValue).toBe('a string');
+        expect(stringHandler).toHaveBeenCalledTimes(1);
+
+        overriding.some_string = '🍕';
+        expect(overriding['some-string']).toBe('🍕');
+        expect(overriding.some_string).toBe('🍕');
+        expect(overriding.someString).toBe('a string');
+        expect(overriding.stringValue).toBe('a string');
+        expect(stringHandler).toHaveBeenCalledTimes(2);
+
+        overriding.someString = '🍝';
+        expect(overriding['some-string']).toBe('🍕');
+        expect(overriding.some_string).toBe('🍕');
+        expect(overriding.someString).toBe('🍝');
+        expect(overriding.stringValue).toBe('🍝');
+        expect(stringHandler).toHaveBeenCalledTimes(2);
+
+        ids.forEach(id => overriding.disconnect(id));
     });
 });
 
@@ -2090,12 +2369,16 @@ describe('GObject signals', function () {
         obj = new GIMarshallingTests.SignalsObject();
     });
 
-    function testSignalEmission(type, value, skip = false) {
-        it(`checks emission of signal with ${type} argument`, function () {
+    function testSignalEmission(type, transfer, value, skip = false) {
+        it(`checks emission of signal with ${type} argument and transfer ${transfer}`, function () {
             if (skip)
                 pending(skip);
 
             const signalCallback = jasmine.createSpy('signalCallback');
+
+            if (transfer !== 'none')
+                type += `-${transfer}`;
+
             const signalName = `some_${type}`;
             const funcName = `emit_${type}`.replaceAll('-', '_');
             const signalId = obj.connect(signalName, signalCallback);
@@ -2105,19 +2388,43 @@ describe('GObject signals', function () {
         });
     }
 
-    testSignalEmission('boxed-gptrarray-utf8', ['0', '1', '2']);
-    testSignalEmission('boxed-gptrarray-boxed-struct', [
-        new GIMarshallingTests.BoxedStruct({long_: 42}),
-        new GIMarshallingTests.BoxedStruct({long_: 43}),
-        new GIMarshallingTests.BoxedStruct({long_: 44}),
-    ]);
+    ['none', 'container', 'none'].forEach(transfer => {
+        testSignalEmission('boxed-gptrarray-utf8', transfer, ['0', '1', '2']);
+        testSignalEmission('boxed-gptrarray-boxed-struct', transfer, [
+            new GIMarshallingTests.BoxedStruct({long_: 42}),
+            new GIMarshallingTests.BoxedStruct({long_: 43}),
+            new GIMarshallingTests.BoxedStruct({long_: 44}),
+        ]);
 
-    testSignalEmission('hash-table-utf8-int', {
-        '-1': 1,
-        '0': 0,
-        '1': -1,
-        '2': -2,
-    }, !GIMarshallingTests.SignalsObject.prototype.emit_hash_table_utf8_int
-        ? 'https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/409'
-        : false);
+        testSignalEmission('hash-table-utf8-int', transfer, {
+            '-1': 1,
+            '0': 0,
+            '1': -1,
+            '2': -2,
+        });
+    });
+
+    ['none', 'full'].forEach(transfer => {
+        let skip = false;
+        if (transfer === 'full')
+            skip = 'https://gitlab.gnome.org/GNOME/gobject-introspection/-/issues/470';
+
+        testSignalEmission('boxed-struct', transfer, jasmine.objectContaining({
+            long_: 99,
+            string_: 'a string',
+            g_strv: ['foo', 'bar', 'baz'],
+        }), skip);
+    });
+
+    it('with not-ref-counted boxed types with transfer full are properly handled', function () {
+        // When using JS side only we can handle properly the problems of
+        // https://gitlab.gnome.org/GNOME/gobject-introspection/-/issues/470
+        const callbackFunc = jasmine.createSpy('callbackFunc');
+        const signalId = obj.connect('some-boxed-struct-full', callbackFunc);
+        obj.emit('some-boxed-struct-full',
+            new GIMarshallingTests.BoxedStruct({long_: 44}));
+        obj.disconnect(signalId);
+        expect(callbackFunc).toHaveBeenCalledOnceWith(obj,
+            new GIMarshallingTests.BoxedStruct({long_: 44}));
+    });
 });

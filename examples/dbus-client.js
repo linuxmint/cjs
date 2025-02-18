@@ -9,7 +9,7 @@ import Gio from 'gi://Gio';
  */
 const ifaceXml = `
 <node>
-  <interface name="org.gnome.gjs.Test">
+  <interface name="org.cinnamon.cjs.Test">
     <method name="SimpleMethod"/>
     <method name="ComplexMethod">
       <arg type="s" direction="in" name="input"/>
@@ -26,7 +26,7 @@ const ifaceXml = `
 
 
 
-// Pass the XML string to make a re-usable proxy class for an interface proxies.
+// Pass the XML string to make a reusable proxy class for an interface proxies.
 const TestProxy = Gio.DBusProxy.makeProxyWrapper(ifaceXml);
 
 
@@ -45,8 +45,8 @@ function onNameAppeared(connection, name, _owner) {
     try {
         proxy = new TestProxy(
             Gio.DBus.session,
-            'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test'
+            'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test'
         );
     } catch (err) {
         logError(err);
@@ -119,7 +119,7 @@ function onNameVanished(connection, name) {
 
 let busWatchId = Gio.bus_watch_name(
     Gio.BusType.SESSION,
-    'org.gnome.gjs.Test',
+    'org.cinnamon.cjs.Test',
     Gio.BusNameWatcherFlags.NONE,
     onNameAppeared,
     onNameVanished
@@ -143,8 +143,8 @@ proxy = null;
 
 new TestProxy(
     Gio.DBus.session,
-    'org.gnome.gjs.Test',
-    '/org/gnome/gjs/Test',
+    'org.cinnamon.cjs.Test',
+    '/org/cinnamon/cjs/Test',
     (sourceObj, error) => {
         // If @error is not `null` it will be an Error object indicating the
         // failure. @proxy will be `null` in this case.

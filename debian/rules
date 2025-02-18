@@ -4,20 +4,24 @@ built_binaries := $(shell dh_listpackages)
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,-z,defs
-export DPKG_GENSYMBOLS_CHECK_LEVEL = 2
 
 include /usr/share/dpkg/default.mk
 
 export DH_VERBOSE=1
+
+ifeq ($(filter amd64 arm64 armel armhf i386 mips64el ppc64el riscv64 s390x hppa loong64 powerpc ppc64 sh4,$(DEB_HOST_ARCH)),)
+SYSPROF = -Dprofiler=disabled
+endif
 
 %:
 	dh $@
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
-		-Dauto_features=enabled \
-		-Dprofiler=disabled \
+		--unity=on \
 		-Dinstalled_tests=false \
+		-Dauto_features=enabled \
+		$(SYSPROF) \
 		$(NULL)
 
 override_dh_girepository:
@@ -28,16 +32,12 @@ override_dh_auto_test:
 	obj-$(DEB_HOST_GNU_TYPE)/cjs-console -c 'print("Smoke-test OK")'
 	env \
 		TZ=UTC \
+	dbus-run-session -- \
 	xvfb-run -a \
 	dh_auto_test -- -v -C $(CURDIR)/obj-$(DEB_HOST_GNU_TYPE) --timeout-multiplier 4
-
-override_dh_makeshlibs:
-	dh_makeshlibs -Xusr/lib/$(DEB_HOST_MULTIARCH)/cjs-1.0 -- -c4
 
 override_dh_strip:
 	dh_strip --dbg-package=libcjs-dbg
 
-override_dh_gnome_clean:
-	dh_gnome_clean --no-control
-
-
+override_dh_makeshlibs:
+	dh_makeshlibs -Xusr/lib/$(DEB_HOST_MULTIARCH)/cjs-1.0 -- -c4

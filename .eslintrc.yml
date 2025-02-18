@@ -30,6 +30,7 @@ rules:
     - error
     - arrays: always-multiline
       objects: always-multiline
+      imports: always-multiline
       functions: never
   comma-spacing:
     - error
@@ -68,12 +69,16 @@ rules:
   jsdoc/check-tag-names: error
   jsdoc/check-types: error
   jsdoc/implements-on-classes: error
-  jsdoc/newline-after-description: error
   jsdoc/require-jsdoc: error
   jsdoc/require-param: error
   jsdoc/require-param-description: error
   jsdoc/require-param-name: error
   jsdoc/require-param-type: error
+  jsdoc/tag-lines:
+    - error
+    - always
+    - count: 0
+      startLines: 1
   key-spacing:
     - error
     - beforeColon: false

@@ -39,6 +39,10 @@ void gjs_test_tools_reset() {
     FinalizedObjectsLocked()->clear();
 }
 
+void gjs_test_tools_ref(GObject* object) { g_object_ref(object); }
+
+void gjs_test_tools_unref(GObject* object) { g_object_unref(object); }
+
 // clang-format off
 static G_DEFINE_QUARK(gjs-test-utils::finalize, finalize);
 // clang-format on
@@ -216,6 +220,7 @@ void gjs_test_tools_run_dispose_other_thread(GObject* object, GError** error) {
         object, error);
     // cppcheck-suppress leakNoVarFunctionCall
     g_thread_join(thread);
+    // cppcheck-suppress memleak
 }
 
 /**
@@ -349,4 +354,38 @@ int gjs_test_tools_open_bytes(GBytes* bytes, GError** error) {
 #else
     g_error("%s is currently supported on UNIX only", __func__);
 #endif
+}
+
+/**
+ * gjs_test_tools_new_unaligned_bytes:
+ * @len: Length of buffer to allocate
+ *
+ * Creates a data buffer at a location 1 byte away from an 8-byte alignment
+ * boundary, to make sure that tests fail when SpiderMonkey enforces an
+ * alignment restriction on embedder data.
+ *
+ * The buffer is filled with repeated 0x00-0x07 bytes containing the least
+ * significant 3 bits of that byte's address.
+ *
+ * Returns: (transfer full): a #GBytes
+ */
+GBytes* gjs_test_tools_new_unaligned_bytes(size_t len) {
+    auto* buffer = static_cast<char*>(g_aligned_alloc0(1, len + 1, 8));
+    for (size_t ix = 0; ix < len + 1; ix++) {
+        buffer[ix] = reinterpret_cast<uintptr_t>(buffer + ix) & 0x07;
+    }
+    return g_bytes_new_with_free_func(buffer + 1, len, g_aligned_free, buffer);
+}
+
+alignas(8) static const char static_bytes[] = "hello";
+
+/**
+ * gjs_test_tools_new_static_bytes:
+ *
+ * Returns a buffer that lives in static storage.
+ *
+ * Returns: (transfer full): a #GBytes
+ */
+GBytes* gjs_test_tools_new_static_bytes() {
+    return g_bytes_new_static(static_bytes, 6);
 }

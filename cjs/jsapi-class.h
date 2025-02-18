@@ -10,9 +10,10 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <js/CallArgs.h>  // for JSNative
 #include <js/TypeDecls.h>
+#include <js/ValueArray.h>
 
-#include "gi/wrapperutils.h"
 #include "cjs/global.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -35,14 +36,23 @@ JSObject *gjs_construct_object_dynamic(JSContext                  *cx,
                                        const JS::HandleValueArray& args);
 
 GJS_JSAPI_RETURN_CONVENTION
-bool gjs_define_property_dynamic(JSContext       *cx,
-                                 JS::HandleObject proto,
-                                 const char      *prop_name,
-                                 const char      *func_namespace,
-                                 JSNative         getter,
-                                 JSNative         setter,
-                                 JS::HandleValue  private_slot,
-                                 unsigned         flags);
+bool gjs_define_property_dynamic(JSContext*, JS::HandleObject proto,
+                                 const char* prop_name, JS::HandleId,
+                                 const char* func_namespace, JSNative getter,
+                                 JS::HandleValue getter_slot, JSNative setter,
+                                 JS::HandleValue setter_slot, unsigned flags);
+
+GJS_JSAPI_RETURN_CONVENTION
+inline bool gjs_define_property_dynamic(JSContext* cx, JS::HandleObject proto,
+                                        const char* prop_name, JS::HandleId id,
+                                        const char* func_namespace,
+                                        JSNative getter, JSNative setter,
+                                        JS::HandleValue private_slot,
+                                        unsigned flags) {
+    return gjs_define_property_dynamic(cx, proto, prop_name, id, func_namespace,
+                                       getter, private_slot, setter,
+                                       private_slot, flags);
+}
 
 [[nodiscard]] JS::Value gjs_dynamic_property_private_slot(
     JSObject* accessor_obj);

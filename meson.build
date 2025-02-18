@@ -2,15 +2,10 @@
 # SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 # SPDX-FileCopyrightText: 2019 Chun-wei Fan <fanchunwei@src.gnome.org>
 
-project(
-  'cjs',
-  'cpp',
-  'c',
-version : '6.4.0',
-license : ['MIT', 'LGPL2+'],
-meson_version : '>=0.56.0',
-default_options : ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99', 'warning_level=2', 'b_pch=true']
-)
+project('cjs', 'cpp', 'c', version: '6.5.0', license: ['MIT', 'LGPL2+'],
+    meson_version: '>= 0.62.0',
+    default_options: ['cpp_std=c++17', 'cpp_rtti=false', 'cpp_eh=none',
+        'c_std=c99', 'warning_level=2', 'b_pch=true' ])
 
 # cpp_rtti: SpiderMonkey can be compiled with or without runtime type
 # information, and the default is without. We must match that option because we
@@ -23,6 +18,15 @@ gnome = import('gnome')
 pkg = import('pkgconfig')
 
 top_include = include_directories('.')
+prefix = get_option('prefix')
+bindir = get_option('bindir')
+libdir = get_option('libdir')
+datadir = get_option('datadir')
+libexecdir = get_option('libexecdir')
+cjsjsdir = datadir / api_name
+pkglibdir = libdir / meson.project_name()
+installed_tests_execdir = libexecdir / 'installed-tests' / meson.project_name()
+installed_tests_metadir = datadir / 'installed-tests' / meson.project_name()
 
 ### Check for conflicting build options ########################################
 
@@ -44,7 +48,7 @@ if cc.get_id() == 'msvc'
     add_project_arguments(cxx.get_supported_arguments([
         '-utf-8',  # Use UTF-8 mode
         '/Zc:externConstexpr',  # Required for 'extern constexpr' on MSVC
-        '/Zc:preprocessor',     # Required to consume the mozjs-115 headers on MSVC
+        '/Zc:preprocessor',     # Required to consume the mozjs-128 headers on MSVC
 
         # Ignore spurious compiler warnings for things that GLib and SpiderMonkey
         # header files commonly do
@@ -133,22 +137,11 @@ gio = dependency('gio-2.0', version: glib_required_version,
 ffi = dependency('libffi', fallback: ['libffi', 'ffi_dep'])
 gi = dependency('gobject-introspection-1.0', version: '>= 1.66.0',
     fallback: ['gobject-introspection', 'girepo_dep'])
-spidermonkey = dependency('mozjs-115')
-
-# We might need to look for the headers and lib's for Cairo
-# manually on MSVC/clang-cl builds...
-cairo = dependency('cairo', required: get_option('cairo').enabled() and cxx.get_argument_syntax() != 'msvc')
-cairo_gobject = dependency('cairo-gobject', required: cairo.found() and cxx.get_argument_syntax() != 'msvc')
+cairo = dependency('cairo', fallback: ['cairo', 'libcairo_dep'])
+cairo_gobject = dependency('cairo-gobject',
+    fallback: ['cairo', 'libcairogobject_dep'])
 cairo_xlib = dependency('cairo-xlib', required: false)
-
-if cxx.get_argument_syntax() == 'msvc'
-    if not cairo.found()
-        cairo = cc.find_library('cairo', has_headers: ['cairo.h'], required: get_option('cairo').enabled())
-    endif
-    if not cairo_gobject.found()
-        cairo_gobject = cc.find_library('cairo-gobject', has_headers: ['cairo-gobject.h'], required: cairo.found())
-    endif
-endif
+spidermonkey = dependency('mozjs-128')
 
 sysprof_capture = dependency('sysprof-capture-4',
     required: get_option('profiler'), include_type: 'system',
@@ -206,7 +199,7 @@ else
     libatomic = cc.find_library('atomic', required: false)
 endif
 
-build_profiler = sysprof_capture.found() and not get_option('profiler').disabled()
+build_profiler = sysprof_capture.found()
 profiler_deps = [sysprof_capture]
 if build_profiler and not cxx.has_function('timer_settime')
     extra_timer_libs = ['rt', 'posix4']
@@ -230,8 +223,7 @@ it on other platforms.''')
     endif
 endif
 
-build_cairo = cairo.found() and not get_option('cairo').disabled()
-build_readline = readline.found() and not get_option('readline').disabled()
+build_readline = readline.found()
 
 ### Check for library features #################################################
 
@@ -323,8 +315,6 @@ header_conf.set('GJS_VERSION', int_version,
 header_conf.set_quoted('PACKAGE_STRING', '@0@ @1@'.format(meson.project_name(),
     meson.project_version()))
 
-header_conf.set('ENABLE_CAIRO', build_cairo,
-    description: 'Build with Cairo support')
 header_conf.set('ENABLE_PROFILER', build_profiler,
     description: 'Build the profiler')
 # COMPAT: SpiderMonkey headers in some places use DEBUG instead of JS_DEBUG
@@ -335,9 +325,6 @@ header_conf.set('HAVE_DTRACE', get_option('dtrace'),
     description: 'Using dtrace probes')
 header_conf.set('HAVE_PRINTF_ALTERNATIVE_INT', have_printf_alternative_int,
     description: 'printf() accepts "%Id" for alternative integer output')
-header_conf.set('HAVE_OPEN_MEMSTREAM',
-    cxx.has_function('open_memstream', prefix : '#include <stdio.h>'),
-    description: 'open_memstream() is available')
 if build_readline
     header_conf.set('HAVE_READLINE_READLINE_H',
         cxx.check_header('readline/readline.h', prefix: '#include <cstdio>',
@@ -354,12 +341,6 @@ header_conf.set('_GNU_SOURCE', 1)
 
 configure_file(output: 'config.h', configuration: header_conf)
 
-### Check for environment ######################################################
-
-gjsjsdir = get_option('datadir') / api_name
-abs_datadir = get_option('prefix') / get_option('datadir')
-pkglibdir = get_option('libdir') / meson.project_name()
-
 ### Build dtrace probes ########################################################
 
 if get_option('dtrace')
@@ -367,31 +348,28 @@ if get_option('dtrace')
         arguments: ['-C', '-h', '-s', '@INPUT@', '-o', '@OUTPUT@'])
     probes_objfile_gen = generator(dtrace, output: '@BASENAME@.o',
         arguments: ['-G', '-s', '@INPUT@', '-o', '@OUTPUT@'])
-    probes_header = probes_header_gen.process('gi/gjs_gi_probes.d')
-    probes_objfile = probes_objfile_gen.process('gi/gjs_gi_probes.d')
+    probes_header = probes_header_gen.process('gi/cjs_gi_probes.d')
+    probes_objfile = probes_objfile_gen.process('gi/cjs_gi_probes.d')
 else
     probes_header = []
     probes_objfile = []
 endif
 
-tapset_subst = configuration_data({
-    'EXPANDED_LIBDIR': get_option('libdir'),
-})
-tapset = configure_file(input: 'cjs/gjs.stp.in', output: 'gjs.stp',
+tapset_subst = configuration_data({'EXPANDED_LIBDIR': libdir})
+tapset = configure_file(input: 'cjs/cjs.stp.in', output: 'cjs.stp',
     configuration: tapset_subst)
 if get_option('systemtap')
-    install_data(tapset,
-        install_dir: get_option('datadir') / 'systemtap/tapset')
+    install_data(tapset, install_dir: datadir / 'systemtap' / 'tapset')
 endif
 
 ### Build library ##############################################################
 
 directory_defines = [
-    '-DGJS_JS_DIR="@0@"'.format(get_option('prefix') / gjsjsdir),
-    '-DPKGLIBDIR="@0@"'.format(get_option('prefix') / pkglibdir),
+    '-DGJS_JS_DIR="@0@"'.format(prefix / cjsjsdir),
+    '-DPKGLIBDIR="@0@"'.format(prefix / pkglibdir),
 ]
 
-gjs_public_headers = [
+cjs_public_headers = [
     'cjs/context.h',
     'cjs/coverage.h',
     'cjs/error-types.h',
@@ -404,7 +382,7 @@ gjs_public_headers = [
 # For historical reasons, some files live in gi/
 # Some headers in the following list were formerly public
 
-libgjs_sources = [
+libcjs_sources = [
     'gi/arg.cpp', 'gi/arg.h', 'gi/arg-inl.h',
     'gi/arg-cache.cpp', 'gi/arg-cache.h',
     'gi/boxed.cpp', 'gi/boxed.h',
@@ -415,7 +393,7 @@ libgjs_sources = [
     'gi/fundamental.cpp', 'gi/fundamental.h',
     'gi/function.cpp', 'gi/function.h',
     'gi/gerror.cpp', 'gi/gerror.h',
-    'gi/gjs_gi_trace.h',
+    'gi/cjs_gi_trace.h',
     'gi/gobject.cpp', 'gi/gobject.h',
     'gi/gtype.cpp', 'gi/gtype.h',
     'gi/interface.cpp', 'gi/interface.h',
@@ -450,31 +428,8 @@ libgjs_sources = [
     'cjs/promise.cpp', 'cjs/promise.h',
     'cjs/stack.cpp',
     'modules/console.cpp', 'modules/console.h',
-    'modules/modules.cpp', 'modules/modules.h',
     'modules/print.cpp', 'modules/print.h',
     'modules/system.cpp', 'modules/system.h',
-]
-
-# CjsPrivate introspection sources
-libgjs_private_sources = [
-    'libgjs-private/gjs-gdbus-wrapper.c', 'libgjs-private/gjs-gdbus-wrapper.h',
-    'libgjs-private/gjs-util.c', 'libgjs-private/gjs-util.h',
-]
-
-libgjs_jsapi_sources = [
-    'cjs/jsapi-class.h',
-    'cjs/jsapi-dynamic-class.cpp',
-    'cjs/jsapi-util-args.h',
-    'cjs/jsapi-util-error.cpp',
-    'cjs/jsapi-util-root.h',
-    'cjs/jsapi-util-string.cpp',
-    'cjs/jsapi-util.cpp', 'cjs/jsapi-util.h',
-    'util/console.cpp', 'util/console.h',
-    'util/log.cpp', 'util/log.h',
-    'util/misc.cpp', 'util/misc.h',
-]
-
-module_cairo_srcs = [
     'modules/cairo-private.h',
     'modules/cairo-module.h',
     'modules/cairo-region.cpp',
@@ -494,54 +449,62 @@ module_cairo_srcs = [
     'modules/cairo.cpp',
 ]
 
+# CjsPrivate introspection sources
+libcjs_private_sources = [
+    'libgjs-private/gjs-gdbus-wrapper.c', 'libgjs-private/gjs-gdbus-wrapper.h',
+    'libgjs-private/gjs-match-info.c', 'libgjs-private/gjs-match-info.h',
+    'libgjs-private/gjs-util.c', 'libgjs-private/gjs-util.h',
+]
+
+libcjs_jsapi_sources = [
+    'cjs/jsapi-class.h',
+    'cjs/jsapi-dynamic-class.cpp',
+    'cjs/jsapi-util-args.h',
+    'cjs/jsapi-util-error.cpp',
+    'cjs/jsapi-util-root.h',
+    'cjs/jsapi-util-string.cpp',
+    'cjs/jsapi-util.cpp', 'cjs/jsapi-util.h',
+    'util/console.cpp', 'util/console.h',
+    'util/log.cpp', 'util/log.h',
+    'util/misc.cpp', 'util/misc.h',
+]
+
 module_resource_srcs = gnome.compile_resources('js-resources',
     'js.gresource.xml',
     c_name: 'js_resources')
+module_resource_lib = static_library('js-resources', module_resource_srcs,
+    dependencies: gio, override_options: ['unity=off'])
 
-libgjs_dependencies = [glib, gobject, gthread, gio, gi, ffi, spidermonkey,
-    readline, libatomic]
-pkg_dependencies = [glib, gobject, gthread, gio, gi, ffi, spidermonkey]
-libraries_private = []
+libcjs_dependencies = [glib, gobject, gthread, gio, gi, ffi, cairo,
+    cairo_gobject, spidermonkey, readline, libatomic]
+pkg_dependencies = [glib, gobject, gthread, gio, gi, ffi, cairo, cairo_gobject,
+    spidermonkey]
 
-if build_cairo
-    libgjs_sources += module_cairo_srcs
-    libgjs_dependencies += [cairo, cairo_gobject]
-    if cairo.type_name() == 'pkgconfig'
-        pkg_dependencies += [cairo]
-    elif cairo.type_name() == 'library'
-        libraries_private += cairo
-    endif
-    if cairo_gobject.type_name() == 'pkgconfig'
-        pkg_dependencies += [cairo_gobject]
-    elif cairo_gobject.type_name() == 'library'
-        libraries_private += cairo_gobject
-    endif
-    if cairo_xlib.found()
-        libgjs_dependencies += cairo_xlib
-        pkg_dependencies += cairo_xlib
-    endif
+if cairo_xlib.found()
+    libcjs_dependencies += cairo_xlib
+    pkg_dependencies += cairo_xlib
 endif
 
 if build_readline
-    libgjs_dependencies += readline_deps
+    libcjs_dependencies += readline_deps
 endif
 
-libgjs_cpp_args = ['-DGJS_COMPILATION'] + directory_defines
+libcjs_cpp_args = ['-DGJS_COMPILATION'] + directory_defines
 
 # Check G-I and/or Meson on this one.
-libgjs_cpp_args += ['-DG_LOG_DOMAIN="Gjs"']
+libcjs_cpp_args += ['-DG_LOG_DOMAIN="Cjs"']
 
 if host_machine.system() == 'windows'
     # We need these defines to build properly for all Windows builds
-    libgjs_cpp_args += ['-DWIN32', '-DXP_WIN', '-DWIN32_LEAN_AND_MEAN']
+    libcjs_cpp_args += ['-DWIN32', '-DXP_WIN', '-DWIN32_LEAN_AND_MEAN']
 endif
 
-# This dependency should provide everything that is needed to compile gjs except
-# the sources themselves, is used to copmile both the static libraries and the
+# This dependency should provide everything that is needed to compile cjs except
+# the sources themselves, is used to compile both the static libraries and the
 # tests
 base_build_dep = declare_dependency(
-    compile_args: libgjs_cpp_args,
-    dependencies: libgjs_dependencies)
+    compile_args: libcjs_cpp_args,
+    dependencies: libcjs_dependencies)
 
 internal_build_dep = declare_dependency(
     compile_args: (release_build ? ['-DG_DISABLE_ASSERT'] : []),
@@ -550,96 +513,92 @@ internal_build_dep = declare_dependency(
         build_profiler ? profiler_deps : [],
     ])
 
-libgjs_jsapi = static_library(meson.project_name() + '-jsapi',
-    libgjs_jsapi_sources, probes_header, probes_objfile,
-    cpp_pch: 'cjs/gjs_pch.hh',
+libcjs_jsapi = static_library(meson.project_name() + '-jsapi',
+    libcjs_jsapi_sources, probes_header, probes_objfile,
+    cpp_pch: 'cjs/cjs_pch.hh',
     dependencies: internal_build_dep,
     install: false)
 
 # We need to create an internal static library to be able to link with the tests
 # that may use internal APIs. This is also used to generate the actual shared
 # library so that we compile its sources just once.
-libgjs_internal = static_library('gjs-internal',
-    libgjs_sources, probes_header, probes_objfile,
-    cpp_pch: 'cjs/gjs_pch.hh',
+libcjs_internal = static_library('cjs-internal',
+    libcjs_sources, probes_header, probes_objfile,
+    cpp_pch: 'cjs/cjs_pch.hh',
     dependencies: internal_build_dep,
-    link_with: libgjs_jsapi)
+    link_with: libcjs_jsapi)
 
 link_args = []
-symbol_map = files('libgjs.map')
-symbol_list = files('libgjs.symbols')
+symbol_map = 'libcjs.map'
+symbol_list = 'libcjs.symbols'
 link_args += cxx.get_supported_link_arguments([
     '-Wl,--version-script,@0@/@1@'.format(meson.current_source_dir(),
-        symbol_map[0]),
+        symbol_map),
     '-Wl,-exported_symbols_list,@0@/@1@'.format(meson.current_source_dir(),
-        symbol_list[0]),  # macOS linker
+        symbol_list),  # macOS linker
 ])
 
-libgjs = shared_library(meson.project_name(),
-    sources: [ libgjs_private_sources, module_resource_srcs ],
+libcjs = shared_library(meson.project_name(),
+    sources: libcjs_private_sources,
     link_args: link_args, link_depends: [symbol_map, symbol_list],
-    link_whole: libgjs_internal,
+    link_whole: [libcjs_internal, module_resource_lib],
     dependencies: base_build_dep,
     version: '0.0.0', soversion: '0',
     gnu_symbol_visibility: 'hidden',
     install: true)
 
-install_headers(gjs_public_headers, subdir: api_name / 'cjs')
+install_headers(cjs_public_headers, subdir: api_name / 'cjs')
 
-# Allow using libgjs as a subproject
-libgjs_dep = declare_dependency(link_with: [libgjs, libgjs_jsapi],
+# Allow using libcjs as a subproject
+libcjs_dep = declare_dependency(link_with: [libcjs, libcjs_jsapi],
     dependencies: base_build_dep, include_directories: top_include)
 
 ### Build CjsPrivate introspection library #####################################
 
-gjs_private_gir = gnome.generate_gir(libgjs,
-    includes: ['GObject-2.0', 'Gio-2.0'], sources: libgjs_private_sources,
+cjs_private_gir = gnome.generate_gir(libcjs,
+    includes: ['GObject-2.0', 'Gio-2.0'], sources: libcjs_private_sources,
     namespace: 'CjsPrivate', nsversion: '1.0', identifier_prefix: 'Gjs',
     symbol_prefix: 'gjs_', fatal_warnings: get_option('werror'), install: true,
-    install_dir_gir: false, install_dir_typelib: pkglibdir / 'girepository-1.0')
-gjs_private_typelib = gjs_private_gir[1]
+    install_gir: false, install_dir_typelib: pkglibdir / 'girepository-1.0')
+cjs_private_typelib = cjs_private_gir[1]
 
 ### Build cjs-console interpreter ##############################################
 
-gjs_console_srcs = ['cjs/console.cpp']
+cjs_console_srcs = ['cjs/console.cpp']
 
-gjs_console = executable('cjs-console', gjs_console_srcs,
-    dependencies: libgjs_dep, install: true)
+cjs_console = executable('cjs-console', cjs_console_srcs,
+    dependencies: libcjs_dep, install: true)
 
-meson.add_install_script('build/symlink-gjs.py', get_option('bindir'))
+meson.add_install_script('build/symlink-cjs.py', bindir)
 
 ### Install data files #########################################################
 
-install_data('installed-tests/extra/gjs.supp',
-    install_dir: get_option('datadir') / api_name / 'valgrind')
-install_data('installed-tests/extra/lsan.supp',
-    install_dir: get_option('datadir') / api_name / 'lsan')
+install_data('installed-tests/extra/gjs.supp', install_dir: cjsjsdir / 'valgrind')
+install_data('installed-tests/extra/lsan.supp', install_dir: cjsjsdir / 'lsan')
 
 if get_option('installed_tests')
-    schemadir = abs_datadir / 'glib-2.0' / 'schemas'
+    schemadir = datadir / 'glib-2.0' / 'schemas'
     install_data('installed-tests/js/org.cinnamon.CjsTest.gschema.xml', install_dir: schemadir)
-    meson.add_install_script('build/compile-gschemas.py', schemadir)
+    meson.add_install_script(glib_compile_schemas, prefix / schemadir, skip_if_destdir: true)
 endif
 
 ### Generate pkg-config file ###################################################
 
-pkg.generate(libgjs, name: api_name, description: 'JS bindings for GObjects',
+pkg.generate(libcjs, name: api_name, description: 'JS bindings for GObjects',
     requires: [glib, gobject, gio], requires_private: pkg_dependencies,
-    libraries_private: libraries_private,
     subdirs: api_name,
     variables: [
         'exec_prefix=${prefix}',
-        'bindir=${exec_prefix}' / get_option('bindir'),
-        'datarootdir=${prefix}' / get_option('datadir'),
-        'datadir=${datarootdir}',
-        'gjs_console=${bindir}/cjs-console',
+        'datarootdir=${datadir}',
+        'cjs_console=${bindir}/cjs-console',
     ])
 
 ### Test environment ###########################################################
 
 tests_environment = environment()
+gi_tests_builddir = meson.project_build_root() / 'subprojects' / 'gobject-introspection-tests'
 js_tests_builddir = meson.current_build_dir() / 'installed-tests' / 'js'
-libgjs_test_tools_builddir = js_tests_builddir / 'libgjstesttools'
+libcjs_test_tools_builddir = js_tests_builddir / 'libgjstesttools'
 # GJS_PATH is empty here since we want to force the use of our own
 # resources. G_FILENAME_ENCODING ensures filenames are not UTF-8
 tests_environment.set('TOP_BUILDDIR', meson.project_build_root())
@@ -647,11 +606,11 @@ tests_environment.set('GJS_USE_UNINSTALLED_FILES', '1')
 tests_environment.set('GJS_PATH', '')
 tests_environment.set('GJS_DEBUG_OUTPUT', 'stderr')
 tests_environment.prepend('GI_TYPELIB_PATH', meson.current_build_dir(),
-    js_tests_builddir, libgjs_test_tools_builddir)
+    gi_tests_builddir, js_tests_builddir, libcjs_test_tools_builddir)
 tests_environment.prepend('LD_LIBRARY_PATH', meson.current_build_dir(),
-    js_tests_builddir, libgjs_test_tools_builddir)
-tests_environment.prepend('DYLD_FALLBACK_LIBRARY_PATH', meson.current_build_dir(),
-    js_tests_builddir, libgjs_test_tools_builddir)
+    gi_tests_builddir, js_tests_builddir, libcjs_test_tools_builddir)
+tests_environment.prepend('DYLD_LIBRARY_PATH', meson.current_build_dir(),
+    gi_tests_builddir, js_tests_builddir, libcjs_test_tools_builddir)
 tests_environment.set('G_FILENAME_ENCODING', 'latin1')
 # Workaround for https://github.com/google/sanitizers/issues/1322
 tests_environment.set('ASAN_OPTIONS', 'intercept_tls_get_addr=0')
@@ -683,10 +642,15 @@ endif
 if get_option('b_coverage')
     tests_environment.set('GJS_UNIT_COVERAGE_OUTPUT', 'lcov')
     tests_environment.set('GJS_UNIT_COVERAGE_PREFIX',
-        'resource:///org/gnome/gjs')
+        'resource:///org/cinnamon/cjs')
 endif
 
 ### Tests and test setups ######################################################
+
+# External code should not error out even when building with -Werror
+gi_tests = subproject('gobject-introspection-tests',
+    default_options: ['werror=false', 'cairo=true',
+        'install_dir=@0@'.format(installed_tests_execdir)])
 
 subdir('installed-tests')
 
@@ -705,11 +669,11 @@ valgrind_environment.set('VALGRIND', 'valgrind')
 glib_prefix = glib.get_variable(pkgconfig: 'prefix', default_value: '/usr')
 glib_suppresssions = (glib_prefix / 'share' / 'glib-2.0' / 'valgrind' /
     'glib.supp')
-gjs_suppressions = (meson.current_source_dir() / 'installed-tests' / 'extra' /
+cjs_suppressions = (meson.current_source_dir() / 'installed-tests' / 'extra' /
     'cjs.supp')
 valgrind_args = [
     '--suppressions=@0@'.format(glib_suppresssions),
-    '--suppressions=@0@'.format(gjs_suppressions),
+    '--suppressions=@0@'.format(cjs_suppressions),
     '--leak-check=full',
     '--num-callers=15',
     '--trace-children=yes',
@@ -737,12 +701,6 @@ add_test_setup('post_verify', timeout_multiplier: 2, env: zeal11_environment)
 
 ### Warn about conditions that may affect runtime ##############################
 
-if gi.version().version_compare('<1.71.0')
-    warning('''You do not have a new enough version of
-gobject-introspection to run the tests. You can still build GJS, but some
-tests will fail.''')
-endif
-
 if tests_locale == 'C' or tests_locale == 'N/A'
     warning('''Your libc does not have the C.UTF-8 locale and no other
 suitable UTF-8 fallback locale could be found. You can still build GJS, but
@@ -755,10 +713,6 @@ building a debug or debugoptimized build. This will make development more
 difficult. Consider reconfiguring SpiderMonkey with --enable-debug.''')
 endif
 
-if not build_cairo
-    warning('Building without Cairo support, not all tests will be run.')
-endif
-
 if get_option('skip_gtk_tests')
     warning('Not using GTK, not all tests will be run.')
 endif
@@ -769,15 +723,12 @@ endif
 
 ### Summarize options ##########################################################
 
-prefix = get_option('prefix')
-bindir = get_option('bindir')
-libdir = get_option('libdir')
-datadir = get_option('datadir')
 summary({
     'prefix': prefix,
     'bindir': prefix / bindir,
     'libdir': prefix / libdir,
     'datadir': prefix / datadir,
+    'libexecdir': prefix / libexecdir,
 }, section: 'Directories')
 locations = []
 foreach dep: [ffi, glib, gi, spidermonkey, readline, sysprof_capture]
@@ -812,12 +763,15 @@ summary({
     'Precompiled headers': get_option('b_pch'),
 }, section: 'Build options', bool_yn: true)
 summary({
-    'Cairo module': build_cairo,
     'Use readline for input': build_readline,
     'Profiler (Linux only)': build_profiler,
     'Dtrace debugging': get_option('dtrace'),
     'Systemtap debugging': get_option('systemtap'),
 }, section: 'Optional features', bool_yn: true)
+
+### Development environment ####################################################
+
+meson.add_devenv({'GJS_USE_UNINSTALLED_FILES': '1'})
 
 ### Maintainer scripts #########################################################
 

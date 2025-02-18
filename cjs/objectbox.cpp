@@ -22,7 +22,7 @@
 #include "cjs/objectbox.h"
 #include "util/log.h"
 
-/* gjs/objectbox.cpp - GObject boxed type used to "box" a JS object so that it
+/* cjs/objectbox.cpp - GObject boxed type used to "box" a JS object so that it
  * can be passed to or returned from a GObject signal, or used as the type of a
  * GObject property.
  */

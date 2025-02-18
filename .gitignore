@@ -3,3 +3,13 @@
 /tools/node_modules
 # artifact from ci-templates:
 /container-build-report.xml
+debian/tmp
+debian/libcjs0
+debian/libcjs-dbg
+debian/libcjs-dev
+debian/cjs
+debian/.debhelper
+debian/*.substvars
+debian/*.debhelper.log
+debian/debhelper-build-stamp
+debian/files

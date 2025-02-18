@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2024 Philip Chimento <philip.chimento@gmail.com>
+
+[
+  {"include": ["<glib/gtypes.h>", "private", "<glib.h>", "public"]},
+  {"include": ["\"gobject/gclosure.h\"", "private", "<glib-object.h>", "public"]},
+  {"include": ["\"gobject/glib-types.h\"", "private", "<glib-object.h>", "public"]},
+  {"include": ["\"gobject/gmarshal.h\"", "private", "<glib-object.h>", "public"]},
+]

@@ -9,6 +9,7 @@
 
 #include <js/Class.h>
 #include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
+#include <js/GCVector.h>     // for MutableHandleIdVector
 #include <js/Id.h>           // for PropertyKey, jsid
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
@@ -34,18 +35,20 @@ InterfacePrototype::~InterfacePrototype(void) {
     GJS_DEC_COUNTER(interface);
 }
 
-static bool append_inferface_properties(JSContext* cx,
-                                        JS::MutableHandleIdVector properties,
-                                        GIInterfaceInfo* iface_info) {
-    int n_methods = g_interface_info_get_n_methods(iface_info);
+bool InterfacePrototype::new_enumerate_impl(
+    JSContext* cx, JS::HandleObject, JS::MutableHandleIdVector properties,
+    bool only_enumerable [[maybe_unused]]) {
+    if (!info())
+        return true;
+
+    int n_methods = g_interface_info_get_n_methods(info());
     if (!properties.reserve(properties.length() + n_methods)) {
         JS_ReportOutOfMemory(cx);
         return false;
     }
 
     for (int i = 0; i < n_methods; i++) {
-        GjsAutoFunctionInfo meth_info =
-            g_interface_info_get_method(iface_info, i);
+        GjsAutoFunctionInfo meth_info = g_interface_info_get_method(info(), i);
         GIFunctionInfoFlags flags = g_function_info_get_flags(meth_info);
 
         if (flags & GI_FUNCTION_IS_METHOD) {
@@ -58,31 +61,6 @@ static bool append_inferface_properties(JSContext* cx,
     }
 
     return true;
-}
-
-bool InterfacePrototype::new_enumerate_impl(
-    JSContext* cx, JS::HandleObject obj [[maybe_unused]],
-    JS::MutableHandleIdVector properties,
-    bool only_enumerable [[maybe_unused]]) {
-    unsigned n_interfaces;
-    GjsAutoPointer<GType, void, &g_free> interfaces =
-        g_type_interfaces(gtype(), &n_interfaces);
-
-    for (unsigned k = 0; k < n_interfaces; k++) {
-        GjsAutoInterfaceInfo iface_info =
-            g_irepository_find_by_gtype(nullptr, interfaces[k]);
-
-        if (!iface_info)
-            continue;
-
-        if (!append_inferface_properties(cx, properties, iface_info))
-            return false;
-    }
-
-    if (!info())
-        return true;
-
-    return append_inferface_properties(cx, properties, info());
 }
 
 // See GIWrapperBase::resolve().
@@ -194,24 +172,17 @@ gjs_lookup_interface_constructor(JSContext             *context,
                                  JS::MutableHandleValue value_p)
 {
     JSObject *constructor;
-    GIBaseInfo *interface_info;
 
-    interface_info = g_irepository_find_by_gtype(nullptr, gtype);
-
+    GjsAutoInterfaceInfo interface_info = gjs_lookup_gtype(nullptr, gtype);
     if (!interface_info) {
         gjs_throw(context, "Cannot expose non introspectable interface %s",
                   g_type_name(gtype));
         return false;
     }
 
-    g_assert(g_base_info_get_type(interface_info) ==
-             GI_INFO_TYPE_INTERFACE);
-
     constructor = gjs_lookup_generic_constructor(context, interface_info);
     if (G_UNLIKELY(!constructor))
         return false;
-
-    g_base_info_unref(interface_info);
 
     value_p.setObject(*constructor);
     return true;

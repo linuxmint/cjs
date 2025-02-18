@@ -106,6 +106,27 @@ static bool resolve_namespace_object(JSContext* context,
         return false;
 
     GjsAutoError error;
+    // If resolving Gio, load the platform-specific typelib first, so that
+    // GioUnix/GioWin32 GTypes get looked up in there with higher priority,
+    // instead of in Gio.
+#if GLIB_CHECK_VERSION(2, 79, 2) && (defined(G_OS_UNIX) || defined(G_OS_WIN32))
+    if (strcmp(ns_name.get(), "Gio") == 0) {
+#    ifdef G_OS_UNIX
+        const char* platform = "Unix";
+#    else   // G_OS_WIN32
+        const char* platform = "Win32";
+#    endif  // G_OS_UNIX/G_OS_WIN32
+        GjsAutoChar platform_specific =
+            g_strconcat(ns_name.get(), platform, nullptr);
+        if (!g_irepository_require(nullptr, platform_specific, version.get(),
+                                   GIRepositoryLoadFlags(0), &error)) {
+            gjs_throw(context, "Failed to require %s %s: %s",
+                      platform_specific.get(), version.get(), error->message);
+            return false;
+        }
+    }
+#endif  // GLib >= 2.79.2
+
     g_irepository_require(nullptr, ns_name.get(), version.get(),
                           GIRepositoryLoadFlags(0), &error);
     if (error) {
@@ -122,12 +143,10 @@ static bool resolve_namespace_object(JSContext* context,
                                   gjs_create_ns(context, ns_name.get()));
 
     JS::RootedValue override(context);
-    if (!lookup_override_function(context, ns_id, &override))
-        return false;
-
-    /* Define the property early, to avoid reentrancy issues if
-       the override module looks for namespaces that import this */
-    if (!JS_DefinePropertyById(context, repo_obj, ns_id, gi_namespace,
+    if (!lookup_override_function(context, ns_id, &override) ||
+        // Define the property early, to avoid reentrancy issues if the override
+        // module looks for namespaces that import this
+        !JS_DefinePropertyById(context, repo_obj, ns_id, gi_namespace,
                                GJS_MODULE_PROP_FLAGS))
         return false;
 
@@ -216,14 +235,28 @@ repo_new(JSContext *context)
      */
     JS::RootedString two_point_oh(context, JS_NewStringCopyZ(context, "2.0"));
     if (!JS_DefinePropertyById(context, versions, atoms.glib(), two_point_oh,
+                               JSPROP_PERMANENT) ||
+        !JS_DefinePropertyById(context, versions, atoms.gobject(), two_point_oh,
+                               JSPROP_PERMANENT) ||
+        !JS_DefinePropertyById(context, versions, atoms.gio(), two_point_oh,
                                JSPROP_PERMANENT))
         return nullptr;
-    if (!JS_DefinePropertyById(context, versions, atoms.gobject(), two_point_oh,
-                               JSPROP_PERMANENT))
+
+#if GLIB_CHECK_VERSION(2, 79, 2)
+#    if defined(G_OS_UNIX)
+    if (!JS_DefineProperty(context, versions, "GLibUnix", two_point_oh,
+                           JSPROP_PERMANENT) ||
+        !JS_DefineProperty(context, versions, "GioUnix", two_point_oh,
+                           JSPROP_PERMANENT))
         return nullptr;
-    if (!JS_DefinePropertyById(context, versions, atoms.gio(), two_point_oh,
-                               JSPROP_PERMANENT))
+#    elif defined(G_OS_WIN32)
+    if (!JS_DefineProperty(context, versions, "GLibWin32", two_point_oh,
+                           JSPROP_PERMANENT) ||
+        !JS_DefineProperty(context, versions, "GioWin32", two_point_oh,
+                           JSPROP_PERMANENT))
         return nullptr;
+#    endif  // G_OS_UNIX/G_OS_WIN32
+#endif      // GLib >= 2.79.2
 
     JS::RootedObject private_ns(context, JS_NewPlainObject(context));
     if (!JS_DefinePropertyById(context, repo, atoms.private_ns_marker(),
@@ -249,7 +282,7 @@ static bool gjs_value_from_constant_info(JSContext* cx, GIConstantInfo* info,
 
     GjsAutoTypeInfo type_info = g_constant_info_get_type(info);
 
-    bool ok = gjs_value_from_g_argument(cx, value, type_info, &garg, true);
+    bool ok = gjs_value_from_gi_argument(cx, value, type_info, &garg, true);
 
     g_constant_info_free_value(info, &garg);
     return ok;
@@ -662,11 +695,9 @@ JSObject *
 gjs_lookup_generic_constructor(JSContext  *context,
                                GIBaseInfo *info)
 {
-    const char *constructor_name;
-
-    JS::RootedObject in_object(context,
-        gjs_lookup_namespace_object(context, (GIBaseInfo*) info));
-    constructor_name = g_base_info_get_name((GIBaseInfo*) info);
+    JS::RootedObject in_object{context,
+        gjs_lookup_namespace_object(context, info)};
+    const char* constructor_name = g_base_info_get_name(info);
 
     if (G_UNLIKELY (!in_object))
         return NULL;
@@ -716,4 +747,40 @@ JSObject* gjs_new_object_with_generic_prototype(JSContext* cx,
         return nullptr;
 
     return JS_NewObjectWithGivenProto(cx, JS::GetClass(proto), proto);
+}
+
+// Handle the case where g_irepository_find_by_gtype() returns a type in Gio
+// that should be in GioUnix or GioWin32. This may be an interface, class, or
+// boxed. This function only needs to be called if you are going to do something
+// with the GIBaseInfo that involves handing a JS object to the user. Otherwise,
+// use g_irepository_find_by_gtype() directly.
+GIBaseInfo* gjs_lookup_gtype(GIRepository* repo, GType gtype) {
+    GjsAutoBaseInfo retval = g_irepository_find_by_gtype(repo, gtype);
+    if (!retval)
+        return nullptr;
+
+#if GLIB_CHECK_VERSION(2, 79, 2) && (defined(G_OS_UNIX) || defined(G_OS_WIN32))
+#    ifdef G_OS_UNIX
+    static const char* c_prefix = "GUnix";
+    static const char* new_ns = "GioUnix";
+#    else  // G_OS_WIN32
+    static const char* c_prefix = "GWin32";
+    static const char* new_ns = "GioWin32";
+#    endif
+
+    const char* ns = g_base_info_get_namespace(retval);
+    if (strcmp(ns, "Gio") != 0)
+        return retval.release();
+
+    const char* gtype_name = g_type_name(gtype);
+    if (!g_str_has_prefix(gtype_name, c_prefix))
+        return retval.release();
+
+    const char* new_name = gtype_name + strlen(c_prefix);
+    GIBaseInfo* new_info = g_irepository_find_by_name(repo, new_ns, new_name);
+    if (new_info)
+        return new_info;
+#endif  // GLib >= 2.79.2
+
+    return retval.release();
 }

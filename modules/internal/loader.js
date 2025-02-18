@@ -18,14 +18,7 @@
  * Thrown when there is an error importing a module.
  */
 class ImportError extends moduleGlobalThis.Error {
-    /**
-     * @param {string | undefined} message the import error message
-     */
-    constructor(message) {
-        super(message);
-
-        this.name = 'ImportError';
-    }
+    name = 'ImportError';
 }
 
 /**
@@ -170,7 +163,7 @@ class InternalModuleLoader {
         // 1) Resolve path and URI-based imports.
         const uri = this.resolveSpecifier(specifier, importingModuleURI);
         if (uri) {
-            module = registry.get(uri.uri);
+            module = registry.get(uri.uriWithQuery);
 
             // Check if module is already loaded (relative handling)
             if (module)
@@ -182,10 +175,10 @@ class InternalModuleLoader {
 
             const [text, internal = false] = result;
 
-            const priv = new ModulePrivate(uri.uri, uri.uri, internal);
+            const priv = new ModulePrivate(uri.uriWithQuery, uri.uri, internal);
             const compiled = this.compileModule(priv, text);
 
-            registry.set(uri.uri, compiled);
+            registry.set(uri.uriWithQuery, compiled);
             return compiled;
         }
 
@@ -230,16 +223,16 @@ class ModuleLoader extends InternalModuleLoader {
         /**
          * The set of "module" URI globs (the module search path)
          *
-         * For example, having `"resource:///org/gnome/gjs/modules/esm/*.js"` in this
+         * For example, having `"resource:///org/cinnamon/cjs/modules/esm/*.js"` in this
          * set allows `import "system"` if
-         * `"resource:///org/gnome/gjs/modules/esm/system.js"` exists.
+         * `"resource:///org/cinnamon/cjs/modules/esm/system.js"` exists.
          *
          * Only `*` is supported as a replacement character, `**` is not supported.
          *
          * @type {Set<string>}
          */
         this.moduleURIs = new Set([
-            'resource:///org/gnome/gjs/modules/esm/*.js',
+            'resource:///org/cinnamon/cjs/modules/esm/*.js',
         ]);
 
         /**
@@ -365,7 +358,7 @@ class ModuleLoader extends InternalModuleLoader {
         // 1) Resolve path and URI-based imports.
         const uri = this.resolveSpecifier(specifier, importingModuleURI);
         if (uri) {
-            module = registry.get(uri.uri);
+            module = registry.get(uri.uriWithQuery);
 
             // Check if module is already loaded (relative handling)
             if (module)
@@ -376,16 +369,16 @@ class ModuleLoader extends InternalModuleLoader {
                 return null;
 
             // Check if module loaded while awaiting.
-            module = registry.get(uri.uri);
+            module = registry.get(uri.uriWithQuery);
             if (module)
                 return module;
 
             const [text, internal = false] = result;
 
-            const priv = new ModulePrivate(uri.uri, uri.uri, internal);
+            const priv = new ModulePrivate(uri.uriWithQuery, uri.uri, internal);
             const compiled = this.compileModule(priv, text);
 
-            registry.set(uri.uri, compiled);
+            registry.set(uri.uriWithQuery, compiled);
             return compiled;
         }
 

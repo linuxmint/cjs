@@ -11,10 +11,10 @@ const Gio = imports.gi.Gio;
 const GObject = imports.gi.GObject;
 
 function expectWarn64(callable) {
-    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
         '*cannot be safely stored*');
     const ret = callable();
-    GLib.test_assert_expected_messages_internal('Gjs',
+    GLib.test_assert_expected_messages_internal('Cjs',
         'testRegress.js', 0, 'Ignore message');
     return ret;
 }
@@ -534,6 +534,25 @@ describe('Life, the Universe and Everything', function () {
         });
     });
 
+    it('enum that references its own members has correct values', function () {
+        expect(Regress.TestReferenceEnum.ZERO).toEqual(4);
+        expect(Regress.TestReferenceEnum.ONE).toEqual(2);
+        expect(Regress.TestReferenceEnum.TWO).toEqual(54);
+        expect(Regress.TestReferenceEnum.THREE).toEqual(4);
+        expect(Regress.TestReferenceEnum.FOUR).toEqual(216);
+        expect(Regress.TestReferenceEnum.FIVE).toEqual(-217);
+    });
+
+    it('unregistered enum works', function () {
+        expect(Regress.TestEnumNoGEnum.EVALUE1).toEqual(0);
+        expect(Regress.TestEnumNoGEnum.EVALUE2).toEqual(42);
+        expect(Regress.TestEnumNoGEnum.EVALUE3).toEqual('0'.charCodeAt());
+    });
+
+    it('value is not added to enum with #define', function () {
+        expect(Regress.TestEnumNoGEnum.EVALUE_DEPRECATED).not.toBeDefined();
+    });
+
     it('enum parameter', function () {
         expect(Regress.test_enum_param(Regress.TestEnum.VALUE1)).toEqual('value1');
         expect(Regress.test_enum_param(Regress.TestEnum.VALUE3)).toEqual('value3');
@@ -947,6 +966,12 @@ describe('Life, the Universe and Everything', function () {
                 expect(() => new Regress.TestBoxedD()).toThrow();
             });
         });
+
+        xit('methods take priority over fields in a name conflict', function () {
+            const boxed = new Regress.TestBoxedC({name_conflict: true});
+            expect(boxed.name_conflict).not.toBeTrue();
+            expect(boxed.name_conflict()).toBeTrue();
+        }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/454');
     });
 
     describe('wrong type for GBoxed', function () {
@@ -1227,6 +1252,23 @@ describe('Life, the Universe and Everything', function () {
                 o.emit('sig-with-obj', testObj);
             });
 
+            it('signal with object with full transport gets correct arguments', function (done) {
+                o.connect('sig-with-obj-full', (self, objectParam) => {
+                    expect(objectParam.int).toEqual(5);
+                    done();
+                });
+                o.emit_sig_with_obj_full();
+            });
+
+            it('signal with object with full transport gets correct arguments from JS', function (done) {
+                o.connect('sig-with-obj-full', (self, objectParam) => {
+                    expect(objectParam.int).toEqual(55);
+                    done();
+                });
+                const testObj = new Regress.TestObj({int: 55});
+                o.emit('sig-with-obj-full', testObj);
+            });
+
             // See testCairo.js for a test of
             // Regress.TestObj::sig-with-foreign-struct.
 
@@ -1286,6 +1328,26 @@ describe('Life, the Universe and Everything', function () {
                 });
                 o.emit('sig-with-strv', ['a', 'bb', 'ccc']);
             });
+
+            it('signal with GStrv parameter and transfer full is properly handled from JS', function (done) {
+                o.connect('sig-with-strv-full', (signalObj, signalArray, shouldBeUndefined) => {
+                    expect(signalObj).toBe(o);
+                    expect(shouldBeUndefined).not.toBeDefined();
+                    expect(signalArray).toEqual(['a', 'bb', 'ccc']);
+                    done();
+                });
+                o.emit('sig-with-strv-full', ['a', 'bb', 'ccc']);
+            });
+
+            xit('signal with GStrv parameter and transfer full is properly handled', function (done) {
+                o.connect('sig-with-strv-full', (signalObj, signalArray, shouldBeUndefined) => {
+                    expect(signalObj).toBe(o);
+                    expect(shouldBeUndefined).not.toBeDefined();
+                    expect(signalArray).toEqual(['foo', 'bar', 'baz']);
+                    done();
+                });
+                o.emit_sig_with_gstrv_full();
+            }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/issues/470');
 
             xit('signal with int array ret parameter is properly handled', function (done) {
                 o.connect('sig-with-intarray-ret', (signalObj, signalInt, shouldBeUndefined) => {

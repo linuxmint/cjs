@@ -32,12 +32,14 @@
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/UniquePtr.h>
+#include <js/Utility.h>  // for UniqueChars, FreePolicy
 #include <js/ValueArray.h>
 #include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
 
 #include "gi/closure.h"
 #include "cjs/context.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/jsapi-util-root.h"
 #include "cjs/macros.h"
 #include "cjs/mainloop.h"
 #include "cjs/profiler.h"
@@ -51,11 +53,12 @@ using JobQueueStorage =
 using ObjectInitList =
     JS::GCVector<JS::Heap<JSObject*>, 0, js::SystemAllocPolicy>;
 using FundamentalTable =
-    JS::GCHashMap<void*, JS::Heap<JSObject*>, js::DefaultHasher<void*>,
+    JS::GCHashMap<void*, Gjs::WeakPtr<JSObject*>, js::DefaultHasher<void*>,
                   js::SystemAllocPolicy>;
 using GTypeTable =
-    JS::GCHashMap<GType, JS::Heap<JSObject*>, js::DefaultHasher<GType>,
+    JS::GCHashMap<GType, Gjs::WeakPtr<JSObject*>, js::DefaultHasher<GType>,
                   js::SystemAllocPolicy>;
+using FunctionVector = JS::GCVector<JSFunction*, 0, js::SystemAllocPolicy>;
 
 class GjsContextPrivate : public JS::JobQueue {
  public:
@@ -87,7 +90,8 @@ class GjsContextPrivate : public JS::JobQueue {
 
     std::vector<std::pair<DestroyNotify, void*>> m_destroy_notifications;
     std::vector<Gjs::Closure::Ptr> m_async_closures;
-    std::unordered_map<uint64_t, GjsAutoChar> m_unhandled_rejection_stacks;
+    std::unordered_map<uint64_t, JS::UniqueChars> m_unhandled_rejection_stacks;
+    FunctionVector m_cleanup_tasks;
 
     GjsProfiler* m_profiler;
 
@@ -117,7 +121,6 @@ class GjsContextPrivate : public JS::JobQueue {
 
     /* flags */
     std::atomic_bool m_destroying = ATOMIC_VAR_INIT(false);
-    bool m_in_gc_sweep : 1;
     bool m_should_exit : 1;
     bool m_force_gc : 1;
     bool m_draining_job_queue : 1;
@@ -125,13 +128,6 @@ class GjsContextPrivate : public JS::JobQueue {
     bool m_exec_as_module : 1;
     bool m_unhandled_exception : 1;
     bool m_should_listen_sigusr2 : 1;
-
-    // If profiling is enabled, we record the durations and reason for GC mark
-    // and sweep
-    int64_t m_gc_begin_time;
-    int64_t m_sweep_begin_time;
-    int64_t m_group_sweep_begin_time;
-    const char* m_gc_reason;  // statically allocated
 
     void schedule_gc_internal(bool force_gc);
     static gboolean trigger_gc_if_needed(void* data);
@@ -192,7 +188,6 @@ class GjsContextPrivate : public JS::JobQueue {
     [[nodiscard]] GjsProfiler* profiler() const { return m_profiler; }
     [[nodiscard]] const GjsAtoms& atoms() const { return *m_atoms; }
     [[nodiscard]] bool destroying() const { return m_destroying.load(); }
-    [[nodiscard]] bool sweeping() const { return m_in_gc_sweep; }
     [[nodiscard]] const char* program_name() const { return m_program_name; }
     void set_program_name(char* value) { m_program_name = value; }
     GJS_USE const char* program_path(void) const { return m_program_path; }
@@ -256,12 +251,19 @@ class GjsContextPrivate : public JS::JobQueue {
                            JS::HandleObject incumbent_global) override;
     void runJobs(JSContext* cx) override;
     [[nodiscard]] bool empty() const override { return m_job_queue.empty(); }
+    [[nodiscard]] bool isDrainingStopped() const override {
+        return !m_draining_job_queue;
+    }
     js::UniquePtr<JS::JobQueue::SavedJobQueue> saveJobQueue(
         JSContext* cx) override;
 
     GJS_JSAPI_RETURN_CONVENTION bool run_jobs_fallible();
-    void register_unhandled_promise_rejection(uint64_t id, GjsAutoChar&& stack);
+    void register_unhandled_promise_rejection(uint64_t id,
+                                              JS::UniqueChars&& stack);
     void unregister_unhandled_promise_rejection(uint64_t id);
+    GJS_JSAPI_RETURN_CONVENTION bool queue_finalization_registry_cleanup(
+        JSFunction* cleanup_task);
+    GJS_JSAPI_RETURN_CONVENTION bool run_finalization_registry_cleanup();
 
     void register_notifier(DestroyNotify notify_func, void* data);
     void unregister_notifier(DestroyNotify notify_func, void* data);
@@ -269,9 +271,6 @@ class GjsContextPrivate : public JS::JobQueue {
 
     [[nodiscard]] bool register_module(const char* identifier,
                                        const char* filename, GError** error);
-
-    void set_gc_status(JSGCStatus status, JS::GCReason reason);
-    void set_finalize_status(JSFinalizeStatus status);
 
     static void trace(JSTracer* trc, void* data);
 

@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2008 litl, LLC
 
-const ByteArray = imports.byteArray;
-const {Gio, GjsTestTools, GLib} = imports.gi;
+const {Gio, CjsTestTools, GLib} = imports.gi;
+
+// Adapter for compatibility with pre-GLib-2.80
+let GioUnix;
+if (imports.gi.versions.GioUnix === '2.0') {
+    GioUnix = imports.gi.GioUnix;
+} else {
+    GioUnix = {
+        InputStream: Gio.UnixInputStream,
+    };
+}
 
 /* The methods list with their signatures.
  *
  * *** NOTE: If you add stuff here, you need to update the Test class below.
  */
 var TestIface = `<node>
-<interface name="org.gnome.gjs.Test">
+<interface name="org.cinnamon.cjs.Test">
 <method name="nonJsonFrobateStuff">
     <arg type="i" direction="in"/>
     <arg type="s" direction="out"/>
@@ -113,7 +122,7 @@ class Test {
         this._propReadWrite = PROP_READ_WRITE_INITIAL_VALUE;
 
         this._impl = Gio.DBusExportedObject.wrapJSObject(TestIface, this);
-        this._impl.export(Gio.DBus.session, '/org/gnome/gjs/Test');
+        this._impl.export(Gio.DBus.session, '/org/cinnamon/cjs/Test');
     }
 
     frobateStuff() {
@@ -235,7 +244,7 @@ class Test {
 
     fdIn(fdIndex, fdList) {
         const fd = fdList.get(fdIndex);
-        const stream = new Gio.UnixInputStream({fd, closeFd: true});
+        const stream = new GioUnix.InputStream({fd, closeFd: true});
         const bytes = stream.read_bytes(4096, null);
         return bytes;
     }
@@ -243,7 +252,7 @@ class Test {
     // Same as fdIn(), but implemented asynchronously
     fdIn2Async([fdIndex], invocation, fdList) {
         const fd = fdList.get(fdIndex);
-        const stream = new Gio.UnixInputStream({fd, closeFd: true});
+        const stream = new GioUnix.InputStream({fd, closeFd: true});
         stream.read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null, (obj, res) => {
             const bytes = obj.read_bytes_finish(res);
             invocation.return_value(new GLib.Variant('(ay)', [bytes]));
@@ -251,14 +260,14 @@ class Test {
     }
 
     fdOut(bytes) {
-        const fd = GjsTestTools.open_bytes(bytes);
+        const fd = CjsTestTools.open_bytes(bytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         return [0, fdList];
     }
 
     fdOut2Async([bytes], invocation) {
         GLib.idle_add(GLib.PRIORITY_DEFAULT, function () {
-            const fd = GjsTestTools.open_bytes(bytes);
+            const fd = CjsTestTools.open_bytes(bytes);
             const fdList = Gio.UnixFDList.new_from_array([fd]);
             invocation.return_value_with_unix_fd_list(new GLib.Variant('(h)', [0]),
                 fdList);
@@ -274,6 +283,7 @@ describe('Exported DBus object', function () {
     var test;
     var proxy;
     let loop;
+    const expectedBytes = new TextEncoder().encode('some bytes');
 
     function waitForServerProperty(property, value = undefined, timeout = 500) {
         let waitId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeout, () => {
@@ -296,7 +306,7 @@ describe('Exported DBus object', function () {
         loop = new GLib.MainLoop(null, false);
 
         test = new Test();
-        ownNameID = Gio.DBus.session.own_name('org.gnome.gjs.Test',
+        ownNameID = Gio.DBus.session.own_name('org.cinnamon.cjs.Test',
             Gio.BusNameOwnerFlags.NONE,
             name => {
                 log(`Acquired name ${name}`);
@@ -306,8 +316,8 @@ describe('Exported DBus object', function () {
                 log(`Lost name ${name}`);
             });
         loop.run();
-        new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test',
+        new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test',
             (obj, error) => {
                 expect(error).toBeNull();
                 proxy = obj;
@@ -344,7 +354,7 @@ describe('Exported DBus object', function () {
 
     it('can initiate a proxy with promise and call a method with async/await', async function () {
         const asyncProxy = await ProxyClass.newAsync(Gio.DBus.session,
-            'org.gnome.gjs.Test', '/org/gnome/gjs/Test');
+            'org.cinnamon.cjs.Test', '/org/cinnamon/cjs/Test');
         expect(asyncProxy).toBeInstanceOf(Gio.DBusProxy);
         const [{hello}] = await asyncProxy.frobateStuffAsync({});
         expect(hello.deepUnpack()).toEqual('world');
@@ -357,8 +367,8 @@ describe('Exported DBus object', function () {
         Gio.DBusProxy.new_for_bus(Gio.BusType.SESSION,
             Gio.DBusProxyFlags.DO_NOT_AUTO_START,
             iface,
-            'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test',
+            'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test',
             iface.name,
             null,
             (o, res) => {
@@ -378,7 +388,7 @@ describe('Exported DBus object', function () {
     /* excp must be exactly the exception thrown by the remote method
        (more or less) */
     it('can handle an exception thrown by a remote method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         proxy.alwaysThrowExceptionRemote({}, function (result, excp) {
@@ -389,14 +399,14 @@ describe('Exported DBus object', function () {
     });
 
     it('can handle an exception thrown by a method with async/await', async function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         await expectAsync(proxy.alwaysThrowExceptionAsync({})).toBeRejected();
     });
 
     it('can still destructure the return value when an exception is thrown', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         // This test will not fail, but instead if the functionality is not
@@ -683,8 +693,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call a remote method with a Unix FD', function (done) {
-        const expectedBytes = ByteArray.fromString('some bytes');
-        const fd = GjsTestTools.open_bytes(expectedBytes);
+        const fd = CjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         proxy.fdInRemote(0, fdList, ([bytes], exc, outFdList) => {
             expect(exc).toBeNull();
@@ -695,9 +704,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an async/await method with a Unix FD', async function () {
-        const encoder = new TextEncoder();
-        const expectedBytes = encoder.encode('some bytes');
-        const fd = GjsTestTools.open_bytes(expectedBytes);
+        const fd = CjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         const [bytes, outFdList] = await proxy.fdInAsync(0, fdList);
         expect(outFdList).not.toBeDefined();
@@ -705,8 +712,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an asynchronously implemented remote method with a Unix FD', function (done) {
-        const expectedBytes = ByteArray.fromString('some bytes');
-        const fd = GjsTestTools.open_bytes(expectedBytes);
+        const fd = CjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         proxy.fdIn2Remote(0, fdList, ([bytes], exc, outFdList) => {
             expect(exc).toBeNull();
@@ -717,9 +723,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an asynchronously implemented async/await method with a Unix FD', async function () {
-        const encoder = new TextEncoder();
-        const expectedBytes = encoder.encode('some bytes');
-        const fd = GjsTestTools.open_bytes(expectedBytes);
+        const fd = CjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         const [bytes, outFdList] = await proxy.fdIn2Async(0, fdList);
         expect(outFdList).not.toBeDefined();
@@ -727,13 +731,12 @@ describe('Exported DBus object', function () {
     });
 
     function readBytesFromFdSync(fd) {
-        const stream = new Gio.UnixInputStream({fd, closeFd: true});
+        const stream = new GioUnix.InputStream({fd, closeFd: true});
         const bytes = stream.read_bytes(4096, null);
-        return ByteArray.fromGBytes(bytes);
+        return bytes.toArray();
     }
 
     it('can call a remote method that returns a Unix FD', function (done) {
-        const expectedBytes = ByteArray.fromString('some bytes');
         proxy.fdOutRemote(expectedBytes, ([fdIndex], exc, outFdList) => {
             expect(exc).toBeNull();
             const bytes = readBytesFromFdSync(outFdList.get(fdIndex));
@@ -743,15 +746,12 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an async/await method that returns a Unix FD', async function () {
-        const encoder = new TextEncoder();
-        const expectedBytes = encoder.encode('some bytes');
         const [fdIndex, outFdList] = await proxy.fdOutAsync(expectedBytes);
         const bytes = readBytesFromFdSync(outFdList.get(fdIndex));
         expect(bytes).toEqual(expectedBytes);
     });
 
     it('can call an asynchronously implemented remote method that returns a Unix FD', function (done) {
-        const expectedBytes = ByteArray.fromString('some bytes');
         proxy.fdOut2Remote(expectedBytes, ([fdIndex], exc, outFdList) => {
             expect(exc).toBeNull();
             const bytes = readBytesFromFdSync(outFdList.get(fdIndex));
@@ -761,8 +761,6 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an asynchronously implemented asyc/await method that returns a Unix FD', async function () {
-        const encoder = new TextEncoder();
-        const expectedBytes = encoder.encode('some bytes');
         const [fdIndex, outFdList] = await proxy.fdOut2Async(expectedBytes);
         const bytes = readBytesFromFdSync(outFdList.get(fdIndex));
         expect(bytes).toEqual(expectedBytes);
@@ -787,10 +785,10 @@ describe('Exported DBus object', function () {
     });
 
     it('Has defined properties', function () {
-        expect(proxy.hasOwnProperty('PropReadWrite')).toBeTruthy();
-        expect(proxy.hasOwnProperty('PropReadOnly')).toBeTruthy();
-        expect(proxy.hasOwnProperty('PropWriteOnly')).toBeTruthy();
-        expect(proxy.hasOwnProperty('PropPrePacked')).toBeTruthy();
+        expect(Object.hasOwn(proxy, 'PropReadWrite')).toBeTruthy();
+        expect(Object.hasOwn(proxy, 'PropReadOnly')).toBeTruthy();
+        expect(Object.hasOwn(proxy, 'PropWriteOnly')).toBeTruthy();
+        expect(Object.hasOwn(proxy, 'PropPrePacked')).toBeTruthy();
     });
 
     it('reading readonly property works', function () {
@@ -892,8 +890,8 @@ describe('DBus Proxy wrapper', function () {
     it('init failures are reported in sync mode', function () {
         const cancellable = new Gio.Cancellable();
         cancellable.cancel();
-        expect(() => new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test',
+        expect(() => new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test',
             Gio.DBusProxyFlags.NONE,
             cancellable)).toThrow();
     });
@@ -904,8 +902,8 @@ describe('DBus Proxy wrapper', function () {
         const initDoneSpy = jasmine.createSpy(
             'init finish func', () => loop.quit());
         initDoneSpy.and.callThrough();
-        new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test',
+        new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test',
             initDoneSpy, cancellable, Gio.DBusProxyFlags.NONE);
         loop.run();
 
@@ -917,8 +915,8 @@ describe('DBus Proxy wrapper', function () {
     });
 
     it('can init a proxy asynchronously when promisified', function () {
-        new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test',
+        new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test',
             () => loop.quit(),
             Gio.DBusProxyFlags.NONE);
         loop.run();
@@ -927,16 +925,16 @@ describe('DBus Proxy wrapper', function () {
     });
 
     it('can create a proxy from a promise', async function () {
-        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test');
+        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test');
         await expectAsync(proxyPromise).toBeResolved();
     });
 
     it('can create fail a proxy from a promise', async function () {
         const cancellable = new Gio.Cancellable();
         cancellable.cancel();
-        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.gnome.gjs.Test',
-            '/org/gnome/gjs/Test', cancellable);
+        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.cinnamon.cjs.Test',
+            '/org/cinnamon/cjs/Test', cancellable);
         await expectAsync(proxyPromise).toBeRejected();
     });
 

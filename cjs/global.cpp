@@ -46,21 +46,16 @@ union Utf8Unit;
 }
 
 class GjsBaseGlobal {
+    GJS_JSAPI_RETURN_CONVENTION
     static JSObject* base(JSContext* cx, const JSClass* clasp,
-                          JS::RealmCreationOptions options) {
-        // Enable WeakRef without the cleanupSome specification
-        // Re-evaluate if cleanupSome is standardized
-        // See: https://github.com/tc39/proposal-cleanup-some
-        options.setWeakRefsEnabled(
-            JS::WeakRefSpecifier::EnabledWithoutCleanupSome);
-
+                          JS::RealmCreationOptions options,
+                          JSPrincipals* principals = nullptr) {
         JS::RealmBehaviors behaviors;
         JS::RealmOptions compartment_options(options, behaviors);
 
-        JS::RootedObject global(
-            cx, JS_NewGlobalObject(cx, clasp, nullptr, JS::FireOnNewGlobalHook,
-                                   compartment_options));
-
+        JS::RootedObject global{cx, JS_NewGlobalObject(cx, clasp, principals,
+                                                       JS::FireOnNewGlobalHook,
+                                                       compartment_options)};
         if (!global)
             return nullptr;
 
@@ -74,25 +69,29 @@ class GjsBaseGlobal {
     }
 
  protected:
-    [[nodiscard]] static JSObject* create(
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create(
         JSContext* cx, const JSClass* clasp,
-        JS::RealmCreationOptions options = JS::RealmCreationOptions()) {
+        JS::RealmCreationOptions options = JS::RealmCreationOptions(),
+        JSPrincipals* principals = nullptr) {
         options.setNewCompartmentAndZone();
-        return base(cx, clasp, options);
+        return base(cx, clasp, options, principals);
     }
 
-    [[nodiscard]] static JSObject* create_with_compartment(
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create_with_compartment(
         JSContext* cx, JS::HandleObject existing, const JSClass* clasp,
-        JS::RealmCreationOptions options = JS::RealmCreationOptions()) {
+        JS::RealmCreationOptions options = JS::RealmCreationOptions(),
+        JSPrincipals* principals = nullptr) {
         options.setExistingCompartment(existing);
-        return base(cx, clasp, options);
+        return base(cx, clasp, options, principals);
     }
 
     GJS_JSAPI_RETURN_CONVENTION
     static bool run_bootstrap(JSContext* cx, const char* bootstrap_script,
                               JS::HandleObject global) {
         GjsAutoChar uri = g_strdup_printf(
-            "resource:///org/gnome/gjs/modules/script/_bootstrap/%s.js",
+            "resource:///org/cinnamon/cjs/modules/script/_bootstrap/%s.js",
             bootstrap_script);
 
         JSAutoRealm ar(cx, global);
@@ -132,8 +131,8 @@ class GjsBaseGlobal {
 
         JS::RootedObject native_obj(m_cx);
 
-        if (!Gjs::NativeModuleRegistry::get().load(m_cx, id.get(),
-                                                   &native_obj)) {
+        if (!Gjs::NativeModuleDefineFuncs::get().define(m_cx, id.get(),
+                                                        &native_obj)) {
             gjs_throw(m_cx, "Failed to load native module: %s", id.get());
             return false;
         }
@@ -165,12 +164,14 @@ class GjsGlobal : GjsBaseGlobal {
         JS_FS_END};
 
  public:
-    [[nodiscard]] static JSObject* create(JSContext* cx) {
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create(JSContext* cx) {
         return GjsBaseGlobal::create(cx, &klass);
     }
 
-    [[nodiscard]] static JSObject* create_with_compartment(
-        JSContext* cx, JS::HandleObject cmp_global) {
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create_with_compartment(JSContext* cx,
+                                             JS::HandleObject cmp_global) {
         return GjsBaseGlobal::create_with_compartment(cx, cmp_global, &klass);
     }
 
@@ -238,17 +239,20 @@ class GjsDebuggerGlobal : GjsBaseGlobal {
         JS_FN("loadNative", &load_native_module, 1, 0), JS_FS_END};
 
  public:
-    [[nodiscard]] static JSObject* create(JSContext* cx) {
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create(JSContext* cx) {
         JS::RealmCreationOptions options;
         options.setToSourceEnabled(true);  // debugger uses uneval()
         return GjsBaseGlobal::create(cx, &klass, options);
     }
 
-    [[nodiscard]] static JSObject* create_with_compartment(
-        JSContext* cx, JS::HandleObject cmp_global) {
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create_with_compartment(JSContext* cx,
+                                             JS::HandleObject cmp_global) {
         return GjsBaseGlobal::create_with_compartment(cx, cmp_global, &klass);
     }
 
+    GJS_JSAPI_RETURN_CONVENTION
     static bool define_properties(JSContext* cx, JS::HandleObject global,
                                   const char* realm_name,
                                   const char* bootstrap_script) {
@@ -298,15 +302,19 @@ class GjsInternalGlobal : GjsBaseGlobal {
     };
 
  public:
-    [[nodiscard]] static JSObject* create(JSContext* cx) {
-        return GjsBaseGlobal::create(cx, &klass);
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create(JSContext* cx) {
+        return GjsBaseGlobal::create(cx, &klass, {}, get_internal_principals());
     }
 
-    [[nodiscard]] static JSObject* create_with_compartment(
-        JSContext* cx, JS::HandleObject cmp_global) {
-        return GjsBaseGlobal::create_with_compartment(cx, cmp_global, &klass);
+    GJS_JSAPI_RETURN_CONVENTION
+    static JSObject* create_with_compartment(JSContext* cx,
+                                             JS::HandleObject cmp_global) {
+        return GjsBaseGlobal::create_with_compartment(
+            cx, cmp_global, &klass, {}, get_internal_principals());
     }
 
+    GJS_JSAPI_RETURN_CONVENTION
     static bool define_properties(JSContext* cx, JS::HandleObject global,
                                   const char* realm_name,
                                   const char* bootstrap_script
@@ -486,7 +494,7 @@ bool gjs_global_registry_get(JSContext* cx, JS::HandleObject registry,
  * @global: a JS global object that has not yet been passed to this function
  * @realm_name: (nullable): name of the realm, for debug output
  * @bootstrap_script: (nullable): name of a bootstrap script (found at
- * resource://org/gnome/gjs/modules/script/_bootstrap/@bootstrap_script) or
+ * resource://org/cinnamon/cjs/modules/script/_bootstrap/@bootstrap_script) or
  * %NULL for none
  *
  * Defines properties on the global object such as 'window' and 'imports', and

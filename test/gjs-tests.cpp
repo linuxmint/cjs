@@ -183,7 +183,7 @@ static void gjstest_test_func_gjs_context_eval_dynamic_import_bad() {
     GjsAutoError error;
     int status;
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
+    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
                           "*Unknown module: 'badmodule'*");
 
     bool ok = gjs_context_eval(gjs, R"js(
@@ -249,7 +249,7 @@ static void gjstest_test_func_gjs_context_eval_module_file() {
     GjsAutoError error;
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/default.js",
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
         &exit_status, &error);
 
     g_assert_true(ok);
@@ -263,10 +263,10 @@ static void gjstest_test_func_gjs_context_eval_module_file_throw() {
     uint8_t exit_status;
     GjsAutoError error;
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
+    g_test_expect_message("Cjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/throws.js",
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/throws.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -282,7 +282,7 @@ static void gjstest_test_func_gjs_context_eval_module_file_exit() {
     uint8_t exit_status;
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/exit0.js",
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/exit0.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -292,7 +292,7 @@ static void gjstest_test_func_gjs_context_eval_module_file_exit() {
     error.reset();
 
     ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/exit.js",
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/exit.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -305,12 +305,12 @@ static void gjstest_test_func_gjs_context_eval_module_file_fail_instantiate() {
     GjsAutoError error;
     uint8_t exit_status;
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "*foo*");
+    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING, "*foo*");
 
     // evaluating this module without registering 'foo' first should make it
     // fail ModuleLink
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/import.js",
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/import.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -324,10 +324,10 @@ static void gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_war
     GjsAutoUnref<GjsContext> gjs = gjs_context_new();
     GjsAutoError error;
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "*foo*");
+    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING, "*foo*");
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/import.js", nullptr,
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/import.js", nullptr,
         &error);
 
     g_assert_false(ok);
@@ -342,7 +342,7 @@ gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_no_warning() {
     GjsAutoError error;
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/default.js", nullptr,
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/default.js", nullptr,
         &error);
 
     g_assert_true(ok);
@@ -353,10 +353,10 @@ static void gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw() {
     GjsAutoUnref<GjsContext> gjs = gjs_context_new();
     GjsAutoError error;
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
+    g_test_expect_message("Cjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
 
     bool ok = gjs_context_eval_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/throws.js", nullptr,
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/throws.js", nullptr,
         &error);
 
     g_assert_false(ok);
@@ -370,7 +370,7 @@ static void gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw()
     GjsAutoError error;
 
     bool ok = gjs_context_eval_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/nothrows.js", nullptr,
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/nothrows.js", nullptr,
         &error);
 
     g_assert_true(ok);
@@ -382,7 +382,7 @@ static void gjstest_test_func_gjs_context_register_module_eval_module() {
     GjsAutoError error;
 
     bool ok = gjs_context_register_module(
-        gjs, "foo", "resource:///org/gnome/gjs/mock/test/modules/default.js",
+        gjs, "foo", "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
         &error);
 
     g_assert_true(ok);
@@ -401,7 +401,7 @@ static void gjstest_test_func_gjs_context_register_module_eval_module_file() {
     GjsAutoError error;
 
     bool ok = gjs_context_register_module(
-        gjs, "foo", "resource:///org/gnome/gjs/mock/test/modules/default.js",
+        gjs, "foo", "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
         &error);
 
     g_assert_true(ok);
@@ -409,7 +409,7 @@ static void gjstest_test_func_gjs_context_register_module_eval_module_file() {
 
     uint8_t exit_status;
     ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/gnome/gjs/mock/test/modules/import.js",
+        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/import.js",
         &exit_status, &error);
 
     g_assert_true(ok);
@@ -423,7 +423,7 @@ static void gjstest_test_func_gjs_context_register_module_eval_jsapi(
 
     bool ok = gjs_context_register_module(
         fx->gjs_context, "foo",
-        "resource:///org/gnome/gjs/mock/test/modules/default.js", &error);
+        "resource:///org/cinnamon/cjs/mock/test/modules/default.js", &error);
     g_assert_true(ok);
     g_assert_no_error(error);
 
@@ -475,7 +475,7 @@ static void gjstest_test_func_gjs_context_register_module_eval_jsapi_rel(
     JS::RootedValue unused{fx->cx};
     ok = JS::Evaluate(fx->cx, options, source, &unused);
     g_assert_false(ok);
-    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
+    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
                           "JS ERROR: ImportError*relative*");
     gjs_log_exception(fx->cx);
     g_test_assert_expected_messages();
@@ -518,7 +518,7 @@ static void gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw
     GjsAutoError error;
 
     bool ok = gjs_context_register_module(
-        gjs, "lies", "resource:///org/gnome/gjs/mock/test/modules/nothrows.js",
+        gjs, "lies", "resource:///org/cinnamon/cjs/mock/test/modules/nothrows.js",
         &error);
 
     g_assert_true(ok);
@@ -536,7 +536,7 @@ static void gjstest_test_func_gjs_context_module_eval_jsapi_throws(
 
     bool ok = gjs_context_register_module(
         fx->gjs_context, "foo",
-        "resource:///org/gnome/gjs/mock/test/modules/throws.js", &error);
+        "resource:///org/cinnamon/cjs/mock/test/modules/throws.js", &error);
     g_assert_true(ok);
     g_assert_no_error(error);
 
@@ -660,7 +660,7 @@ static void gjstest_test_func_gjs_context_eval_exit_code_omitted_throw() {
     GjsAutoUnref<GjsContext> context = gjs_context_new();
     GjsAutoError error;
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*wrong code*");
+    g_test_expect_message("Cjs", G_LOG_LEVEL_CRITICAL, "*wrong code*");
 
     const char bad_js[] = "throw new Error('wrong code');";
 
@@ -742,25 +742,25 @@ static void gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture* fx,
 
 static void test_jsapi_util_error_throw_cause(GjsUnitTestFixture* fx,
                                               const void*) {
-    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
+    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
                           "JS ERROR: Error: Exception 1\n"
-                          "Caused by: Error: Exception 2\n");
+                          "Caused by: Error: Exception 2");
 
     gjs_throw(fx->cx, "Exception 1");
     gjs_throw(fx->cx, "Exception 2");
     gjs_log_exception(fx->cx);
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
+    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
                           "JS ERROR: Error: Exception 1\n"
                           "Caused by: Error: Exception 2\n"
-                          "Caused by: Error: Exception 3\n");
+                          "Caused by: Error: Exception 3");
 
     gjs_throw(fx->cx, "Exception 1");
     gjs_throw(fx->cx, "Exception 2");
     gjs_throw(fx->cx, "Exception 3");
     gjs_log_exception(fx->cx);
 
-    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "JS ERROR: 42");
+    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING, "JS ERROR: 42");
 
     JS::RootedValue non_object(fx->cx, JS::Int32Value(42));
     JS_SetPendingException(fx->cx, non_object);
@@ -1180,49 +1180,49 @@ main(int    argc,
 
     g_message("Using C++ random seed %u\n", cpp_random_seed);
 
-    g_test_add_func("/gjs/context/construct/destroy", gjstest_test_func_gjs_context_construct_destroy);
-    g_test_add_func("/gjs/context/construct/eval", gjstest_test_func_gjs_context_construct_eval);
-    g_test_add_func("/gjs/context/argv",
+    g_test_add_func("/cjs/context/construct/destroy", gjstest_test_func_gjs_context_construct_destroy);
+    g_test_add_func("/cjs/context/construct/eval", gjstest_test_func_gjs_context_construct_eval);
+    g_test_add_func("/cjs/context/argv",
                     gjstest_test_func_gjs_context_argv_array);
-    g_test_add_func("/gjs/context/eval/dynamic-import",
+    g_test_add_func("/cjs/context/eval/dynamic-import",
                     gjstest_test_func_gjs_context_eval_dynamic_import);
-    g_test_add_func("/gjs/context/eval/dynamic-import/relative",
+    g_test_add_func("/cjs/context/eval/dynamic-import/relative",
                     gjstest_test_func_gjs_context_eval_dynamic_import_relative);
-    g_test_add_func("/gjs/context/eval/dynamic-import/bad",
+    g_test_add_func("/cjs/context/eval/dynamic-import/bad",
                     gjstest_test_func_gjs_context_eval_dynamic_import_bad);
-    g_test_add_func("/gjs/context/eval/non-zero-terminated",
+    g_test_add_func("/cjs/context/eval/non-zero-terminated",
                     gjstest_test_func_gjs_context_eval_non_zero_terminated);
-    g_test_add_func("/gjs/context/exit", gjstest_test_func_gjs_context_exit);
-    g_test_add_func("/gjs/context/eval-module-file",
+    g_test_add_func("/cjs/context/exit", gjstest_test_func_gjs_context_exit);
+    g_test_add_func("/cjs/context/eval-module-file",
                     gjstest_test_func_gjs_context_eval_module_file);
-    g_test_add_func("/gjs/context/eval-module-file/throw",
+    g_test_add_func("/cjs/context/eval-module-file/throw",
                     gjstest_test_func_gjs_context_eval_module_file_throw);
-    g_test_add_func("/gjs/context/eval-module-file/exit",
+    g_test_add_func("/cjs/context/eval-module-file/exit",
                     gjstest_test_func_gjs_context_eval_module_file_exit);
     g_test_add_func(
-        "/gjs/context/eval-module-file/fail-instantiate",
+        "/cjs/context/eval-module-file/fail-instantiate",
         gjstest_test_func_gjs_context_eval_module_file_fail_instantiate);
-    g_test_add_func("/gjs/context/register-module/eval-module",
+    g_test_add_func("/cjs/context/register-module/eval-module",
                     gjstest_test_func_gjs_context_register_module_eval_module);
     g_test_add_func(
-        "/gjs/context/register-module/eval-module-file",
+        "/cjs/context/register-module/eval-module-file",
         gjstest_test_func_gjs_context_register_module_eval_module_file);
-    g_test_add("/gjs/context/register-module/eval-jsapi", GjsUnitTestFixture,
+    g_test_add("/cjs/context/register-module/eval-jsapi", GjsUnitTestFixture,
                nullptr, gjs_unit_test_fixture_setup,
                gjstest_test_func_gjs_context_register_module_eval_jsapi,
                gjs_unit_test_fixture_teardown);
-    g_test_add("/gjs/context/register-module/eval-jsapi-relative",
+    g_test_add("/cjs/context/register-module/eval-jsapi-relative",
                GjsUnitTestFixture, nullptr, gjs_unit_test_fixture_setup,
                gjstest_test_func_gjs_context_register_module_eval_jsapi_rel,
                gjs_unit_test_fixture_teardown);
-    g_test_add_func("/gjs/context/register-module/non-existent",
+    g_test_add_func("/cjs/context/register-module/non-existent",
                     gjstest_test_func_gjs_context_register_module_non_existent);
-    g_test_add_func("/gjs/context/eval-module/unregistered",
+    g_test_add_func("/cjs/context/eval-module/unregistered",
                     gjstest_test_func_gjs_context_eval_module_unregistered);
-    g_test_add_func("/gjs/gobject/js_defined_type", gjstest_test_func_gjs_gobject_js_defined_type);
-    g_test_add_func("/gjs/gobject/without_introspection",
+    g_test_add_func("/cjs/gobject/js_defined_type", gjstest_test_func_gjs_gobject_js_defined_type);
+    g_test_add_func("/cjs/gobject/without_introspection",
                     gjstest_test_func_gjs_gobject_without_introspection);
-    g_test_add_func("/gjs/profiler/start_stop", gjstest_test_profiler_start_stop);
+    g_test_add_func("/cjs/profiler/start_stop", gjstest_test_profiler_start_stop);
     g_test_add_func("/util/misc/strv/concat/null",
                     gjstest_test_func_util_misc_strv_concat_null);
     g_test_add_func("/util/misc/strv/concat/pointers",
@@ -1233,33 +1233,33 @@ main(int    argc,
                     gjstest_test_args_rounded_values);
 
     g_test_add_func(
-        "/gjs/context/eval-module-file/exit-code-omitted-warning",
+        "/cjs/context/eval-module-file/exit-code-omitted-warning",
         gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_warning);
     g_test_add_func(
-        "/gjs/context/eval-module-file/exit-code-omitted-no-warning",
+        "/cjs/context/eval-module-file/exit-code-omitted-no-warning",
         gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_no_warning);
-    g_test_add_func("/gjs/context/eval-file/exit-code-omitted-no-throw",
+    g_test_add_func("/cjs/context/eval-file/exit-code-omitted-no-throw",
                     gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw);
-    g_test_add_func("/gjs/context/eval-file/exit-code-omitted-throw",
+    g_test_add_func("/cjs/context/eval-file/exit-code-omitted-throw",
                     gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw);
-    g_test_add_func("/gjs/context/eval/exit-code-omitted-throw",
+    g_test_add_func("/cjs/context/eval/exit-code-omitted-throw",
                     gjstest_test_func_gjs_context_eval_exit_code_omitted_throw);
-    g_test_add_func("/gjs/context/eval/exit-code-omitted-no-throw",
+    g_test_add_func("/cjs/context/eval/exit-code-omitted-no-throw",
                     gjstest_test_func_gjs_context_eval_exit_code_omitted_no_throw);
-    g_test_add_func("/gjs/context/eval-module/exit-code-omitted-throw",
+    g_test_add_func("/cjs/context/eval-module/exit-code-omitted-throw",
                     gjstest_test_func_gjs_context_eval_module_exit_code_omitted_throw);
     g_test_add_func(
-        "/gjs/context/eval-module/exit-code-omitted-no-throw",
+        "/cjs/context/eval-module/exit-code-omitted-no-throw",
         gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw);
-    g_test_add("/gjs/context/eval-module/jsapi-throw", GjsUnitTestFixture,
+    g_test_add("/cjs/context/eval-module/jsapi-throw", GjsUnitTestFixture,
                nullptr, gjs_unit_test_fixture_setup,
                gjstest_test_func_gjs_context_module_eval_jsapi_throws,
                gjs_unit_test_fixture_teardown);
-    g_test_add_func("/gjs/context/run-in-realm",
+    g_test_add_func("/cjs/context/run-in-realm",
                     gjstest_test_func_gjs_context_run_in_realm);
 
 #define ADD_JSAPI_UTIL_TEST(path, func)                            \
-    g_test_add("/gjs/jsapi/util/" path, GjsUnitTestFixture, NULL,  \
+    g_test_add("/cjs/jsapi/util/" path, GjsUnitTestFixture, NULL,  \
                gjs_unit_test_fixture_setup, func,                  \
                gjs_unit_test_fixture_teardown)
 

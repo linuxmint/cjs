@@ -12,6 +12,7 @@
 
 #include <js/AllocPolicy.h>
 #include <js/CharacterEncoding.h>
+#include <js/ColumnNumber.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
 #include <js/GCHashTable.h>  // for GCHashSet
@@ -113,8 +114,10 @@ static bool append_new_cause(JSContext* cx, JS::HandleValue thrown,
                             &source_string);
     uint32_t line_num;
     JS::GetSavedFrameLine(cx, nullptr, saved_frame, &line_num);
-    uint32_t column_num;
-    JS::GetSavedFrameColumn(cx, nullptr, saved_frame, &column_num);
+    JS::TaggedColumnNumberOneOrigin tagged_column;
+    JS::GetSavedFrameColumn(cx, nullptr, saved_frame, &tagged_column);
+    JS::ColumnNumberOneOrigin column_num{tagged_column.toLimitedColumnNumber()};
+    // asserts that this isn't a WASM frame
 
     JS::RootedValue v_exc{cx};
     if (!JS::CreateError(cx, error_kind, saved_frame, source_string, line_num,
@@ -216,33 +219,30 @@ bool gjs_throw_gerror_message(JSContext* cx, GjsAutoError const& error) {
 }
 
 /**
- * gjs_format_stack_trace:
+ * format_saved_frame:
  * @cx: the #JSContext
  * @saved_frame: a SavedFrame #JSObject
+ * @indent: (optional): spaces of indentation
  *
- * Formats a stack trace as a string in filename encoding, suitable for
- * printing to stderr. Ignores any errors.
+ * Formats a stack trace as a UTF-8 string. If there are errors, ignores them
+ * and returns null.
+ * If you print this to stderr, you will need to re-encode it in filename
+ * encoding with g_filename_from_utf8().
  *
- * Returns: unique string in filename encoding, or nullptr if no stack trace
+ * Returns (nullable) (transfer full): unique string
  */
-GjsAutoChar
-gjs_format_stack_trace(JSContext       *cx,
-                       JS::HandleObject saved_frame)
-{
+JS::UniqueChars format_saved_frame(JSContext* cx, JS::HandleObject saved_frame,
+                                   size_t indent /* = 0 */) {
     JS::AutoSaveExceptionState saved_exc(cx);
 
     JS::RootedString stack_trace(cx);
     JS::UniqueChars stack_utf8;
-    if (JS::BuildStackString(cx, nullptr, saved_frame, &stack_trace, 2))
+    if (JS::BuildStackString(cx, nullptr, saved_frame, &stack_trace, indent))
         stack_utf8 = JS_EncodeStringToUTF8(cx, stack_trace);
 
     saved_exc.restore();
 
-    if (!stack_utf8)
-        return nullptr;
-
-    return g_filename_from_utf8(stack_utf8.get(), -1, nullptr, nullptr,
-                                nullptr);
+    return stack_utf8;
 }
 
 void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
@@ -254,8 +254,7 @@ void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
     if (gjs_environment_variable_is_set("GJS_ABORT_ON_OOM") &&
         !report->isWarning() && report->errorNumber == 137) {
         /* 137, JSMSG_OUT_OF_MEMORY */
-        g_error("GJS ran out of memory at %s: %i.",
-                report->filename,
+        g_error("GJS ran out of memory at %s: %i.", report->filename.c_str(),
                 report->lineno);
     }
 
@@ -277,6 +276,6 @@ void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
         level = G_LOG_LEVEL_WARNING;
     }
 
-    g_log(G_LOG_DOMAIN, level, "JS %s: [%s %d]: %s", warning, report->filename,
-          report->lineno, report->message().c_str());
+    g_log(G_LOG_DOMAIN, level, "JS %s: [%s %d]: %s", warning,
+          report->filename.c_str(), report->lineno, report->message().c_str());
 }

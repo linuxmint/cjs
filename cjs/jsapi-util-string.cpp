@@ -116,7 +116,7 @@ bool gjs_string_to_utf8_n(JSContext* cx, JS::HandleString str, JS::UniqueChars* 
         return false;
 
     size_t length = JS::GetDeflatedUTF8StringLength(linear);
-    char* bytes = js_pod_arena_malloc<char>(js::StringBufferArena, length + 1);
+    char* bytes = js_pod_malloc<char>(length + 1);
     if (!bytes)
         return false;
 
@@ -590,7 +590,7 @@ gjs_debug_object(JSObject * const obj)
 
     if (js::IsFunctionObject(obj)) {
         JSFunction* fun = JS_GetObjectFunction(obj);
-        JSString* display_name = JS_GetFunctionDisplayId(fun);
+        JSString* display_name = JS_GetMaybePartialFunctionDisplayId(fun);
         if (display_name && JS_GetStringLength(display_name))
             out << "<function " << gjs_debug_string(display_name);
         else
@@ -620,6 +620,15 @@ gjs_debug_object(JSObject * const obj)
     const JSClass* clasp = JS::GetClass(obj);
     out << "<object " << clasp->name << " at " << obj <<  '>';
     return out.str();
+}
+
+std::string gjs_debug_callable(JSObject* callable) {
+    if (JSFunction* fn = JS_GetObjectFunction(callable)) {
+        if (JSString* display_id = JS_GetMaybePartialFunctionDisplayId(fn))
+            return {"function " + gjs_debug_string(display_id)};
+        return {"unnamed function"};
+    }
+    return {"callable object " + gjs_debug_object(callable)};
 }
 
 std::string

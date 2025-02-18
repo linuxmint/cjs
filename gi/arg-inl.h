@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <config.h>
+
 #include <stdint.h>
 
 #include <cstddef>  // for nullptr_t
@@ -114,6 +116,20 @@ template <typename T, GITypeTag TAG = GI_TYPE_TAG_VOID>
     }
 }
 
+typedef enum {
+    GJS_TYPE_TAG_LONG = 0,
+} ExtraTag;
+
+template <typename T, ExtraTag TAG>
+[[nodiscard]] constexpr inline decltype(auto) gjs_arg_member(GIArgument* arg) {
+    if constexpr (TAG == GJS_TYPE_TAG_LONG &&
+                  std::is_same_v<T, long>)  // NOLINT(runtime/int)
+        return gjs_arg_member<&GIArgument::v_long>(arg);
+    else if constexpr (TAG == GJS_TYPE_TAG_LONG &&
+                       std::is_same_v<T, unsigned long>)  // NOLINT(runtime/int)
+        return gjs_arg_member<&GIArgument::v_ulong>(arg);
+}
+
 template <typename T, GITypeTag TAG = GI_TYPE_TAG_VOID>
 constexpr inline void gjs_arg_set(GIArgument* arg, T v) {
     if constexpr (std::is_pointer_v<T>) {
@@ -127,6 +143,11 @@ constexpr inline void gjs_arg_set(GIArgument* arg, T v) {
 
         gjs_arg_member<T, TAG>(arg) = v;
     }
+}
+
+template <typename T, ExtraTag TAG>
+constexpr inline void gjs_arg_set(GIArgument* arg, T v) {
+    gjs_arg_member<T, TAG>(arg) = v;
 }
 
 // Store function pointers as void*. It is a requirement of GLib that your
@@ -148,6 +169,11 @@ template <typename T, GITypeTag TAG = GI_TYPE_TAG_VOID>
                   (std::is_same_v<T, gboolean> && TAG == GI_TYPE_TAG_BOOLEAN))
         return T(!!gjs_arg_member<T, TAG>(arg));
 
+    return gjs_arg_member<T, TAG>(arg);
+}
+
+template <typename T, ExtraTag TAG>
+[[nodiscard]] constexpr inline T gjs_arg_get(GIArgument* arg) {
     return gjs_arg_member<T, TAG>(arg);
 }
 
@@ -192,29 +218,29 @@ gjs_arg_get_maybe_rounded(GIArgument* arg) {
     return static_cast<double>(val);
 }
 
-template <typename T>
+template <typename T, GITypeTag TAG = GI_TYPE_TAG_VOID>
 GJS_JSAPI_RETURN_CONVENTION inline bool gjs_arg_set_from_js_value(
-    JSContext* cx, const JS::HandleValue& value, GArgument* arg,
+    JSContext* cx, const JS::HandleValue& value, GIArgument* arg,
     bool* out_of_range) {
     if constexpr (Gjs::type_has_js_getter<T>())
-        return Gjs::js_value_to_c(cx, value, &gjs_arg_member<T>(arg));
+        return Gjs::js_value_to_c<TAG>(cx, value, &gjs_arg_member<T, TAG>(arg));
 
     Gjs::JsValueHolder::Relaxed<T> val{};
 
-    if (!Gjs::js_value_to_c_checked<T>(cx, value, &val, out_of_range))
+    if (!Gjs::js_value_to_c_checked<T, TAG>(cx, value, &val, out_of_range))
         return false;
 
     if (*out_of_range)
         return false;
 
-    gjs_arg_set<T>(arg, val);
+    gjs_arg_set<T, TAG>(arg, val);
 
     return true;
 }
 
 // A helper function to retrieve array lengths from a GIArgument (letting the
 // compiler generate good instructions in case of big endian machines)
-[[nodiscard]] constexpr size_t gjs_g_argument_get_array_length(
+[[nodiscard]] constexpr size_t gjs_gi_argument_get_array_length(
     GITypeTag tag, GIArgument* arg) {
     switch (tag) {
         case GI_TYPE_TAG_INT8:

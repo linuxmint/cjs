@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: MIT OR LGPL-2.0-or-later -->
 <!-- SPDX-FileCopyrightText: 2014 Red Hat, Inc. -->
 <gresources>
-  <gresource prefix="/org/gnome/gjs">
+  <gresource prefix="/org/cinnamon/cjs">
     <!-- Internal modules -->
     <file>modules/internal/loader.js</file>
 

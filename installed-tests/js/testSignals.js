@@ -92,7 +92,7 @@ function testSignals(klass) {
                 expect(() => foo.disconnect(firstId)).toThrowError(
                     `No signal connection ${firstId} found`);
 
-                // poke in private implementation to sanity-check no handlers left
+                // poke in private implementation to verify no handlers left
                 expect(Object.keys(foo._signalConnections).length).toEqual(0);
             });
 
@@ -151,7 +151,7 @@ function testSignals(klass) {
                     bar2 = jasmine.createSpy('bar');
                     foo[connectMethod]('bar', bar);
                     foo[connectMethod]('bar', bar2);
-                    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                         'JS ERROR: Exception in callback for signal: *');
                     foo.emit('bar');
                 });
@@ -162,7 +162,7 @@ function testSignals(klass) {
                 });
 
                 it('does not disconnect the callback', function () {
-                    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+                    GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                         'JS ERROR: Exception in callback for signal: *');
                     foo.emit('bar');
                     expect(bar).toHaveBeenCalledTimes(2);

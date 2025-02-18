@@ -3,7 +3,6 @@
 
 imports.gi.versions.Gtk = '3.0';
 
-const ByteArray = imports.byteArray;
 const {GLib, Gio, GObject, Gtk} = imports.gi;
 const System = imports.system;
 
@@ -42,7 +41,7 @@ function createTemplate(className) {
 }
 
 const MyComplexGtkSubclass = GObject.registerClass({
-    Template: ByteArray.fromString(createTemplate('Gjs_MyComplexGtkSubclass')),
+    Template: new TextEncoder().encode(createTemplate('Gjs_MyComplexGtkSubclass')),
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
     CssName: 'complex-subclass',
@@ -65,7 +64,7 @@ const MyComplexGtkSubclass = GObject.registerClass({
 });
 
 const MyComplexGtkSubclassFromResource = GObject.registerClass({
-    Template: 'resource:///org/gjs/jsunit/complex3.ui',
+    Template: 'resource:///org/cjs/jsunit/complex3.ui',
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
 }, class MyComplexGtkSubclassFromResource extends Gtk.Grid {
@@ -176,7 +175,7 @@ describe('Gtk overrides', function () {
     });
 
     it('avoid crashing when GTK vfuncs are called in garbage collection', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*during garbage collection*offending callback was destroy()*');
 
         const BadLabel = GObject.registerClass(class BadLabel extends Gtk.Label {
@@ -186,7 +185,7 @@ describe('Gtk overrides', function () {
         new BadLabel();
         System.gc();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGtk3.js', 0,
             'Gtk overrides avoid crashing and print a stack trace');
     });
 
@@ -203,11 +202,11 @@ describe('Gtk overrides', function () {
         label.destroy();
         expect(spy).toHaveBeenCalledTimes(1);
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*during garbage collection*offending callback was destroy()*');
         label = null;
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGtk3.js', 0,
             'GTK vfuncs are not called if the object is disposed');
     });
 
@@ -221,11 +220,27 @@ describe('Gtk overrides', function () {
 
         expect(handleDispose).toHaveBeenCalledWith(label);
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Label (0x* disposed *');
         expect(label.label).toBe('Hello');
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGtk3.js', 0,
             'GTK destroy signal is emitted while disposing objects');
+    });
+
+    it('destroy signal is not emitted when objects are garbage collected', function () {
+        let label = new Gtk.Label({label: 'Hello'});
+        const handleDispose = jasmine.createSpy('handleDispose').and.callFake(() => {
+            expect(label.label).toBe('Hello');
+        });
+        label.connect('destroy', handleDispose);
+
+        label = null;
+
+        System.gc();
+
+        System.gc();
+
+        expect(handleDispose).not.toHaveBeenCalled();
     });
 
     it('accepts string in place of GdkAtom', function () {
@@ -303,5 +318,37 @@ describe('Gtk overrides', function () {
         expect(frameChild.visible).toBe(false);
         expect(() => widget.show()).not.toThrow();
         expect(frameChild.visible).toBe(true);
+    });
+
+    function asyncIdle() {
+        return new Promise(resolve => {
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                resolve();
+                return GLib.SOURCE_REMOVE;
+            });
+        });
+    }
+
+    it('does not leak instance when connecting template signal', async function () {
+        const LeakTestWidget = GObject.registerClass({
+            Template: new TextEncoder().encode(`
+                <interface>
+                    <template class="Gjs_LeakTestWidget" parent="GtkButton">
+                        <signal name="clicked" handler="buttonClicked"/>
+                    </template>
+                </interface>`),
+        }, class LeakTestWidget extends Gtk.Button {
+            buttonClicked() {}
+        });
+
+        const weakRef = new WeakRef(new LeakTestWidget());
+
+        await asyncIdle();
+        // It takes two GC cycles to free the widget, because of the tardy sweep
+        // problem (https://gitlab.gnome.org/GNOME/gjs/-/issues/217)
+        System.gc();
+        System.gc();
+
+        expect(weakRef.deref()).toBeUndefined();
     });
 });

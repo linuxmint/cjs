@@ -16,7 +16,7 @@ else
     CROSS_COMPILE=
 fi
 
-cat <<EOF > cjstest.c
+cat <<EOF > gjstest.c
 #include <cjs/gjs.h>
 
 int main()
@@ -29,8 +29,8 @@ EOF
 
 # Deliberately word-splitting, that's how pkg-config works:
 # shellcheck disable=SC2046
-"${CROSS_COMPILE}gcc" -o cjstest cjstest.c $("${CROSS_COMPILE}pkg-config" --cflags --libs cjs-1.0)
+"${CROSS_COMPILE}gcc" -o gjstest gjstest.c $("${CROSS_COMPILE}pkg-config" --cflags --libs gjs-1.0)
 echo "build: OK"
-[ -x cjstest ]
-./cjstest
+[ -x gjstest ]
+./gjstest
 echo "run: OK"

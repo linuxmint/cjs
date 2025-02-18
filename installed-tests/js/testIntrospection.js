@@ -23,16 +23,16 @@ describe('GLib.DestroyNotify parameter', function () {
 
 describe('Unsafe integer marshalling', function () {
     it('warns when conversion is lossy', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
         void GLib.MININT64;
         void GLib.MAXINT64;
         void GLib.MAXUINT64;
-        GLib.test_assert_expected_messages_internal('Gjs',
+        GLib.test_assert_expected_messages_internal('Cjs',
             'testEverythingBasic.js', 0,
             'Limits warns when conversion is lossy');
     });
@@ -155,10 +155,10 @@ describe('Garbage collection of introspected objects', function () {
             }
         }
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*property screenfull*');
 
-        const settings = new Gio.Settings({schema: 'org.cinnamon.CjsTest'});
+        const settings = new Gio.Settings({schemaId: 'org.cinnamon.CjsTest'});
         let obj = new SomeObject();
         settings.bind('fullscreen', obj, 'screenfull', Gio.SettingsBindFlags.DEFAULT);
         const handler = settings.connect('changed::fullscreen', () => {
@@ -166,7 +166,7 @@ describe('Garbage collection of introspected objects', function () {
             obj = null;
             settings.disconnect(handler);
             GLib.idle_add(GLib.PRIORITY_LOW, () => {
-                GLib.test_assert_expected_messages_internal('Gjs',
+                GLib.test_assert_expected_messages_internal('Cjs',
                     'testIntrospection.js', 0,
                     'Warn about setting property on disposed JS object');
                 done();
@@ -208,5 +208,52 @@ describe('Complete enumeration of GIRepositoryNamespace (new_enumerate)', functi
             // Access each enumerated property to check it can be defined.
             names.forEach(name => Gdk[name]);
         }).not.toThrowError(/API of type .* not implemented, cannot define .*/);
+    });
+});
+
+describe('Backwards compatibility for GLib/Gio platform specific GIRs', function () {
+    // Only test this if GioUnix is available
+    const skip = imports.gi.versions.GioUnix !== '2.0';
+
+    it('GioUnix objects are looked up in GioUnix, not Gio', function () {
+        if (skip) {
+            pending('GioUnix required for this test');
+            return;
+        }
+
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*Gio.UnixMountMonitor*');
+
+        const monitor = Gio.UnixMountMonitor.get();
+        expect(monitor.toString()).toContain('GIName:GioUnix.MountMonitor');
+
+        GLib.test_assert_expected_messages_internal('Cjs',
+            'testIntrospection.js', 0,
+            'Expected deprecation message for Gio.Unix -> GioUnix');
+    });
+
+    it("doesn't print the message if the type isn't resolved directly", function () {
+        if (skip) {
+            pending('GioUnix required for this test');
+            return;
+        }
+
+        const launcher = new Gio.SubprocessLauncher({flags: Gio.SubprocessFlags.STDOUT_PIPE});
+        const proc = launcher.spawnv(['ls', '/dev/null']);
+
+        expect(proc.get_stdout_pipe().toString()).toContain('GIName:GioUnix.InputStream');
+    });
+
+    it('has some exceptions', function () {
+        expect(Gio.UnixConnection.toString()).toContain('Gio_UnixConnection');
+
+        const credentialsMessage = new Gio.UnixCredentialsMessage();
+        expect(credentialsMessage.toString()).toContain('GIName:Gio.UnixCredentials');
+
+        const fdList = new Gio.UnixFDList();
+        expect(fdList.toString()).toContain('GIName:Gio.UnixFDList');
+
+        const socketAddress = Gio.UnixSocketAddress.new_with_type('', Gio.UnixSocketAddressType.ANONYMOUS);
+        expect(socketAddress.toString()).toContain('GIName:Gio.UnixSocketAddress');
     });
 });
