@@ -19,24 +19,32 @@
 #include <js/ContextOptions.h>
 #include <js/GCAPI.h>           // for JS_SetGCParameter, JS_AddFin...
 #include <js/Initialization.h>  // for JS_Init, JS_ShutDown
+#include <js/Principals.h>
 #include <js/Promise.h>
 #include <js/RootingAPI.h>
 #include <js/Stack.h>  // for JS_SetNativeStackQuota
+#include <js/StructuredClone.h>  // for JS_WriteUint32Pair
 #include <js/TypeDecls.h>
+#include <js/Utility.h>  // for UniqueChars
 #include <js/Warnings.h>
 #include <js/experimental/SourceHook.h>
 #include <jsapi.h>  // for JS_SetGlobalJitCompilerOption
+#include <mozilla/Atomics.h>  // for Atomic in JSPrincipals
 #include <mozilla/UniquePtr.h>
 
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
 #include "cjs/jsapi-util.h"
+#include "cjs/profiler-private.h"
 #include "util/log.h"
+
+struct JSStructuredCloneWriter;
 
 static void gjs_finalize_callback(JS::GCContext*, JSFinalizeStatus status,
                                   void* data) {
     auto* gjs = static_cast<GjsContextPrivate*>(data);
-    gjs->set_finalize_status(status);
+    if (gjs->profiler())
+        _gjs_profiler_set_finalize_status(gjs->profiler(), status);
 }
 
 static void on_promise_unhandled_rejection(
@@ -52,8 +60,17 @@ static void on_promise_unhandled_rejection(
     }
 
     JS::RootedObject allocation_site(cx, JS::GetPromiseAllocationSite(promise));
-    GjsAutoChar stack = gjs_format_stack_trace(cx, allocation_site);
+    JS::UniqueChars stack = format_saved_frame(cx, allocation_site);
     gjs->register_unhandled_promise_rejection(id, std::move(stack));
+}
+
+static void on_cleanup_finalization_registry(JSFunction* cleanup_task,
+                                             JSObject* incumbent_global
+                                             [[maybe_unused]],
+                                             void* data) {
+    auto* gjs = static_cast<GjsContextPrivate*>(data);
+    if (!gjs->queue_finalization_registry_cleanup(cleanup_task))
+        g_critical("Out of memory queueing FinalizationRegistry cleanup task");
 }
 
 bool gjs_load_internal_source(JSContext* cx, const char* filename, char** src,
@@ -82,31 +99,26 @@ class GjsSourceHook : public js::SourceHook {
 HMODULE gjs_dll;
 static bool gjs_is_inited = false;
 
-BOOL WINAPI
-DllMain (HINSTANCE hinstDLL,
-DWORD     fdwReason,
-LPVOID    lpvReserved)
-{
-  switch (fdwReason)
-  {
-      case DLL_PROCESS_ATTACH: {
-          gjs_dll = hinstDLL;
-          const char* reason = JS_InitWithFailureDiagnostic();
-          if (reason)
-              g_error("Could not initialize JavaScript: %s", reason);
-          gjs_is_inited = true;
-      } break;
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
+    switch (fdwReason) {
+        case DLL_PROCESS_ATTACH: {
+            gjs_dll = hinstDLL;
+            const char* reason = JS_InitWithFailureDiagnostic();
+            if (reason)
+                g_error("Could not initialize JavaScript: %s", reason);
+            gjs_is_inited = true;
+        } break;
 
-  case DLL_THREAD_DETACH:
-    JS_ShutDown ();
-    break;
+        case DLL_THREAD_DETACH:
+            JS_ShutDown();
+            break;
 
-  default:
-    /* do nothing */
-    ;
+        default:
+            /* do nothing */
+            ;
     }
 
-  return TRUE;
+    return TRUE;
 }
 
 #else
@@ -127,6 +139,49 @@ public:
 
 static GjsInit gjs_is_inited;
 #endif
+
+// JSPrincipals (basically a weird name for security callbacks) which are in
+// effect in the module loader's realm (GjsInternalGlobal). This prevents module
+// loader stack frames from showing up in public stack traces.
+class ModuleLoaderPrincipals final : public JSPrincipals {
+    static constexpr uint32_t STRUCTURED_CLONE_TAG = JS_SCTAG_USER_MIN;
+
+    bool write(JSContext* cx [[maybe_unused]],
+               JSStructuredCloneWriter* writer) override {
+        g_assert_not_reached();
+        return JS_WriteUint32Pair(writer, STRUCTURED_CLONE_TAG, 1);
+    }
+
+    bool isSystemOrAddonPrincipal() override { return true; }
+
+ public:
+    static bool subsumes(JSPrincipals* first, JSPrincipals* second) {
+        if (first != &the_principals && second == &the_principals)
+            return false;
+        return true;
+    }
+
+    static void destroy(JSPrincipals* principals [[maybe_unused]]) {
+        g_assert(principals == &the_principals &&
+                 "Should not create other instances of ModuleLoaderPrinciples");
+        g_assert(principals->refcount == 0 &&
+                 "Mismatched JS_HoldPrincipals/JS_DropPrincipals");
+    }
+
+    // Singleton
+    static ModuleLoaderPrincipals the_principals;
+};
+
+ModuleLoaderPrincipals ModuleLoaderPrincipals::the_principals{};
+
+JSPrincipals* get_internal_principals() {
+    return &ModuleLoaderPrincipals::the_principals;
+}
+
+static const JSSecurityCallbacks security_callbacks = {
+    /* contentSecurityPolicyAllows = */ nullptr,
+    &ModuleLoaderPrincipals::subsumes,
+};
 
 JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
     g_assert(gjs_is_inited);
@@ -149,11 +204,15 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
     /* set ourselves as the private data */
     JS_SetContextPrivate(cx, uninitialized_gjs);
 
+    JS_SetSecurityCallbacks(cx, &security_callbacks);
+    JS_InitDestroyPrincipalsCallback(cx, &ModuleLoaderPrincipals::destroy);
     JS_AddFinalizeCallback(cx, gjs_finalize_callback, uninitialized_gjs);
     JS::SetWarningReporter(cx, gjs_warning_reporter);
     JS::SetJobQueue(cx, dynamic_cast<JS::JobQueue*>(uninitialized_gjs));
     JS::SetPromiseRejectionTrackerCallback(cx, on_promise_unhandled_rejection,
                                            uninitialized_gjs);
+    JS::SetHostCleanupFinalizationRegistryCallback(
+        cx, on_cleanup_finalization_registry, uninitialized_gjs);
 
     // We use this to handle "lazy sources" that SpiderMonkey doesn't need to
     // keep in memory. Most sources should be kept in memory, but we can skip

@@ -35,8 +35,11 @@ overrides:
       - testEncoding.js
       - testGLibLogWriter.js
       - testTimers.js
+      - testWeakRef.js
       - modules/importmeta.js
       - modules/exports.js
+      - modules/greet.js
       - modules/say.js
+      - modules/sideEffect4.js
     parserOptions:
       sourceType: module

@@ -5,10 +5,14 @@
  * Copyright (c) 2020 Marco Trevisan <marco.trevisan@canonical.com>
  */
 
+#include <config.h>
+
+#include <stddef.h>  // for NULL
+
+#include <utility>   // for move, swap
+
 #include <glib-object.h>
 #include <glib.h>
-#include <stddef.h>  // for NULL
-#include <utility>   // for move, swap
 
 #include "cjs/jsapi-util.h"
 
@@ -588,108 +592,108 @@ static void test_gjs_error_out() {
     g_test_add(path, Fixture, nullptr, setup, func, teardown);
 
 void gjs_test_add_tests_for_jsapi_utils(void) {
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/size",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/size",
                     test_gjs_autopointer_size);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/constructor/empty",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/constructor/empty",
                     test_gjs_autopointer_ctor_empty);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/constructor/basic",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/constructor/basic",
                     test_gjs_autopointer_ctor_basic);
     ADD_AUTOPTRTEST(
-        "/gjs/jsapi-utils/gjs-autopointer/constructor/take_ownership",
+        "/cjs/jsapi-utils/gjs-autopointer/constructor/take_ownership",
         test_gjs_autopointer_ctor_take_ownership);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/constructor/assignment",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/constructor/assignment",
                     test_gjs_autopointer_ctor_assign);
     ADD_AUTOPTRTEST(
-        "/gjs/jsapi-utils/gjs-autopointer/constructor/assignment/other",
+        "/cjs/jsapi-utils/gjs-autopointer/constructor/assignment/other",
         test_gjs_autopointer_ctor_assign_other);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/destructor",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/destructor",
                     test_gjs_autopointer_dtor);
     ADD_AUTOPTRTEST(
-        "/gjs/jsapi-utils/gjs-autopointer/destructor/take_ownership",
+        "/cjs/jsapi-utils/gjs-autopointer/destructor/take_ownership",
         test_gjs_autopointer_dtor_take_ownership);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/destructor/default_free",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/destructor/default_free",
                     test_gjs_autopointer_dtor_default_free);
     g_test_add_func(
-        "/gjs/jsapi-utils/gjs-autopointer/destructor/no_free_pointer",
+        "/cjs/jsapi-utils/gjs-autopointer/destructor/no_free_pointer",
         test_gjs_autopointer_dtor_no_free_pointer);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/free_and_ref_funcs",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/free_and_ref_funcs",
                     test_gjs_autopointer_cast_free_func_type);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/destructor/c++",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/destructor/c++",
                     test_gjs_autopointer_dtor_cpp);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/destructor/c++-array",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/destructor/c++-array",
                     test_gjs_autopointer_dtor_cpp_array);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/operator/assign",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/operator/assign",
                     test_gjs_autopointer_assign_operator);
     g_test_add_func(
-        "/gjs/jsapi-utils/gjs-autopointer/operator/assign/other_ptr",
+        "/cjs/jsapi-utils/gjs-autopointer/operator/assign/other_ptr",
         test_gjs_autopointer_assign_operator_other_ptr);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/operator/assign/self_ptr",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/operator/assign/self_ptr",
                     test_gjs_autopointer_assign_operator_self_ptr);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/operator/assign/object",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/operator/assign/object",
                     test_gjs_autopointer_assign_operator_object);
     g_test_add_func(
-        "/gjs/jsapi-utils/gjs-autopointer/operator/assign/other_object",
+        "/cjs/jsapi-utils/gjs-autopointer/operator/assign/other_object",
         test_gjs_autopointer_assign_operator_other_object);
     ADD_AUTOPTRTEST(
-        "/gjs/jsapi-utils/gjs-autopointer/operator/assign/self_object",
+        "/cjs/jsapi-utils/gjs-autopointer/operator/assign/self_object",
         test_gjs_autopointer_assign_operator_self_object);
     ADD_AUTOPTRTEST(
-        "/gjs/jsapi-utils/gjs-autopointer/operator/assign/copy_and_swap",
+        "/cjs/jsapi-utils/gjs-autopointer/operator/assign/copy_and_swap",
         test_gjs_autopointer_assign_operator_copy_and_swap);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/operator/move",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/operator/move",
                     test_gjs_autopointer_operator_move);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/operator/swap",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/operator/swap",
                     test_gjs_autopointer_operator_swap);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/operator/arrow",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/operator/arrow",
                     test_gjs_autopointer_assign_operator_arrow);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/operator/deference",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/operator/deference",
                     test_gjs_autopointer_assign_operator_deference);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/operator/bool",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/operator/bool",
                     test_gjs_autopointer_assign_operator_bool);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/operator/array",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/operator/array",
                     test_gjs_autopointer_assign_operator_array);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/get",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/get",
                     test_gjs_autopointer_get);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/out",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/out",
                     test_gjs_autopointer_out);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/release",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/release",
                     test_gjs_autopointer_release);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/reset/nullptr",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/reset/nullptr",
                     test_gjs_autopointer_reset_nullptr);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/method/reset/other_ptr",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/method/reset/other_ptr",
                     test_gjs_autopointer_reset_other_ptr);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/reset/self_ptr",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/reset/self_ptr",
                     test_gjs_autopointer_reset_self_ptr);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/swap/other_ptr",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/swap/other_ptr",
                     test_gjs_autopointer_swap_other_ptr);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/swap/self_ptr",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/swap/self_ptr",
                     test_gjs_autopointer_swap_self_ptr);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/swap/empty",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/swap/empty",
                     test_gjs_autopointer_swap_empty);
-    ADD_AUTOPTRTEST("/gjs/jsapi-utils/gjs-autopointer/method/copy",
+    ADD_AUTOPTRTEST("/cjs/jsapi-utils/gjs-autopointer/method/copy",
                     test_gjs_autopointer_copy);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autopointer/method/as",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autopointer/method/as",
                     test_gjs_autopointer_as);
 
     //  Other implementations
-    g_test_add_func("/gjs/jsapi-utils/gjs-autochar/init",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autochar/init",
                     test_gjs_autochar_init);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autochar/init/take_ownership",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autochar/init/take_ownership",
                     test_gjs_autochar_init_take_ownership);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autochar/copy",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autochar/copy",
                     test_gjs_autochar_copy);
 
-    g_test_add_func("/gjs/jsapi-utils/gjs-autostrv/init",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autostrv/init",
                     test_gjs_autostrv_init);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autostrv/init/take_ownership",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autostrv/init/take_ownership",
                     test_gjs_autostrv_init_take_ownership);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autostrv/copy",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autostrv/copy",
                     test_gjs_autostrv_copy);
 
-    g_test_add_func("/gjs/jsapi-utils/gjs-autotypeclass/init",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autotypeclass/init",
                     test_gjs_autotypeclass_init);
 
-    g_test_add_func("/gjs/jsapi-utils/gjs-autoerror/init", test_gjs_error_init);
-    g_test_add_func("/gjs/jsapi-utils/gjs-autoerror/as-out-value",
+    g_test_add_func("/cjs/jsapi-utils/gjs-autoerror/init", test_gjs_error_init);
+    g_test_add_func("/cjs/jsapi-utils/gjs-autoerror/as-out-value",
                     test_gjs_error_out);
 }

@@ -3,8 +3,6 @@
 
 # Features
 
-option('cairo', type: 'feature', value: 'auto',
-    description: 'Build cairo module')
 option('readline', type: 'feature', value: 'auto',
     description: 'Use readline for input in interactive shell and debugger')
 option('profiler', type: 'feature', value: 'auto',
@@ -12,7 +10,7 @@ option('profiler', type: 'feature', value: 'auto',
 
 # Flags
 
-option('installed_tests', type: 'boolean', value: false,
+option('installed_tests', type: 'boolean', value: true,
     description: 'Install test programs')
 option('dtrace', type: 'boolean', value: false,
     description: 'Include dtrace trace support')

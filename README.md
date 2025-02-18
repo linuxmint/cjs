@@ -1,34 +1,45 @@
+[![Build Status](https://gitlab.gnome.org/GNOME/gjs/badges/master/pipeline.svg)](https://gitlab.gnome.org/GNOME/gjs/pipelines)
+[![Coverage report](https://gitlab.gnome.org/GNOME/gjs/badges/master/coverage.svg)](https://gnome.pages.gitlab.gnome.org/gjs/)
+[![Contributors](https://img.shields.io/github/contributors/GNOME/gjs.svg)](https://gitlab.gnome.org/GNOME/gjs/-/graphs/HEAD)
+[![Last commit](https://img.shields.io/github/last-commit/GNOME/gjs.svg)](https://gitlab.gnome.org/GNOME/gjs/commits/HEAD)
+[![Search hit](https://img.shields.io/github/search/GNOME/gjs/goto.svg?label=github%20hits)](https://github.com/search?utf8=%E2%9C%93&q=gjs&type=)
 [![License](https://img.shields.io/badge/License-LGPL%20v2%2B-blue.svg)](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/COPYING)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://gitlab.gnome.org/GNOME/gjs/blob/HEAD/COPYING)
 
-CJS fork of GJS for Cinnamon. It is functionally identical, and is only
-to maintain stability with the Cinnamon release cycle, and between various
-distributions.
+GNOME JavaScript
+=============================
 
-CJS is a JavaScript runtime built on
+GJS is a JavaScript runtime built on
 [Firefox's SpiderMonkey JavaScript engine](https://spidermonkey.dev/) and
 the [GNOME platform libraries](https://developer.gnome.org/).
 
+Use the GNOME platform libraries in your JavaScript programs.
+GJS powers GNOME Shell, Maps, Characters, Sound Recorder and many other apps.
+
+If you would like to learn more or get started with GJS, head over to the [documentation](./doc/Home.md).
+
+## Installation
+
+Available as part of your GNOME distribution by default.
+In most package managers the package will be called `gjs`.
+
 ## Usage
 
-CJS includes a command-line interpreter, usually installed in
-`/usr/bin/cjs`.
-Type `cjs` to start it and test out your JavaScript statements
+GJS includes a command-line interpreter, usually installed in
+`/usr/bin/gjs`.
+Type `gjs` to start it and test out your JavaScript statements
 interactively.
 Hit Ctrl+D to exit.
 
-`cjs filename.js` runs a whole program.
-`cjs -d filename.js` does that and starts a debugger as well.
+`gjs filename.js` runs a whole program.
+`gjs -d filename.js` does that and starts a debugger as well.
 
 There are also facilities for generating code coverage reports.
-Type `cjs --help` for more information.
+Type `gjs --help` for more information.
 
-_______
-.
-# Upstream
+`-d` only available in gjs >= 1.53.90
 
 ## Contributing
-[![Contributors](https://img.shields.io/github/contributors/GNOME/gjs.svg)](https://gitlab.gnome.org/GNOME/gjs/-/graphs/HEAD)
 
 For instructions on how to get started contributing to GJS, please read
 the contributing guide,

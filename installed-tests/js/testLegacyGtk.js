@@ -5,9 +5,9 @@
 
 imports.gi.versions.Gtk = '3.0';
 
-const ByteArray = imports.byteArray;
-const Gtk = imports.gi.Gtk;
+const {GLib, Gtk} = imports.gi;
 const Lang = imports.lang;
+const System = imports.system;
 
 const template = `
 <interface>
@@ -41,7 +41,7 @@ const template = `
 const MyComplexGtkSubclass = new Lang.Class({
     Name: 'MyComplexGtkSubclass',
     Extends: Gtk.Grid,
-    Template: ByteArray.fromString(template),
+    Template: new TextEncoder().encode(template),
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
     CssName: 'complex-subclass',
@@ -58,7 +58,7 @@ const MyComplexGtkSubclass = new Lang.Class({
 const MyComplexGtkSubclassFromResource = new Lang.Class({
     Name: 'MyComplexGtkSubclassFromResource',
     Extends: Gtk.Grid,
-    Template: 'resource:///org/gjs/jsunit/complex3.ui',
+    Template: 'resource:///org/cjs/jsunit/complex3.ui',
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
 
@@ -111,5 +111,39 @@ describe('Legacy Gtk overrides', function () {
 
     it('sets CSS names on classes', function () {
         expect(Gtk.Widget.get_css_name.call(MyComplexGtkSubclass)).toEqual('complex-subclass');
+    });
+
+    function asyncIdle() {
+        return new Promise(resolve => {
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                resolve();
+                return GLib.SOURCE_REMOVE;
+            });
+        });
+    }
+
+    it('does not leak instance when connecting template signal', async function () {
+        const LeakTestWidget = new Lang.Class({
+            Name: 'LeakTestWidget',
+            Extends: Gtk.Button,
+            Template: new TextEncoder().encode(`
+                <interface>
+                    <template class="Gjs_LeakTestWidget" parent="GtkButton">
+                        <signal name="clicked" handler="buttonClicked"/>
+                    </template>
+                </interface>`),
+
+            buttonClicked() {},
+        });
+
+        const weakRef = new WeakRef(new LeakTestWidget());
+
+        await asyncIdle();
+        // It takes two GC cycles to free the widget, because of the tardy sweep
+        // problem (https://gitlab.gnome.org/GNOME/gjs/-/issues/217)
+        System.gc();
+        System.gc();
+
+        expect(weakRef.deref()).toBeUndefined();
     });
 });

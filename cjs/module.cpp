@@ -7,7 +7,10 @@
 #include <stddef.h>     // for size_t
 #include <string.h>
 
+#include <vector>  // for vector
+
 #include <gio/gio.h>
+#include <glib-object.h>
 #include <glib.h>
 
 #include <js/CallAndConstruct.h>
@@ -438,7 +441,8 @@ static bool import_native_module_sync(JSContext* cx, unsigned argc,
     }
 
     JS::RootedObject native_obj(cx);
-    if (!Gjs::NativeModuleRegistry::get().load(cx, id.get(), &native_obj)) {
+    if (!Gjs::NativeModuleDefineFuncs::get().define(cx, id.get(),
+                                                    &native_obj)) {
         gjs_throw(cx, "Failed to load native module: %s", id.get());
         return false;
     }
@@ -471,9 +475,9 @@ bool gjs_populate_module_meta(JSContext* cx, JS::HandleValue private_ref,
               &private_ref.toObject());
 
     const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
-    JS::RootedValue v_uri(cx);
-    if (!JS_GetPropertyById(cx, module, atoms.uri(), &v_uri) ||
-        !JS_DefinePropertyById(cx, meta, atoms.url(), v_uri,
+    JS::RootedValue specifier{cx};
+    if (!JS_GetProperty(cx, module, "id", &specifier) ||
+        !JS_DefinePropertyById(cx, meta, atoms.url(), specifier,
                                GJS_MODULE_PROP_FLAGS))
         return false;
 
@@ -489,6 +493,47 @@ bool gjs_populate_module_meta(JSContext* cx, JS::HandleValue private_ref,
             return false;
     }
 
+    return true;
+}
+
+// Canonicalize specifier so that differently-spelled specifiers referring to
+// the same module don't result in duplicate entries in the registry
+static bool canonicalize_specifier(JSContext* cx,
+                                   JS::MutableHandleString specifier) {
+    JS::UniqueChars specifier_utf8 = JS_EncodeStringToUTF8(cx, specifier);
+    if (!specifier_utf8)
+        return false;
+
+    GjsAutoChar scheme, host, path, query;
+    if (!g_uri_split(specifier_utf8.get(), G_URI_FLAGS_NONE, scheme.out(),
+                     nullptr, host.out(), nullptr, path.out(), query.out(),
+                     nullptr, nullptr))
+        return false;
+
+    if (g_strcmp0(scheme, "gi")) {
+        // canonicalize without the query portion to avoid it being encoded
+        GjsAutoChar for_file_uri =
+            g_uri_join(G_URI_FLAGS_NONE, scheme.get(), nullptr, host.get(), -1,
+                       path.get(), nullptr, nullptr);
+        GjsAutoUnref<GFile> file = g_file_new_for_uri(for_file_uri.get());
+        for_file_uri = g_file_get_uri(file);
+        host.reset();
+        path.reset();
+        if (!g_uri_split(for_file_uri.get(), G_URI_FLAGS_NONE, nullptr, nullptr,
+                         host.out(), nullptr, path.out(), nullptr, nullptr,
+                         nullptr))
+            return false;
+    }
+
+    GjsAutoChar canonical_specifier =
+        g_uri_join(G_URI_FLAGS_NONE, scheme.get(), nullptr, host.get(), -1,
+                   path.get(), query.get(), nullptr);
+    JS::ConstUTF8CharsZ chars{canonical_specifier, strlen(canonical_specifier)};
+    JS::RootedString new_specifier{cx, JS_NewStringCopyUTF8Z(cx, chars)};
+    if (!new_specifier)
+        return false;
+
+    specifier.set(new_specifier);
     return true;
 }
 
@@ -518,6 +563,9 @@ JSObject* gjs_module_resolve(JSContext* cx, JS::HandleValue importingModulePriv,
     g_assert(v_loader.isObject());
     JS::RootedObject loader(cx, &v_loader.toObject());
 
+    if (!canonicalize_specifier(cx, &specifier))
+        return nullptr;
+
     JS::RootedValueArray<2> args(cx);
     args[0].set(importingModulePriv);
     args[1].setString(specifier);
@@ -533,23 +581,6 @@ JSObject* gjs_module_resolve(JSContext* cx, JS::HandleValue importingModulePriv,
 
     g_assert(result.isObject() && "resolve hook failed to return an object!");
     return &result.toObject();
-}
-
-// Note: exception is never pending after this function finishes, even if it
-// returns null. The return value is intended to be passed to
-// JS::FinishDynamicModuleImport().
-static JSObject* reject_new_promise_with_pending_exception(JSContext* cx) {
-    JS::ExceptionStack stack{cx};
-    if (!JS::StealPendingExceptionStack(cx, &stack)) {
-        gjs_log_exception(cx);
-        return nullptr;
-    }
-    JS::RootedObject rejected{cx, JS::NewPromiseObject(cx, nullptr)};
-    if (!rejected || !JS::RejectPromise(cx, rejected, stack.exception())) {
-        gjs_log_exception(cx);
-        return nullptr;
-    }
-    return rejected;
 }
 
 // Call JS::FinishDynamicModuleImport() with the values stashed in the function.
@@ -593,12 +624,9 @@ static bool finish_import(JSContext* cx, JS::HandleObject evaluation_promise,
 // case we must not call JS::FinishDynamicModuleImport().
 GJS_JSAPI_RETURN_CONVENTION
 static bool fail_import(JSContext* cx, const JS::CallArgs& args) {
-    if (!JS_IsExceptionPending(cx))
-        return false;
-
-    JS::RootedObject rejected_promise{
-        cx, reject_new_promise_with_pending_exception(cx)};
-    return finish_import(cx, rejected_promise, args);
+    if (JS_IsExceptionPending(cx))
+        return finish_import(cx, nullptr, args);
+    return false;
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -607,16 +635,12 @@ static bool import_rejected(JSContext* cx, unsigned argc, JS::Value* vp) {
 
     gjs_debug(GJS_DEBUG_IMPORTER, "Async import promise rejected");
 
-    // Reject a new promise with the rejection value of the async import
-    // promise, so that FinishDynamicModuleImport will reject the
-    // internal_promise with it.
-    JS::RootedObject rejected{cx, JS::NewPromiseObject(cx, nullptr)};
-    if (!rejected || !JS::RejectPromise(cx, rejected, args.get(0))) {
-        gjs_log_exception(cx);
-        return finish_import(cx, nullptr, args);
-    }
+    // Throw the value that the promise is rejected with, so that
+    // FinishDynamicModuleImport will reject the internal_promise with it.
+    JS_SetPendingException(cx, args.get(0),
+                           JS::ExceptionStackBehavior::DoNotCapture);
 
-    return finish_import(cx, rejected, args);
+    return finish_import(cx, nullptr, args);
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -660,6 +684,9 @@ bool gjs_dynamic_module_resolve(JSContext* cx,
     JS::RootedString specifier(
         cx, JS::GetModuleRequestSpecifier(cx, module_request));
 
+    if (!canonicalize_specifier(cx, &specifier))
+        return false;
+
     JS::RootedObject callback_data(cx, JS_NewPlainObject(cx));
     if (!callback_data ||
         !JS_DefineProperty(cx, callback_data, "module_request", module_request,
@@ -688,16 +715,9 @@ bool gjs_dynamic_module_resolve(JSContext* cx,
     args[1].setString(specifier);
 
     JS::RootedValue result(cx);
-    if (!JS::Call(cx, loader, "moduleResolveAsyncHook", args, &result)) {
-        if (!JS_IsExceptionPending(cx))
-            return false;
-
-        JS::RootedObject rejected_promise{
-            cx, reject_new_promise_with_pending_exception(cx)};
-        return JS::FinishDynamicModuleImport(cx, rejected_promise,
-                                             importing_module_priv,
+    if (!JS::Call(cx, loader, "moduleResolveAsyncHook", args, &result))
+        return JS::FinishDynamicModuleImport(cx, nullptr, importing_module_priv,
                                              module_request, internal_promise);
-    }
 
     // Release in finish_import
     GjsContextPrivate* priv = GjsContextPrivate::from_cx(cx);

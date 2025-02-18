@@ -1,0 +1,9 @@
+usr/libexec/installed-tests/cjs/GIMarshallingTests-1.0.typelib
+usr/libexec/installed-tests/cjs/Regress-1.0.typelib
+usr/libexec/installed-tests/cjs/RegressUnix-1.0.typelib
+usr/libexec/installed-tests/cjs/Utility-1.0.typelib
+usr/libexec/installed-tests/cjs/WarnLib-1.0.typelib
+usr/libexec/installed-tests/cjs/libgimarshallingtests.so
+usr/libexec/installed-tests/cjs/libregress.so
+usr/libexec/installed-tests/cjs/libutility.so
+usr/libexec/installed-tests/cjs/libwarnlib.so

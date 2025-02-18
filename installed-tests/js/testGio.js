@@ -105,18 +105,18 @@ describe('Gio.Settings overrides', function () {
     });
 
     it("doesn't crash when specifying a schema ID that isn't installed", function () {
-        expect(() => new Gio.Settings({schema: 'com.example.ThisDoesntExist'}))
+        expect(() => new Gio.Settings({schemaId: 'com.example.ThisDoesntExist'}))
             .toThrowError(/schema/);
     });
 
     it("doesn't crash when forgetting to specify a schema path", function () {
-        expect(() => new Gio.Settings({schema: 'org.cinnamon.CjsTest.Sub'}))
+        expect(() => new Gio.Settings({schemaId: 'org.cinnamon.CjsTest.Sub'}))
             .toThrowError(/schema/);
     });
 
     it("doesn't crash when specifying conflicting schema paths", function () {
         expect(() => new Gio.Settings({
-            schema: 'org.cinnamon.CjsTest',
+            schemaId: 'org.cinnamon.CjsTest',
             path: '/conflicting/path/',
         })).toThrowError(/schema/);
     });
@@ -139,7 +139,7 @@ describe('Gio.Settings overrides', function () {
         let settings;
 
         beforeEach(function () {
-            settings = new Gio.Settings({schema: 'org.cinnamon.CjsTest'});
+            settings = new Gio.Settings({schemaId: 'org.cinnamon.CjsTest'});
         });
 
         it("doesn't crash when resetting a nonexistent key", function () {
@@ -228,6 +228,12 @@ describe('Gio.Settings overrides', function () {
             const sub = settings.get_child('sub');
             expect(sub.get_uint('marine')).toEqual(10);
         });
+    });
+});
+
+describe('Gio.content_type_set_mime_dirs', function () {
+    it('can be called with NULL argument', function () {
+        expect(() => Gio.content_type_set_mime_dirs(null)).not.toThrow();
     });
 });
 
@@ -391,14 +397,14 @@ describe('Non-introspectable file attribute overrides', function () {
     function expectWarnings(count) {
         numExpectedWarnings = count;
         for (let c = 0; c < count; c++) {
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 '*not introspectable*');
         }
     }
 
     function assertWarnings(testName) {
         for (let c = 0; c < numExpectedWarnings; c++) {
-            GLib.test_assert_expected_messages_internal('Gjs', 'testGio.js', 0,
+            GLib.test_assert_expected_messages_internal('Cjs', 'testGio.js', 0,
                 `test Gio.${testName}`);
         }
         numExpectedWarnings = 0;

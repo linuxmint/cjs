@@ -1,0 +1,103 @@
+This repository was split off of gobject-introspection at commit c39cb45.
+
+All commits not containing tests were pruned from the history using
+git-filter-repo (https://github.com/newren/git-filter-repo/) at commit ac50405.
+
+Created by:
+
+$ git clone git@ssh.gitlab.gnome.org:GNOME/gobject-introspection.git gobject-introspection-tests
+$ cd gobject-introspection-tests
+$ git filter-repo --paths-from-file ../renames.txt
+$ git filter-repo --invert-paths --paths-from-file ../removals.txt
+$ git branch | grep -v main | xargs git branch -D
+$ git tag | xargs git tag -d
+
+Contents of renames.txt:
+
+gir/everything.c==>everything.c
+gir/everything.h==>everything.h
+gir/gimarshallingtests.c==>gimarshallingtests.c
+gir/gimarshallingtests.h==>gimarshallingtests.h
+tests/everything/everything.c==>everything.c
+tests/everything/everything.h==>everything.h
+tests/everything/gitesttypes.c==>gitesttypes.c
+tests/everything/gitesttypes.h==>gitesttypes.h
+tests/gimarshallingtests.c==>gimarshallingtests.c
+tests/gimarshallingtests.h==>gimarshallingtests.h
+tests/gitestmacros.h==>gitestmacros.h
+tests/parser/foo-object.h==>foo.h
+tests/parser/foo.c==>foo.c
+tests/parser/utility.c==>utility.c
+tests/parser/utility.h==>utility.h
+tests/scanner/annotation.c==>annotation.c
+tests/scanner/annotation.h==>annotation.h
+tests/scanner/drawable.c==>drawable.c
+tests/scanner/drawable.h==>drawable.h
+tests/scanner/everything.c==>everything.c
+tests/scanner/everything.h==>everything.h
+tests/scanner/foo-object.h==>foo.h
+tests/scanner/foo.c==>foo.c
+tests/scanner/foo.h==>foo.h
+tests/scanner/regress.c==>regress.c
+tests/scanner/regress.h==>regress.h
+tests/scanner/warnlib.c==>warnlib.c
+tests/scanner/warnlib.h==>warnlib.h
+tests/scanner/utility.c==>utility.c
+tests/scanner/utility.h==>utility.h
+tests/types/gitesttypes.c==>gitesttypes.c
+tests/types/gitesttypes.h==>gitesttypes.h
+
+Contents of removals.txt:
+
+glob:*.am
+glob:*.pc.in
+glob:*.rst
+glob:*.txt
+.dir-locals.el
+.flake8
+.gitignore
+.gitlab-ci
+.gitlab-ci.yml
+.readthedocs.yaml
+.topdeps
+.topmsg
+acinclude.m4
+AUTHORS
+autogen.sh
+build
+ChangeLog
+ChangeLog.pre-git
+common.mk
+config.h.win32.in
+configure.ac
+CONTRIBUTORS
+COPYING.tools
+docs
+examples
+g-ir-diff
+gcov.mak
+gidl
+gidl.dtd
+gir
+girepository
+giscanner
+gobject-introspection.doap
+gtk-doc-shave.patch
+HACKING
+m4
+MAINTAINERS
+Makefile.introspection
+meson.build
+misc
+mypy.ini
+NEWS
+README
+README.msvc
+relaxng
+scripts
+src
+subprojects
+tests
+TODO
+tools
+win32

@@ -4,7 +4,7 @@
 
 imports.gi.versions.Gtk = '3.0';
 
-const {GLib, Gio, GjsTestTools, GObject, Gtk} = imports.gi;
+const {GLib, Gio, CjsTestTools, GObject, Gtk} = imports.gi;
 const {system: System} = imports;
 
 describe('Access to destroyed GObject', function () {
@@ -21,35 +21,35 @@ describe('Access to destroyed GObject', function () {
     });
 
     it('Get property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(destroyedWindow.title).toBe('To be destroyed');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertyGet');
     });
 
     it('Set property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         destroyedWindow.title = 'I am dead';
         expect(destroyedWindow.title).toBe('I am dead');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertySet');
     });
 
     it('Add expando property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         destroyedWindow.expandoProperty = 'Hello!';
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectExpandoPropertySet');
     });
 
@@ -66,85 +66,85 @@ describe('Access to destroyed GObject', function () {
     });
 
     it('Access to getter method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(destroyedWindow.get_title()).toBe('To be destroyed');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodGet');
     });
 
     it('Access to setter method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         destroyedWindow.set_title('I am dead');
         expect(destroyedWindow.get_title()).toBe('I am dead');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodSet');
     });
 
     it('Proto function connect', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(destroyedWindow.connect('foo-signal', () => {})).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnect');
     });
 
     it('Proto function connect_after', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(destroyedWindow.connect_after('foo-signal', () => {})).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnectAfter');
     });
 
     it('Proto function emit', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(destroyedWindow.emit('keys-changed')).toBeUndefined();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectEmit');
     });
 
     it('Proto function signals_disconnect', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(GObject.signal_handlers_disconnect_by_func(destroyedWindow, () => {})).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectSignalsDisconnect');
     });
 
     it('Proto function signals_block', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(GObject.signal_handlers_block_by_func(destroyedWindow, () => {})).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectSignalsBlock');
     });
 
     it('Proto function signals_unblock', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
 
         expect(GObject.signal_handlers_unblock_by_func(destroyedWindow, () => {})).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectSignalsUnblock');
     });
 
@@ -178,52 +178,52 @@ describe('Access to finalized GObject', function () {
         destroyedWindow.set_title('To be destroyed');
         destroyedWindow.destroy();
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* disposed *');
-        destroyedWindow.unref();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        CjsTestTools.unref(destroyedWindow);
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertyGet');
     });
 
     afterEach(function () {
         destroyedWindow = null;
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*Object 0x* has been finalized *');
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'generates a warn on object garbage collection');
     });
 
     it('Get property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         expect(destroyedWindow.title).toBeUndefined();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertyGet');
     });
 
     it('Set property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         destroyedWindow.title = 'I am dead';
         expect(destroyedWindow.title).toBeUndefined();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectPropertySet');
     });
 
     it('Add expando property', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         destroyedWindow.expandoProperty = 'Hello!';
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectExpandoPropertySet');
     });
 
@@ -240,86 +240,86 @@ describe('Access to finalized GObject', function () {
     });
 
     it('Access to getter method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
         GLib.test_expect_message('Gtk', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*GTK_IS_WINDOW*');
 
         expect(destroyedWindow.get_title()).toBeNull();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodGet');
     });
 
     it('Access to setter method', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
         GLib.test_expect_message('Gtk', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*GTK_IS_WINDOW*');
 
         destroyedWindow.set_title('I am dead');
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectMethodSet');
     });
 
     it('Proto function connect', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         expect(destroyedWindow.connect('foo-signal', () => { })).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnect');
     });
 
     it('Proto function connect_after', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         expect(destroyedWindow.connect_after('foo-signal', () => { })).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectConnectAfter');
     });
 
     it('Proto function emit', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         expect(destroyedWindow.emit('keys-changed')).toBeUndefined();
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectEmit');
     });
 
     it('Proto function signals_disconnect', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         expect(GObject.signal_handlers_disconnect_by_func(destroyedWindow, () => { })).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectSignalsDisconnect');
     });
 
     it('Proto function signals_block', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         expect(GObject.signal_handlers_block_by_func(destroyedWindow, () => { })).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectSignalsBlock');
     });
 
     it('Proto function signals_unblock', function () {
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Window (0x* finalized *');
 
         expect(GObject.signal_handlers_unblock_by_func(destroyedWindow, () => { })).toBe(0);
 
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'testExceptionInDestroyedObjectSignalsUnblock');
     });
 
@@ -331,11 +331,11 @@ describe('Access to finalized GObject', function () {
 
 describe('Disposed or finalized GObject', function () {
     beforeAll(function () {
-        GjsTestTools.init();
+        CjsTestTools.init();
     });
 
     afterEach(function () {
-        GjsTestTools.reset();
+        CjsTestTools.reset();
     });
 
     [true, false].forEach(gc => {
@@ -380,36 +380,36 @@ describe('Disposed or finalized GObject', function () {
         expect(callSpy).toHaveBeenCalledTimes(2);
         file = null;
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*during garbage collection*offending callback was dispose()*');
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'calls dispose vfunc on explicit disposal only');
 
         expect(callSpy).toHaveBeenCalledTimes(2);
     });
 
     it('generates a warn on object garbage collection', function () {
-        Gio.File.new_for_path('/').unref();
+        CjsTestTools.unref(Gio.File.new_for_path('/'));
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*Object 0x* has been finalized *');
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'generates a warn on object garbage collection');
     });
 
     it('generates a warn on object garbage collection if has expando property', function () {
         let file = Gio.File.new_for_path('/');
         file.toggleReferenced = true;
-        file.unref();
+        CjsTestTools.unref(file);
         expect(file.toString()).toMatch(
             /\[object \(FINALIZED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
         file = null;
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*Object 0x* has been finalized *');
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'generates a warn on object garbage collection if has expando property');
     });
 
@@ -417,7 +417,7 @@ describe('Disposed or finalized GObject', function () {
         const loop = new GLib.MainLoop(null, false);
 
         let file = Gio.File.new_for_path('/');
-        GjsTestTools.delayed_unref(file, 1);  // Will happen after dispose
+        CjsTestTools.delayed_unref(file, 1);  // Will happen after dispose
         file.run_dispose();
 
         let done = false;
@@ -426,17 +426,17 @@ describe('Disposed or finalized GObject', function () {
             loop.get_context().iteration(true);
 
         file = null;
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*Object 0x* has been finalized *');
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'generates a warn if already disposed at garbage collection');
     });
 
     [true, false].forEach(gc => {
         it(`created from other function is marked as disposed and ${gc ? '' : 'not '}garbage collected`, function () {
             let file = Gio.File.new_for_path('/');
-            GjsTestTools.save_object(file);
+            CjsTestTools.save_object(file);
             file.run_dispose();
             file = null;
             System.gc();
@@ -444,7 +444,7 @@ describe('Disposed or finalized GObject', function () {
             Array(10).fill().forEach(() => {
                 // We need to repeat the test to ensure that we disassociate
                 // wrappers from disposed objects on destruction.
-                expect(GjsTestTools.peek_saved()).toMatch(
+                expect(CjsTestTools.peek_saved()).toMatch(
                     /\[object \(DISPOSED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
                 if (gc)
                     System.gc();
@@ -453,17 +453,17 @@ describe('Disposed or finalized GObject', function () {
     });
 
     it('returned from function is marked as disposed', function () {
-        expect(GjsTestTools.get_disposed(Gio.File.new_for_path('/'))).toMatch(
+        expect(CjsTestTools.get_disposed(Gio.File.new_for_path('/'))).toMatch(
             /\[object \(DISPOSED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
     });
 
     it('returned from function is marked as disposed and then as finalized', function () {
         let file = Gio.File.new_for_path('/');
-        GjsTestTools.save_object(file);
-        GjsTestTools.delayed_unref(file, 30);
+        CjsTestTools.save_object(file);
+        CjsTestTools.delayed_unref(file, 30);
         file.run_dispose();
 
-        let disposedFile = GjsTestTools.get_saved();
+        let disposedFile = CjsTestTools.get_saved();
         expect(disposedFile).toEqual(file);
         expect(disposedFile).toMatch(
             /\[object \(DISPOSED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
@@ -478,42 +478,42 @@ describe('Disposed or finalized GObject', function () {
         expect(disposedFile).toMatch(
             /\[object \(FINALIZED\) instance wrapper GType:GLocalFile jsobj@0x[a-f0-9]+ native@0x[a-f0-9]+\]/);
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*Object 0x* has been finalized *');
         disposedFile = null;
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'returned from function is marked as disposed and then as finalized');
     });
 
     it('ignores toggling queued unref toggles', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        file.ref();
-        GjsTestTools.unref_other_thread(file);
+        CjsTestTools.ref(file);
+        CjsTestTools.unref_other_thread(file);
         file.run_dispose();
     });
 
     it('ignores toggling queued toggles', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.ref_other_thread(file);
-        GjsTestTools.unref_other_thread(file);
+        CjsTestTools.ref_other_thread(file);
+        CjsTestTools.unref_other_thread(file);
         file.run_dispose();
     });
 
     it('can be disposed from other thread', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        file.ref();
-        GjsTestTools.unref_other_thread(file);
-        GjsTestTools.run_dispose_other_thread(file);
+        CjsTestTools.ref(file);
+        CjsTestTools.unref_other_thread(file);
+        CjsTestTools.run_dispose_other_thread(file);
     });
 
     it('can be garbage collected once disposed from other thread', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.run_dispose_other_thread(file);
+        CjsTestTools.run_dispose_other_thread(file);
         file = null;
         System.gc();
     });
@@ -521,19 +521,19 @@ describe('Disposed or finalized GObject', function () {
 
 describe('GObject with toggle references', function () {
     beforeAll(function () {
-        GjsTestTools.init();
+        CjsTestTools.init();
     });
 
     afterEach(function () {
-        GjsTestTools.reset();
+        CjsTestTools.reset();
     });
 
     it('can be re-reffed from other thread delayed', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
         const objectAddress = System.addressOfGObject(file);
-        GjsTestTools.save_object_unreffed(file);
-        GjsTestTools.delayed_ref_other_thread(file, 10);
+        CjsTestTools.save_object_unreffed(file);
+        CjsTestTools.delayed_ref_other_thread(file, 10);
         file = null;
         System.gc();
 
@@ -545,11 +545,11 @@ describe('GObject with toggle references', function () {
         // However, depending on whether the thread ref happens the object
         // may be already finalized, and in such case we need to throw
         try {
-            file = GjsTestTools.steal_saved();
+            file = CjsTestTools.steal_saved();
             if (file) {
                 expect(System.addressOfGObject(file)).toBe(objectAddress);
                 expect(file instanceof Gio.File).toBeTruthy();
-                file.unref();
+                CjsTestTools.unref(file);
             }
         } catch (e) {
             expect(() => {
@@ -562,8 +562,9 @@ describe('GObject with toggle references', function () {
         let file = Gio.File.new_for_path('/');
         const objectAddress = System.addressOfGObject(file);
         file.expandMeWithToggleRef = true;
-        GjsTestTools.save_object(file);
-        GjsTestTools.delayed_unref_other_thread(file.ref(), 10);
+        CjsTestTools.save_object(file);
+        CjsTestTools.ref(file);
+        CjsTestTools.delayed_unref_other_thread(file, 10);
         file = null;
         System.gc();
 
@@ -571,7 +572,7 @@ describe('GObject with toggle references', function () {
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => loop.quit());
         loop.run();
 
-        file = GjsTestTools.get_saved();
+        file = CjsTestTools.get_saved();
         expect(System.addressOfGObject(file)).toBe(objectAddress);
         expect(file instanceof Gio.File).toBeTruthy();
     });
@@ -579,7 +580,7 @@ describe('GObject with toggle references', function () {
     it('can be re-reffed and unreffed again from other thread with delay', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.delayed_ref_unref_other_thread(file, 10);
+        CjsTestTools.delayed_ref_unref_other_thread(file, 10);
         file = null;
         System.gc();
 
@@ -591,50 +592,50 @@ describe('GObject with toggle references', function () {
     it('can be toggled up by getting a GWeakRef', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.save_weak(file);
-        GjsTestTools.get_weak();
+        CjsTestTools.save_weak(file);
+        CjsTestTools.get_weak();
     });
 
     it('can be toggled up by getting a GWeakRef from another thread', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.save_weak(file);
-        GjsTestTools.get_weak_other_thread();
+        CjsTestTools.save_weak(file);
+        CjsTestTools.get_weak_other_thread();
     });
 
     it('can be toggled up by getting a GWeakRef from another thread and re-reffed in main thread', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.save_weak(file);
-        GjsTestTools.get_weak_other_thread();
+        CjsTestTools.save_weak(file);
+        CjsTestTools.get_weak_other_thread();
 
         // Ok, let's play more dirty now...
-        file.ref(); // toggle up
-        file.unref(); // toggle down
+        CjsTestTools.ref(file); // toggle up
+        CjsTestTools.unref(file); // toggle down
 
-        file.ref();
-        file.ref();
-        file.unref();
-        file.unref();
+        CjsTestTools.ref(file);
+        CjsTestTools.ref(file);
+        CjsTestTools.unref(file);
+        CjsTestTools.unref(file);
     });
 
     it('can be toggled up by getting a GWeakRef from another and re-reffed from various threads', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.save_weak(file);
-        GjsTestTools.get_weak_other_thread();
+        CjsTestTools.save_weak(file);
+        CjsTestTools.get_weak_other_thread();
 
-        GjsTestTools.ref_other_thread(file);
-        GjsTestTools.unref_other_thread(file);
+        CjsTestTools.ref_other_thread(file);
+        CjsTestTools.unref_other_thread(file);
 
-        file.ref();
-        file.unref();
+        CjsTestTools.ref(file);
+        CjsTestTools.unref(file);
 
-        GjsTestTools.ref_other_thread(file);
-        file.unref();
+        CjsTestTools.ref_other_thread(file);
+        CjsTestTools.unref(file);
 
-        file.ref();
-        GjsTestTools.unref_other_thread(file);
+        CjsTestTools.ref(file);
+        CjsTestTools.unref_other_thread(file);
     });
 
     it('can be toggled up-down from various threads when the wrapper is gone', function () {
@@ -643,20 +644,20 @@ describe('GObject with toggle references', function () {
 
         // We also check that late thread events won't affect the destroyed wrapper
         const threads = [];
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 0));
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 100000));
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 200000));
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 300000));
-        GjsTestTools.save_object(file);
-        GjsTestTools.save_weak(file);
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 0));
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 100000));
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 200000));
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 300000));
+        CjsTestTools.save_object(file);
+        CjsTestTools.save_weak(file);
         file = null;
         System.gc();
 
         threads.forEach(th => th.join());
-        GjsTestTools.clear_saved();
+        CjsTestTools.clear_saved();
         System.gc();
 
-        expect(GjsTestTools.get_weak()).toBeNull();
+        expect(CjsTestTools.get_weak()).toBeNull();
     });
 
     it('can be toggled up-down from various threads when disposed and the wrapper is gone', function () {
@@ -665,47 +666,47 @@ describe('GObject with toggle references', function () {
 
         // We also check that late thread events won't affect the destroyed wrapper
         const threads = [];
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 0));
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 100000));
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 200000));
-        threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 300000));
-        GjsTestTools.save_object(file);
-        GjsTestTools.save_weak(file);
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 0));
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 100000));
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 200000));
+        threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 300000));
+        CjsTestTools.save_object(file);
+        CjsTestTools.save_weak(file);
         file.run_dispose();
         file = null;
         System.gc();
 
         threads.forEach(th => th.join());
-        GjsTestTools.clear_saved();
-        expect(GjsTestTools.get_weak()).toBeNull();
+        CjsTestTools.clear_saved();
+        expect(CjsTestTools.get_weak()).toBeNull();
     });
 
     it('can be finalized while queued in toggle queue', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        file.ref();
-        GjsTestTools.unref_other_thread(file);
-        GjsTestTools.unref_other_thread(file);
+        CjsTestTools.ref(file);
+        CjsTestTools.unref_other_thread(file);
+        CjsTestTools.unref_other_thread(file);
 
-        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*Object 0x* has been finalized *');
         file = null;
         System.gc();
-        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectDestructionAccess.js', 0,
+        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectDestructionAccess.js', 0,
             'can be finalized while queued in toggle queue');
     });
 
     xit('can be toggled up-down from various threads while getting a GWeakRef from main', function () {
         let file = Gio.File.new_for_path('/');
         file.expandMeWithToggleRef = true;
-        GjsTestTools.save_weak(file);
+        CjsTestTools.save_weak(file);
 
         const ids = [];
         let threads = [];
         ids.push(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
             threads = threads.slice(-50);
             try {
-                threads.push(GjsTestTools.delayed_ref_unref_other_thread(file, 1));
+                threads.push(CjsTestTools.delayed_ref_unref_other_thread(file, 1));
             } catch (e) {
                 // If creating the thread failed we're almost going out of memory
                 // so let's first wait for the ones allocated to complete.
@@ -717,7 +718,7 @@ describe('GObject with toggle references', function () {
 
         const loop = new GLib.MainLoop(null, false);
         ids.push(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            expect(GjsTestTools.get_weak()).toEqual(file);
+            expect(CjsTestTools.get_weak()).toEqual(file);
             return GLib.SOURCE_CONTINUE;
         }));
 
@@ -727,14 +728,14 @@ describe('GObject with toggle references', function () {
         ids.forEach(id => GLib.source_remove(id));
 
         // We also check that late thread events won't affect the destroyed wrapper
-        GjsTestTools.save_object(file);
+        CjsTestTools.save_object(file);
         file = null;
         System.gc();
         threads.forEach(th => th.join());
-        expect(GjsTestTools.get_saved_ref_count()).toBeGreaterThan(0);
+        expect(CjsTestTools.get_saved_ref_count()).toBeGreaterThan(0);
 
-        GjsTestTools.clear_saved();
+        CjsTestTools.clear_saved();
         System.gc();
-        expect(GjsTestTools.get_weak()).toBeNull();
+        expect(CjsTestTools.get_weak()).toBeNull();
     }).pend('Flaky, see https://gitlab.gnome.org/GNOME/gjs/-/issues/NNN');
 });

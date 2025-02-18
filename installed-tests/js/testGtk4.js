@@ -4,8 +4,13 @@
 imports.gi.versions.Gdk = '4.0';
 imports.gi.versions.Gtk = '4.0';
 
-const ByteArray = imports.byteArray;
-const {Gdk, Gio, GObject, Gtk} = imports.gi;
+const {Gdk, Gio, GObject, Gtk, GLib, CjsTestTools} = imports.gi;
+const System = imports.system;
+
+// Set up log writer for tests to override
+const writerFunc = jasmine.createSpy('log writer', () => GLib.LogWriterOutput.UNHANDLED);
+writerFunc.and.callThrough();
+GLib.log_set_writer_func(writerFunc);
 
 // This is ugly here, but usually it would be in a resource
 function createTemplate(className) {
@@ -38,7 +43,7 @@ function createTemplate(className) {
 }
 
 const MyComplexGtkSubclass = GObject.registerClass({
-    Template: ByteArray.fromString(createTemplate('Gjs_MyComplexGtkSubclass')),
+    Template: new TextEncoder().encode(createTemplate('Gjs_MyComplexGtkSubclass')),
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
     CssName: 'complex-subclass',
@@ -61,10 +66,30 @@ const MyComplexGtkSubclass = GObject.registerClass({
 });
 
 const MyComplexGtkSubclassFromResource = GObject.registerClass({
-    Template: 'resource:///org/gjs/jsunit/complex4.ui',
+    Template: 'resource:///org/cjs/jsunit/complex4.ui',
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
 }, class MyComplexGtkSubclassFromResource extends Gtk.Grid {
+    testChildrenExist() {
+        expect(this.label_child).toEqual(jasmine.anything());
+        expect(this.label_child2).toEqual(jasmine.anything());
+        expect(this._internal_label_child).toEqual(jasmine.anything());
+    }
+
+    templateCallback(widget) {
+        this.callbackEmittedBy = widget;
+    }
+
+    boundCallback(widget) {
+        widget.callbackBoundTo = this;
+    }
+});
+
+const MyComplexGtkSubclassFromString = GObject.registerClass({
+    Template: createTemplate('Gjs_MyComplexGtkSubclassFromString'),
+    Children: ['label-child', 'label-child2'],
+    InternalChildren: ['internal-label-child'],
+}, class MyComplexGtkSubclassFromString extends Gtk.Grid {
     testChildrenExist() {
         expect(this.label_child).toEqual(jasmine.anything());
         expect(this.label_child2).toEqual(jasmine.anything());
@@ -174,8 +199,49 @@ describe('Gtk overrides', function () {
 
     validateTemplate('UI template', MyComplexGtkSubclass);
     validateTemplate('UI template from resource', MyComplexGtkSubclassFromResource);
+    validateTemplate('UI template from string', MyComplexGtkSubclassFromString);
     validateTemplate('UI template from file', MyComplexGtkSubclassFromFile);
     validateTemplate('Class inheriting from template class', SubclassSubclass, true);
+
+    it('ensures signal handlers are callable', function () {
+        const ClassWithUncallableHandler = GObject.registerClass({
+            Template: createTemplate('Gjs_ClassWithUncallableHandler'),
+            Children: ['label-child', 'label-child2'],
+            InternalChildren: ['internal-label-child'],
+        }, class ClassWithUncallableHandler extends Gtk.Grid {
+            templateCallback() {}
+            get boundCallback() {
+                return 'who ya gonna call?';
+            }
+        });
+
+        // The exception is thrown inside a vfunc with a GError out parameter,
+        // and Gtk logs a critical.
+        writerFunc.calls.reset();
+        writerFunc.and.callFake((level, fields) => {
+            const decoder = new TextDecoder('utf-8');
+            const domain = decoder.decode(fields?.GLIB_DOMAIN);
+            const message = decoder.decode(fields?.MESSAGE);
+            expect(level).toBe(GLib.LogLevelFlags.LEVEL_CRITICAL);
+            expect(domain).toBe('Gtk');
+            expect(message).toMatch('is not a function');
+            return GLib.LogWriterOutput.HANDLED;
+        });
+
+        void new ClassWithUncallableHandler();
+
+        expect(writerFunc).toHaveBeenCalled();
+        writerFunc.and.callThrough();
+    });
+
+    it('rejects unsupported template URIs', function () {
+        expect(() => {
+            return GObject.registerClass({
+                Template: 'https://gnome.org',
+            }, class GtkTemplateInvalid extends Gtk.Widget {
+            });
+        }).toThrowError(TypeError, /Invalid template URI/);
+    });
 
     it('sets CSS names on classes', function () {
         expect(Gtk.Widget.get_css_name.call(MyComplexGtkSubclass)).toEqual('complex-subclass');
@@ -224,4 +290,80 @@ describe('Gtk 4 regressions', function () {
         custom.activate_action('custom.action', null);
         expect(custom.action).toEqual(42);
     }).pend('https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/3796');
+
+    it('Gdk.NoSelection section returns valid start/end values', function () {
+        if (!Gtk.NoSelection.prototype.get_section)
+            pending('Gtk 4.12 is required');
+
+        let result;
+        try {
+            result = new Gtk.NoSelection().get_section(0);
+        } catch (err) {
+            if (err.message.includes('not introspectable'))
+                pending('This version of GTK has the annotation bug');
+            throw err;
+        }
+        expect(result).toEqual([0, GLib.MAXUINT32]);
+    });
+
+    function createSurface(shouldStash) {
+        // Create a Gdk.Surface that is unreachable after this function ends
+        const display = Gdk.Display.get_default();
+        const surface = Gdk.Surface.new_toplevel(display);
+        if (shouldStash)
+            CjsTestTools.save_object(surface);
+    }
+
+    it('Gdk.Surface is destroyed properly', function () {
+        createSurface(false);
+        System.gc();
+    });
+
+    it('Gdk.Surface is not destroyed if a ref is held from C', function () {
+        createSurface(true);
+        System.gc();
+        const surface = CjsTestTools.steal_saved();
+        expect(surface.is_destroyed()).toBeFalsy();
+    });
+});
+
+class LeakTestWidget extends Gtk.Button {
+    buttonClicked() {}
+}
+
+GObject.registerClass({
+    Template: new TextEncoder().encode(`
+<interface>
+    <template class="Gjs_LeakTestWidget" parent="GtkButton">
+        <signal name="clicked" handler="buttonClicked"/>
+    </template>
+</interface>`),
+}, LeakTestWidget);
+
+
+describe('Gtk template signal', function () {
+    beforeAll(function () {
+        Gtk.init();
+    });
+
+    function asyncIdle() {
+        return new Promise(resolve => {
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                resolve();
+                return GLib.SOURCE_REMOVE;
+            });
+        });
+    }
+
+    it('does not leak', async function () {
+        const weakRef = new WeakRef(new LeakTestWidget());
+
+        await asyncIdle();
+        // It takes two GC cycles to free the widget, because of the tardy sweep
+        // problem (https://gitlab.gnome.org/GNOME/gjs/-/issues/217)
+        System.gc();
+        System.gc();
+
+        expect(weakRef.deref()).toBeUndefined();
+    });
 });

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S cjs -m
+#!/usr/bin/env -S gjs -m
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2016 Philip Chimento <philip.chimento@gmail.com>
 
@@ -9,7 +9,7 @@ function _filterStack(stack) {
         return 'No stack';
 
     return stack.split('\n')
-        .filter(stackLine => stackLine.indexOf('resource:///org/gjs/jsunit') === -1)
+        .filter(stackLine => stackLine.indexOf('resource:///org/cjs/jsunit') === -1)
         .join('\n');
 }
 

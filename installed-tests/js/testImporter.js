@@ -9,11 +9,11 @@ describe('GI importer', function () {
 
     describe('on failure', function () {
         // For these tests, we provide special overrides files to sabotage the
-        // import, at the path resource:///org/gjs/jsunit/modules/badOverrides.
+        // import, at the path resource:///org/cjs/jsunit/modules/badOverrides.
         let oldSearchPath;
         beforeAll(function () {
             oldSearchPath = imports.overrides.searchPath.slice();
-            imports.overrides.searchPath = ['resource:///org/gjs/jsunit/modules/badOverrides'];
+            imports.overrides.searchPath = ['resource:///org/cjs/jsunit/modules/badOverrides'];
         });
 
         afterAll(function () {
@@ -54,7 +54,7 @@ describe('Importer', function () {
 
     beforeAll(function () {
         oldSearchPath = imports.searchPath.slice();
-        imports.searchPath = ['resource:///org/gjs/jsunit/modules'];
+        imports.searchPath = ['resource:///org/cjs/jsunit/modules'];
 
         foobar = imports.foobar;
         subA = imports.subA;
@@ -205,10 +205,10 @@ describe('Importer', function () {
 
         it('will log a compatibility warning when accessed', function () {
             const GLib = imports.gi.GLib;
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 "Some code accessed the property 'b' on the module " +
                 "'lexicalScope'.*");
-            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 "Some code accessed the property 'c' on the module " +
                 "'lexicalScope'.*");
 
@@ -216,7 +216,7 @@ describe('Importer', function () {
             void LexicalScope.c;
 
             // g_test_assert_expected_messages() is a macro, not introspectable
-            GLib.test_assert_expected_messages_internal('Gjs',
+            GLib.test_assert_expected_messages_internal('Cjs',
                 'testImporter.js', 179, '');
         });
 

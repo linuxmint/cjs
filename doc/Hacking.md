@@ -1,6 +1,6 @@
-# Hacking on GJS #
+# Hacking on GJS
 
-## Quick start ##
+## Quick start
 
 If you are looking to get started quickly, then you can clone GJS using
 GNOME Builder and choose the `org.gnome.GjsConsole` build configuration.
@@ -11,7 +11,7 @@ If you need to issue any of the Meson commands manually, make sure to do
 so in a runtime terminal (Ctrl+Alt+T) rather than a build terminal or a
 regular terminal.
 
-## Setting up ##
+## Setting up
 
 First of all, download the GJS source code using Git.
 Go to [GJS on GitLab](https://gitlab.gnome.org/GNOME/gjs), and click
@@ -37,7 +37,7 @@ You can also skip this step if you are not writing any C++ code.)
 ## Dependencies
 
 GJS requires five other libraries to be installed: GLib, libffi,
-gobject-introspection, SpiderMonkey (also called "mozjs115" on some
+gobject-introspection, SpiderMonkey (also called "mozjs128" on some
 systems.) and the build tool Meson.
 The readline library is not required, but strongly recommended.
 We recommend installing your system's development packages for GLib,
@@ -66,19 +66,19 @@ will help catch mistakes in the API that could otherwise go unnoticed
 and cause crashes in gnome-shell later on.
 
 If you aren't writing any C++ code, and your system provides it (for
-example, Fedora 36 or Ubuntu 22.04 and later versions), then you don't
+example, Fedora 41 or Ubuntu 24.10 and later versions), then you don't
 need to build it yourself.
 Install SpiderMonkey using your system's package manager instead:
 
-<!--Ubuntu does not currently ship a build of libmozjs-115-->
+<!--Ubuntu does not currently ship a build of libmozjs-128-->
 <!-- <details>
     <summary>Ubuntu</summary>
-    <code>sudo apt-get install libmozjs-115-dev</code>
+    <code>sudo apt-get install libmozjs-128-dev</code>
 </details> -->
 
 <details>
     <summary>Fedora</summary>
-    <code>sudo dnf install mozjs115-devel</code>
+    <code>sudo dnf install mozjs128-devel</code>
 </details>
 
 If you _are_ writing C++ code, then please build SpiderMonkey yourself
@@ -86,11 +86,11 @@ with the debugging features enabled.
 This can save you time later when you submit your merge request, because
 the code will be checked using the debugging features.
 
-To build SpiderMonkey, follow the instructions on [this page](https://github.com/mozilla-spidermonkey/spidermonkey-embedding-examples/blob/esr115/docs/Building%20SpiderMonkey.md) to download the source code and build the library.
+To build SpiderMonkey, follow the instructions on [this page](https://github.com/mozilla-spidermonkey/spidermonkey-embedding-examples/blob/esr128/docs/Building%20SpiderMonkey.md) to download the source code and build the library.
 If you are using `-Dprefix` to build GJS into a different path, then
 make sure to use the same build prefix for SpiderMonkey with `--prefix`.
 
-## First build ##
+## First build
 
 To build GJS, change to your `gjs` directory, and run:
 ```sh
@@ -104,14 +104,15 @@ For a list of available options, run `meson configure`.
 That's it! You can now run your build of gjs for testing and hacking with
 
 ```sh
-LD_LIBRARY_PATH=_build GI_TYPELIB_PATH=_build GJS_USE_UNINSTALLED_FILES=1 ./_build/cjs-console script.js
+meson devenv -C _build cjs-console ../script.js
 ```
+(the path `../script.js` is relative to `_build`, not the root folder)
 
 To install GJS into the path you chose with `-Dprefix`, (or into
 `/usr/local` if you didn't choose a path), run
 `ninja -C _build install`, adding `sudo` if necessary.
 
-## Making Sure Your Stuff Doesn't Break Anything Else ##
+## Making Sure Your Stuff Doesn't Break Anything Else
 
 Make your changes in your `gjs` directory, then run
 `ninja -C _build` to build a modified copy of GJS.
@@ -128,7 +129,7 @@ it with `jhbuild run gnome-shell --replace`.
 You need to be logged into an Xorg session, not Wayland, for this to
 work.
 
-## Debugging ##
+## Debugging
 
 Mozilla has some pretty-printers that make debugging JSAPI code easier.
 Unfortunately they're not included in most packaged distributions of
@@ -143,16 +144,30 @@ source /path/to/spidermonkey/js/src/_build/js/src/shell/js-gdb.py
 (replace `/path/to/spidermonkey` with the path to your SpiderMonkey
 sources)
 
-## Checking Things More Thoroughly Before A Release ##
+## Getting a stack trace
 
-### GC Zeal ###
+Run your program with `gdb --args gjs myfile.js`.
+This will drop you into the GDB debugger interface.
+
+Enter `r` to start the program.
+
+When it segfaults, enter `bt full` to get the C++ stack trace, and enter
+`call gjs_dumpstack()` to get the JS stack trace.
+(It may need to be `call (void) gjs_dumpstack()` if you don't have debugging
+symbols installed.)
+
+Enter `q` to quit.
+
+## Checking Things More Thoroughly Before A Release
+
+### GC Zeal
 
 Run the test suite with "GC zeal" to make non-deterministic GC errors
 more likely to show up.
 
 To see which GC zeal options are available:
 ```sh
-JS_GC_ZEAL=-1 js115
+JS_GC_ZEAL=-1 js128
 ```
 
 We include three test setups, `extra_gc`, `pre_verify`, and
@@ -168,7 +183,7 @@ traced when it should have been.
 Failures in mode `post_verify` usually point to a weak pointer's
 location not being updated after GC moved it.
 
-### Valgrind ###
+### Valgrind
 
 Valgrind catches memory leak errors in the C++ code.
 It's a good idea to run the test suite under Valgrind before each
@@ -186,7 +201,7 @@ Note that LeakSanitizer, part of ASan (see below) can catch many, but
 not all, errors that Valgrind can catch.
 LSan executes faster than Valgrind, however.
 
-### Static Code Analysis ###
+### Static Code Analysis
 
 To execute cppcheck, a static code analysis tool for the C and C++, run:
 ```sh
@@ -196,7 +211,7 @@ It is a versatile tool that can check non-standard code, including: variable
 checking, bounds checking, leaks, etc. It can detect the types of bugs that
 the compilers normally fail to detect.
 
-### Sanitizers ###
+### Sanitizers
 
 To build GJS with support for the ASan and UBSan sanitizers, configure
 meson like this:
@@ -205,7 +220,7 @@ meson setup _build -Db_sanitize=address,undefined
 ```
 and then run the tests as normal.
 
-### Test Coverage ###
+### Test Coverage
 
 To generate a test coverage report, run this script:
 ```sh
@@ -216,7 +231,7 @@ This will build GJS into a separate build directory with code coverage
 instrumentation enabled, run the test suite to collect the coverage
 data, and open the generated HTML report.
 
-[embedder](https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr115/docs/Building%20SpiderMonkey.md)
+[embedder](https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr128/docs/Building%20SpiderMonkey.md)
 
 ## Troubleshooting
 

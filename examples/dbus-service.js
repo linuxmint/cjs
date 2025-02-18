@@ -9,7 +9,7 @@ import Gio from 'gi://Gio';
  */
 const ifaceXml = `
 <node>
-  <interface name="org.gnome.gjs.Test">
+  <interface name="org.cinnamon.cjs.Test">
     <method name="SimpleMethod"/>
     <method name="ComplexMethod">
       <arg type="s" direction="in" name="input"/>
@@ -85,7 +85,7 @@ let serviceSignalId = 0;
 function onBusAcquired(connection, _name) {
     // At this point you have acquired a connection to the bus, and you should
     // export your interfaces now.
-    serviceObj.dbus.export(connection, '/org/gnome/gjs/Test');
+    serviceObj.dbus.export(connection, '/org/cinnamon/cjs/Test');
 }
 
 function onNameAcquired(_connection, _name) {
@@ -113,7 +113,7 @@ function onNameLost(_connection, _name) {
 
 let ownerId = Gio.bus_own_name(
     Gio.BusType.SESSION,
-    'org.gnome.gjs.Test',
+    'org.cinnamon.cjs.Test',
     Gio.BusNameOwnerFlags.NONE,
     onBusAcquired,
     onNameAcquired,

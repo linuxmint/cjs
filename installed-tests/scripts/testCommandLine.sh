@@ -227,11 +227,11 @@ report "--help after -c should not print anything"
 # report_xfail "-I after script file should not be added to search path"
 # fi
 G_DEBUG=$(echo "$G_DEBUG" | sed -e 's/fatal-warnings,\{0,1\}//')
-$gjs help.js --help -I sentinel 2>&1 | grep -q 'Gjs-WARNING.*--include-path'
+$gjs help.js --help -I sentinel 2>&1 | grep -q 'Cjs-WARNING.*--include-path'
 report "-I after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-prefix'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-prefix'
 report "--coverage-prefix after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-output'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-output'
 report "--coverage-output after script should succeed but give a warning"
 rm -f foo/coverage.lcov
 G_DEBUG="$OLD_G_DEBUG"
@@ -257,7 +257,7 @@ $gjs -c 'imports.system.exit(0)' && ! stat gjs-*.syscap > /dev/null 2>&1
 report "no profiling data should be dumped without --profile"
 
 # Skip some tests if built without profiler support
-if $gjs --profile -c 1 2>&1 | grep -q 'Gjs-Message.*Profiler is disabled'; then
+if $gjs --profile -c 1 2>&1 | grep -q 'Cjs-Message.*Profiler is disabled'; then
     reason="profiler is disabled"
     skip "--profile should dump profiling data to the default file name" "$reason"
     skip "--profile with argument should dump profiling data to the named file" "$reason"
@@ -284,7 +284,7 @@ report "interpreter should run queued promise jobs before finishing"
 test -n "${output##*Should not be printed*}"
 report "interpreter should stop running jobs when one calls System.exit()"
 
-$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Gjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
+$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Cjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
 report "unhandled promise rejection should be reported"
 test -z "$($gjs awaitcatch.js)"
 report "catching an await expression should not cause unhandled rejection"

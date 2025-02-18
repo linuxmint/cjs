@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2011 Giovanni Campagna
+// SPDX-FileCopyrightText: 2023 Philip Chimento <philip.chimento@gmail.com>
 
-const ByteArray = imports._byteArrayNative;
 const {setMainLoopHook} = imports._promiseNative;
 
 let GLib;
@@ -100,11 +100,8 @@ function _packVariant(signature, value) {
         }
         if (arrayType[0] === 'y') {
             // special case for array of bytes
-            if (typeof value === 'string') {
-                value = ByteArray.fromString(value);
-                if (value[value.length - 1] !== 0)
-                    value = Uint8Array.of(...value, 0);
-            }
+            if (typeof value === 'string')
+                value = Uint8Array.of(...new TextEncoder().encode(value), 0);
             const bytes = new GLib.Bytes(value);
             return GLib.Variant.new_from_bytes(new GLib.VariantType('ay'),
                 bytes, true);
@@ -537,5 +534,68 @@ function _init() {
 
     this.Thread.prototype.unref = function () {
         throw new Error('\'GLib.Thread.unref()\' may not be called in GJS');
+    };
+
+    // Override GLib.MatchInfo with a type that keeps the UTF-8 encoded search
+    // string alive.
+    const oldMatchInfo = this.MatchInfo;
+    let matchInfoPatched = false;
+    function patchMatchInfo(GLibModule) {
+        if (matchInfoPatched)
+            return;
+
+        const {MatchInfo} = imports.gi.CjsPrivate;
+
+        const originalMatchInfoMethods = new Set(Object.keys(oldMatchInfo.prototype));
+        const overriddenMatchInfoMethods = new Set(Object.keys(MatchInfo.prototype));
+        const symmetricDifference = new Set(originalMatchInfoMethods);
+        for (const method of overriddenMatchInfoMethods) {
+            if (symmetricDifference.has(method))
+                symmetricDifference.delete(method);
+            else
+                symmetricDifference.add(method);
+        }
+        if (symmetricDifference.size !== 0)
+            throw new Error(`Methods of GMatchInfo and GjsMatchInfo don't match: ${[...symmetricDifference]}`);
+
+        GLibModule.MatchInfo = MatchInfo;
+        matchInfoPatched = true;
+    }
+
+    // We can't monkeypatch GLib.MatchInfo directly at override time, because
+    // importing CjsPrivate requires GLib. So this monkeypatches GLib.MatchInfo
+    // with a Proxy that overwrites itself with the real CjsPrivate.MatchInfo
+    // as soon as you try to do anything with it.
+    const allProxyOperations = ['apply', 'construct', 'defineProperty',
+        'deleteProperty', 'get', 'getOwnPropertyDescriptor', 'getPrototypeOf',
+        'has', 'isExtensible', 'ownKeys', 'preventExtensions', 'set',
+        'setPrototypeOf'];
+    function delegateToMatchInfo(op) {
+        return function (target, ...params) {
+            patchMatchInfo(GLib);
+            return Reflect[op](GLib.MatchInfo, ...params);
+        };
+    }
+    this.MatchInfo = new Proxy(function () {},
+        Object.fromEntries(allProxyOperations.map(op => [op, delegateToMatchInfo(op)])));
+
+    this.Regex.prototype.match = function (...args) {
+        patchMatchInfo(GLib);
+        return imports.gi.CjsPrivate.regex_match(this, ...args);
+    };
+
+    this.Regex.prototype.match_full = function (...args) {
+        patchMatchInfo(GLib);
+        return imports.gi.CjsPrivate.regex_match_full(this, ...args);
+    };
+
+    this.Regex.prototype.match_all = function (...args) {
+        patchMatchInfo(GLib);
+        return imports.gi.CjsPrivate.regex_match_all(this, ...args);
+    };
+
+    this.Regex.prototype.match_all_full = function (...args) {
+        patchMatchInfo(GLib);
+        return imports.gi.CjsPrivate.regex_match_all_full(this, ...args);
     };
 }

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2020 Evan Welsh <contact@evanwelsh.com>
 
-#include "cjs/internal.h"
-
 #include <config.h>
 
 #include <stddef.h>  // for size_t
@@ -21,7 +19,6 @@
 #include <js/CompileOptions.h>
 #include <js/ErrorReport.h>  // for JSEXN_ERR
 #include <js/Exception.h>
-#include <js/GCAPI.h>  // for JS_AddExtraGCRootsTracer
 #include <js/Modules.h>
 #include <js/Promise.h>
 #include <js/PropertyAndElement.h>
@@ -30,7 +27,6 @@
 #include <js/RootingAPI.h>
 #include <js/SourceText.h>
 #include <js/String.h>
-#include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <js/Value.h>
@@ -41,6 +37,7 @@
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
 #include "cjs/global.h"
+#include "cjs/internal.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -59,7 +56,7 @@ union Utf8Unit;
  * gjs_load_internal_module:
  *
  * @brief Loads a module source from an internal resource,
- * resource:///org/gnome/gjs/modules/internal/{#identifier}.js, registers it in
+ * resource:///org/cinnamon/cjs/modules/internal/{#identifier}.js, registers it in
  * the internal global's module registry, and proceeds to compile, initialize,
  * and evaluate the module.
  *
@@ -70,7 +67,7 @@ union Utf8Unit;
  */
 bool gjs_load_internal_module(JSContext* cx, const char* identifier) {
     GjsAutoChar full_path(g_strdup_printf(
-        "resource:///org/gnome/gjs/modules/internal/%s.js", identifier));
+        "resource:///org/cinnamon/cjs/modules/internal/%s.js", identifier));
 
     gjs_debug(GJS_DEBUG_IMPORTER, "Loading internal module '%s' (%s)",
               identifier, full_path.get());
@@ -346,7 +343,15 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!path)
         return false;
 
-    if (!JS_DefineProperty(cx, return_obj, "uri", string_arg,
+    GjsAutoChar no_query_str =
+        g_uri_to_string_partial(parsed, G_URI_HIDE_QUERY);
+    JS::RootedString uri_no_query{cx, JS_NewStringCopyZ(cx, no_query_str)};
+    if (!uri_no_query)
+        return false;
+
+    if (!JS_DefineProperty(cx, return_obj, "uri", uri_no_query,
+                           JSPROP_ENUMERATE) ||
+        !JS_DefineProperty(cx, return_obj, "uriWithQuery", string_arg,
                            JSPROP_ENUMERATE) ||
         !JS_DefineProperty(cx, return_obj, "scheme", scheme,
                            JSPROP_ENUMERATE) ||
@@ -370,12 +375,10 @@ bool gjs_internal_resolve_relative_resource_or_file(JSContext* cx,
         return handle_wrong_args(cx);
 
     GjsAutoUnref<GFile> module_file = g_file_new_for_uri(uri.get());
-    GjsAutoUnref<GFile> module_parent_file = g_file_get_parent(module_file);
 
-    if (module_parent_file) {
-        GjsAutoUnref<GFile> output = g_file_resolve_relative_path(
-            module_parent_file, relative_path.get());
-        GjsAutoChar output_uri = g_file_get_uri(output);
+    if (module_file) {
+        GjsAutoChar output_uri = g_uri_resolve_relative(
+            uri.get(), relative_path.get(), G_URI_FLAGS_NONE, nullptr);
 
         JS::ConstUTF8CharsZ uri_chars(output_uri, strlen(output_uri));
         JS::RootedString retval(cx, JS_NewStringCopyUTF8Z(cx, uri_chars));
@@ -440,32 +443,16 @@ class PromiseData {
     JSContext* cx;
 
  private:
-    JS::Heap<JSFunction*> m_resolve;
-    JS::Heap<JSFunction*> m_reject;
+    JS::PersistentRooted<JSFunction*> m_resolve;
+    JS::PersistentRooted<JSFunction*> m_reject;
 
-    JS::HandleFunction resolver() {
-        return JS::HandleFunction::fromMarkedLocation(m_resolve.address());
-    }
-    JS::HandleFunction rejecter() {
-        return JS::HandleFunction::fromMarkedLocation(m_reject.address());
-    }
-
-    static void trace(JSTracer* trc, void* data) {
-        auto* self = PromiseData::from_ptr(data);
-        JS::TraceEdge(trc, &self->m_resolve, "loadResourceOrFileAsync resolve");
-        JS::TraceEdge(trc, &self->m_reject, "loadResourceOrFileAsync reject");
-    }
+    JS::HandleFunction resolver() { return m_resolve; }
+    JS::HandleFunction rejecter() { return m_reject; }
 
  public:
     explicit PromiseData(JSContext* a_cx, JSFunction* resolve,
                          JSFunction* reject)
-        : cx(a_cx), m_resolve(resolve), m_reject(reject) {
-        JS_AddExtraGCRootsTracer(cx, &PromiseData::trace, this);
-    }
-
-    ~PromiseData() {
-        JS_RemoveExtraGCRootsTracer(cx, &PromiseData::trace, this);
-    }
+        : cx(a_cx), m_resolve(cx, resolve), m_reject(cx, reject) {}
 
     static PromiseData* from_ptr(void* ptr) {
         return static_cast<PromiseData*>(ptr);
@@ -511,7 +498,7 @@ static void load_async_callback(GObject* file, GAsyncResult* res, void* data) {
                                      /* etag_out = */ nullptr, &error)) {
         GjsAutoChar uri = g_file_get_uri(G_FILE(file));
         gjs_throw_custom(promise->cx, JSEXN_ERR, "ImportError",
-                         "Unable to load file from: %s (%s)", uri.get(),
+                         "Unable to load file async from: %s (%s)", uri.get(),
                          error->message);
         promise->reject_with_pending_exception();
         return;

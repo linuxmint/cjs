@@ -19,17 +19,6 @@ do_Set_Env () {
     export SHELL=/bin/bash
     PATH=$PATH:~/.local/bin
 
-    if [ "$USE_UNSTABLE_GNOME_PREFIX" = "true" ]; then
-        prefix=/opt/GNOME
-        libdir=$prefix/lib64
-        export PATH=$prefix/bin:$PATH
-        export LD_LIBRARY_PATH=$libdir:$LD_LIBRARY_PATH
-        export PKG_CONFIG_PATH=$libdir/pkgconfig:$PKG_CONFIG_PATH
-        export GI_TYPELIB_PATH=$libdir/girepository-1.0:$GI_TYPELIB_PATH
-        export XDG_DATA_DIRS=$prefix/share:$XDG_DATA_DIRS
-        export ACLOCAL_PATH=$prefix/share/aclocal:$ACLOCAL_PATH
-    fi
-
     export DISPLAY="${DISPLAY:-:0}"
 }
 
@@ -64,7 +53,7 @@ do_Get_Upstream_Base () {
 
     # Work out the newest common ancestor between the detached HEAD that this CI
     # job has checked out, and the upstream target branch (which will typically
-    # be `upstream/master` or `upstream/gnome-nn`).
+    # be `upstream/main` or `upstream/gnome-nn`).
     newest_common_ancestor_sha=$(git merge-base ci-upstream-base-branch HEAD)
     if test -z "$newest_common_ancestor_sha"; then
         echo "Couldn’t find common ancestor with the upstream main branch. This"
@@ -149,8 +138,8 @@ if test "$1" = "SETUP"; then
 elif test "$1" = "BUILD"; then
     do_Set_Env
 
-    DEFAULT_CONFIG_OPTS="-Dcairo=enabled -Dreadline=enabled -Dprofiler=enabled \
-        -Ddtrace=false -Dsystemtap=false -Dverbose_logs=false --werror"
+    DEFAULT_CONFIG_OPTS="-Dreadline=enabled -Dprofiler=enabled -Ddtrace=false \
+        -Dsystemtap=false -Dverbose_logs=false --werror"
     meson setup _build $DEFAULT_CONFIG_OPTS $CONFIG_OPTS
     ninja -C _build
 

@@ -58,6 +58,7 @@
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>
 #include <js/Class.h>
+#include <js/ColumnNumber.h>
 #include <js/ComparisonOperators.h>
 #include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
@@ -80,6 +81,8 @@
 #include <js/MemoryFunctions.h>
 #include <js/Modules.h>
 #include <js/Object.h>
+#include <js/Principals.h>
+#include <js/Printer.h>
 #include <js/ProfilingCategory.h>
 #include <js/ProfilingStack.h>
 #include <js/Promise.h>
@@ -95,6 +98,7 @@
 #include <js/SourceText.h>
 #include <js/Stack.h>
 #include <js/String.h>
+#include <js/StructuredClone.h>
 #include <js/Symbol.h>
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>

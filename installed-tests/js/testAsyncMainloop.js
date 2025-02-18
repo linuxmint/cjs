@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2022 Evan Welsh <contact@evanwelsh.com>
 
 import GLib from 'gi://GLib';
-import {acquireMainloop} from 'resource:///org/gjs/jsunit/minijasmine.js';
+import {acquireMainloop} from 'resource:///org/cjs/jsunit/minijasmine.js';
 
 describe('Async mainloop', function () {
     let loop, quit;

@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: 2024 Philip Chimento <philip.chimento@gmail.com>
+
+option('cairo', type: 'boolean', value: true, description: 'Cairo support')
+option('install_dir', type: 'string',
+    description: 'Location to install test libraries and typelibs')

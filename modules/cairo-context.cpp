@@ -90,10 +90,11 @@ _GJS_CAIRO_CONTEXT_DEFINE_FUNC_END
         JS::RootedObject array(context, JS::NewArrayObject(context, 2));    \
         if (!array)                                                         \
             return false;                                                   \
-        JS::RootedValue r(context, JS::NumberValue(arg1));                  \
+        JS::RootedValue r{context,                                          \
+                          JS::NumberValue(JS::CanonicalizeNaN(arg1))};      \
         if (!JS_SetElement(context, array, 0, r))                           \
             return false;                                                   \
-        r.setNumber(arg2);                                                  \
+        r.setNumber(JS::CanonicalizeNaN(arg2));                             \
         if (!JS_SetElement(context, array, 1, r))                           \
             return false;                                                   \
         argv.rval().setObject(*array);                                      \
@@ -109,10 +110,11 @@ _GJS_CAIRO_CONTEXT_DEFINE_FUNC_END
         JS::RootedObject array(context, JS::NewArrayObject(context, 2)); \
         if (!array)                                                      \
             return false;                                                \
-        JS::RootedValue r(context, JS::NumberValue(arg1));               \
+        JS::RootedValue r{context,                                       \
+                          JS::NumberValue(JS::CanonicalizeNaN(arg1))};   \
         if (!JS_SetElement(context, array, 0, r))                        \
             return false;                                                \
-        r.setNumber(arg2);                                               \
+        r.setNumber(JS::CanonicalizeNaN(arg2));                          \
         if (!JS_SetElement(context, array, 1, r))                        \
             return false;                                                \
         argv.rval().setObject(*array);                                   \
@@ -128,16 +130,17 @@ _GJS_CAIRO_CONTEXT_DEFINE_FUNC_END
         JS::RootedObject array(context, JS::NewArrayObject(context, 4)); \
         if (!array)                                                      \
             return false;                                                \
-        JS::RootedValue r(context, JS::NumberValue(arg1));               \
+        JS::RootedValue r{context,                                       \
+                          JS::NumberValue(JS::CanonicalizeNaN(arg1))};   \
         if (!JS_SetElement(context, array, 0, r))                        \
             return false;                                                \
-        r.setNumber(arg2);                                               \
+        r.setNumber(JS::CanonicalizeNaN(arg2));                          \
         if (!JS_SetElement(context, array, 1, r))                        \
             return false;                                                \
-        r.setNumber(arg3);                                               \
+        r.setNumber(JS::CanonicalizeNaN(arg3));                          \
         if (!JS_SetElement(context, array, 2, r))                        \
             return false;                                                \
-        r.setNumber(arg4);                                               \
+        r.setNumber(JS::CanonicalizeNaN(arg4));                          \
         if (!JS_SetElement(context, array, 3, r))                        \
             return false;                                                \
         argv.rval().setObject(*array);                                   \
@@ -149,7 +152,7 @@ _GJS_CAIRO_CONTEXT_DEFINE_FUNC_BEGIN(method)                               \
     double ret;                                                            \
    _GJS_CAIRO_CONTEXT_CHECK_NO_ARGS(method)                                \
     ret = cfunc(cr);                                                       \
-    argv.rval().setNumber(ret);                                            \
+    argv.rval().setNumber(JS::CanonicalizeNaN(ret));                       \
 _GJS_CAIRO_CONTEXT_DEFINE_FUNC_END
 
 #define _GJS_CAIRO_CONTEXT_DEFINE_FUNC1(method, cfunc, fmt, t1, n1)        \
@@ -919,7 +922,7 @@ const JSFunctionSpec CairoContext::proto_funcs[] = {
     JS_FS_END};
 // clang-format on
 
-[[nodiscard]] static bool context_to_g_argument(
+[[nodiscard]] static bool context_to_gi_argument(
     JSContext* context, JS::Value value, const char* arg_name,
     GjsArgumentType argument_type, GITransfer transfer, GjsArgumentFlags flags,
     GIArgument* arg) {
@@ -947,11 +950,9 @@ const JSFunctionSpec CairoContext::proto_funcs[] = {
 }
 
 GJS_JSAPI_RETURN_CONVENTION
-static bool
-context_from_g_argument(JSContext             *context,
-                        JS::MutableHandleValue value_p,
-                        GIArgument            *arg)
-{
+static bool context_from_gi_argument(JSContext* context,
+                                     JS::MutableHandleValue value_p,
+                                     GIArgument* arg) {
     JSObject* obj = CairoContext::from_c_ptr(
         context, static_cast<cairo_t*>(arg->v_pointer));
     if (!obj) {
@@ -971,8 +972,8 @@ static bool context_release_argument(JSContext*, GITransfer transfer,
 }
 
 void gjs_cairo_context_init(void) {
-    static GjsForeignInfo foreign_info = {context_to_g_argument,
-                                          context_from_g_argument,
+    static GjsForeignInfo foreign_info = {context_to_gi_argument,
+                                          context_from_gi_argument,
                                           context_release_argument};
 
     gjs_struct_foreign_register("cairo", "Context", &foreign_info);

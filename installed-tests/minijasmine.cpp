@@ -46,7 +46,7 @@ main(int argc, char **argv)
 
     const char *coverage_prefix = g_getenv("GJS_UNIT_COVERAGE_PREFIX");
     const char *coverage_output_path = g_getenv("GJS_UNIT_COVERAGE_OUTPUT");
-    const char *search_path[] = { "resource:///org/gjs/jsunit", NULL };
+    const char *search_path[] = { "resource:///org/cjs/jsunit", NULL };
 
     if (coverage_prefix)
         gjs_coverage_enable();
@@ -72,7 +72,7 @@ main(int argc, char **argv)
     uint8_t u8_exitcode_ignored;
     int exitcode_ignored;
     if (!gjs_context_eval_module_file(
-            cx, "resource:///org/gjs/jsunit/minijasmine.js",
+            cx, "resource:///org/cjs/jsunit/minijasmine.js",
             &u8_exitcode_ignored, &error))
         bail_out(cx, error);
 
@@ -87,7 +87,7 @@ main(int argc, char **argv)
         bail_out(cx, error);
 
     success = gjs_context_eval_module_file(
-        cx, "resource:///org/gjs/jsunit/minijasmine-executor.js", &code,
+        cx, "resource:///org/cjs/jsunit/minijasmine-executor.js", &code,
         &error);
     if (!success)
         bail_out(cx, error);

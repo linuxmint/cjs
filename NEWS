@@ -1,3 +1,339 @@
+Version 1.82.1
+--------------
+
+- Closed bugs and merge requests:
+
+  * gnome-shell crash when switching user after upgrade from Fedora 40 to Fedora
+    41 [#647, !955, Philip Chimento]
+
+Version 1.82.0
+--------------
+
+- Closed bugs and merge requests:
+
+  * installed tests are failing because they can't load internal typelibs from
+    parent directory [#639, !953, Simon McVittie]
+  * GIMarshalling test has 3 failures with 1.81.90 on i686 [#642, !954, Philip
+    Chimento]
+
+Version 1.81.90
+---------------
+
+- Closed bugs and merge requests:
+
+  * callbacks: fix sweeping check for incremental GC [!859, !950, Evan Welsh,
+    Gary Li]
+  * GJS doesn't handle query parameters in imports [#618, !944, Gary Li]
+  * Integrate gobject-introspection-tests as submodule [!946, Philip Chimento]
+  * module: Include full module specifier in import.meta.url [!947, Philip
+    Chimento]
+  * doap: Remove invalid maintainer entry [!948, Sophie Herold]
+  * installed tests have the wrong libexecdir [#636, !949, Jeremy Bicha]
+  * Inheriting final class crashes GJS [#640, !951, Gary Li]
+  * Various maintenance [!952, Philip Chimento]
+
+Version 1.81.2
+--------------
+
+- New JavaScript features! This version of GJS is based on SpiderMonkey 128, an
+  upgrade from the previous ESR (Extended Support Release) of SpiderMonkey 115.
+  Here are the highlights of the new JavaScript features.
+  For more information, look them up on MDN or devdocs.io.
+
+  * New APIs
+    + The new `Object.groupBy()` and `Map.groupBy()` static methods group the
+      elements of an iterable according to the return value of a key function.
+    + The new `Promise.withResolvers()` static method returns a Promise as well
+      as its resolve and reject functions, shorthand for a common pattern used
+      when promisifying event-based APIs.
+    + Strings have gained the `isWellFormed()` and `toWellFormed()` methods
+      which help when interoperating with strings that may have unpaired
+      Unicode surrogates. This usually does not come up in the GNOME platform.
+    + ArrayBuffers have gained the `transfer()` and `transferToFixedLength()`
+      methods, which transfer ownership of a data buffer to a new ArrayBuffer
+      object, without copying it, and invalidating ("detaching") any existing
+      references to the buffer. There is also a new property, `detached`, which
+      allows checking whether an ArrayBuffer is in the detached state.
+    + The new `Intl.Segmenter` class allows splitting a string into graphemes,
+      words, or sentences, in a locale-aware way.
+    + `Intl.NumberFormat` has gained `formatRange()` and `formatRangeToParts()`
+      methods, which allow formatting number ranges, like "3–5".
+    + `Intl.PluralRules` has gained a `selectRange()` method, which allows
+      selecting the proper plural form based on a range of numbers, like
+      "30–50 feral hogs".
+
+  * New behaviour
+    + The `Intl.NumberFormat` and `Intl.PluralRules` constructors support new
+      options: `roundingIncrement`, `roundingMode`, `roundingPriority`, and
+      `trailingZeroDisplay`.
+    + The `Intl.NumberFormat` constructor also supports the new option
+      `useGrouping`.
+
+  * Backwards-incompatible changes
+    + The behaviour of `Date.parse()` has been changed to be more consistent
+      with other JavaScript engines. (But don't use `Date.parse()`.)
+
+- Closed bugs and merge requests:
+  * Invalid search paths cause failed assertions when printing imports.gi
+    [#629, !935, Gary Li]
+  * SpiderMonkey 128 [#630, !936, !945, Philip Chimento]
+  * Pretty-printing byte array in cjs-console throws a type conversion
+    error [#434, !937, Gary Li]
+  * js: Add gjs_debug_callable() debug function [!940, Philip Chimento]
+  * build: Build Cairo from subproject if not found [!941, Philip
+    Chimento]
+  * Bump CI image to Fedora 40 [!942, Philip Chimento]
+  * CI tools updates [!943, Philip Chimento]
+
+Version 1.81.1
+--------------
+
+- Breaking change: When creating a GObject with the `new` operator, the
+  constructor takes a single argument consisting of a property bag with
+  GObject construct properties and their values.
+  This was often confused with the `new` static method that may take
+  arguments that are not interpreted as property bags.
+  For example, Gio.FileIcon was one of the many affected APIs:
+
+      new Gio.FileIcon({file: myFile})
+
+  vs
+
+      Gio.FileIcon.new(myFile)
+
+  Confusion between the two often lead to bug reports when confusing
+  these two and calling `new Gio.FileIcon(myFile)` - the constructor
+  would look for a nonexistent `file` property on `myFile`, causing an
+  improperly initialized object.
+
+  This is now no longer allowed. The argument to `new Gio.FileIcon(...)`
+  must be a plain JS object, not a GObject.
+
+  It's possible that existing code legitimately used a GObject here. If
+  your code does this and a quick migration is impractical, please get
+  in touch and we will revert this change before 1.82.0 in favour of a
+  longer deprecation period.
+
+- The `get_data()`, `get_qdata()`, `set_data()`, `steal_data()`,
+  `steal_qdata()`, `ref()`, `unref()`, `ref_sink()`, and
+  `force_floating()` methods of GObject now throw if called.
+  These methods never worked, but sometimes they would silently appear
+  to succeed, then cause crashes or memory leaks later.
+
+  If you were trying to use the `get_data()` family of methods, just set
+  a JS property instead. If you were trying to modify the refcount of a
+  GObject in JS, instead set the object as the value of a JS property on
+  some other object.
+
+- Closed bugs and merge requests:
+  * doc: Document how to get a stack trace [!864, Sonny Piers]
+  * TextDecoder should accept GBytes [#587, !903, Sriyansh Shivam]
+  * Possible use-after-free with GLib.Regex.match/GLib.MatchInfo [#589,
+    !920, Philip Chimento]
+  * method `get_line` of `Pango.Layout` doesn't work. [#547, !921,
+    Philip Chimento]
+  * Block calls to g_object_get_data and friends [#423, !922, Philip
+    Chimento]
+  * Crash when calling Pango.Layout.get_pixel_size() with a badly
+    init:ed Pango.Layout [#580, !923, Philip Chimento]
+  * doc: avoid reference to Gio.UnixInputStream [!925, Andy Holmes]
+  * Add a CI check for config.h, and some other useful checks [#447,
+    !926, Philip Chimento]
+  * Incorrect UnixOutputStream warning [#610, !928, Philip Chimento]
+  * Various maintenance [!929, !931, Philip Chimento]
+  * Docs: Various markdown fixes [!930, Frank Dana]
+  * Some build fixes for the main (and gnome-46) branches for Visual
+    Studio [!932, Chun-wei Fan]
+  * GJS doesn't log undefined values [#621, !933, Gary Li]
+  * property objects are printed as empty js objects [#622, !934, Gary
+    Li]
+
+Version 1.80.2
+--------------
+
+- Quick follow-up release to fix crash on ppc64.
+
+- Closed bugs and merge requests:
+  * 1.79.90 failing tests on ppc64 [#605, !927, Daniel Kolesa]
+
+Version 1.80.1
+--------------
+
+- Quick follow-up release to fix build failure on MacPorts and Homebrew.
+
+- Closed bugs and merge requests:
+  * 1.79.90: gi/arg-inl.h: expression is not assignable [#608, !924,
+    Philip Chimento]
+
+Version 1.78.5
+--------------
+
+- You may have noticed that WeakRef and FinalizationRegistry... never
+  actually worked as they were supposed to. They work now!
+
+- Closed bugs and merge requests:
+  * Workspace switching performance degradation due to leaked WeakRefs
+    in JS [#600, !913, Philip Chimento]
+
+Version 1.80.0
+--------------
+
+- In GNOME 46 and later, platform-specific GLib and Gio APIs have moved
+  to the separate libraries GLibUnix, GioUnix, GLibWin32, and GioWin32.
+  They are still available in the main GLib and Gio libraries, so your
+  code will continue to work, but you will get a deprecation message.
+
+  To migrate your code, import the new libraries (e.g.,
+  `import GioUnix from 'gi://GioUnix';`) and consider the 'Unix' or
+  'Win32' prefix part of the namespace, rather than class or function
+  name: e.g.,
+  * Gio.UnixInputStream -> GioUnix.InputStream
+  * GLib.unix_open_pipe -> GLibUnix.open_pipe
+
+  Exceptions to the above rule are Gio.UnixConnection,
+  Gio.UnixCredentialsMessage, Gio.UnixFDList, Gio.UnixSocketAddress, and
+  Gio.UnixSocketAddressType. These remain in Gio, because they are
+  actually cross-platform despite being named "Unix".
+
+- Closed bugs and merge requests:
+  * meson: fix automagic dependency lookup for cairo [!917, Eli
+    Schwartz]
+  * Deprecate accessing GLibUnix/GLibWin32 APIs through GLib [#599,
+    !918, Philip Chimento]
+  * CI: Build newer GLib in debug Docker image [!919, Philip Chimento]
+
+Version 1.79.90
+---------------
+
+- You may have noticed that WeakRef and FinalizationRegistry... never
+  actually worked as they were supposed to. They work now!
+
+- Closed bugs and merge requests:
+  * Workspace switching performance degradation due to leaked WeakRefs
+    in JS [#600, !913, Philip Chimento]
+  * GTop.glibtop_get_mountlist invocation causes GNOME Shell Crash
+    [#601, !914, Philip Chimento]
+  * Progress towards some performance improvements in accessing GObject
+    properties [!915, Marco Trevisan]
+  * Various maintenance [!916, Philip Chimento]
+
+Version 1.79.3
+--------------
+
+- Closed bugs and merge requests:
+  * Various maintenance [!912, Philip Chimento]
+
+Version 1.78.4
+--------------
+
+- Closed bugs and merge requests:
+  * package: Specify GIRepository version [!910, !911, Florian Müllner]
+
+Version 1.76.3
+--------------
+
+- Various fixes ported from the development branch.
+
+- Closed bugs and merge requests:
+  * gi/gerror: Fix version of the GIRepository typelib import [!906, Jordan
+    Petridis]
+  * package: Specify GIRepository version [!910, !911, Florian Müllner]
+
+Version 1.79.2
+--------------
+
+- Progress towards some performance improvements in accessing GObject
+  properties [Marco Trevisan]
+
+- Regression fix also released in 1.78.3 [Philip Chimento]
+
+- Closed bugs and merge requests:
+  * value, object: Honor signal arguments transfer annotation [!862,
+    Marco Trevisan]
+
+Version 1.78.3
+--------------
+
+- Closed bugs and merge requests:
+  * GJS 1.78.2 causes all Gnome extensions preference settings windows
+    to disappears after 3-7 seconds [#598, !909, Philip Chimento]
+
+Version 1.79.1
+--------------
+
+- Closed bugs and merge requests:
+  * Improve console output [#511, !890, Sriyansh Shivam]
+  * Name the GC source [!897, Ivan Molodetskikh]
+  * Various maintenance [!898, !907, Philip Chimento]
+  * build: Fix meson deprecations [Rick Calixte]
+  * doc: fix broken link in Mainloop.md [!899, Andy Holmes]
+  * overrides: Make class object a parameter of register type hooks [!900,
+    Philip Chimento]
+  * Display correct stack trace on SyntaxError [#584, !901, Philip Chimento]
+  * HTTP server stops listening [#569, !904, Akshay Warrier]
+
+Version 1.78.2
+--------------
+
+- Closed bugs and merge requests:
+  * Uninitialized memory in float out values can lead to crashes in mozjs gc
+    code later on [#591, !902, Philip Chimento]
+  * Garbage collection of Gdk surfaces [#592, !905, Philip Chimento]
+  * gi/gerror: Fix version of the GIRepository typelib import [!906, Jordan
+    Petridis]
+
+Version 1.78.1
+--------------
+
+- Closed bugs and merge requests:
+  * Gtk template signals cause a reference cycle that is not detected [#576,
+    !891, James Westman]
+  * Modules from resources may get loaded twice [#577, !892, Philip Chimento]
+  * docs: add examples for creating cairo image surfaces [!894, Andy Holmes]
+  * Deadlocks between GJS GC and dconf gsettings when a setting value is changed
+    [#558, !895, msizanoen]
+  * Gtk3: Fix leak in GtkBuilder template signal connections [!896, Philip
+    Chimento]
+
+Version 1.78.0
+--------------
+
+- Closed bugs and merge requests:
+  * Improved Console.log Output [!886, Sriyansh Shivam]
+  * `gjs:dbus / Gtk4` unit test fails: Function Gtk.SectionModel.get_section()
+    cannot be called [#575, !889, Matt Turner]
+
+Version 1.77.90
+---------------
+
+- Building GJS with -fno-exceptions is now the default. To retain the previous
+  behaviour, invoke Meson with -Dcpp_eh=default.
+
+- Closed bugs and merge requests:
+  * testEverything fails make check [#95, !858, Marco Trevisan]
+  * Using a Gio.Appinfo().launch with context may crash gjs [#553, !858, Marco
+    Trevisan]
+  * Fixed-size and Zero-terminated arrays are leaked when used as in or inout
+    arguments with transfer none [#561, !858, Marco Trevisan]
+  * Crash due to bad memory usage when calling a function taking an inout array
+    with length parameter and transfer full [#562, !858, Marco Trevisan]
+  * Various maintenance [!875, !888, Philip Chimento, Marco Trevisan, Andy
+    Holmes]
+  * README.MSVC.md: Update for SpiderMonkey-115.x [!877, Chun-wei Fan]
+  * GJS returns pointers instead of numbers for function with output parameters
+    [#570, !878, Philip Chimento, Marco Trevisan]
+  * Profiler spuriously records GJS.boxed_instance and GJS.boxed_prototype
+    [#551, !879, Philip Chimento]
+  * installed-tests/js/meson: Add tests dependencies to dbus tests [!880, Marco
+    Trevisan]
+  * eslint: Make multi-line imports to always include a trailing comma [!881,
+    Marco Trevisan]
+  * Make console.error format GError correctly [#572, !883, Sriyansh Shivam]
+  * Gtk: Throw an error for an invalid Template string [!884, Andy Holmes]
+  * Gtk: Attempt to load Template from a string, if it appears valid [!885, Andy
+    Holmes]
+  * global: Really enable non-mutating Array methods [!887, Philip Chimento]
+
 Version 1.77.2
 --------------
 

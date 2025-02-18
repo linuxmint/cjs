@@ -8,9 +8,23 @@ import Gio from 'gi://Gio';
 import system from 'system';
 import {exit} from 'system';
 
-import $ from 'resource:///org/gjs/jsunit/modules/exports.js';
-import {NamedExport, data} from 'resource:///org/gjs/jsunit/modules/exports.js';
-import metaProperties from 'resource:///org/gjs/jsunit/modules/importmeta.js';
+import $ from 'resource:///org/cjs/jsunit/modules/exports.js';
+import {NamedExport, data} from 'resource:///org/cjs/jsunit/modules/exports.js';
+import metaProperties from 'resource:///org/cjs/jsunit/modules/importmeta.js';
+
+// These imports should all refer to the same module and import it only once
+import 'resource:///org/cjs/jsunit/modules/sideEffect.js';
+import 'resource://org/cjs/jsunit/modules/sideEffect.js';
+import 'resource:///org/cjs/jsunit/modules/../modules/sideEffect.js';
+
+// Imports with query parameters should not fail and be imported uniquely
+import 'resource:///org/cjs/jsunit/modules/sideEffect3.js?foo=bar&maple=syrup';
+// these should resolve to the same after being canonicalized
+import 'resource://org/cjs/jsunit/modules/./sideEffect3.js?etag=1';
+import 'resource:///org/cjs/jsunit/modules/sideEffect3.js?etag=1';
+
+import greeting1 from 'resource:///org/cjs/jsunit/modules/greet.js?greeting=Hello&name=Test%20Code';
+import greeting2 from 'resource:///org/cjs/jsunit/modules/greet.js?greeting=Bonjour&name=Code%20de%20Test';
 
 describe('ES module imports', function () {
     it('default import', function () {
@@ -67,6 +81,19 @@ describe('ES module imports', function () {
     it('does not expose internal import.meta properties to userland modules', function () {
         expect(metaProperties).toEqual(['url']);
     });
+
+    it('treats equivalent URIs as equal and does not load the module again', function () {
+        expect(globalThis.leakyState).toEqual(1);
+    });
+
+    it('can load modules with query parameters uniquely', function () {
+        expect(globalThis.queryLeakyState).toEqual(2);
+    });
+
+    it('passes query parameters to imported modules in import.meta.uri', function () {
+        expect(greeting1).toEqual('Hello, Test Code');
+        expect(greeting2).toEqual('Bonjour, Code de Test');
+    });
 });
 
 describe('Builtin ES modules', function () {
@@ -112,7 +139,7 @@ describe('Dynamic imports', function () {
     let module;
     beforeEach(async function () {
         try {
-            module = await import('resource:///org/gjs/jsunit/modules/say.js');
+            module = await import('resource:///org/cjs/jsunit/modules/say.js');
         } catch (err) {
             logError(err);
             fail();
@@ -129,5 +156,56 @@ describe('Dynamic imports', function () {
 
     it('dynamic gi import matches static', async function () {
         expect((await import('gi://Gio')).default).toEqual(Gio);
+    });
+
+    it('treats equivalent URIs as equal and does not load the module again', async function () {
+        delete globalThis.leakyState;
+        await import('resource:///org/cjs/jsunit/modules/sideEffect2.js');
+        await import('resource://org/cjs/jsunit/modules/sideEffect2.js');
+        await import('resource:///org/cjs/jsunit/modules/../modules/sideEffect2.js');
+        expect(globalThis.leakyState).toEqual(1);
+    });
+
+    it('treats query parameters uniquely for absolute URIs', async function () {
+        delete globalThis.queryLeakyState;
+        await import('resource:///org/cjs/jsunit/modules/sideEffect3.js?maple=syrup');
+        expect(globalThis.queryLeakyState).toEqual(1);
+    });
+
+    it('treats query parameters uniquely for relative URIs', async function () {
+        delete globalThis.queryLeakyState;
+        await import('resource:///org/cjs/jsunit/modules/sideEffect4.js');
+        expect(globalThis.queryLeakyState).toEqual(1);
+    });
+
+    it('does not show internal stack frames in an import error', async function () {
+        try {
+            await import('resource:///org/cjs/jsunit/modules/doesNotExist.js');
+            fail('should not be reached');
+        } catch (e) {
+            expect(e.name).toBe('ImportError');
+            expect(e.stack).not.toMatch('internal/');
+        }
+    });
+
+    it('does not show internal stack frames in a module that throws an error', async function () {
+        try {
+            await import('resource:///org/cjs/jsunit/modules/alwaysThrows.js');
+            fail('should not be reached');
+        } catch (e) {
+            expect(e.constructor).toBe(Error);
+            expect(e.stack).not.toMatch('internal/');
+        }
+    });
+
+    it('does not show internal stack frames in a module that fails to parse', async function () {
+        try {
+            // invalid JS
+            await import('resource:///org/cjs/jsunit/modules/data.txt');
+            fail('should not be reached');
+        } catch (e) {
+            expect(e.constructor).toBe(SyntaxError);
+            expect(e.stack).not.toMatch('internal/');
+        }
     });
 });

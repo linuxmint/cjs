@@ -24,9 +24,10 @@
 #include <js/ComparisonOperators.h>
 #include <js/ErrorReport.h>  // for JS_ReportOutOfMemory, JSEXN_ERR
 #include <js/Exception.h>
+#include <js/GCVector.h>      // for StackGCVector
 #include <js/GlobalObject.h>  // for CurrentGlobalOrNull
-#include <js/Id.h>  // for PropertyKey
-#include <js/Object.h>  // for GetClass
+#include <js/Id.h>            // for PropertyKey
+#include <js/Object.h>        // for GetClass
 #include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>
 #include <js/PropertySpec.h>
@@ -265,26 +266,21 @@ cancel_import(JSContext       *context,
  * gjs_import_native_module:
  * @cx: the #JSContext
  * @importer: the root importer
- * @parse_name: Name under which the module was registered with
- *  add(), should be in the format as returned by
- *  g_file_get_parse_name()
+ * @id_str: Name under which the module was registered with add()
  *
  * Imports a builtin native-code module so that it is available to JS code as
- * `imports[parse_name]`.
+ * `imports[id_str]`.
  *
  * Returns: true on success, false if an exception was thrown.
  */
-bool
-gjs_import_native_module(JSContext       *cx,
-                         JS::HandleObject importer,
-                         const char      *parse_name)
-{
-    gjs_debug(GJS_DEBUG_IMPORTER, "Importing '%s'", parse_name);
+bool gjs_import_native_module(JSContext* cx, JS::HandleObject importer,
+                              const char* id_str) {
+    gjs_debug(GJS_DEBUG_IMPORTER, "Importing '%s'", id_str);
 
     JS::RootedObject native_registry(
         cx, gjs_get_native_registry(JS::CurrentGlobalOrNull(cx)));
 
-    JS::RootedId id(cx, gjs_intern_string_to_id(cx, parse_name));
+    JS::RootedId id(cx, gjs_intern_string_to_id(cx, id_str));
     if (id.isVoid())
         return false;
 
@@ -293,12 +289,12 @@ gjs_import_native_module(JSContext       *cx,
         return false;
 
     if (!module &&
-        (!Gjs::NativeModuleRegistry::get().load(cx, parse_name, &module) ||
+        (!Gjs::NativeModuleDefineFuncs::get().define(cx, id_str, &module) ||
          !gjs_global_registry_set(cx, native_registry, id, module)))
         return false;
 
-    return define_meta_properties(cx, module, nullptr, parse_name, importer) &&
-           JS_DefineProperty(cx, importer, parse_name, module,
+    return define_meta_properties(cx, module, nullptr, id_str, importer) &&
+           JS_DefineProperty(cx, importer, id_str, module,
                              GJS_MODULE_PROP_FLAGS);
 }
 
@@ -496,7 +492,7 @@ static bool do_import(JSContext* context, JS::HandleObject obj,
 
     /* First try importing an internal module like gi */
     if (parent.isNull() &&
-        Gjs::NativeModuleRegistry::get().is_registered(name.get())) {
+        Gjs::NativeModuleDefineFuncs::get().is_registered(name.get())) {
         if (!gjs_import_native_module(context, obj, name.get()))
             return false;
 
@@ -676,7 +672,8 @@ static bool importer_new_enumerate(JSContext* context, JS::HandleObject object,
         while (true) {
             GFileInfo *info;
             GFile *file;
-            if (!g_file_enumerator_iterate(direnum, &info, &file, NULL, NULL))
+            if (!direnum ||
+                !g_file_enumerator_iterate(direnum, &info, &file, NULL, NULL))
                 break;
             if (info == NULL || file == NULL)
                 break;
@@ -797,14 +794,14 @@ JSFunctionSpec gjs_importer_proto_funcs[] = {
             g_free(dirs);
         }
 
-        gjs_search_path.push_back("resource:///org/gnome/gjs/modules/script/");
-        gjs_search_path.push_back("resource:///org/gnome/gjs/modules/core/");
+        gjs_search_path.push_back("resource:///org/cinnamon/cjs/modules/script/");
+        gjs_search_path.push_back("resource:///org/cinnamon/cjs/modules/core/");
 
         /* $XDG_DATA_DIRS /gjs-1.0 */
         system_data_dirs = g_get_system_data_dirs();
         for (i = 0; system_data_dirs[i] != NULL; ++i) {
             GjsAutoChar s =
-                g_build_filename(system_data_dirs[i], "gjs-1.0", nullptr);
+                g_build_filename(system_data_dirs[i], "cjs-1.0", nullptr);
             gjs_search_path.push_back(s.get());
         }
 
@@ -813,7 +810,7 @@ JSFunctionSpec gjs_importer_proto_funcs[] = {
         extern HMODULE gjs_dll;
         char *basedir = g_win32_get_package_installation_directory_of_module (gjs_dll);
         GjsAutoChar gjs_data_dir =
-            g_build_filename(basedir, "share", "gjs-1.0", nullptr);
+            g_build_filename(basedir, "share", "cjs-1.0", nullptr);
         gjs_search_path.push_back(gjs_data_dir.get());
         g_free (basedir);
 #else
@@ -896,7 +893,7 @@ static JSObject* gjs_create_importer(
     /* API users can replace this property from JS, is the idea */
     if (!gjs_define_string_array(
             context, importer, "searchPath", search_paths,
-            /* settable (no READONLY) but not deleteable (PERMANENT) */
+            // settable (no READONLY) but not deletable (PERMANENT)
             JSPROP_PERMANENT | JSPROP_RESOLVING))
         return nullptr;
 

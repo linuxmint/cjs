@@ -16,6 +16,7 @@
 #include <memory>    // for unique_ptr
 #include <string>    // for u16string
 #include <tuple>     // for tuple
+#include <utility>   // for move
 
 #include <gio/gio.h>
 #include <glib-object.h>
@@ -40,7 +41,7 @@
 #include <jspubtd.h>      // for JSProto_InternalError
 #include <mozilla/Maybe.h>
 #include <mozilla/Span.h>
-#include <mozilla/Unused.h>
+#include <mozilla/UniquePtr.h>
 
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
@@ -93,7 +94,7 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
     // this is typical for ASCII and non-supplementary characters.
     // Because we are converting from an unknown encoding
     // technically a single byte could be supplementary in
-    // Unicode (4 bytes) or even represen multiple Unicode characters.
+    // Unicode (4 bytes) or even represent multiple Unicode characters.
     //
     // std::u16string does not care about these implementation
     // details, its only concern is that is consists of byte pairs.
@@ -165,7 +166,7 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
                     // Append the unicode fallback character to the output
                     output_str.append(u"\ufffd", 1);
                 }
-            } else if (g_error_matches(error, G_IO_ERROR,
+            } else if (g_error_matches(local_error, G_IO_ERROR,
                                        G_IO_ERROR_NO_SPACE)) {
                 // If the buffer was full increase the buffer
                 // size and re-try the conversion.
@@ -180,15 +181,12 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
                 } else {
                     buffer_size += bytes_len;
                 }
+            } else {
+                // Stop decoding if an unknown error occurs.
+                return gjs_throw_type_error_from_gerror(cx, local_error);
             }
         }
-
-        // Stop decoding if an unknown error occurs.
-    } while (input_len > 0 && !error);
-
-    // An unexpected error occurred.
-    if (error)
-        return gjs_throw_type_error_from_gerror(cx, error);
+    } while (input_len > 0);
 
     // Copy the accumulator's data into a JSString of Unicode (UTF-16) chars.
     return JS_NewUCStringCopyN(cx, output_str.c_str(), output_str.size());
@@ -401,13 +399,8 @@ JSObject* gjs_encode_to_uint8array(JSContext* cx, JS::HandleString str,
             utf8_len = strlen(utf8.get());
         }
 
-        array_buffer = JS::NewArrayBufferWithContents(cx, utf8_len, utf8.get());
-
-        // array_buffer only assumes ownership if the call succeeded,
-        // if array_buffer assumes ownership we must release our ownership
-        // without freeing the data.
-        if (array_buffer)
-            mozilla::Unused << utf8.release();
+        array_buffer =
+            JS::NewArrayBufferWithContents(cx, utf8_len, std::move(utf8));
     } else {
         GjsAutoError error;
         GjsAutoChar encoded = nullptr;
@@ -456,9 +449,10 @@ JSObject* gjs_encode_to_uint8array(JSContext* cx, JS::HandleString str,
         if (bytes_written == 0)
             return JS_NewUint8Array(cx, 0);
 
+        mozilla::UniquePtr<void, JS::BufferContentsDeleter> contents{
+            encoded.release(), gfree_arraybuffer_contents};
         array_buffer =
-            JS::NewExternalArrayBuffer(cx, bytes_written, encoded.release(),
-                                       gfree_arraybuffer_contents, nullptr);
+            JS::NewExternalArrayBuffer(cx, bytes_written, std::move(contents));
     }
 
     if (!array_buffer)

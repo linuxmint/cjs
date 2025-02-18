@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: MIT OR LGPL-2.0-or-later -->
 <!-- SPDX-FileCopyrightText: 2014 Endless Mobile, Inc. -->
 <gresources>
-  <gresource prefix="/org/gnome/gjs/mock">
+  <gresource prefix="/org/cinnamon/cjs/mock">
     <file>test/gjs-test-coverage/loadedJSFromResource.js</file>
     <file>test/modules/default.js</file>
     <file>test/modules/exit.js</file>

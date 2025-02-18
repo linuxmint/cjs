@@ -23,15 +23,28 @@
         return nativeLogError(e, args.map(arg => typeof arg === 'string' ? arg : prettyPrint(arg)).join(' '));
     }
 
+    // compare against the %TypedArray% intrinsic object all typed array constructors inherit from
+    function _isTypedArray(value) {
+        return value instanceof Object.getPrototypeOf(Uint8Array);
+    }
+
+    function _hasStandardToString(value) {
+        return value.toString === Object.prototype.toString ||
+                value.toString === Array.prototype.toString ||
+                // although TypedArrays have a standard Array.prototype.toString, we currently enforce an override to warn
+                // for legacy behaviour, making the toString non-standard for
+                // "any Uint8Array instances created in situations where previously a ByteArray would have been created"
+                _isTypedArray(value) ||
+                value.toString === Date.prototype.toString;
+    }
+
     function prettyPrint(value) {
         switch (typeof value) {
         case 'object':
             if (value === null)
                 return 'null';
 
-            if (value.toString === Object.prototype.toString ||
-                value.toString === Array.prototype.toString ||
-                value.toString === Date.prototype.toString) {
+            if (_hasStandardToString(value)) {
                 const printedObjects = new WeakSet();
                 return formatObject(value, printedObjects);
             }
@@ -60,14 +73,11 @@
 
     function formatObject(obj, printedObjects) {
         printedObjects.add(obj);
-        if (Array.isArray(obj))
+        if (Array.isArray(obj) || _isTypedArray(obj))
             return formatArray(obj, printedObjects).toString();
 
         if (obj instanceof Date)
             return formatDate(obj);
-
-        if (obj[Symbol.toStringTag] === 'GIRepositoryNamespace')
-            return obj.toString();
 
         const formattedObject = [];
         const keys = Object.getOwnPropertyNames(obj).concat(Object.getOwnPropertySymbols(obj));
@@ -78,8 +88,12 @@
             case 'object':
                 if (printedObjects.has(value))
                     formattedObject.push(`${key}: [Circular]`);
-                else
+                else if (value === null)
+                    formattedObject.push(`${key}: null`);
+                else if (_hasStandardToString(value))
                     formattedObject.push(`${key}: ${formatObject(value, printedObjects)}`);
+                else
+                    formattedObject.push(`${key}: ${value.toString()}`);
                 break;
             case 'function':
                 formattedObject.push(`${key}: ${formatFunction(value)}`);

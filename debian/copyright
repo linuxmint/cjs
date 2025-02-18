@@ -1,7 +1,14 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: cjs
-Upstream-Contact: Clement Lefebvre <clement.lefebvre@linuxmint.com>
-Source: https://github.com/linuxmint/cjs
+Source: https://download.gnome.org/sources/gjs/
+Comment:
+ This work was packaged for Debian by:
+ .
+    Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk> on Mon, 12 Oct 2009 18:38:36 -0300
+ .
+ Upstream Author:
+ .
+         litl, LLC
+Upstream-Name: gjs
 
 Files: *
 Copyright:
@@ -25,12 +32,18 @@ Copyright:
     2020 Ole Jørgen Brønner
     2017 Patrick Griffis
     2013 Pavel Vasin
-    2016-2021 Philip Chimento
+    2016-2024 Philip Chimento
     2008-2018 Red Hat, Inc.
     2008 Robert Carr
     2019-2021 Sonny Piers
     2008-2010 litl, LLC
-License: Expat or LGPL-2.0+
+License: Expat or LGPL-2+
+
+Files:
+ .gitmodules
+Copyright:
+ 2024 Philip Chimento
+License: CC0-1.0
 
 Files:
  *README*
@@ -41,7 +54,6 @@ Files:
  examples/test.jpg
  installed-tests/js/modules/data.txt
  tools/heapgraph.md
- tools/yarn.lock
 Copyright: No rights reserved
 License: CC0-1.0
 
@@ -63,15 +75,107 @@ Copyright:
  Node.js contributors
 License: Expat
 
+Files:
+ subprojects/gobject-introspection-tests/*
+Copyright:
+ 2012 Alban Browaeys
+ 2011 Alex Eftimie
+ 2007-2010 Andreas Rottmann
+ 2012 Bastian Winkler
+ 2015 Ben Iofel
+ 2011-2012 Canonical Ltd.
+ 2021 Carlos Garnacho
+ 2020 Centricular
+ 2015-2018 Christoph Reiter
+ 2014 Chun-wei Fan
+ 2012 Coeus Group
+ 2008-2015 Colin Walters
+ 2010-2015 Collabora, Ltd.
+ 2008-2012 Dan Winship
+ 2015 Debarshi Ray
+ 2012 Dieter Verfaillie
+ 2013-2022 Emmanuele Bassi
+ 2016-2017 Endless Mobile, Inc.
+ 2012 Epitech
+ 2023 Evan Welsh
+ 2013 Florian Müllner
+ 2011-2014 Giovanni Campagna
+ 2012 Gonzalo Odiard
+ 2009 Havoc Pennington
+ 2011 Ignacio Casal Quinteiro
+ 2016 Intel
+ 2011-2012 Jasper St. Pierre
+ 2008 Johan Bilien
+ 2008-2011 Johan Dahlin
+ 2012 Jon Nordby
+ 2010 Jonathan Matthew
+ 2008 Jürg Billeter
+ 2012 Krzesimir Nowak
+ 2011 Laszlo Pandy
+ 2014 Lionel Landwerlin
+ 2009-2011 litl, LLC
+ 2022 Lubomir Rintel
+ 2008 Lucas Rocha
+ 2008 Lucas Almeida Rocha
+ 2008 Marc-Andre Lureau
+ 2020-2023 Marco Trevisan
+ 2009 Mark Lee
+ 2011-2013 Martin Pitt
+ 2009 Maxim Ermilov
+ 2008-2011 Owen Taylor
+ 2008-2010 Owen W. Taylor
+ 2012-2013 Paolo Borelli
+ 2010-2011 Pavel Holejsovsky
+ 2016-2024 Philip Chimento
+ 2008 Philip Van Hoof
+ 2010-2024 Red Hat, Inc.
+ 2017 Rico Tzschichholz
+ 2014-2015 RIFT.io, Inc.
+ 2009 Robert Carr
+ 2012 Sebastian Pölsterl
+ 2013 Simon Feltman
+ 2020-2024 Simon McVittie
+ 2009 Simon van der Linden
+ 2013 Stef Walter
+ 2019 Stéphane Seng
+ 2009-2010 Sugar Labs
+ 2014 SuSE
+ 2018-2019 Tomasz Miąsko
+ 2008 Tommi Komulainen
+ 2011-2012 Torsten Schönfeld
+ 2008 Tristan Van Berkom
+ 2011 Xavier Claessens
+ 2010 Zach Goldberg
+License: GPL-2+ and LGPL-2+ and Expat
+Comment:
+ These files do not specify which license, but according to COPYING it is
+ one of them, so the conservative assumption is that we must comply with
+ all of the referenced licenses simultaneously.
+
+Files:
+ subprojects/gobject-introspection-tests/gobject-introspection-tests.doap
+Copyright:
+ 2024 Philip Chimento
+License: Expat
+
+Files:
+ subprojects/gobject-introspection-tests/tools/iwyu.imp
+ subprojects/gobject-introspection-tests/tools/run_clang_format.sh
+ subprojects/gobject-introspection-tests/tools/run_iwyu.sh
+Copyright:
+ 2024 Philip Chimento
+License: Expat or LGPL-2+
+
 Files: debian/*
 Copyright:
-    2009 Collabora Ltd.
+ 2009 Collabora Ltd.
+ 2024 Simon McVittie
 License: Expat
 
 Files:
  modules/console.cpp
  modules/script/jsUnit.js
-License: MPL-1.1 or GPL-2.0+ or LGPL-2.1+
+License: MPL-1.1 or GPL-2+ or LGPL-2.1+
     The contents of this file are subject to the Mozilla Public License Version
     1.1 (the "License"); you may not use this file except in compliance with
     the License. You may obtain a copy of the License at
@@ -192,7 +296,12 @@ License: Expat
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
     IN THE SOFTWARE.
 
-License: LGPL-2.0+
+License: GPL-2+
+ SPDX license expression GPL-2.0-or-later refers to the GNU General
+ Public License, version 2.0 or any later version. On a Debian system, see
+ /usr/share/common-licenses/GPL-2 for a copy of this license.
+
+License: LGPL-2+
  SPDX license expression LGPL-2.0-or-later refers to the GNU Library General
  Public License, version 2.0 or any later version. On a Debian system, see
  /usr/share/common-licenses/LGPL-2 for a copy of this license.

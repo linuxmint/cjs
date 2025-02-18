@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-FileCopyrightText: 2024 Philip Chimento <philip.chimento@gmail.com>
+
+BasedOnStyle: GNU
+BinPackParameters: false
+BreakBeforeBinaryOperators: None
+ContinuationIndentWidth: 2
+SpaceAfterCStyleCast: true
+
+# clang-format makes weird choices re. enforcing line limits.
+# Currently, humans can still do this better.
+ColumnLimit: 0

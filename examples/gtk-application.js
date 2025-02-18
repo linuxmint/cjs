@@ -26,7 +26,7 @@ let ExampleApplication = GObject.registerClass({
 }, class ExampleApplication extends Gtk.Application {
     constructor() {
         super({
-            application_id: 'org.gnome.gjs.ExampleApplication',
+            application_id: 'org.cinnamon.cjs.ExampleApplication',
             flags: Gio.ApplicationFlags.FLAGS_NONE,
         });
     }

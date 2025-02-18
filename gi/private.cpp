@@ -10,7 +10,8 @@
 #include <glib-object.h>
 #include <glib.h>
 
-#include <js/Array.h>  // for JS::GetArrayLength,
+#include <js/Array.h>  // for JS::GetArrayLength
+#include <js/CallAndConstruct.h>  // for IsCallable
 #include <js/CallArgs.h>
 #include <js/PropertyAndElement.h>
 #include <js/PropertySpec.h>
@@ -21,6 +22,7 @@
 #include <js/ValueArray.h>
 #include <jsapi.h>  // for JS_NewPlainObject
 
+#include "gi/closure.h"
 #include "gi/gobject.h"
 #include "gi/gtype.h"
 #include "gi/interface.h"
@@ -28,6 +30,7 @@
 #include "gi/param.h"
 #include "gi/private.h"
 #include "gi/repo.h"
+#include "gi/value.h"
 #include "cjs/atoms.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util-args.h"
@@ -344,10 +347,11 @@ static bool gjs_register_type_impl(JSContext* cx, const char* name,
     g_assert(parent_priv);
 
     GTypeQuery query;
-    parent_priv->type_query_dynamic_safe(&query);
-    if (G_UNLIKELY(query.type == 0)) {
-        gjs_throw(cx,
-                  "Cannot inherit from a non-gjs dynamic type [bug 687184]");
+    g_type_query(parent_priv->gtype(), &query);
+
+    if (G_UNLIKELY(
+            g_type_test_flags(parent_priv->gtype(), G_TYPE_FLAG_FINAL))) {
+        gjs_throw(cx, "Cannot inherit from a final type");
         return false;
     }
 
@@ -554,6 +558,37 @@ GJS_JSAPI_RETURN_CONVENTION static bool symbol_getter(JSContext* cx,
     return true;
 }
 
+GJS_JSAPI_RETURN_CONVENTION
+static bool gjs_associate_closure(JSContext* context, unsigned argc,
+                                  JS::Value* vp) {
+    JS::CallArgs argv = JS::CallArgsFromVp(argc, vp);
+    JS::RootedObject func_obj(context);
+    JS::RootedObject target_obj(context);
+    Gjs::Closure::Ptr closure;
+    Gjs::AutoGValue value(G_TYPE_CLOSURE);
+    ObjectInstance* obj;
+
+    if (!gjs_parse_call_args(context, "associateClosure", argv, "oo", "object",
+                             &target_obj, "func", &func_obj))
+        return false;
+
+    g_assert(JS::IsCallable(func_obj) &&
+             "associateClosure's function must be callable");
+
+    obj = ObjectInstance::for_js(context, target_obj);
+    if (!obj)
+        return false;
+
+    closure =
+        Gjs::Closure::create_marshaled(context, func_obj, "wrapped", false);
+
+    if (!obj->associate_closure(context, closure))
+        return false;
+
+    g_value_set_boxed(&value, closure);
+    return gjs_value_from_g_value(context, argv.rval(), &value);
+}
+
 static JSFunctionSpec private_module_funcs[] = {
     JS_FN("override_property", gjs_override_property, 2, GJS_MODULE_PROP_FLAGS),
     JS_FN("register_interface", gjs_register_interface, 3,
@@ -565,6 +600,7 @@ static JSFunctionSpec private_module_funcs[] = {
           GJS_MODULE_PROP_FLAGS),
     JS_FN("signal_new", gjs_signal_new, 6, GJS_MODULE_PROP_FLAGS),
     JS_FN("lookupConstructor", gjs_lookup_constructor, 1, 0),
+    JS_FN("associateClosure", gjs_associate_closure, 2, GJS_MODULE_PROP_FLAGS),
     JS_FS_END,
 };
 

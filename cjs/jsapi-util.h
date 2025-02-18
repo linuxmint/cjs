@@ -549,8 +549,8 @@ void gjs_maybe_gc (JSContext *context);
 void gjs_gc_if_needed(JSContext *cx);
 
 GJS_JSAPI_RETURN_CONVENTION
-GjsAutoChar gjs_format_stack_trace(JSContext       *cx,
-                                   JS::HandleObject saved_frame);
+JS::UniqueChars format_saved_frame(JSContext* cx, JS::HandleObject saved_frame,
+                                   size_t indent = 0);
 
 /* Overloaded functions, must be outside G_DECLS. More types are intended to be
  * added as the opportunity arises. */
@@ -600,6 +600,7 @@ bool gjs_object_require_converted_property(JSContext       *context,
 [[nodiscard]] std::string gjs_debug_string(JSString* str);
 [[nodiscard]] std::string gjs_debug_symbol(JS::Symbol* const sym);
 [[nodiscard]] std::string gjs_debug_object(JSObject* obj);
+[[nodiscard]] std::string gjs_debug_callable(JSObject* callable);
 [[nodiscard]] std::string gjs_debug_value(JS::Value v);
 [[nodiscard]] std::string gjs_debug_id(jsid id);
 

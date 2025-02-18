@@ -7,33 +7,40 @@
 #    include <signal.h>  // for siginfo_t, sigevent, sigaction, SIGPROF, ...
 #endif
 
-#include <glib-object.h>
-#include <glib.h>
-
 #ifdef ENABLE_PROFILER
-#    include <alloca.h>
+// IWYU has a weird loop where if this is present, it asks for it to be removed,
+// and if absent, asks for it to be added
+#    include <alloca.h>  // IWYU pragma: keep
 #    include <errno.h>
 #    include <stdint.h>
-#    include <stdio.h>      // for sscanf
-#    include <string.h>     // for memcpy, strlen
+#    include <stdio.h>        // for sscanf
+#    include <string.h>       // for memcpy, strlen
 #    include <sys/syscall.h>  // for __NR_gettid
+#    include <sys/types.h>    // for timer_t
 #    include <time.h>         // for size_t, CLOCK_MONOTONIC, itimerspec, ...
 #    ifdef HAVE_UNISTD_H
 #        include <unistd.h>  // for getpid, syscall
 #    endif
 #    include <array>
+#endif
+
+#include <glib-object.h>
+#include <glib.h>
+
+#ifdef ENABLE_PROFILER
 #    ifdef G_OS_UNIX
 #        include <glib-unix.h>
 #    endif
 #    include <sysprof-capture.h>
 #endif
 
+#include <js/GCAPI.h>           // for JSFinalizeStatus, JSGCStatus, GCReason
 #include <js/ProfilingStack.h>  // for EnableContextProfilingStack, ...
 #include <js/TypeDecls.h>
 #include <mozilla/Atomics.h>  // for ProfilingStack operators
 
 #include "cjs/context.h"
-#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"  // for gjs_explain_gc_reason
 #include "cjs/mem-private.h"
 #include "cjs/profiler-private.h"
 #include "cjs/profiler.h"
@@ -49,7 +56,7 @@
  * However, we do use a Linux'ism that allows us to deliver the signal
  * to only a single thread. Doing this in a generic fashion would
  * require thread-registration so that we can mask SIGPROF from all
- * threads execpt the JS thread. The gecko engine uses tgkill() to do
+ * threads except the JS thread. The gecko engine uses tgkill() to do
  * this with a secondary thread instead of using POSIX timers. We could
  * do this too, but it would still be Linux-only.
  *
@@ -89,6 +96,10 @@ struct _GjsProfiler {
     GSource* periodic_flush;
 
     SysprofCaptureWriter* target_capture;
+
+    // Cache previous values of counters so that we don't overrun the output
+    // with counters that don't change very often
+    uint64_t last_counter_values[GJS_N_COUNTERS];
 #endif  /* ENABLE_PROFILER */
 
     /* The filename to write to */
@@ -103,6 +114,12 @@ struct _GjsProfiler {
 
     /* Cached copy of our pid */
     GPid pid;
+
+    /* Timing information */
+    int64_t gc_begin_time;
+    int64_t sweep_begin_time;
+    int64_t group_sweep_begin_time;
+    const char* gc_reason;  // statically allocated
 
     /* GLib signal handler ID for SIGUSR2 */
     unsigned sigusr2_id;
@@ -435,15 +452,24 @@ static void gjs_profiler_sigprof(int signum [[maybe_unused]], siginfo_t* info,
 
     unsigned ids[GJS_N_COUNTERS];
     SysprofCaptureCounterValue values[GJS_N_COUNTERS];
+    size_t new_counts = 0;
 
-#    define FETCH_COUNTERS(name, ix)       \
-        ids[ix] = self->counter_base + ix; \
-        values[ix].v64 = GJS_GET_COUNTER(name);
+#    define FETCH_COUNTERS(name, ix)                       \
+        {                                                  \
+            uint64_t count = GJS_GET_COUNTER(name);        \
+            if (count != self->last_counter_values[ix]) {  \
+                ids[new_counts] = self->counter_base + ix; \
+                values[new_counts].v64 = count;            \
+                new_counts++;                              \
+            }                                              \
+            self->last_counter_values[ix] = count;         \
+        }
     GJS_FOR_EACH_COUNTER(FETCH_COUNTERS);
 #    undef FETCH_COUNTERS
 
-    if (!sysprof_capture_writer_set_counters(self->capture, now, -1, self->pid,
-                                             ids, values, GJS_N_COUNTERS))
+    if (new_counts > 0 &&
+        !sysprof_capture_writer_set_counters(self->capture, now, -1, self->pid,
+                                             ids, values, new_counts))
         gjs_profiler_stop(self);
 }
 
@@ -846,5 +872,89 @@ void gjs_profiler_set_fd(GjsProfiler* self, int fd) {
     }
 #else
     (void)fd;  // Unused in the no-profiler case
+#endif
+}
+
+void _gjs_profiler_set_finalize_status(GjsProfiler* self,
+                                       JSFinalizeStatus status) {
+#ifdef ENABLE_PROFILER
+    // Implementation note for mozjs-128:
+    //
+    // Sweeping happens in three phases:
+    // 1st phase (JSFINALIZE_GROUP_PREPARE): the collector prepares to sweep a
+    // group of zones. 2nd phase (JSFINALIZE_GROUP_START): weak references to
+    // unmarked things have been removed, but no GC thing has been swept. 3rd
+    // Phase (JSFINALIZE_GROUP_END): all dead GC things for a group of zones
+    // have been swept. The above repeats for each sweep group.
+    // JSFINALIZE_COLLECTION_END occurs at the end of all GC. (see jsgc.cpp,
+    // BeginSweepPhase/BeginSweepingZoneGroup and SweepPhase, all called from
+    // IncrementalCollectSlice).
+    //
+    // Incremental GC muddies the waters, because BeginSweepPhase is always run
+    // to entirety, but SweepPhase can be run incrementally and mixed with JS
+    // code runs or even native code, when MaybeGC/IncrementalGC return.
+    // After GROUP_START, the collector may yield to the mutator meaning JS code
+    // can run between the callback for GROUP_START and GROUP_END.
+
+    int64_t now = g_get_monotonic_time() * 1000L;
+
+    switch (status) {
+        case JSFINALIZE_GROUP_PREPARE:
+            self->sweep_begin_time = now;
+            break;
+        case JSFINALIZE_GROUP_START:
+            self->group_sweep_begin_time = now;
+            break;
+        case JSFINALIZE_GROUP_END:
+            if (self->group_sweep_begin_time != 0) {
+                _gjs_profiler_add_mark(self, self->group_sweep_begin_time,
+                                       now - self->group_sweep_begin_time,
+                                       "GJS", "Group sweep", nullptr);
+            }
+            self->group_sweep_begin_time = 0;
+            break;
+        case JSFINALIZE_COLLECTION_END:
+            if (self->sweep_begin_time != 0) {
+                _gjs_profiler_add_mark(self, self->sweep_begin_time,
+                                       now - self->sweep_begin_time, "GJS",
+                                       "Sweep", nullptr);
+            }
+            self->sweep_begin_time = 0;
+            break;
+        default:
+            g_assert_not_reached();
+    }
+#else
+    (void)self;
+    (void)status;
+#endif
+}
+
+void _gjs_profiler_set_gc_status(GjsProfiler* self, JSGCStatus status,
+                                 JS::GCReason reason) {
+#ifdef ENABLE_PROFILER
+    int64_t now = g_get_monotonic_time() * 1000L;
+
+    switch (status) {
+        case JSGC_BEGIN:
+            self->gc_begin_time = now;
+            self->gc_reason = gjs_explain_gc_reason(reason);
+            break;
+        case JSGC_END:
+            if (self->gc_begin_time != 0) {
+                _gjs_profiler_add_mark(self, self->gc_begin_time,
+                                       now - self->gc_begin_time, "GJS",
+                                       "Garbage collection", self->gc_reason);
+            }
+            self->gc_begin_time = 0;
+            self->gc_reason = nullptr;
+            break;
+        default:
+            g_assert_not_reached();
+    }
+#else
+    (void)self;
+    (void)status;
+    (void)reason;
 #endif
 }
