@@ -54,22 +54,22 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_locale_category_get_type@Base 3.4.4
  gjs_log_set_writer_default@Base 5.4.0
  gjs_log_set_writer_func@Base 5.4.0
- gjs_match_info_expand_references@Base 1.81.2
- gjs_match_info_fetch@Base 1.81.2
- gjs_match_info_fetch_all@Base 1.81.2
- gjs_match_info_fetch_named@Base 1.81.2
- gjs_match_info_fetch_named_pos@Base 1.81.2
- gjs_match_info_fetch_pos@Base 1.81.2
- gjs_match_info_free@Base 1.81.2
- gjs_match_info_get_match_count@Base 1.81.2
- gjs_match_info_get_regex@Base 1.81.2
- gjs_match_info_get_string@Base 1.81.2
- gjs_match_info_get_type@Base 1.81.2
- gjs_match_info_is_partial_match@Base 1.81.2
- gjs_match_info_matches@Base 1.81.2
- gjs_match_info_next@Base 1.81.2
- gjs_match_info_ref@Base 1.81.2
- gjs_match_info_unref@Base 1.81.2
+ gjs_match_info_expand_references@Base 6.5.0
+ gjs_match_info_fetch@Base 6.5.0
+ gjs_match_info_fetch_all@Base 6.5.0
+ gjs_match_info_fetch_named@Base 6.5.0
+ gjs_match_info_fetch_named_pos@Base 6.5.0
+ gjs_match_info_fetch_pos@Base 6.5.0
+ gjs_match_info_free@Base 6.5.0
+ gjs_match_info_get_match_count@Base 6.5.0
+ gjs_match_info_get_regex@Base 6.5.0
+ gjs_match_info_get_string@Base 6.5.0
+ gjs_match_info_get_type@Base 6.5.0
+ gjs_match_info_is_partial_match@Base 6.5.0
+ gjs_match_info_matches@Base 6.5.0
+ gjs_match_info_next@Base 6.5.0
+ gjs_match_info_ref@Base 6.5.0
+ gjs_match_info_unref@Base 6.5.0
  gjs_memory_report@Base 2.0.0
  gjs_native_promise_module_funcs@Base 5.7.0
  gjs_param_class@Base 5.4.0
@@ -83,10 +83,10 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_profiler_set_filename@Base 4.0.0
  gjs_profiler_start@Base 4.0.0
  gjs_profiler_stop@Base 4.0.0
- gjs_regex_match@Base 1.81.2
- gjs_regex_match_all@Base 1.81.2
- gjs_regex_match_all_full@Base 1.81.2
- gjs_regex_match_full@Base 1.81.2
+ gjs_regex_match@Base 6.5.0
+ gjs_regex_match_all@Base 6.5.0
+ gjs_regex_match_all_full@Base 6.5.0
+ gjs_regex_match_full@Base 6.5.0
  gjs_repo_class@Base 5.4.0
  gjs_setlocale@Base 3.4.4
  gjs_textdomain@Base 2.4.1
