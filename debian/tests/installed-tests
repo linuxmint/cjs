@@ -9,4 +9,4 @@ export XDG_RUNTIME_DIR=$AUTOPKGTEST_TMP
 export LC_ALL=C.UTF-8
 
 # dbus outputs activation messages to stderr which fails the test
-dbus-run-session -- xvfb-run -a gnome-desktop-testing-runner gjs 2> >(grep -vE '^(Activating|Successfully activated)')>&2
+dbus-run-session -- xvfb-run -a gnome-desktop-testing-runner cjs 2> >(grep -vE '^(Activating|Successfully activated)')>&2
