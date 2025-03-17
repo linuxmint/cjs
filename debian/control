@@ -59,7 +59,7 @@ Description: Mozilla-based javascript bindings for the Cinnamon platform
 Package: libcjs-dbg
 Section: debug
 Architecture: any
-Priority: extra
+Priority: optional
 Depends:
  libcjs0 (= ${binary:Version}),
  ${misc:Depends},

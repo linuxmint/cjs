@@ -1,14 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Source: https://download.gnome.org/sources/gjs/
-Comment:
- This work was packaged for Debian by:
- .
-    Gustavo Noronha Silva <gustavo.noronha@collabora.co.uk> on Mon, 12 Oct 2009 18:38:36 -0300
- .
- Upstream Author:
- .
-         litl, LLC
-Upstream-Name: gjs
+Upstream-Name: cjs
+Upstream-Contact: Clement Lefebvre <clement.lefebvre@linuxmint.com>
+Source: https://github.com/linuxmint/cjs
 
 Files: *
 Copyright:
