@@ -1,3 +1,16 @@
+cjs (128.0) xia; urgency=medium
+
+  [ Michael Webster ]
+  * Rebase off gjs 1.82.1 (mozjs128)
+
+  [ Fabio Fantoni ]
+  * [mozjs-128] fix packaging (#128)
+
+  [ Clement Lefebvre ]
+  * Remove version restrictions
+
+ -- Clement Lefebvre <root@linuxmint.com>  Fri, 28 Mar 2025 17:41:47 +0000
+
 cjs (6.5.0) xia; urgency=medium
 
   * Rebase on gjs-1.82.1 (from debian 13/trixie)
