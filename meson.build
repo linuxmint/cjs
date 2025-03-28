@@ -309,11 +309,8 @@ header_conf = configuration_data()
 
 versions = meson.project_version().split('.')
 major_version = versions[0].to_int()
-minor_version = versions[1].to_int()
-micro_version = versions[2].to_int()
-int_version = (major_version * 100 + minor_version) * 100 + micro_version
 header_conf.set_quoted('VERSION', meson.project_version())
-header_conf.set('GJS_VERSION', int_version,
+header_conf.set('GJS_VERSION', major_version,
     description: 'The GJS version as an integer')
 header_conf.set_quoted('PACKAGE_STRING', '@0@ @1@'.format(meson.project_name(),
     meson.project_version()))
