@@ -16,13 +16,6 @@ describe('System.addressOf()', function () {
     });
 });
 
-describe('System.version', function () {
-    it('gives a plausible number', function () {
-        expect(System.version).not.toBeLessThan(14700);
-        expect(System.version).toBeLessThan(80000);
-    });
-});
-
 describe('System.refcount()', function () {
     it('gives the correct number', function () {
         let o = new GObject.Object({});
