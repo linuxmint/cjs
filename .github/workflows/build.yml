@@ -19,7 +19,7 @@ jobs:
   build:
     uses: linuxmint/github-actions/.github/workflows/do-builds.yml@master
     with:
-      commit_id: master
+      commit_id: '115.0'
       ############################## Comma separated list - like 'linuxmint/xapp, linuxmint/cinnamon-desktop'
       dependencies:
       ##############################
