@@ -21,10 +21,11 @@ enum GjsDeprecationMessageId : unsigned {
 };
 
 void _gjs_warn_deprecated_once_per_callsite(JSContext* cx,
-                                            GjsDeprecationMessageId message);
+                                            GjsDeprecationMessageId message,
+                                            unsigned max_frames = 1);
 
 void _gjs_warn_deprecated_once_per_callsite(
     JSContext* cx, GjsDeprecationMessageId id,
-    const std::vector<const char*>& args);
+    const std::vector<const char*>& args, unsigned max_frames = 1);
 
 #endif  // GJS_DEPRECATION_H_
