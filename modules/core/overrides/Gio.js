@@ -496,23 +496,30 @@ function _init() {
         } catch {}
     }
 
+    const platformName = `${GioPlatform?.__name__?.slice(3 /* 'Gio'.length */)}`;
     Object.entries(Object.getOwnPropertyDescriptors(GioPlatform)).forEach(([prop, desc]) => {
-        if (Object.hasOwn(Gio, prop)) {
-            console.debug(`Gio already contains property ${prop}`);
-            Gio[prop] = GioPlatform[prop];
+        let genericProp = prop;
+
+        const originalValue = GioPlatform[prop];
+        const gtypeName = originalValue.$gtype?.name;
+        if (gtypeName?.startsWith(`G${platformName}`))
+            genericProp = `${platformName}${prop}`;
+
+        if (Object.hasOwn(Gio, genericProp)) {
+            console.debug(`Gio already contains property ${genericProp}`);
+            Gio[genericProp] = originalValue;
             return;
         }
 
-        const newDesc = {
+        Object.defineProperty(Gio, genericProp, {
             enumerable: true,
             configurable: false,
             get() {
                 warnDeprecatedOncePerCallsite(PLATFORM_SPECIFIC_TYPELIB,
-                    `Gio.${prop}`, `${GioPlatform.__name__}.${prop}`);
+                    `Gio.${genericProp}`, `${GioPlatform.__name__}.${prop}`);
                 return desc.get?.() ?? desc.value;
             },
-        };
-        Object.defineProperty(Gio, prop, newDesc);
+        });
     });
 
     Gio.DBus = {
