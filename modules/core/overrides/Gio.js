@@ -4,6 +4,7 @@
 var GLib = imports.gi.GLib;
 var CjsPrivate = imports.gi.CjsPrivate;
 var Signals = imports.signals;
+const { warnDeprecatedOncePerCallsite, PLATFORM_SPECIFIC_TYPELIB } = imports._print;
 var Gio;
 
 // Ensures that a Gio.UnixFDList being passed into or out of a DBus method with
@@ -479,8 +480,54 @@ function _warnNotIntrospectable(funcName, replacement) {
 
 function _init() {
     Gio = this;
+    let GioPlatform = {};
 
     Gio.Application.prototype.runAsync = GLib.MainLoop.prototype.runAsync;
+
+    if (GLib.MAJOR_VERSION > 2 ||
+        (GLib.MAJOR_VERSION === 2 && GLib.MINOR_VERSION >= 86)) {
+        // Redefine Gio functions with platform-specific implementations to be
+        // backward compatible with gi-repository 1.0, however when possible we
+        // notify a deprecation warning, to ensure that the surrounding code is
+        // updated.
+        try {
+            GioPlatform = imports.gi.GioUnix;
+        } catch {
+            try {
+                GioPlatform = imports.gi.GioWin32;
+            } catch {}
+        }
+    }
+
+    const platformName = `${GioPlatform?.__name__?.slice(3 /* 'Gio'.length */)}`;
+    const platformNameLower = platformName.toLowerCase();
+    Object.entries(Object.getOwnPropertyDescriptors(GioPlatform)).forEach(([prop, desc]) => {
+        let genericProp = prop;
+
+        const originalValue = GioPlatform[prop];
+        const gtypeName = originalValue.$gtype?.name;
+        if (gtypeName?.startsWith(`G${platformName}`))
+            genericProp = `${platformName}${prop}`;
+        else if (originalValue instanceof Function &&
+            originalValue.name.startsWith(`g_${platformNameLower}_`))
+            genericProp = `${platformNameLower}_${prop}`;
+
+        if (Object.hasOwn(Gio, genericProp)) {
+            console.debug(`Gio already contains property ${genericProp}`);
+            Gio[genericProp] = originalValue;
+            return;
+        }
+
+        Object.defineProperty(Gio, genericProp, {
+            enumerable: true,
+            configurable: false,
+            get() {
+                warnDeprecatedOncePerCallsite(PLATFORM_SPECIFIC_TYPELIB,
+                    `Gio.${genericProp}`, `${GioPlatform.__name__}.${prop}`);
+                return desc.get?.() ?? desc.value;
+            },
+        });
+    });
 
     Gio.DBus = {
         // Namespace some functions
