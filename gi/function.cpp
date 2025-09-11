@@ -117,6 +117,9 @@ class Function : public CWrapper<Function> {
     static bool get_length(JSContext* cx, unsigned argc, JS::Value* vp);
 
     GJS_JSAPI_RETURN_CONVENTION
+    static bool get_name(JSContext* cx, unsigned argc, JS::Value* vp);
+
+    GJS_JSAPI_RETURN_CONVENTION
     static bool to_string(JSContext* cx, unsigned argc, JS::Value* vp);
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -1251,6 +1254,16 @@ bool Function::get_length(JSContext* cx, unsigned argc, JS::Value* vp) {
     return true;
 }
 
+bool Function::get_name(JSContext* cx, unsigned argc, JS::Value* vp) {
+    GJS_CHECK_WRAPPER_PRIV(cx, argc, vp, rec, this_obj, Function, priv);
+
+    if (priv->m_info.type() == GI_INFO_TYPE_FUNCTION)
+        return gjs_string_from_utf8(cx, g_function_info_get_symbol(priv->m_info),
+                                    rec.rval());
+
+    return gjs_string_from_utf8(cx, priv->format_name().c_str(), rec.rval());
+}
+
 bool Function::to_string(JSContext* context, unsigned argc, JS::Value* vp) {
     GJS_CHECK_WRAPPER_PRIV(context, argc, vp, rec, this_obj, Function, priv);
     return priv->to_string_impl(context, rec.rval());
@@ -1302,6 +1315,7 @@ const JSClassOps Function::class_ops = {
 
 const JSPropertySpec Function::proto_props[] = {
     JS_PSG("length", &Function::get_length, JSPROP_PERMANENT),
+    JS_PSG("name", &Function::get_name, JSPROP_PERMANENT),
     JS_STRING_SYM_PS(toStringTag, "GIRepositoryFunction", JSPROP_READONLY),
     JS_PS_END};
 
