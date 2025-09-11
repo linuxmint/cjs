@@ -497,6 +497,7 @@ function _init() {
     }
 
     const platformName = `${GioPlatform?.__name__?.slice(3 /* 'Gio'.length */)}`;
+    const platformNameLower = platformName.toLowerCase();
     Object.entries(Object.getOwnPropertyDescriptors(GioPlatform)).forEach(([prop, desc]) => {
         let genericProp = prop;
 
@@ -504,6 +505,9 @@ function _init() {
         const gtypeName = originalValue.$gtype?.name;
         if (gtypeName?.startsWith(`G${platformName}`))
             genericProp = `${platformName}${prop}`;
+        else if (originalValue instanceof Function &&
+            originalValue.name.startsWith(`g_${platformNameLower}_`))
+            genericProp = `${platformNameLower}_${prop}`;
 
         if (Object.hasOwn(Gio, genericProp)) {
             console.debug(`Gio already contains property ${genericProp}`);
