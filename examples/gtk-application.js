@@ -82,7 +82,7 @@ let ExampleApplication = GObject.registerClass({
         notif.set_title('Example Notification');
         notif.set_body('Example Body');
         notif.set_icon(
-            new Gio.ThemedIcon({name: 'xapp-dialog-information-symbolic'})
+            new Gio.ThemedIcon({name: 'xsi-dialog-information-symbolic'})
         );
 
         // A default action for when the body of the notification is clicked

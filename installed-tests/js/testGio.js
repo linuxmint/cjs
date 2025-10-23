@@ -449,7 +449,7 @@ describe('Non-introspectable file attribute overrides', function () {
 
     it('works for object', function () {
         expectWarnings(2);
-        const icon = Gio.ThemedIcon.new_from_names(['xapp-list-add-symbolic']);
+        const icon = Gio.ThemedIcon.new_from_names(['xsi-list-add-symbolic']);
         expect(() =>
             file.set_attribute(Gio.FILE_ATTRIBUTE_STANDARD_ICON, Gio.FileAttributeType.OBJECT, icon, ...flags))
             .toThrowError(/not introspectable/);
