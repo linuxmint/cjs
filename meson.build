@@ -6,7 +6,7 @@ project(
   'cjs',
   'cpp',
   'c',
-  version : '115.0',
+  version : '115.1',
   license : ['MIT', 'LGPL2+'],
   meson_version : '>=0.56.0',
   default_options : ['cpp_std=c++17', 'cpp_rtti=false', 'c_std=c99', 'warning_level=2', 'b_pch=true']

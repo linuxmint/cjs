@@ -1,3 +1,9 @@
+cjs (115.1) zena; urgency=medium
+
+  * Switch to xapp-symbolic-icons (XSI)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 20 Nov 2025 15:05:55 +0000
+
 cjs (115.0) xia; urgency=medium
 
   * Remove version restrictions
