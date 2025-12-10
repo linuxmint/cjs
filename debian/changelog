@@ -1,3 +1,29 @@
+cjs (128.1) zena; urgency=medium
+
+  [ Michael Webster ]
+  * .github/workflows: Use 115.0 tag for default build.
+
+  [ Marco Trevisan (Treviño) ]
+  * overrides/Gio: Add wrappers for platform-specific Gio functions
+  * overrides/Gio: Use print's warnDeprecatedOncePerCallsite to warn
+  * cjs/deprecation: Use a larger deprecation stack for JS invoked requests
+  * overrides/Gio: Use Platform prefix for platform-only symbols
+  * gi/function: Implement name property for functions
+  * overrides/Gio: Use Platform prefix for platform-only functions
+  * overrides/Gio: Enable platform-specific wrappers only on newer GLib
+
+  [ Philip Chimento ]
+  * Add JS API wrapping warn_deprecated_once_per_callsite
+
+  [ Florian Müllner ]
+  * modules/package: Fix checking interface properties
+
+  [ Clement Lefebvre ]
+  * Switch to XApp symbolic icons
+  * Switch to xapp-symbolic-icons (XSI)
+
+ -- Clement Lefebvre <root@linuxmint.com>  Wed, 10 Dec 2025 15:40:28 +0000
+
 cjs (128.0) xia; urgency=medium
 
   [ Michael Webster ]
