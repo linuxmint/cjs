@@ -600,6 +600,7 @@ pkg.generate(libcjs, name: api_name, description: 'JS bindings for GObjects',
         'exec_prefix=${prefix}',
         'datarootdir=${datadir}',
         'cjs_console=${bindir}/cjs-console',
+        'mozjs_dep_name=@0@'.format(spidermonkey.name()),
     ])
 
 ### Test environment ###########################################################
