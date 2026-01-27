@@ -4,7 +4,7 @@
 // SPDX-FileCopyrightText: 2010 Giovanni Campagna <gcampagna@src.gnome.org>
 // SPDX-FileCopyrightText: 2011 Red Hat, Inc.
 // SPDX-FileCopyrightText: 2016 Endless Mobile, Inc.
-// SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
+// SPDX-FileCopyrightText: 2019, 2024 Philip Chimento <philip.chimento@gmail.com>
 
 // Load overrides for GIMarshallingTests
 imports.overrides.searchPath.unshift('resource:///org/cjs/jsunit/modules/overrides');
@@ -88,9 +88,6 @@ function testTransferMarshalling(root, value, inoutValue, defaultValue, options 
     });
     describe('with transfer full', function () {
         const fullOptions = {
-            in: {
-                omit: true,  // this case is not in the test suite
-            },
             inout: {
                 skip: 'https://gitlab.gnome.org/GNOME/gobject-introspection/issues/192',
             },
@@ -105,7 +102,7 @@ function testContainerMarshalling(root, value, inoutValue, defaultValue, options
     describe('with transfer container', function () {
         const containerOptions = {
             in: {
-                omit: true,  // this case is not in the test suite
+                skip: 'https://gitlab.gnome.org/GNOME/gjs/issues/44',
             },
             inout: {
                 skip: 'https://gitlab.gnome.org/GNOME/gjs/issues/44',
@@ -178,12 +175,12 @@ if (GLib.SIZEOF_SSIZE_T === 8) {
 // each other. That's fine for now. Then we just have to suppress the warnings.
 function warn64(is64bit, func, ...args) {
     if (is64bit) {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
     }
     const retval = func(...args);
     if (is64bit) {
-        GLib.test_assert_expected_messages_internal('Cjs',
+        GLib.test_assert_expected_messages_internal('Gjs',
             'testGIMarshalling.js', 0, 'Ignore message');
     }
     return retval;
@@ -330,6 +327,30 @@ describe('time_t', function () {
     testSimpleMarshalling('time_t', 1234567890, 0, 0);
 });
 
+describe('off_t', function () {
+    testSimpleMarshalling('off_t', 1234567890, 0, 0);
+});
+
+function testUnixIntegerTypedefMarshalling(type, inValue, skipAny = {}) {
+    describe(type, function () {
+        const skip = GIMarshallingTests[`${type}_in`] ? false : 'Only supported on Unix';
+        testSimpleMarshalling(type, inValue, 0, 0, {
+            returnv: {skip: skip || skipAny.skipReturn},
+            in: {skip: skip || skipAny.skipIn},
+            out: {skip: skip || skipAny.skipOut},
+            uninitOut: {skip: skip || skipAny.skipUninitOut},
+            inout: {skip: skip || skipAny.skipInOut},
+        });
+    });
+}
+
+// https://gitlab.gnome.org/GNOME/gjs/-/issues/673
+testUnixIntegerTypedefMarshalling('dev_t', 1234567890, {skipInOut: true});
+testUnixIntegerTypedefMarshalling('gid_t', 65534);
+testUnixIntegerTypedefMarshalling('pid_t', 12345);
+testUnixIntegerTypedefMarshalling('socklen_t', 123);
+testUnixIntegerTypedefMarshalling('uid_t', 65534);
+
 describe('GType', function () {
     describe('void', function () {
         testSimpleMarshalling('gtype', GObject.TYPE_NONE, GObject.TYPE_INT, null);
@@ -391,6 +412,7 @@ describe('Fixed-size C array', function () {
         testReturnValue('array_fixed_int', [-1, 0, 1, 2]);
         testInParameter('array_fixed_int', [-1, 0, 1, 2]);
         testOutParameter('array_fixed', [-1, 0, 1, 2]);
+        testUninitializedOutParameter('array_fixed', null);
         testOutParameter('array_fixed_caller_allocated', [-1, 0, 1, 2]);
         testInoutParameter('array_fixed', [-1, 0, 1, 2], [2, 1, 0, -1]);
     });
@@ -407,6 +429,10 @@ describe('Fixed-size C array', function () {
         ]);
     });
 
+    it('picks a reasonable default for struct array out param when uninitialized', function () {
+        expect(GIMarshallingTests.array_fixed_out_struct_uninitialized()).toEqual([false, null]);
+    });
+
     it('marshals a fixed-size struct array as caller allocated out param', function () {
         expect(GIMarshallingTests.array_fixed_caller_allocated_struct_out()).toEqual([
             jasmine.objectContaining({long_: -2, int8: -1}),
@@ -415,6 +441,15 @@ describe('Fixed-size C array', function () {
             jasmine.objectContaining({long_: 5, int8: 6}),
         ]);
     });
+
+    for (const marshal of ['return', 'out']) {
+        it(`handles a ${marshal} array with odd alignment`, function () {
+            const arr = GIMarshallingTests[`array_fixed_${marshal}_unaligned`]();
+            expect(arr.length).toEqual(32);
+            expect(Array.prototype.slice.call(arr, 0, 4)).toEqual([1, 2, 3, 4]);
+            GIMarshallingTests.cleanup_unaligned_buffer();
+        });
+    }
 });
 
 describe('C array with length', function () {
@@ -604,6 +639,15 @@ describe('C array with length', function () {
     it('does not interpret an unannotated integer as a length parameter', function () {
         expect(() => GIMarshallingTests.array_in_nonzero_nonlen(42, 'abcd')).not.toThrow();
     });
+
+    for (const marshal of ['return', 'out']) {
+        it(`handles a ${marshal} array with odd alignment`, function () {
+            const arr = GIMarshallingTests[`array_${marshal}_unaligned`]();
+            expect(arr.length).toEqual(32);
+            expect(Array.prototype.slice.call(arr, 0, 4)).toEqual([1, 2, 3, 4]);
+            GIMarshallingTests.cleanup_unaligned_buffer();
+        });
+    }
 });
 
 describe('Zero-terminated C array', function () {
@@ -618,6 +662,11 @@ describe('Zero-terminated C array', function () {
 
     it('marshals an array of structs as a return value', function () {
         let structArray = GIMarshallingTests.array_zero_terminated_return_struct();
+        expect(structArray.map(e => e.long_)).toEqual([42, 43, 44]);
+    });
+
+    it('marshals an array of sequential structs as a return value', function () {
+        let structArray = GIMarshallingTests.array_zero_terminated_return_sequential_struct();
         expect(structArray.map(e => e.long_)).toEqual([42, 43, 44]);
     });
 
@@ -644,12 +693,60 @@ describe('Zero-terminated C array', function () {
             });
         });
     });
+
+    for (const marshal of ['return', 'out']) {
+        it(`handles a ${marshal} array with odd alignment`, function () {
+            const arr = GIMarshallingTests[`array_zero_terminated_${marshal}_unaligned`]();
+            expect(Array.from(arr)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+            GIMarshallingTests.cleanup_unaligned_buffer();
+        });
+    }
+});
+
+describe('Exhaustive test of UTF-8 sequences', function () {
+    ['length', 'fixed', 'zero_terminated'].forEach(arrayKind =>
+        ['none', 'container', 'full'].forEach(transfer => {
+            const testFunction = returnMode => {
+                const commonName = 'array_utf8';
+                const funcName = [arrayKind, commonName, transfer, returnMode].join('_');
+                const func = GIMarshallingTests[funcName];
+                if (!func)  // FIXME
+                    pending('https://gitlab.gnome.org/GNOME/gobject-introspection-tests/-/merge_requests/11');
+                return func;
+            };
+
+            ['out', 'return'].forEach(returnMode =>
+                it(`${arrayKind} ${returnMode} transfer ${transfer}`, function () {
+                    const func = testFunction(returnMode);
+                    expect(func()).toEqual(['a', 'b', '¢', '🔠']);
+                }));
+
+            it(`${arrayKind} in transfer ${transfer}`, function () {
+                const func = testFunction('in');
+                if (transfer === 'container')
+                    pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
+
+                expect(() => func(['🅰', 'β', 'c', 'd'])).not.toThrow();
+            });
+
+            it(`${arrayKind} inout transfer ${transfer}`, function () {
+                const func = testFunction('inout');
+                if (transfer === 'container')
+                    pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
+
+                expect(func(['🅰', 'β', 'c', 'd'])).toEqual(['a', 'b', '¢', '🔠']);
+            });
+        }));
 });
 
 describe('GArray', function () {
     describe('of ints with transfer none', function () {
         testReturnValue('garray_int_none', [-1, 0, 1, 2]);
         testInParameter('garray_int_none', [-1, 0, 1, 2]);
+    });
+
+    it('marshals BigInt int64s as a transfer-none in value', function () {
+        GIMarshallingTests.garray_uint64_none_in([0, BigIntLimits.int64.umax]);
     });
 
     it('marshals int64s as a transfer-none return value', function () {
@@ -671,8 +768,7 @@ describe('GArray', function () {
         it('marshals as a transfer-full caller-allocated out parameter throws errors', function () {
             // should throw when called, not when the function object is created
             expect(() => GIMarshallingTests.garray_utf8_full_out_caller_allocated).not.toThrow();
-            expect(() => GIMarshallingTests.garray_utf8_full_out_caller_allocated())
-                .toThrowError(/type array.*\(out caller-allocates\)/);
+            expect(() => GIMarshallingTests.garray_utf8_full_out_caller_allocated()).toThrow();
         });
     });
 
@@ -712,6 +808,8 @@ describe('GByteArray', function () {
     const refByteArray = Uint8Array.from([0, 49, 0xFF, 51]);
 
     testReturnValue('bytearray_full', refByteArray);
+    testOutParameter('bytearray_full', refByteArray);
+    testInoutParameter('bytearray_full', refByteArray, Uint8Array.from([104, 101, 108, 0, 0xFF]));
 
     it('can be passed in with transfer none', function () {
         expect(() => GIMarshallingTests.bytearray_none_in(refByteArray))
@@ -982,7 +1080,8 @@ describe('GValue', function () {
     });
 
     it('marshals as an int64 out parameter', function () {
-        expect(GIMarshallingTests.gvalue_int64_out()).toEqual(Limits.int64.max);
+        expect(warn64(true, GIMarshallingTests.gvalue_int64_out)).toEqual(
+            Limits.int64.max);
     });
 
     it('marshals as a caller-allocated out parameter', function () {
@@ -1107,6 +1206,15 @@ describe('GValue', function () {
 
         expect(() => GIMarshallingTests.gvalue_in_with_type(value, GObject.Value))
             .not.toThrow();
+    });
+
+    it('separates float from double correctly', function () {
+        // Passing a Number infers the type 'double'. To pass a float GValue, we
+        // need to construct it manually.
+        const floatValue = new GObject.Value();
+        floatValue.init(GObject.TYPE_FLOAT);
+        floatValue.set_float(3.14);
+        expect(() => GIMarshallingTests.gvalue_float(floatValue, 3.14)).not.toThrow();
     });
 
     // See testCairo.js for a test of GIMarshallingTests.gvalue_in_with_type()
@@ -1273,6 +1381,8 @@ describe('Boxed struct', function () {
         }));
     });
 
+    testUninitializedOutParameter('boxed_struct', null);
+
     it('marshals as an inout parameter', function () {
         const struct = new GIMarshallingTests.BoxedStruct({
             long_: 42,
@@ -1296,6 +1406,73 @@ describe('Union', function () {
     it('marshals as the this-argument of a method', function () {
         expect(() => union.inv()).not.toThrow();  // was this supposed to be static?
         expect(() => union.method()).not.toThrow();
+    });
+});
+
+describe('Structured union', function () {
+    xit('can be created with a default constructor', function () {
+        const u = new GIMarshallingTests.StructuredUnion(GIMarshallingTests.StructuredUnionType.NONE);
+        expect(u).toBeInstanceOf(GIMarshallingTests.StructuredUnion);
+    }).pend('https://gitlab.gnome.org/GNOME/gjs/-/issues/657');
+
+    it('can be created with NONE', function () {
+        const t = GIMarshallingTests.StructuredUnionType.NONE;
+        const u = GIMarshallingTests.StructuredUnion.new(t);
+        expect(u.type()).toBe(t);
+    });
+
+    it('can be created with SIMPLE_STRUCT', function () {
+        const t = GIMarshallingTests.StructuredUnionType.SIMPLE_STRUCT;
+        const u = GIMarshallingTests.StructuredUnion.new(t);
+        expect(u.type()).toBe(t);
+        // expect(u.simple_struct.parent.long_).toBe(6);
+        // expect(u.simple_struct.parent.int8).toBe(7);
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/273
+    });
+
+    it('can be created with NESTED_STRUCT', function () {
+        const t = GIMarshallingTests.StructuredUnionType.NESTED_STRUCT;
+        const u = GIMarshallingTests.StructuredUnion.new(t);
+        expect(u.type()).toBe(t);
+        // expect(u.nested_struct.parent.simple_struct.parent.long_).toBe(6);
+        // expect(u.nested_struct.parent.simple_struct.parent.int8).toBe(7);
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/273
+    });
+
+    it('can be created with BOXED_STRUCT', function () {
+        const t = GIMarshallingTests.StructuredUnionType.BOXED_STRUCT;
+        const u = GIMarshallingTests.StructuredUnion.new(t);
+        expect(u.type()).toBe(t);
+        // expect(u.boxed_struct.parent.long_).toBe(42);
+        // expect(u.boxed_struct.parent.string_).toBe('hello');
+        // expect(u.boxed_struct.parent.g_strv).toBe(['0', '1', '2']);
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/273
+    });
+
+    it('can be created with BOXED_STRUCT_PTR', function () {
+        const t = GIMarshallingTests.StructuredUnionType.BOXED_STRUCT_PTR;
+        const u = GIMarshallingTests.StructuredUnion.new(t);
+        expect(u.type()).toBe(t);
+        // expect(u.boxed_struct_ptr.parent.long_).toBe(42);
+        // expect(u.boxed_struct_ptr.parent.string_).toBe('hello');
+        // expect(u.boxed_struct_ptr.parent.g_strv).toBe(['0', '1', '2']);
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/273
+    });
+
+    it('can be created with POINTER_STRUCT', function () {
+        const t = GIMarshallingTests.StructuredUnionType.POINTER_STRUCT;
+        const u = GIMarshallingTests.StructuredUnion.new(t);
+        expect(u.type()).toBe(t);
+        // expect(u.pointer_struct.parent.long_).toBe(42);
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/273
+    });
+
+    it('can be created with SINGLE_UNION', function () {
+        const t = GIMarshallingTests.StructuredUnionType.SINGLE_UNION;
+        const u = GIMarshallingTests.StructuredUnion.new(t);
+        expect(u.type()).toBe(t);
+        // expect(u.single_union.parent.union_.long_).toBe(42);
+        // https://gitlab.gnome.org/GNOME/gjs/-/issues/273
     });
 });
 
@@ -1357,6 +1534,10 @@ describe('GObject', function () {
             it(`marshals as a ${mode} parameter with transfer ${transfer}`, function () {
                 expect(GIMarshallingTests.Object[`${transfer}_${mode}`]().int).toEqual(0);
             });
+        });
+
+        it(`picks a reasonable default when uninitialized as out parameter with transfer ${transfer}`, function () {
+            expect(GIMarshallingTests.Object[`${transfer}_out_uninitialized`]()).toEqual([false, null]);
         });
 
         it(`marshals as an inout parameter with transfer ${transfer}`, function () {
@@ -1552,8 +1733,17 @@ describe('Virtual function', function () {
         expect(tester.int).toEqual(39);
     });
 
+    it('marshals an in argument through a method that indirectly calls the vfunc', function () {
+        tester.int8_in(39);
+        expect(tester.int).toEqual(39);
+    });
+
     it('marshals an out argument', function () {
         expect(tester.method_int8_out()).toEqual(40);
+    });
+
+    it('marshals an out argument through a method that indirectly calls the vfunc', function () {
+        expect(tester.int8_out()).toEqual(40);
     });
 
     it('marshals a POD out argument', function () {
@@ -1789,84 +1979,149 @@ describe('Wrong virtual functions', function () {
     }).pend('https://gitlab.gnome.org/GNOME/gjs/issues/311');
 
     it('marshals multiple out parameters', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: *vfunc_vfunc_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_multiple_out_parameters()).toEqual([0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a return value and one out parameter', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: *vfunc_return_value_and_one_out_parameter*Array*');
 
         expect(tester.vfunc_return_value_and_one_out_parameter()).toEqual([0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a return value and multiple out parameters', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: *vfunc_return_value_and_multiple_out_parameters*Array*');
 
         expect(tester.vfunc_return_value_and_multiple_out_parameters()).toEqual([0, 0, 0]);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an array out parameter', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'JS ERROR: Error: Expected type gfloat for Argument*undefined*');
 
         expect(tester.vfunc_array_out_parameter()).toEqual(null);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an enum return value', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            'JS ERROR: Error: Expected type enum for Return*undefined*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            'JS ERROR: Error: Expected type *Enum* for Return*undefined*');
 
         expect(tester.vfunc_return_enum()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals an enum out parameter', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            'JS ERROR: Error: Expected type enum for Argument*undefined*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            'JS ERROR: Error: Expected type *Enum* for Argument*undefined*');
 
         expect(tester.vfunc_out_enum()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a flags return value', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            'JS ERROR: Error: Expected type flags for Return*undefined*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            'JS ERROR: Error: Expected type *Flags* for Return*undefined*');
 
         expect(tester.vfunc_return_flags()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
 
     it('marshals a flags out parameter', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
-            'JS ERROR: Error: Expected type flags for Argument*undefined*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+            'JS ERROR: Error: Expected type *Flags* for Argument*undefined*');
 
         expect(tester.vfunc_out_flags()).toEqual(0);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testVFuncReturnWrongValue');
     });
+});
+
+let StaticVFuncTester;
+try {
+    StaticVFuncTester = GObject.registerClass(
+    class StaticVFuncTesterClass extends VFuncTester {
+        static vfunc_vfunc_static_name() {
+            return 'Overridden name';
+        }
+
+        static vfunc_vfunc_static_create_new(int) {
+            return new StaticVFuncTester({int});
+        }
+
+        static vfunc_vfunc_static_create_new_out(int) {
+            return new StaticVFuncTester({int});
+        }
+    });
+} catch (e) {
+    if (!`${e}`.includes('Could not find definition of virtual function'))
+        throw e;
+}
+
+describe('Static virtual functions', function () {
+    beforeEach(function () {
+        if (!StaticVFuncTester) {
+            if (GIMarshallingTests.Object.vfunc_static_name)
+                pending('https://gitlab.gnome.org/GNOME/glib/-/merge_requests/4457');
+        }
+    });
+
+    it('has static_name', function () {
+        expect(GIMarshallingTests.Object.vfunc_static_name()).toBe(
+            'GIMarshallingTestsObject');
+        expect(StaticVFuncTester.vfunc_static_name()).toBe(
+            'GIMarshallingTestsObject');
+    });
+
+    it('has static_typed_name', function () {
+        expect(GIMarshallingTests.Object.vfunc_static_typed_name(
+            GIMarshallingTests.Object.$gtype)).toBe('GIMarshallingTestsObject');
+        expect(StaticVFuncTester.vfunc_static_typed_name(StaticVFuncTester.$gtype))
+            .toBe('Overridden name');
+    });
+
+    ['', '_out'].forEach(suffix => it(`has static_create_new${suffix}`, function () {
+        const baseObj = GIMarshallingTests.Object[`vfunc_static_create_new${suffix}`](
+            GIMarshallingTests.Object.$gtype, 55);
+        expect(baseObj).toBeInstanceOf(GIMarshallingTests.Object);
+        expect(baseObj).not.toBeInstanceOf(StaticVFuncTester);
+        expect(baseObj.int_).toBe(55);
+
+        const middleObj = GIMarshallingTests.Object[`vfunc_static_create_new${suffix}`](
+            VFuncTester.$gtype, 35);
+        expect(middleObj).toBeInstanceOf(GIMarshallingTests.Object);
+        expect(middleObj).not.toBeInstanceOf(VFuncTester);
+        expect(middleObj.int_).toBe(35);
+
+        const obj = GIMarshallingTests.Object[`vfunc_static_create_new${suffix}`](
+            StaticVFuncTester.$gtype, 85);
+        expect(obj).toBeInstanceOf(GIMarshallingTests.Object);
+        expect(obj).toBeInstanceOf(VFuncTester);
+        expect(obj).toBeInstanceOf(StaticVFuncTester);
+        expect(obj.int_).toBe(85);
+    }));
 });
 
 describe('Inherited GObject', function () {
@@ -1891,6 +2146,29 @@ describe('Inherited GObject', function () {
                 const o = new GIMarshallingTests[klass]({int: 42});
                 o.method_with_default_implementation(43);
                 expect(o.int).toEqual(43);
+            });
+
+            it('has a vfunc default implementation that can be called', function () {
+                const o = new GIMarshallingTests[klass]({int: 0});
+                o.vfunc_method_deep_hierarchy(44);
+                expect(o.int).toBe(44);
+            });
+
+            it('has a vfunc that can be overridden', function () {
+                class Derived extends GIMarshallingTests[klass] {
+                    static [GObject.GTypeName] = `Derived${klass}`;
+                    static {
+                        GObject.registerClass(Derived);
+                    }
+
+                    vfunc_method_deep_hierarchy(param) {
+                        expect(param).toBe(45);
+                        this.int = 46;
+                    }
+                }
+                const o = new Derived({int: 0});
+                o.vfunc_method_deep_hierarchy(45);
+                expect(o.int).toBe(46);
             });
         });
     });
@@ -2033,11 +2311,17 @@ describe('GError', function () {
         ]);
     });
 
+    testUninitializedOutParameter('gerror', null);
+
     it('marshals a GError** elsewhere in the signature as an out parameter with transfer none', function () {
         expect(GIMarshallingTests.gerror_out_transfer_none()).toEqual([
             jasmine.any(GLib.Error),
             'we got an error, life is shit',
         ]);
+    });
+
+    it('picks a reasonable default value when out parameter is uninitialized with transfer none', function () {
+        expect(GIMarshallingTests.gerror_out_transfer_none_uninitialized()).toEqual([false, null, null]);
     });
 
     it('marshals GError as a return value', function () {
@@ -2074,6 +2358,11 @@ describe('Overrides', function () {
         const obj = GIMarshallingTests.OverridesObject.returnv();
         expect(obj).toBeInstanceOf(GIMarshallingTests.OverridesObject);
     });
+
+    it('returns the overridden object from a C constructor', function () {
+        const obj = GIMarshallingTests.OverridesObject.new();
+        expect(obj).toBeInstanceOf(GIMarshallingTests.OverridesObject);
+    });
 });
 
 describe('Filename', function () {
@@ -2097,6 +2386,7 @@ describe('GObject.ParamSpec', function () {
     };
     testReturnValue('param_spec', jasmine.objectContaining(expectedProps));
     testOutParameter('param_spec', jasmine.objectContaining(expectedProps));
+    testUninitializedOutParameter('param_spec', null);
 });
 
 describe('GObject properties', function () {
@@ -2134,17 +2424,21 @@ describe('GObject properties', function () {
     function testPropertyGetSetBigInt(type, value1, value2) {
         const snakeCase = `some_${type}`;
         const paramCase = snakeCase.replaceAll('_', '-');
+        const isBigInt = v =>
+            v > BigInt(Number.MAX_SAFE_INTEGER) || v < BigInt(Number.MIN_SAFE_INTEGER);
         it(`gets and sets a ${type} property with a bigint`, function () {
             const handler = jasmine.createSpy(`handle-${paramCase}`);
             const id = obj.connect(`notify::${paramCase}`, handler);
 
             obj[snakeCase] = value1;
             expect(handler).toHaveBeenCalledTimes(1);
-            expect(obj[snakeCase]).toEqual(Number(value1));
+            expect(warn64(isBigInt(value1), () => obj[snakeCase])).toEqual(
+                Number(value1));
 
             obj[snakeCase] = value2;
             expect(handler).toHaveBeenCalledTimes(2);
-            expect(obj[snakeCase]).toEqual(Number(value2));
+            expect(warn64(isBigInt(value2), () => obj[snakeCase])).toEqual(
+                Number(value2));
 
             obj.disconnect(id);
         });
@@ -2162,7 +2456,8 @@ describe('GObject properties', function () {
     testPropertyGetSetBigInt('int64', BigIntLimits.int64.min, BigIntLimits.int64.max);
     testPropertyGetSet('uint64', 42, 64);
     testPropertyGetSetBigInt('uint64', BigIntLimits.int64.max, BigIntLimits.int64.umax);
-    testPropertyGetSet('string', 'Cjs', 'is cool!');
+    testPropertyGetSetBigInt('uint64', 0n, BigInt(Number.MAX_SAFE_INTEGER));
+    testPropertyGetSet('string', 'Gjs', 'is cool!');
     testPropertyGetSet('string', 'and supports', null);
 
     it('get and sets out-of-range values throws', function () {
@@ -2254,23 +2549,19 @@ describe('GObject properties', function () {
         expect(() => (obj.some_readonly = 35)).toThrow();
     });
 
-    it('allows to set/get deprecated properties', function () {
-        if (!GObject.Object.find_property.call(
-            GIMarshallingTests.PropertiesObject, 'some-deprecated-int'))
-            pending('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/410');
-
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+    xit('allows to set/get deprecated properties', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*GObject property*.some-deprecated-int is deprecated*');
         obj.some_deprecated_int = 35;
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testAllowToSetGetDeprecatedProperties');
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*GObject property*.some-deprecated-int is deprecated*');
         expect(obj.some_deprecated_int).toBe(35);
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGIMarshalling.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
             'testAllowToSetGetDeprecatedProperties');
-    });
+    }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/merge_requests/410');
 
     const JSOverridingProperty = GObject.registerClass(
         class Overriding extends GIMarshallingTests.PropertiesObject {
@@ -2361,6 +2652,146 @@ describe('GObject properties', function () {
 
         ids.forEach(id => overriding.disconnect(id));
     });
+
+    it('can be created from C constructor as well', function () {
+        obj = GIMarshallingTests.PropertiesObject.new();
+        expect(obj).toBeInstanceOf(GIMarshallingTests.PropertiesObject);
+    });
+});
+
+describe('GObject properties accessors', function () {
+    let obj;
+    beforeEach(function () {
+        obj = new GIMarshallingTests.PropertiesAccessorsObject();
+    });
+
+    function testPropertyGetSet(type, value1, value2, skip = false) {
+        const snakeCase = `some_${type}`;
+        const paramCase = snakeCase.replaceAll('_', '-');
+        const camelCase = snakeCase.replace(/(_\w)/g,
+            match => match.toUpperCase().replace('_', ''));
+
+        [snakeCase, paramCase, camelCase].forEach(propertyName => {
+            it(`gets and sets a ${type} property as ${propertyName}`, function () {
+                if (skip)
+                    pending(skip);
+                obj[propertyName] = value1;
+                expect(obj[propertyName]).toEqual(value1);
+                obj[propertyName] = value2;
+                expect(obj[propertyName]).toEqual(value2);
+            });
+        });
+    }
+
+    function testPropertyGetSetBigInt(type, value1, value2) {
+        const isBigInt = v =>
+            v > BigInt(Number.MAX_SAFE_INTEGER) || v < BigInt(Number.MIN_SAFE_INTEGER);
+        it(`gets and sets a ${type} property with a bigint`, function () {
+            obj[`some_${type}`] = value1;
+            expect(warn64(isBigInt(value1), () => obj[`some_${type}`])).toEqual(
+                Number(value1));
+            obj[`some_${type}`] = value2;
+            expect(warn64(isBigInt(value2), () => obj[`some_${type}`])).toEqual(
+                Number(value2));
+        });
+    }
+
+    testPropertyGetSet('boolean', true, false);
+    testPropertyGetSet('char', 42, 64);
+    testPropertyGetSet('uchar', 42, 64);
+    testPropertyGetSet('int', 42, 64);
+    testPropertyGetSet('uint', 42, 64);
+    testPropertyGetSet('long', 42, 64);
+    testPropertyGetSet('ulong', 42, 64);
+    testPropertyGetSet('int64', 42, 64);
+    testPropertyGetSet('int64', Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+    testPropertyGetSetBigInt('int64', BigIntLimits.int64.min, BigIntLimits.int64.max,
+        'https://gitlab.gnome.org/GNOME/gjs/-/merge_requests/524');
+    testPropertyGetSet('uint64', 42, 64);
+    testPropertyGetSetBigInt('uint64', BigIntLimits.int64.max, BigIntLimits.int64.umax,
+        'https://gitlab.gnome.org/GNOME/gjs/-/merge_requests/524');
+    testPropertyGetSet('string', 'Gjs', 'is cool!');
+
+    it('get and sets out-of-range values throws', function () {
+        expect(() => {
+            obj.some_int64 = Limits.int64.max;
+        }).toThrowError(/out of range/);
+        expect(() => {
+            obj.some_int64 = BigIntLimits.int64.max + 1n;
+        }).toThrowError(/out of range/);
+        expect(() => {
+            obj.some_int64 = BigIntLimits.int64.min - 1n;
+        }).toThrowError(/out of range/);
+        expect(() => {
+            obj.some_int64 = BigIntLimits.int64.umax;
+        }).toThrowError(/out of range/);
+        expect(() => {
+            obj.some_int64 = -BigIntLimits.int64.umax;
+        }).toThrowError(/out of range/);
+        expect(() => {
+            obj.some_uint64 = Limits.int64.min;
+        }).toThrowError(/out of range/);
+        expect(() => {
+            obj.some_uint64 = BigIntLimits.int64.umax + 100n;
+        }).toThrowError(/out of range/);
+    });
+
+    it('gets and sets a float property', function () {
+        obj.some_float = Math.E;
+        expect(obj.some_float).toBeCloseTo(Math.E);
+        obj.some_float = Math.PI;
+        expect(obj.some_float).toBeCloseTo(Math.PI);
+    });
+
+    it('gets and sets a double property', function () {
+        obj.some_double = Math.E;
+        expect(obj.some_double).toBeCloseTo(Math.E);
+        obj.some_double = Math.PI;
+        expect(obj.some_double).toBeCloseTo(Math.PI);
+    });
+
+    testPropertyGetSet('strv', ['0', '1', '2'], []);
+    testPropertyGetSet('boxed_struct', new GIMarshallingTests.BoxedStruct(),
+        new GIMarshallingTests.BoxedStruct({long_: 42}));
+    // testPropertyGetSet('boxed_glist', [1, 2, 3], []);
+    testPropertyGetSet('gvalue', 42, 'foo');
+    testPropertyGetSetBigInt('gvalue', BigIntLimits.int64.umax, BigIntLimits.int64.min);
+    testPropertyGetSet('variant', new GLib.Variant('b', true),
+        new GLib.Variant('s', 'hello'));
+    testPropertyGetSet('variant', new GLib.Variant('x', BigIntLimits.int64.min),
+        new GLib.Variant('x', BigIntLimits.int64.max));
+    testPropertyGetSet('variant', new GLib.Variant('t', BigIntLimits.int64.max),
+        new GLib.Variant('t', BigIntLimits.int64.umax));
+    testPropertyGetSet('object', new GObject.Object(),
+        new GIMarshallingTests.Object({int: 42}));
+    testPropertyGetSet('flags', GIMarshallingTests.Flags.VALUE2,
+        GIMarshallingTests.Flags.VALUE1 | GIMarshallingTests.Flags.VALUE2);
+    testPropertyGetSet('enum', GIMarshallingTests.GEnum.VALUE2,
+        GIMarshallingTests.GEnum.VALUE3);
+    testPropertyGetSet('byte_array', Uint8Array.of(1, 2, 3),
+        new TextEncoder().encode('👾'));
+
+    it('gets a read-only property', function () {
+        expect(obj.some_readonly).toEqual(42);
+    });
+
+    it('throws when setting a read-only property', function () {
+        expect(() => (obj.some_readonly = 35)).toThrow();
+    });
+
+    it('allows to set/get deprecated properties', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*GObject property*.some-deprecated-int is deprecated*');
+        obj.some_deprecated_int = 35;
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+            'testAllowToSetGetDeprecatedProperties');
+
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*GObject property*.some-deprecated-int is deprecated*');
+        expect(obj.some_deprecated_int).toBe(35);
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGIMarshalling.js', 0,
+            'testAllowToSetGetDeprecatedProperties');
+    });
 });
 
 describe('GObject signals', function () {
@@ -2388,7 +2819,7 @@ describe('GObject signals', function () {
         });
     }
 
-    ['none', 'container', 'none'].forEach(transfer => {
+    ['none', 'container', 'full'].forEach(transfer => {
         testSignalEmission('boxed-gptrarray-utf8', transfer, ['0', '1', '2']);
         testSignalEmission('boxed-gptrarray-boxed-struct', transfer, [
             new GIMarshallingTests.BoxedStruct({long_: 42}),
@@ -2426,5 +2857,126 @@ describe('GObject signals', function () {
         obj.disconnect(signalId);
         expect(callbackFunc).toHaveBeenCalledOnceWith(obj,
             new GIMarshallingTests.BoxedStruct({long_: 44}));
+    });
+
+    xit('not-ref-counted boxed types with transfer full originating from C are properly handled', function () {
+        const callbackFunc = jasmine.createSpy('callbackFunc');
+        const signalId = obj.connect('some-boxed-struct-full', callbackFunc);
+        obj.emit_boxed_struct_full();
+        obj.disconnect(signalId);
+        expect(callbackFunc).toHaveBeenCalledOnceWith(obj,
+            new GIMarshallingTests.BoxedStruct({long_: 99, string_: 'a string', g_strv: ['foo', 'bar', 'baz']}));
+    }).pend('https://gitlab.gnome.org/GNOME/gobject-introspection/-/issues/470');
+
+    it('can be created from C constructor as well', function () {
+        obj = GIMarshallingTests.SignalsObject.new();
+        expect(obj).toBeInstanceOf(GIMarshallingTests.SignalsObject);
+    });
+});
+
+// Adapted from pygobject
+describe('GError extra tests', function () {
+    it('marshals GError instances through GValue', function () {
+        const error = GLib.Error.new_literal(Gio.IOErrorEnum, Gio.IOErrorEnum.FAILED, 'error');
+        const error1 = GLib.Error.new_literal(Gio.IOErrorEnum, Gio.IOErrorEnum.FAILED, 'error');
+        GIMarshallingTests.compare_two_gerrors_in_gvalue(error, error1);
+    });
+
+    it('can be nullable', function () {
+        const error = GLib.Error.new_literal(Gio.IOErrorEnum, Gio.IOErrorEnum.FAILED, 'error');
+        expect(GIMarshallingTests.nullable_gerror(error)).toBeTruthy();
+        expect(GIMarshallingTests.nullable_gerror(null)).toBeFalsy();
+    });
+});
+
+// Adapted from pygobject
+describe('GHashTable extra tests', function () {
+    it('marshals a hash table of enums as an in argument', function () {
+        GIMarshallingTests.ghashtable_enum_none_in({
+            1: GIMarshallingTests.ExtraEnum.VALUE1,
+            2: GIMarshallingTests.ExtraEnum.VALUE2,
+            3: GIMarshallingTests.ExtraEnum.VALUE3,
+        });
+    });
+
+    it('marshals a hash table of enums as a return value', function () {
+        expect(GIMarshallingTests.ghashtable_enum_none_return()).toEqual({
+            1: GIMarshallingTests.ExtraEnum.VALUE1,
+            2: GIMarshallingTests.ExtraEnum.VALUE2,
+            3: GIMarshallingTests.ExtraEnum.VALUE3,
+        });
+    });
+});
+
+// Adapted from pygobject
+describe('Filename tests', function () {
+    let workdir;
+    beforeAll(function (done) {
+        Gio.File.new_tmp_dir_async(null, GLib.PRIORITY_DEFAULT, null, (self, result) => {
+            workdir = Gio.File.new_tmp_dir_finish(result);
+            done();
+        });
+    });
+
+    afterAll(function () {
+        GLib.rmdir(workdir.get_path());
+    });
+
+    it('wrong types', function () {
+        expect(() => GIMarshallingTests.filename_copy(23)).toThrowError();
+        expect(() => GIMarshallingTests.filename_copy([])).toThrowError();
+    });
+
+    it('nullability', function () {
+        expect(GIMarshallingTests.filename_copy(null)).toBeNull();
+        expect(() => GIMarshallingTests.filename_exists(null)).toThrowError();
+    });
+
+    it('round-tripping', function () {
+        expect(GIMarshallingTests.filename_copy('foo')).toBe('foo');
+    });
+
+    // We run the tests with Latin1 filename encoding, to catch mistakes
+    it('various types of paths in GLib encoding', function () {
+        const strPath = GIMarshallingTests.filename_copy('ä');
+        expect(strPath).toBe('ä');
+        expect(GIMarshallingTests.filename_to_glib_repr(strPath))
+            .toEqual(Uint8Array.of(0xe4));
+    });
+
+    it('various types of path existing', function () {
+        const paths = ['foo-2', 'öäü-3'];
+        for (const path of paths) {
+            const file = workdir.get_child(path);
+            const stream = file.create(Gio.FileCreateFlags.NONE, null);
+            expect(GIMarshallingTests.filename_exists(file.get_path())).toBeTrue();
+            stream.close(null);
+            file.delete(null);
+        }
+    });
+});
+
+// Adapted from pygobject
+describe('Array of enum extra tests', function () {
+    it('marshals a C array of enum values as a return value', function () {
+        expect(GIMarshallingTests.enum_array_return_type()).toEqual([0, 1, 42]);
+    });
+});
+
+// Adapted from pygobject
+describe('Flags extra tests', function () {
+    it('marshals a 32-high bit flags value as an in argument', function () {
+        GIMarshallingTests.extra_flags_large_in(GIMarshallingTests.ExtraFlags.VALUE2);
+    });
+});
+
+// Adapted from pygobject
+describe('UTF-8 strings invalid bytes tests', function () {
+    it('handles invalid UTF-8 return values gracefully', function () {
+        expect(() => GIMarshallingTests.extra_utf8_full_return_invalid()).toThrowError(TypeError);
+    });
+
+    it('handles invalid UTF-8 out arguments gracefully', function () {
+        expect(() => GIMarshallingTests.extra_utf8_full_out_invalid()).toThrowError(TypeError);
     });
 });

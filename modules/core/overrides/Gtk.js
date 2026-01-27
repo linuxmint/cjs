@@ -3,12 +3,12 @@
 // SPDX-FileCopyrightText: 2013 Giovanni Campagna
 
 const Legacy = imports._legacy;
-const {Gio, CjsPrivate, GLib, GObject} = imports.gi;
+const {Gio, GjsPrivate, GLib, GObject} = imports.gi;
 const {_createBuilderConnectFunc, _createClosure, _registerType} = imports._common;
 const Gi = imports._gi;
 
 let Gtk;
-let BuilderScope;
+let TemplateBuilderScope;
 
 function _init() {
     Gtk = this;
@@ -23,14 +23,14 @@ function _init() {
 
     if (Gtk.Container && Gtk.Container.prototype.child_set_property) {
         Gtk.Container.prototype.child_set_property = function (child, property, value) {
-            CjsPrivate.gtk_container_child_set_property(this, child, property, value);
+            GjsPrivate.gtk_container_child_set_property(this, child, property, value);
         };
     }
 
     if (Gtk.CustomSorter) {
-        Gtk.CustomSorter.new = CjsPrivate.gtk_custom_sorter_new;
+        Gtk.CustomSorter.new = GjsPrivate.gtk_custom_sorter_new;
         Gtk.CustomSorter.prototype.set_sort_func = function (sortFunc) {
-            CjsPrivate.gtk_custom_sorter_set_sort_func(this, sortFunc);
+            GjsPrivate.gtk_custom_sorter_set_sort_func(this, sortFunc);
         };
     }
 
@@ -73,20 +73,22 @@ function _init() {
         };
     }
 
-    if (Gtk.BuilderScope) {
-        BuilderScope = GObject.registerClass({
-            Implements: [Gtk.BuilderScope],
-        }, class extends GObject.Object {
-            vfunc_create_closure(builder, handlerName, flags, connectObject) {
-                const swapped = flags & Gtk.BuilderClosureFlags.SWAPPED;
-                const thisArg = builder.get_current_object();
-                return Gi.associateClosure(
-                    connectObject ?? thisArg,
-                    _createClosure(builder, thisArg, handlerName, swapped, connectObject)
-                );
-            }
-        });
-    }
+    // Everything after this is GTK4-only, for the Gtk.Builder JS implementation
+    if (!Gtk.BuilderScope)
+        return;
+
+    TemplateBuilderScope = GObject.registerClass({
+        Implements: [Gtk.BuilderScope],
+    }, class extends GObject.Object {
+        vfunc_create_closure(builder, handlerName, flags, connectObject) {
+            const swapped = flags & Gtk.BuilderClosureFlags.SWAPPED;
+            const thisArg = builder.get_current_object();
+            return Gi.associateClosure(
+                connectObject ?? thisArg,
+                _createClosure(builder, thisArg, handlerName, swapped, connectObject)
+            );
+        }
+    });
 }
 
 function _registerWidgetType(klass) {
@@ -132,8 +134,8 @@ function _registerWidgetType(klass) {
             Gtk.Widget.set_template.call(klass, template);
         }
 
-        if (BuilderScope)
-            Gtk.Widget.set_template_scope.call(klass, new BuilderScope());
+        if (TemplateBuilderScope)
+            Gtk.Widget.set_template_scope.call(klass, new TemplateBuilderScope());
         else
             Gtk.Widget.set_connect_func.call(klass, _createBuilderConnectFunc(klass));
     }

@@ -114,6 +114,27 @@ GLib.timeout_add_seconds(GLib.PRIORITY_HIGH, 3, () => loop.quit());
 loop.run();
 EOF
 
+cat <<EOF >int.js
+const Format = imports.format;
+const output = imports.format.vprintf('%Id', [60]);
+print(output
+  .split('')
+  .map(c => c.codePointAt(0).toString(16).padStart(4, '0'))
+  .join(' '));
+EOF
+
+# this script prints out all files in current directory
+# useful to test encodings and filename type marshalling
+cat <<EOF >printFiles.js
+const {GLib, Gio} = imports.gi;
+const cd = Gio.File.new_for_path('.');
+const iter = cd.enumerate_children("standard::name", null, null);
+let f;
+while (f = iter.next_file(null)) {
+    f.get_name()
+}
+EOF
+
 total=0
 
 report () {
@@ -183,6 +204,19 @@ report "Basic unicode encoding (accents, etc) should be functioning properly for
 $gjs -c 'imports.system.exit((ARGV[0] !== "☭") ? 1 : 0)' "☭"
 report "Unicode encoding for symbols should be functioning properly for ARGV and imports."
 
+# ensure unicode paths are supported
+mkdir Код
+touch Код/🍁.js
+$gjs -m Код/🍁.js
+report "Unicode pathed encoding should work for module run."
+rm -r Код
+
+# non UTF8 file names throws error
+bash -c "touch $'\xff'"
+G_FILENAME_ENCODING=utf8 $gjs -m printFiles.js 2>&1 | grep -q 'Gjs-CRITICAL.*Could not convert filename string to UTF-8 for string: \\377'
+report "Throws error if filename is not UTF8"
+bash -c "rm ''$'\377'"
+
 # gjs --help prints GJS help
 $gjs --help >/dev/null
 report "--help should succeed"
@@ -227,11 +261,11 @@ report "--help after -c should not print anything"
 # report_xfail "-I after script file should not be added to search path"
 # fi
 G_DEBUG=$(echo "$G_DEBUG" | sed -e 's/fatal-warnings,\{0,1\}//')
-$gjs help.js --help -I sentinel 2>&1 | grep -q 'Cjs-WARNING.*--include-path'
+$gjs help.js --help -I sentinel 2>&1 | grep -q 'Gjs-WARNING.*--include-path'
 report "-I after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-prefix'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-prefix'
 report "--coverage-prefix after script should succeed but give a warning"
-$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Cjs-WARNING.*--coverage-output'
+$gjs -c 'imports.system.exit(0)' --coverage-prefix=foo --coverage-output=foo 2>&1 | grep -q 'Gjs-WARNING.*--coverage-output'
 report "--coverage-output after script should succeed but give a warning"
 rm -f foo/coverage.lcov
 G_DEBUG="$OLD_G_DEBUG"
@@ -257,7 +291,7 @@ $gjs -c 'imports.system.exit(0)' && ! stat gjs-*.syscap > /dev/null 2>&1
 report "no profiling data should be dumped without --profile"
 
 # Skip some tests if built without profiler support
-if $gjs --profile -c 1 2>&1 | grep -q 'Cjs-Message.*Profiler is disabled'; then
+if $gjs --profile -c 1 2>&1 | grep -q 'Gjs-Message.*Profiler is disabled'; then
     reason="profiler is disabled"
     skip "--profile should dump profiling data to the default file name" "$reason"
     skip "--profile with argument should dump profiling data to the named file" "$reason"
@@ -284,7 +318,7 @@ report "interpreter should run queued promise jobs before finishing"
 test -n "${output##*Should not be printed*}"
 report "interpreter should stop running jobs when one calls System.exit()"
 
-$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Cjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
+$gjs -c "Promise.resolve().then(() => { throw new Error(); });" 2>&1 | grep -q 'Gjs-WARNING.*Unhandled promise rejection.*[sS]tack trace'
 report "unhandled promise rejection should be reported"
 test -z "$($gjs awaitcatch.js)"
 report "catching an await expression should not cause unhandled rejection"
@@ -341,7 +375,21 @@ else
     skip "exit after first System.exit call in a signal callback" "running under valgrind"
 fi
 
-rm -f exit.js help.js promise.js awaitcatch.js doublegi.js argv.js \
+# https://gitlab.gnome.org/GNOME/gjs/-/issues/671
+output=$(LC_ALL=C $gjs int.js)
+test "$output" = "0036 0030"
+report "%Id prints Latin digits in C locale $output"
+output=$(LC_ALL=en_CA $gjs int.js)
+test "$output" = "0036 0030"
+report "%Id prints Latin digits in en_CA locale $output"
+output=$(LC_ALL=fa_IR $gjs int.js)
+test "$output" = "06f6 06f0"
+report "%Id prints Persian digits in fa_IR locale $output"
+output=$(LC_ALL=ar_EG $gjs int.js)
+test "$output" = "0666 0660"
+report "%Id prints Arabic digits in ar_EG locale $output"
+
+rm -f exit.js help.js promise.js awaitcatch.js doublegi.js argv.js int.js \
     signalexit.js promiseexit.js
 
 echo "1..$total"

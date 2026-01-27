@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2008-2013, 2015 Colin Walters <walters@verbum.org>
 SPDX-FileCopyrightText: 2008 Johan Bilien
 SPDX-FileCopyrightText: 2008-2010 Johan Dahlin
@@ -40,7 +41,7 @@ SPDX-FileCopyrightText: 2015 Debarshi Ray
 SPDX-FileCopyrightText: 2016 Intel
 SPDX-FileCopyrightText: 2016 Lionel Landwerlin
 SPDX-FileCopyrightText: 2017 Endless Mobile, Inc.
-SPDX-FileCopyrightText: 2016-2019 Philip Chimento <philip.chimento@gmail.com>
+SPDX-FileCopyrightText: 2016-2019, 2024 Philip Chimento <philip.chimento@gmail.com>
 SPDX-FileCopyrightText: 2017 Rico Tzschichholz
 SPDX-FileCopyrightText: 2018-2019 Tomasz Miąsko
 SPDX-FileCopyrightText: 2020 Centricular
@@ -447,6 +448,24 @@ typedef enum
   REGRESS_TEST_FLAG3 = 1 << 2,
 } RegressTestFlags;
 
+typedef enum
+{
+  REGRESS_TEST_DISCONTINUOUS_FLAG1 = 1 << 9,
+  REGRESS_TEST_DISCONTINUOUS_FLAG2 = 1 << 29
+} RegressTestDiscontinuousFlags;
+
+GI_TEST_EXTERN
+GType regress_test_discontinuous_flags_get_type (void) G_GNUC_CONST;
+#define REGRESS_TEST_TYPE_DISCONTINUOUS_FLAGS (regress_test_discontinuous_flags_get_type ())
+
+GI_TEST_EXTERN
+RegressTestDiscontinuousFlags
+regress_test_discontinuous_1_with_private_values (void);
+
+GI_TEST_EXTERN
+RegressTestDiscontinuousFlags
+regress_test_discontinuous_2_with_private_values (void);
+
 GI_TEST_EXTERN
 GType regress_test_enum_get_type (void) G_GNUC_CONST;
 #define REGRESS_TEST_TYPE_ENUM (regress_test_enum_get_type ())
@@ -785,6 +804,7 @@ struct _RegressTestBoxedC
 {
   guint refcount;
   guint another_thing;
+  gboolean name_conflict;
 };
 
 GI_TEST_EXTERN
@@ -792,6 +812,9 @@ GType regress_test_boxed_c_get_type (void);
 
 GI_TEST_EXTERN
 RegressTestBoxedC *regress_test_boxed_c_new (void);
+
+GI_TEST_EXTERN
+gboolean regress_test_boxed_c_name_conflict (RegressTestBoxedC *boxed);
 
 /**
  * RegressTestBoxedD: (copy-func regress_test_boxed_d_copy)
@@ -862,6 +885,26 @@ struct _RegressTestObjClass
    */
   void (*allow_none_vfunc) (RegressTestObj *obj, RegressTestObj *two);
 
+  /**
+   * RegressTestObjClass::static_vfunc:
+   */
+  gboolean (*static_vfunc) (void);
+
+  /**
+   * RegressTestObjClass::static_vfunc_params:
+   * @value:
+   * @error:
+   *
+   * Return: (transfer none):
+   */
+  RegressTestObj *(*static_vfunc_params) (gint value, GError **error);
+
+  /**
+   * RegressTestObjClass::static_vfunc_out:
+   * @two: (out):
+   */
+  void (*static_vfunc_out) (RegressTestObj **two);
+
   guint test_signal;
   guint test_signal_with_static_scope_arg;
 
@@ -899,8 +942,10 @@ void regress_test_obj_emit_sig_with_obj (RegressTestObj *obj);
 GI_TEST_EXTERN
 void regress_test_obj_emit_sig_with_obj_full (RegressTestObj *obj);
 
+#if GLIB_CHECK_VERSION(2, 68, 0)
 GI_TEST_EXTERN
 void regress_test_obj_emit_sig_with_gstrv_full (RegressTestObj *obj);
+#endif
 
 GI_TEST_EXTERN
 void regress_test_obj_emit_sig_with_foreign_struct (RegressTestObj *obj);
@@ -1300,6 +1345,9 @@ void regress_test_function_async (int io_priority,
                                   gpointer user_data);
 
 GI_TEST_EXTERN
+int regress_test_function_thaw_async (void);
+
+GI_TEST_EXTERN
 gboolean regress_test_function_finish (GAsyncResult *res, GError **error);
 
 GI_TEST_EXTERN
@@ -1321,6 +1369,10 @@ void regress_test_obj_new_async (const char *x G_GNUC_UNUSED,
                                  GCancellable *cancellable G_GNUC_UNUSED,
                                  GAsyncReadyCallback callback G_GNUC_UNUSED,
                                  gpointer user_data G_GNUC_UNUSED);
+
+GI_TEST_EXTERN
+int regress_test_obj_constructor_thaw_async (void);
+
 GI_TEST_EXTERN
 RegressTestObj *regress_test_obj_new_finish (GAsyncResult *res G_GNUC_UNUSED,
                                              GError **error G_GNUC_UNUSED);
@@ -1681,6 +1733,29 @@ void regress_test_obj_function_async (RegressTestObj *self,
                                       GCancellable *cancellable,
                                       GAsyncReadyCallback callback,
                                       gpointer user_data);
+
+GI_TEST_EXTERN
+void regress_test_obj_function2 (RegressTestObj *self,
+                                 int io_priority,
+                                 GCancellable *cancellable,
+                                 RegressTestCallbackUserData test_cb,
+                                 gpointer test_data,
+                                 GDestroyNotify test_destroy,
+                                 GAsyncReadyCallback callback,
+                                 gpointer user_data);
+
+GI_TEST_EXTERN
+gboolean regress_test_obj_function2_finish (RegressTestObj *self,
+                                            GAsyncResult *result,
+                                            gboolean *match,
+                                            GObject **some_obj,
+                                            GError **error);
+
+GI_TEST_EXTERN
+gboolean regress_test_obj_function2_sync (RegressTestObj *self, int io_priority);
+
+GI_TEST_EXTERN
+int regress_test_obj_function_thaw_async (RegressTestObj *self);
 
 GI_TEST_EXTERN
 gboolean regress_test_obj_function_finish (RegressTestObj *self, GAsyncResult *res, GError **error);

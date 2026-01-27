@@ -5,8 +5,6 @@
 
 #include <config.h>
 
-#include <girepository.h>
-
 #include <js/Class.h>
 #include <js/ErrorReport.h>  // for JS_ReportOutOfMemory
 #include <js/GCVector.h>     // for MutableHandleIdVector
@@ -15,6 +13,7 @@
 #include <js/Utility.h>  // for UniqueChars
 
 #include "gi/function.h"
+#include "gi/info.h"
 #include "gi/interface.h"
 #include "gi/object.h"
 #include "gi/repo.h"
@@ -23,7 +22,10 @@
 #include "cjs/jsapi-util.h"
 #include "cjs/mem-private.h"
 
-InterfacePrototype::InterfacePrototype(GIInterfaceInfo* info, GType gtype)
+using mozilla::Maybe, mozilla::Nothing;
+
+InterfacePrototype::InterfacePrototype(Maybe<const GI::InterfaceInfo> info,
+                                       GType gtype)
     : GIWrapperPrototype(info, gtype),
       m_vtable(
           static_cast<GTypeInterface*>(g_type_default_interface_ref(gtype))) {
@@ -41,17 +43,15 @@ bool InterfacePrototype::new_enumerate_impl(
     if (!info())
         return true;
 
-    int n_methods = g_interface_info_get_n_methods(info());
+    GI::InterfaceInfo::MethodsIterator methods = info()->methods();
+    int n_methods = methods.size();
     if (!properties.reserve(properties.length() + n_methods)) {
         JS_ReportOutOfMemory(cx);
         return false;
     }
 
-    for (int i = 0; i < n_methods; i++) {
-        GjsAutoFunctionInfo meth_info = g_interface_info_get_method(info(), i);
-        GIFunctionInfoFlags flags = g_function_info_get_flags(meth_info);
-
-        if (flags & GI_FUNCTION_IS_METHOD) {
+    for (GI::AutoFunctionInfo meth_info : methods) {
+        if (meth_info.is_method()) {
             const char* name = meth_info.name();
             jsid id = gjs_intern_string_to_id(cx, name);
             if (id.isVoid())
@@ -82,18 +82,13 @@ bool InterfacePrototype::resolve_impl(JSContext* context, JS::HandleObject obj,
         return true;  // not resolved, but no error
     }
 
-    GjsAutoFunctionInfo method_info =
-        g_interface_info_find_method(m_info, prop_name.get());
+    Maybe<GI::AutoFunctionInfo> method_info{m_info->method(prop_name.get())};
 
-    if (method_info) {
-        if (g_function_info_get_flags (method_info) & GI_FUNCTION_IS_METHOD) {
-            if (!gjs_define_function(context, obj, m_gtype, method_info))
-                return false;
+    if (method_info && method_info->is_method()) {
+        if (!gjs_define_function(context, obj, m_gtype, method_info.ref()))
+            return false;
 
-            *resolved = true;
-        } else {
-            *resolved = false;
-        }
+        *resolved = true;
     } else {
         *resolved = false;
     }
@@ -137,8 +132,8 @@ bool InterfacePrototype::has_instance_impl(JSContext* cx,
     }
 
     JS::RootedObject instance(cx, &args[0].toObject());
-    bool isinstance = ObjectBase::typecheck(cx, instance, nullptr, m_gtype,
-                                            GjsTypecheckNoThrow());
+    bool isinstance =
+        ObjectBase::typecheck(cx, instance, m_gtype, GjsTypecheckNoThrow{});
     args.rval().setBoolean(isinstance);
     return true;
 }
@@ -171,16 +166,16 @@ gjs_lookup_interface_constructor(JSContext             *context,
                                  GType                  gtype,
                                  JS::MutableHandleValue value_p)
 {
-    JSObject *constructor;
-
-    GjsAutoInterfaceInfo interface_info = gjs_lookup_gtype(nullptr, gtype);
+    GI::Repository repo;
+    Maybe<GI::AutoRegisteredTypeInfo> interface_info{repo.find_by_gtype(gtype)};
     if (!interface_info) {
         gjs_throw(context, "Cannot expose non introspectable interface %s",
                   g_type_name(gtype));
         return false;
     }
 
-    constructor = gjs_lookup_generic_constructor(context, interface_info);
+    JSObject* constructor =
+        gjs_lookup_generic_constructor(context, interface_info.ref());
     if (G_UNLIKELY(!constructor))
         return false;
 

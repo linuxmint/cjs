@@ -23,16 +23,16 @@ describe('GLib.DestroyNotify parameter', function () {
 
 describe('Unsafe integer marshalling', function () {
     it('warns when conversion is lossy', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*cannot be safely stored*');
         void GLib.MININT64;
         void GLib.MAXINT64;
         void GLib.MAXUINT64;
-        GLib.test_assert_expected_messages_internal('Cjs',
+        GLib.test_assert_expected_messages_internal('Gjs',
             'testEverythingBasic.js', 0,
             'Limits warns when conversion is lossy');
     });
@@ -155,7 +155,7 @@ describe('Garbage collection of introspected objects', function () {
             }
         }
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*property screenfull*');
 
         const settings = new Gio.Settings({schemaId: 'org.cinnamon.CjsTest'});
@@ -166,7 +166,7 @@ describe('Garbage collection of introspected objects', function () {
             obj = null;
             settings.disconnect(handler);
             GLib.idle_add(GLib.PRIORITY_LOW, () => {
-                GLib.test_assert_expected_messages_internal('Cjs',
+                GLib.test_assert_expected_messages_internal('Gjs',
                     'testIntrospection.js', 0,
                     'Warn about setting property on disposed JS object');
                 done();
@@ -221,13 +221,13 @@ describe('Backwards compatibility for GLib/Gio platform specific GIRs', function
             return;
         }
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*Gio.UnixMountMonitor*');
 
         const monitor = Gio.UnixMountMonitor.get();
         expect(monitor.toString()).toContain('GIName:GioUnix.MountMonitor');
 
-        GLib.test_assert_expected_messages_internal('Cjs',
+        GLib.test_assert_expected_messages_internal('Gjs',
             'testIntrospection.js', 0,
             'Expected deprecation message for Gio.Unix -> GioUnix');
     });
@@ -238,12 +238,12 @@ describe('Backwards compatibility for GLib/Gio platform specific GIRs', function
             return;
         }
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*Gio.unix_mounts_get*GioUnix.mounts_get*instead*');
 
         expect(imports.gi.Gio.unix_mounts_get.name).toBe('g_unix_mounts_get');
 
-        GLib.test_assert_expected_messages_internal('Cjs',
+        GLib.test_assert_expected_messages_internal('Gjs',
             'testIntrospection.js', 0,
             'Expected deprecation message for Gio.Unix -> GioUnix');
     });

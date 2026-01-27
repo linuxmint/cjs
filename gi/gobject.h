@@ -11,9 +11,9 @@
 
 #include <glib-object.h>
 
-#include "cjs/jsapi-util.h"
+#include "cjs/auto.h"
 
-using AutoParamArray = std::vector<GjsAutoParam>;
+using AutoParamArray = std::vector<Gjs::AutoParam>;
 
 extern const GTypeInfo gjs_gobject_class_info;
 extern const GTypeInfo gjs_gobject_interface_info;

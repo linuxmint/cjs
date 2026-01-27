@@ -272,7 +272,7 @@ describe('GObject interface', function () {
             requiredG() {}
         });
         // g_test_assert_expected_messages() is a macro, not introspectable
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectInterface.js',
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectInterface.js',
             253, 'testGObjectMustOverrideInterfaceProperties');
     });
 

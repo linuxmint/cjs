@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2010-2012 Collabora, Ltd.
 SPDX-FileCopyrightText: 2010 Johan Dahlin
 SPDX-FileCopyrightText: 2010 Sugar Labs
@@ -24,7 +25,7 @@ SPDX-FileCopyrightText: 2014 RIFT.io, Inc.
 SPDX-FileCopyrightText: 2014 SuSE
 SPDX-FileCopyrightText: 2016 Endless Mobile, Inc.
 SPDX-FileCopyrightText: 2017 Christoph Reiter
-SPDX-FileCopyrightText: 2016-2017, 2023 Philip Chimento <philip.chimento@gmail.com>
+SPDX-FileCopyrightText: 2016-2017, 2023, 2025 Philip Chimento
 SPDX-FileCopyrightText: 2018 Tomasz Miąsko
 SPDX-FileCopyrightText: 2019 Stéphane Seng
 SPDX-FileCopyrightText: 2020-2023 Marco Trevisan
@@ -34,6 +35,7 @@ SPDX-FileCopyrightText: 2021 Carlos Garnacho
 
 #pragma once
 
+#include <stddef.h>    /* size_t */
 #include <sys/types.h> /* off_t, time_t */
 
 #include <glib-object.h>
@@ -55,6 +57,9 @@ typedef struct _GIMarshallingTestsBoxedStruct GIMarshallingTestsBoxedStruct;
 #define GI_MARSHALLING_TESTS_CONSTANT_UCS4 { 0x63, 0x6f, 0x6e, 0x73, 0x74,   \
                                              0x20, 0x2665, 0x20, 0x75, 0x74, \
                                              0x66, 0x38 }
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_cleanup_unaligned_buffer (void);
 
 /* Booleans */
 
@@ -785,6 +790,9 @@ GI_TEST_EXTERN
 const gshort *gi_marshalling_tests_array_fixed_short_return (void);
 
 GI_TEST_EXTERN
+const guint8 *gi_marshalling_tests_array_fixed_return_unaligned (void);
+
+GI_TEST_EXTERN
 void gi_marshalling_tests_array_fixed_int_in (const gint *ints);
 
 GI_TEST_EXTERN
@@ -798,6 +806,9 @@ void gi_marshalling_tests_array_fixed_out (gint **ints);
 
 GI_TEST_EXTERN
 gboolean gi_marshalling_tests_array_fixed_out_uninitialized (gint **v G_GNUC_UNUSED);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_array_fixed_out_unaligned (const guint8 **v);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_array_fixed_out_struct (GIMarshallingTestsSimpleStruct **structs);
@@ -818,6 +829,9 @@ const gint *gi_marshalling_tests_array_return (gint *length);
 
 GI_TEST_EXTERN
 const gint *gi_marshalling_tests_array_return_etc (gint first, gint *length, gint last, gint *sum);
+
+GI_TEST_EXTERN
+const guint8 *gi_marshalling_tests_array_return_unaligned (gsize *len);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_array_in (const gint *ints, gint length);
@@ -880,6 +894,9 @@ GI_TEST_EXTERN
 gboolean gi_marshalling_tests_array_out_uninitialized (gint **v G_GNUC_UNUSED, gint *length G_GNUC_UNUSED);
 
 GI_TEST_EXTERN
+void gi_marshalling_tests_array_out_unaligned (const guint8 **v, gsize *len);
+
+GI_TEST_EXTERN
 void gi_marshalling_tests_array_out_etc (gint first, gint **ints, gint *length, gint last, gint *sum);
 
 GI_TEST_EXTERN
@@ -909,7 +926,13 @@ GI_TEST_EXTERN
 GIMarshallingTestsBoxedStruct **gi_marshalling_tests_array_zero_terminated_return_struct (void);
 
 GI_TEST_EXTERN
+GIMarshallingTestsBoxedStruct *gi_marshalling_tests_array_zero_terminated_return_sequential_struct (void);
+
+GI_TEST_EXTERN
 gunichar *gi_marshalling_tests_array_zero_terminated_return_unichar (void);
+
+GI_TEST_EXTERN
+const guint8 *gi_marshalling_tests_array_zero_terminated_return_unaligned (void);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_array_zero_terminated_in (gchar **utf8s);
@@ -919,6 +942,9 @@ void gi_marshalling_tests_array_zero_terminated_out (const gchar ***utf8s);
 
 GI_TEST_EXTERN
 gboolean gi_marshalling_tests_array_zero_terminated_out_uninitialized (const gchar ***v G_GNUC_UNUSED);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_array_zero_terminated_out_unaligned (const guint8 **v);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_array_zero_terminated_inout (const gchar ***utf8s);
@@ -931,6 +957,118 @@ GVariant **gi_marshalling_tests_array_gvariant_container_in (GVariant **variants
 
 GI_TEST_EXTERN
 GVariant **gi_marshalling_tests_array_gvariant_full_in (GVariant **variants);
+
+/* Full complement of array-of-UTF8 in/out tests for fixed-length array,
+ * explicit-length array, zero-terminated array. GArray, GPtrArray, GList, and
+ * GSList are already covered below. */
+
+GI_TEST_EXTERN
+const gchar *const *gi_marshalling_tests_length_array_utf8_none_return (size_t *out_length);
+
+GI_TEST_EXTERN
+const gchar **gi_marshalling_tests_length_array_utf8_container_return (size_t *out_length);
+
+GI_TEST_EXTERN
+gchar **gi_marshalling_tests_length_array_utf8_full_return (size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_none_in (const gchar *const *array, size_t length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_container_in (const gchar **array, size_t length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_full_in (gchar **array, size_t length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_none_out (const gchar *const **array_out, size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_container_out (const gchar ***array_out, size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_full_out (gchar ***array_out, size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_none_inout (const gchar *const **array_inout, size_t *inout_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_container_inout (const gchar ***array_inout, size_t *inout_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_utf8_full_inout (gchar ***array_inout, size_t *inout_length);
+
+GI_TEST_EXTERN
+const gchar *const *gi_marshalling_tests_zero_terminated_array_utf8_none_return (void);
+
+GI_TEST_EXTERN
+const gchar **gi_marshalling_tests_zero_terminated_array_utf8_container_return (void);
+
+GI_TEST_EXTERN
+gchar **gi_marshalling_tests_zero_terminated_array_utf8_full_return (void);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_none_in (const gchar *const *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_container_in (const gchar **array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_full_in (gchar **array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_none_out (const gchar *const **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_container_out (const gchar ***array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_full_out (gchar ***array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_none_inout (const gchar *const **array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_container_inout (const gchar ***array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_utf8_full_inout (gchar ***array_inout);
+
+GI_TEST_EXTERN
+const gchar *const *gi_marshalling_tests_fixed_array_utf8_none_return (void);
+
+GI_TEST_EXTERN
+const gchar **gi_marshalling_tests_fixed_array_utf8_container_return (void);
+
+GI_TEST_EXTERN
+gchar **gi_marshalling_tests_fixed_array_utf8_full_return (void);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_none_in (const gchar *const *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_container_in (const gchar **array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_full_in (gchar **array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_none_out (const gchar *const **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_container_out (const gchar ***array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_full_out (gchar ***array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_none_inout (const gchar *const **array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_container_inout (const gchar ***array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_utf8_full_inout (gchar ***array_inout);
 
 /* GArray */
 
@@ -960,6 +1098,12 @@ void gi_marshalling_tests_garray_uint64_none_in (GArray *array_);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_garray_utf8_none_in (GArray *array_);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_garray_utf8_container_in (GArray *array_);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_garray_utf8_full_in (GArray *array_);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_garray_utf8_none_out (GArray **array_);
@@ -1015,6 +1159,12 @@ GI_TEST_EXTERN
 void gi_marshalling_tests_gptrarray_utf8_none_in (GPtrArray *parray_);
 
 GI_TEST_EXTERN
+void gi_marshalling_tests_gptrarray_utf8_container_in (GPtrArray *parray_);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_gptrarray_utf8_full_in (GPtrArray *parray_);
+
+GI_TEST_EXTERN
 void gi_marshalling_tests_gptrarray_utf8_none_out (GPtrArray **parray_);
 
 GI_TEST_EXTERN
@@ -1049,6 +1199,12 @@ GByteArray *gi_marshalling_tests_bytearray_full_return (void);
 GI_TEST_EXTERN
 void gi_marshalling_tests_bytearray_none_in (GByteArray *v);
 
+GI_TEST_EXTERN
+void gi_marshalling_tests_bytearray_full_out (GByteArray **v);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_bytearray_full_inout (GByteArray **v);
+
 /* GBytes */
 
 GI_TEST_EXTERN
@@ -1073,6 +1229,116 @@ gboolean gi_marshalling_tests_gstrv_out_uninitialized (GStrv *v G_GNUC_UNUSED);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_gstrv_inout (GStrv *g_strv);
+
+/* Array of GStrv's */
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_length_array_of_gstrv_transfer_full_return (size_t *out_length);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_length_array_of_gstrv_transfer_container_return (size_t *out_length);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_length_array_of_gstrv_transfer_none_return (size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_none_in (GStrv *array, size_t length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_container_in (GStrv *array, size_t length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_full_in (GStrv *array, size_t length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_none_out (GStrv **array_out, size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_container_out (GStrv **array_out, size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_full_out (GStrv **array_out, size_t *out_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_none_inout (GStrv **array_inout, size_t *inout_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_container_inout (GStrv **array_inout, size_t *inout_length);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_length_array_of_gstrv_transfer_full_inout (GStrv **array_inout, size_t *inout_length);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_full_return (void);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_container_return (void);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_none_return (void);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_none_in (GStrv *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_container_in (GStrv *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_full_in (GStrv *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_none_out (GStrv **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_container_out (GStrv **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_full_out (GStrv **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_none_inout (GStrv **array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_container_inout (GStrv **array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_zero_terminated_array_of_gstrv_transfer_full_inout (GStrv **array_inout);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_fixed_array_of_gstrv_transfer_full_return (void);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_fixed_array_of_gstrv_transfer_container_return (void);
+
+GI_TEST_EXTERN
+GStrv *gi_marshalling_tests_fixed_array_of_gstrv_transfer_none_return (void);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_none_in (GStrv *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_container_in (GStrv *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_full_in (GStrv *array);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_none_out (GStrv **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_container_out (GStrv **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_full_out (GStrv **array_out);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_none_inout (GStrv **array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_container_inout (GStrv **array_inout);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_fixed_array_of_gstrv_transfer_full_inout (GStrv **array_inout);
 
 /* GList */
 
@@ -1099,6 +1365,12 @@ void gi_marshalling_tests_glist_uint32_none_in (GList *list);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_glist_utf8_none_in (GList *list);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_glist_utf8_container_in (GList *list);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_glist_utf8_full_in (GList *list);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_glist_utf8_none_out (GList **list);
@@ -1146,6 +1418,12 @@ void gi_marshalling_tests_gslist_int_none_in (GSList *list);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_gslist_utf8_none_in (GSList *list);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_gslist_utf8_container_in (GSList *list);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_gslist_utf8_full_in (GSList *list);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_gslist_utf8_none_out (GSList **list);
@@ -1303,6 +1581,9 @@ GI_TEST_EXTERN
 GValue *gi_marshalling_tests_gvalue_flat_array_round_trip (const GValue one,
                                                            const GValue two,
                                                            const GValue three);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_gvalue_float (const GValue *float_value, const GValue *double_value);
 
 /* GClosure */
 
@@ -1758,6 +2039,26 @@ struct _GIMarshallingTestsObjectClass
    * @flags: (out):
    */
   void (*vfunc_out_flags) (GIMarshallingTestsObject *self, GIMarshallingTestsFlags *flags);
+
+  /**
+   * GIMarshallingTestsObjectClass::vfunc_static_name:
+   */
+  gchar *(*vfunc_static_name) (void);
+
+  /**
+   * GIMarshallingTestsObjectClass::vfunc_static_create_new:
+   * @int_:
+   *
+   * Returns: (transfer full):
+   */
+  GIMarshallingTestsObject *(*vfunc_static_create_new) (gint int_);
+
+  /**
+   * GIMarshallingTestsObjectClass::vfunc_static_create_new_out:
+   * @out: (out):
+   * @int_:
+   */
+  void (*vfunc_static_create_new_out) (GIMarshallingTestsObject **out, gint int_);
 };
 
 struct _GIMarshallingTestsObject
@@ -1865,6 +2166,18 @@ GIMarshallingTestsFlags gi_marshalling_tests_object_vfunc_return_flags (GIMarsha
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_object_vfunc_out_flags (GIMarshallingTestsObject *self, GIMarshallingTestsFlags *flags);
+
+GI_TEST_EXTERN
+gchar *gi_marshalling_tests_object_vfunc_static_name (void);
+
+GI_TEST_EXTERN
+gchar *gi_marshalling_tests_object_vfunc_static_typed_name (GType gtype);
+
+GI_TEST_EXTERN
+GIMarshallingTestsObject *gi_marshalling_tests_object_vfunc_static_create_new (GType gtype, gint int_);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_object_vfunc_static_create_new_out (GIMarshallingTestsObject **out, GType gtype, gint int_);
 
 GI_TEST_EXTERN
 void gi_marshalling_tests_object_get_ref_info_for_vfunc_return_object_transfer_none (GIMarshallingTestsObject *self, guint *ref_count, gboolean *is_floating);
@@ -2233,6 +2546,7 @@ struct _GIMarshallingTestsPropertiesObject
   gchar some_char;
   guchar some_uchar;
   gint some_int;
+  gint some_deprecated_int;
   guint some_uint;
   glong some_long;
   gulong some_ulong;
@@ -2262,6 +2576,187 @@ GType gi_marshalling_tests_properties_object_get_type (void) G_GNUC_CONST;
 
 GI_TEST_EXTERN
 GIMarshallingTestsPropertiesObject *gi_marshalling_tests_properties_object_new (void);
+
+/* Object with properties setters/getters */
+
+#define GI_MARSHALLING_TESTS_TYPE_ACCESSORS_TESTS_PROPERTIES_OBJECT \
+  (gi_marshalling_tests_properties_accessors_object_get_type ())
+
+GI_TEST_EXTERN
+G_DECLARE_FINAL_TYPE (GIMarshallingTestsPropertiesAccessorsObject,
+                      gi_marshalling_tests_properties_accessors_object,
+                      GI_MARSHALLING_TESTS,
+                      PROPERTIES_ACCESSORS_OBJECT,
+                      GObject);
+
+struct _GIMarshallingTestsPropertiesAccessorsObject
+{
+  GObject parent_instance;
+
+  gboolean some_boolean;
+  gchar some_char;
+  guchar some_uchar;
+  gint some_int;
+  gint some_deprecated_int;
+  guint some_uint;
+  glong some_long;
+  gulong some_ulong;
+  gint64 some_int64;
+  guint64 some_uint64;
+  gfloat some_float;
+  gdouble some_double;
+  gchar *some_string;
+  gchar **some_strv;
+  GIMarshallingTestsBoxedStruct *some_boxed_struct;
+  GList *some_boxed_glist;
+  GValue *some_gvalue;
+  GVariant *some_variant;
+  GObject *some_object;
+  GIMarshallingTestsFlags some_flags;
+  GIMarshallingTestsGEnum some_enum;
+  GByteArray *some_byte_array;
+};
+
+GI_TEST_EXTERN
+GIMarshallingTestsPropertiesAccessorsObject *
+gi_marshalling_tests_properties_accessors_object_new (void);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_boolean (GIMarshallingTestsPropertiesAccessorsObject *self, gboolean some_boolean);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_char (GIMarshallingTestsPropertiesAccessorsObject *self, gchar some_char);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_uchar (GIMarshallingTestsPropertiesAccessorsObject *self, guchar some_uchar);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_int (GIMarshallingTestsPropertiesAccessorsObject *self, gint some_int);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_uint (GIMarshallingTestsPropertiesAccessorsObject *self, guint some_uint);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_long (GIMarshallingTestsPropertiesAccessorsObject *self, glong some_long);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_ulong (GIMarshallingTestsPropertiesAccessorsObject *self, gulong some_ulong);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_int64 (GIMarshallingTestsPropertiesAccessorsObject *self, gint64 some_int64);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_uint64 (GIMarshallingTestsPropertiesAccessorsObject *self, guint64 some_uint64);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_float (GIMarshallingTestsPropertiesAccessorsObject *self, gfloat some_float);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_double (GIMarshallingTestsPropertiesAccessorsObject *self, gdouble some_double);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_string (GIMarshallingTestsPropertiesAccessorsObject *self, gchar *some_string);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_strv (GIMarshallingTestsPropertiesAccessorsObject *self, GStrv some_strv);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_boxed_struct (GIMarshallingTestsPropertiesAccessorsObject *self, GIMarshallingTestsBoxedStruct *some_boxed_struct);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_boxed_glist (GIMarshallingTestsPropertiesAccessorsObject *self, GList *some_boxed_glist);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_gvalue (GIMarshallingTestsPropertiesAccessorsObject *self, GValue *some_gvalue);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_variant (GIMarshallingTestsPropertiesAccessorsObject *self, GVariant *some_variant);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_object (GIMarshallingTestsPropertiesAccessorsObject *self, GObject *some_object);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_flags (GIMarshallingTestsPropertiesAccessorsObject *self, GIMarshallingTestsFlags some_flags);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_enum (GIMarshallingTestsPropertiesAccessorsObject *self, GIMarshallingTestsGEnum some_enum);
+
+GI_TEST_EXTERN
+void gi_marshalling_tests_properties_accessors_object_set_byte_array (GIMarshallingTestsPropertiesAccessorsObject *self, GByteArray *some_byte_array);
+
+GI_TEST_EXTERN
+gboolean gi_marshalling_tests_properties_accessors_object_get_boolean (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gchar gi_marshalling_tests_properties_accessors_object_get_char (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+guchar gi_marshalling_tests_properties_accessors_object_get_uchar (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gint gi_marshalling_tests_properties_accessors_object_get_int (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+guint gi_marshalling_tests_properties_accessors_object_get_uint (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+glong gi_marshalling_tests_properties_accessors_object_get_long (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gulong gi_marshalling_tests_properties_accessors_object_get_ulong (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gint64 gi_marshalling_tests_properties_accessors_object_get_int64 (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+guint64 gi_marshalling_tests_properties_accessors_object_get_uint64 (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gfloat gi_marshalling_tests_properties_accessors_object_get_float (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gdouble gi_marshalling_tests_properties_accessors_object_get_double (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+const gchar *gi_marshalling_tests_properties_accessors_object_get_string (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gchar **gi_marshalling_tests_properties_accessors_object_get_strv (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GIMarshallingTestsBoxedStruct *gi_marshalling_tests_properties_accessors_object_get_boxed_struct (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GList *gi_marshalling_tests_properties_accessors_object_get_boxed_glist (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GValue *gi_marshalling_tests_properties_accessors_object_get_gvalue (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GVariant *gi_marshalling_tests_properties_accessors_object_get_variant (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GObject *gi_marshalling_tests_properties_accessors_object_get_object (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GIMarshallingTestsFlags gi_marshalling_tests_properties_accessors_object_get_flags (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GIMarshallingTestsGEnum gi_marshalling_tests_properties_accessors_object_get_enum (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+GByteArray *gi_marshalling_tests_properties_accessors_object_get_byte_array (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+gint gi_marshalling_tests_properties_accessors_object_get_readonly (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+G_DEPRECATED
+gint gi_marshalling_tests_properties_accessors_object_get_deprecated_int (GIMarshallingTestsPropertiesAccessorsObject *self);
+
+GI_TEST_EXTERN
+G_DEPRECATED
+void gi_marshalling_tests_properties_accessors_object_set_deprecated_int (GIMarshallingTestsPropertiesAccessorsObject *self, gint some_deprecated_int);
 
 /* Signals object */
 

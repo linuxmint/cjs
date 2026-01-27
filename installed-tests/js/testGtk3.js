@@ -175,7 +175,7 @@ describe('Gtk overrides', function () {
     });
 
     it('avoid crashing when GTK vfuncs are called in garbage collection', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*during garbage collection*offending callback was destroy()*');
 
         const BadLabel = GObject.registerClass(class BadLabel extends Gtk.Label {
@@ -185,7 +185,7 @@ describe('Gtk overrides', function () {
         new BadLabel();
         System.gc();
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGtk3.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
             'Gtk overrides avoid crashing and print a stack trace');
     });
 
@@ -202,11 +202,11 @@ describe('Gtk overrides', function () {
         label.destroy();
         expect(spy).toHaveBeenCalledTimes(1);
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             '*during garbage collection*offending callback was destroy()*');
         label = null;
         System.gc();
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGtk3.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
             'GTK vfuncs are not called if the object is disposed');
     });
 
@@ -220,10 +220,10 @@ describe('Gtk overrides', function () {
 
         expect(handleDispose).toHaveBeenCalledWith(label);
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL,
             'Object Gtk.Label (0x* disposed *');
         expect(label.label).toBe('Hello');
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGtk3.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGtk3.js', 0,
             'GTK destroy signal is emitted while disposing objects');
     });
 

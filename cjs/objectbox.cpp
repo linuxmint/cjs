@@ -17,6 +17,7 @@
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 
+#include "cjs/auto.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "cjs/objectbox.h"

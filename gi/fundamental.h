@@ -8,14 +8,15 @@
 
 #include <config.h>
 
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib-object.h>
 
 #include <js/TypeDecls.h>
+#include <mozilla/Maybe.h>
 
 #include "gi/cwrapper.h"
+#include "gi/info.h"
 #include "gi/wrapperutils.h"
-#include "cjs/jsapi-util.h"  // for GjsAutoCallableInfo
 #include "cjs/macros.h"
 #include "util/log.h"
 
@@ -55,9 +56,11 @@ class FundamentalBase
 
 class FundamentalPrototype
     : public GIWrapperPrototype<FundamentalBase, FundamentalPrototype,
-                                FundamentalInstance> {
+                                FundamentalInstance, GI::AutoObjectInfo,
+                                GI::ObjectInfo> {
     friend class GIWrapperPrototype<FundamentalBase, FundamentalPrototype,
-                                    FundamentalInstance>;
+                                    FundamentalInstance, GI::AutoObjectInfo,
+                                    GI::ObjectInfo>;
     friend class GIWrapperBase<FundamentalBase, FundamentalPrototype,
                                FundamentalInstance>;
 
@@ -65,12 +68,10 @@ class FundamentalPrototype
     GIObjectInfoUnrefFunction m_unref_function;
     GIObjectInfoGetValueFunction m_get_value_function;
     GIObjectInfoSetValueFunction m_set_value_function;
-    GjsAutoCallableInfo m_constructor_info;
+    mozilla::Maybe<GI::AutoFunctionInfo> m_constructor_info;
 
-    explicit FundamentalPrototype(GIObjectInfo* info, GType gtype);
+    explicit FundamentalPrototype(const GI::ObjectInfo, GType);
     ~FundamentalPrototype(void);
-
-    static constexpr InfoType::Tag info_type_tag = InfoType::Object;
 
  public:
     GJS_JSAPI_RETURN_CONVENTION
@@ -78,7 +79,8 @@ class FundamentalPrototype
 
     // Accessors
 
-    [[nodiscard]] GICallableInfo* constructor_info() const {
+    [[nodiscard]]
+    mozilla::Maybe<const GI::FunctionInfo> constructor_info() const {
         return m_constructor_info;
     }
 
@@ -131,7 +133,7 @@ class FundamentalPrototype
  public:
     GJS_JSAPI_RETURN_CONVENTION
     static bool define_class(JSContext* cx, JS::HandleObject in_object,
-                             GIObjectInfo* info,
+                             const GI::ObjectInfo,
                              JS::MutableHandleObject constructor);
 };
 

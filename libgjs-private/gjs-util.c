@@ -6,28 +6,19 @@
 
 #include <config.h>
 
-#include <locale.h> /* for setlocale */
+#include <errno.h> /* for errno */
+#include <locale.h> /* for setlocale/duplocale/uselocale/newlocale/freelocale */
 #include <stdbool.h>
 #include <stddef.h> /* for size_t */
 #include <string.h>
 
 #include <glib-object.h>
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib.h>
 #include <glib/gi18n.h> /* for bindtextdomain, bind_textdomain_codeset, textdomain */
 
 #include "libgjs-private/gjs-util.h"
 #include "util/console.h"
-
-char *
-gjs_format_int_alternative_output(int n)
-{
-#ifdef HAVE_PRINTF_ALTERNATIVE_INT
-    return g_strdup_printf("%Id", n);
-#else
-    return g_strdup_printf("%d", n);
-#endif
-}
 
 GType gjs_locale_category_get_type(void) {
     static size_t gjs_locale_category_get_type = 0;
@@ -53,19 +44,169 @@ GType gjs_locale_category_get_type(void) {
     return gjs_locale_category_get_type;
 }
 
+typedef struct {
+    locale_t id;
+    char* name;
+    char* prior_name;
+} GjsLocale;
+
+#define UNSET_LOCALE_ID ((locale_t)0)
+
+static void gjs_clear_locale_id(locale_t* id) {
+    if (id == NULL)
+        return;
+
+    if (*id == UNSET_LOCALE_ID)
+        return;
+
+    freelocale(*id);
+    *id = UNSET_LOCALE_ID;
+}
+
+static locale_t gjs_steal_locale_id(locale_t* id) {
+    locale_t stolen_id = *id;
+    *id = UNSET_LOCALE_ID;
+    return stolen_id;
+}
+
+static gboolean gjs_set_locale_id(locale_t* locale_id_pointer,
+                                  locale_t new_locale_id) {
+    if (*locale_id_pointer == new_locale_id)
+        return FALSE;
+
+    if (*locale_id_pointer != UNSET_LOCALE_ID)
+        freelocale(*locale_id_pointer);
+    *locale_id_pointer = new_locale_id;
+
+    return TRUE;
+}
+
+static int gjs_locale_category_get_mask(GjsLocaleCategory category) {
+    /* It's tempting to just return (1 << category) but the header file
+     * says not to do that.
+     */
+    switch (category) {
+        case GJS_LOCALE_CATEGORY_ALL:
+            return LC_ALL_MASK;
+        case GJS_LOCALE_CATEGORY_COLLATE:
+            return LC_COLLATE_MASK;
+        case GJS_LOCALE_CATEGORY_CTYPE:
+            return LC_CTYPE_MASK;
+        case GJS_LOCALE_CATEGORY_MESSAGES:
+            return LC_MESSAGES_MASK;
+        case GJS_LOCALE_CATEGORY_MONETARY:
+            return LC_MONETARY_MASK;
+        case GJS_LOCALE_CATEGORY_NUMERIC:
+            return LC_NUMERIC_MASK;
+        case GJS_LOCALE_CATEGORY_TIME:
+            return LC_TIME_MASK;
+        default:
+            break;
+    }
+
+    return 0;
+}
+static size_t get_number_of_locale_categories(void) {
+    return __builtin_popcount(LC_ALL_MASK) + 1;
+}
+
+static void gjs_locales_free(GjsLocale** locales) {
+    size_t number_of_categories = get_number_of_locale_categories();
+    size_t i;
+
+    for (i = 0; i < number_of_categories; i++) {
+        GjsLocale* locale = locales[i];
+        gjs_clear_locale_id(&locale->id);
+        g_clear_pointer(&locale->name, g_free);
+        g_clear_pointer(&locale->prior_name, g_free);
+    }
+
+    g_free(locales);
+}
+
+static GjsLocale* gjs_locales_new(void) {
+    size_t number_of_categories = get_number_of_locale_categories();
+    GjsLocale* locales;
+
+    locales = g_new0(GjsLocale, number_of_categories);
+
+    return locales;
+}
+
+static GPrivate gjs_private_locale_key =
+    G_PRIVATE_INIT((GDestroyNotify)gjs_locales_free);
+
 /**
- * gjs_setlocale:
+ * gjs_set_thread_locale:
  * @category:
  * @locale: (allow-none):
  *
  * Returns:
  */
-const char *
-gjs_setlocale(GjsLocaleCategory category, const char *locale)
-{
-    /* According to man setlocale(3), the return value may be allocated in
-     * static storage. */
-    return (const char *) setlocale(category, locale);
+const char* gjs_set_thread_locale(GjsLocaleCategory category,
+                                  const char* locale_name) {
+    locale_t new_locale_id = UNSET_LOCALE_ID, old_locale_id = UNSET_LOCALE_ID;
+    GjsLocale *locales = NULL, *locale = NULL;
+    int category_mask;
+    char* prior_name = NULL;
+    gboolean success = FALSE;
+    int errno_save;
+
+    locales = g_private_get(&gjs_private_locale_key);
+
+    if (locales == NULL) {
+        locales = gjs_locales_new();
+        g_private_set(&gjs_private_locale_key, locales);
+    }
+    locale = &locales[category];
+
+    if (locale_name == NULL) {
+        if (locale->name != NULL)
+            return locale->name;
+
+        return setlocale(category, NULL);
+    }
+
+    old_locale_id = uselocale(UNSET_LOCALE_ID);
+    if (old_locale_id == UNSET_LOCALE_ID)
+        goto out;
+
+    old_locale_id = duplocale(old_locale_id);
+    if (old_locale_id == UNSET_LOCALE_ID)
+        goto out;
+
+    category_mask = gjs_locale_category_get_mask(category);
+
+    if (category_mask == 0)
+        goto out;
+
+    new_locale_id = newlocale(category_mask, locale_name, old_locale_id);
+
+    if (new_locale_id == UNSET_LOCALE_ID)
+        goto out;
+    old_locale_id = UNSET_LOCALE_ID; /* was moved into new_locale_id */
+
+    prior_name = g_strdup(setlocale(category, NULL));
+
+    if (uselocale(new_locale_id) == UNSET_LOCALE_ID)
+        goto out;
+
+    g_set_str(&locale->prior_name, prior_name);
+    gjs_set_locale_id(&locale->id, gjs_steal_locale_id(&new_locale_id));
+    g_set_str(&locale->name, setlocale(category, NULL));
+
+    success = TRUE;
+out:
+    g_clear_pointer(&prior_name, g_free);
+    errno_save = errno;
+    gjs_clear_locale_id(&old_locale_id);
+    gjs_clear_locale_id(&new_locale_id);
+    errno = errno_save;
+
+    if (!success)
+        return NULL;
+
+    return locale->prior_name;
 }
 
 void
@@ -125,7 +266,6 @@ GBinding* gjs_g_object_bind_property_full(
                                                 to_closure, from_closure);
 }
 
-#if GLIB_CHECK_VERSION(2, 72, 0)
 void gjs_g_binding_group_bind_full(
     GBindingGroup* source, const char* source_property, GObject* target,
     const char* target_property, GBindingFlags flags,
@@ -147,30 +287,26 @@ void gjs_g_binding_group_bind_full(
                                        target_property, flags,
                                        to_closure, from_closure);
 }
-#endif
 
 #undef G_CLOSURE_NOTIFY
 
 static GParamSpec* gjs_gtk_container_class_find_child_property(
     GIObjectInfo* container_info, GObject* container, const char* property) {
-    GIBaseInfo* class_info = NULL;
-    GIBaseInfo* find_child_property_fun = NULL;
-
     GIArgument ret;
     GIArgument find_child_property_args[2];
 
-    class_info = g_object_info_get_class_struct(container_info);
-    find_child_property_fun =
-        g_struct_info_find_method(class_info, "find_child_property");
+    GIStructInfo* class_info = gi_object_info_get_class_struct(container_info);
+    GIFunctionInfo* find_child_property_fun =
+        gi_struct_info_find_method(class_info, "find_child_property");
 
     find_child_property_args[0].v_pointer = G_OBJECT_GET_CLASS(container);
     find_child_property_args[1].v_string = (char*)property;
 
-    g_function_info_invoke(find_child_property_fun, find_child_property_args, 2,
-                           NULL, 0, &ret, NULL);
+    gi_function_info_invoke(find_child_property_fun, find_child_property_args,
+                            2, NULL, 0, &ret, NULL);
 
-    g_clear_pointer(&class_info, g_base_info_unref);
-    g_clear_pointer(&find_child_property_fun, g_base_info_unref);
+    g_clear_pointer(&class_info, gi_base_info_unref);
+    g_clear_pointer(&find_child_property_fun, gi_base_info_unref);
 
     return (GParamSpec*)ret.v_pointer;
 }
@@ -179,16 +315,15 @@ void gjs_gtk_container_child_set_property(GObject* container, GObject* child,
                                           const char* property,
                                           const GValue* value) {
     GParamSpec* pspec = NULL;
-    GIBaseInfo* base_info = NULL;
-    GIBaseInfo* child_set_property_fun = NULL;
-    GIObjectInfo* container_info;
+    GIFunctionInfo* child_set_property_fun = NULL;
     GValue value_arg = G_VALUE_INIT;
     GIArgument ret;
 
     GIArgument child_set_property_args[4];
 
-    base_info = g_irepository_find_by_name(NULL, "Gtk", "Container");
-    container_info = (GIObjectInfo*)base_info;
+    GIRepository* repo = gi_repository_dup_default();
+    GIObjectInfo* container_info =
+        GI_OBJECT_INFO(gi_repository_find_by_name(repo, "Gtk", "Container"));
 
     pspec = gjs_gtk_container_class_find_child_property(container_info,
                                                         container, property);
@@ -212,22 +347,23 @@ void gjs_gtk_container_child_set_property(GObject* container, GObject* child,
         g_value_copy(value, &value_arg);
     }
 
-    child_set_property_fun =
-        g_object_info_find_method(container_info, "child_set_property");
+    child_set_property_fun = GI_FUNCTION_INFO(
+        gi_object_info_find_method(container_info, "child_set_property"));
 
     child_set_property_args[0].v_pointer = container;
     child_set_property_args[1].v_pointer = child;
     child_set_property_args[2].v_string = (char*)property;
     child_set_property_args[3].v_pointer = &value_arg;
 
-    g_function_info_invoke(child_set_property_fun, child_set_property_args, 4,
-                           NULL, 0, &ret, NULL);
+    gi_function_info_invoke(child_set_property_fun, child_set_property_args, 4,
+                            NULL, 0, &ret, NULL);
 
     g_value_unset(&value_arg);
 
 out:
-    g_clear_pointer(&base_info, g_base_info_unref);
-    g_clear_pointer(&child_set_property_fun, g_base_info_unref);
+    g_clear_pointer(&container_info, gi_base_info_unref);
+    g_clear_pointer(&child_set_property_fun, gi_base_info_unref);
+    g_clear_object(&repo);
 }
 
 /**
@@ -281,10 +417,11 @@ void gjs_list_store_sort(GListStore *store, GjsCompareDataFunc compare_func,
  */
 GObject* gjs_gtk_custom_sorter_new(GjsCompareDataFunc sort_func,
                                    void* user_data, GDestroyNotify destroy) {
+    GIRepository* repo = gi_repository_dup_default();
     GIObjectInfo* container_info =
-        g_irepository_find_by_name(NULL, "Gtk", "CustomSorter");
-    GIBaseInfo* custom_sorter_new_fun =
-        g_object_info_find_method(container_info, "new");
+        GI_OBJECT_INFO(gi_repository_find_by_name(repo, "Gtk", "CustomSorter"));
+    GIFunctionInfo* custom_sorter_new_fun =
+        GI_FUNCTION_INFO(gi_object_info_find_method(container_info, "new"));
 
     GIArgument ret;
     GIArgument custom_sorter_new_args[3];
@@ -292,11 +429,12 @@ GObject* gjs_gtk_custom_sorter_new(GjsCompareDataFunc sort_func,
     custom_sorter_new_args[1].v_pointer = user_data;
     custom_sorter_new_args[2].v_pointer = destroy;
 
-    g_function_info_invoke(custom_sorter_new_fun, custom_sorter_new_args, 3,
-                           NULL, 0, &ret, NULL);
+    gi_function_info_invoke(custom_sorter_new_fun, custom_sorter_new_args, 3,
+                            NULL, 0, &ret, NULL);
 
-    g_clear_pointer(&container_info, g_base_info_unref);
-    g_clear_pointer(&custom_sorter_new_fun, g_base_info_unref);
+    g_clear_pointer(&container_info, gi_base_info_unref);
+    g_clear_pointer(&custom_sorter_new_fun, gi_base_info_unref);
+    g_clear_object(&repo);
 
     return (GObject*)ret.v_pointer;
 }
@@ -321,10 +459,11 @@ void gjs_gtk_custom_sorter_set_sort_func(GObject* sorter,
                                          GjsCompareDataFunc sort_func,
                                          void* user_data,
                                          GDestroyNotify destroy) {
+    GIRepository* repo = gi_repository_dup_default();
     GIObjectInfo* container_info =
-        g_irepository_find_by_name(NULL, "Gtk", "CustomSorter");
-    GIBaseInfo* set_sort_func_fun =
-        g_object_info_find_method(container_info, "set_sort_func");
+        GI_OBJECT_INFO(gi_repository_find_by_name(repo, "Gtk", "CustomSorter"));
+    GIFunctionInfo* set_sort_func_fun = GI_FUNCTION_INFO(
+        gi_object_info_find_method(container_info, "set_sort_func"));
 
     GIArgument unused_ret;
     GIArgument set_sort_func_args[4];
@@ -333,13 +472,15 @@ void gjs_gtk_custom_sorter_set_sort_func(GObject* sorter,
     set_sort_func_args[2].v_pointer = user_data;
     set_sort_func_args[3].v_pointer = destroy;
 
-    g_function_info_invoke(set_sort_func_fun, set_sort_func_args, 4, NULL, 0,
-                           &unused_ret, NULL);
+    gi_function_info_invoke(set_sort_func_fun, set_sort_func_args, 4, NULL, 0,
+                            &unused_ret, NULL);
 
-    g_clear_pointer(&container_info, g_base_info_unref);
-    g_clear_pointer(&set_sort_func_fun, g_base_info_unref);
+    g_clear_pointer(&container_info, gi_base_info_unref);
+    g_clear_pointer(&set_sort_func_fun, gi_base_info_unref);
+    g_clear_object(&repo);
 }
 
+static bool log_writer_cleared = false;
 static void* log_writer_user_data = NULL;
 static GDestroyNotify log_writer_user_data_free = NULL;
 static GThread* log_writer_thread = NULL;
@@ -350,9 +491,10 @@ static GLogWriterOutput gjs_log_writer_func_wrapper(GLogLevelFlags log_level,
                                                     void* user_data) {
     g_assert(log_writer_thread);
 
-    // If the wrapper is called from a thread other than the one that set it,
+    // If the log writer function has been cleared with log_set_writer_default()
+    // or the wrapper is called from a thread other than the one that set it,
     // return unhandled so the fallback logger is used.
-    if (g_thread_self() != log_writer_thread)
+    if (log_writer_cleared || g_thread_self() != log_writer_thread)
         return g_log_writer_default(log_level, fields, n_fields, NULL);
 
     GjsGLogWriterFunc func = (GjsGLogWriterFunc)user_data;
@@ -414,10 +556,10 @@ void gjs_log_set_writer_default() {
         log_writer_user_data_free(log_writer_user_data);
     }
 
-    g_log_set_writer_func(g_log_writer_default, NULL, NULL);
     log_writer_user_data_free = NULL;
     log_writer_user_data = NULL;
-    log_writer_thread = NULL;
+    log_writer_thread = g_thread_self();
+    log_writer_cleared = true;
 }
 
 /**

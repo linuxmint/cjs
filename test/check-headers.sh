@@ -29,39 +29,39 @@ if [ -n "$SELFTEST" ]; then
 
     # config.h is included
     test_env
-    echo "#include <config.h>" > gjs/program.c
+    echo "#include <config.h>" > cjs/program.c
     expect_success
 
     # config.h must be in angle brackets
     test_env
-    echo '#include "config.h"' > gjs/program.c
+    echo '#include "config.h"' > cjs/program.c
     expect_failure
 
     # public headers are skipped
     test_env
-    echo "#include <stdlib.h>" > gjs/macros.h
+    echo "#include <stdlib.h>" > cjs/macros.h
     expect_success
 
     # config.h must be included
     test_env
-    echo "#include <stdlib.h>" > gjs/program.c
+    echo "#include <stdlib.h>" > cjs/program.c
     expect_failure
 
     # config.h is included first
     test_env
-    echo '#include <config.h>' > gjs/program.c
-    echo '#include <stdlib.h>' >> gjs/program.c
+    echo '#include <config.h>' > cjs/program.c
+    echo '#include <stdlib.h>' >> cjs/program.c
     expect_success
 
     # config.h must be included first
     test_env
-    echo '#include <stdlib.h>' > gjs/program.c
-    echo '#include <config.h>' >> gjs/program.c
+    echo '#include <stdlib.h>' > cjs/program.c
+    echo '#include <config.h>' >> cjs/program.c
     expect_failure
 
     # other non-include things can come before the include
     test_env
-    cat > gjs/program.h <<EOF
+    cat > cjs/program.h <<EOF
 /* a comment */
 #pragma once
 #include <config.h>
@@ -70,7 +70,7 @@ EOF
 
     # spaces are taken into account
     test_env
-    cat > gjs/program.c <<EOF
+    cat > cjs/program.c <<EOF
 #ifdef UNIX
 #  include <unix.h>
 #endif
@@ -80,7 +80,7 @@ EOF
 
     # header blocks in right order
     test_env
-    cat > gjs/program.c <<EOF
+    cat > cjs/program.c <<EOF
 #include <config.h>
 #include <stdint.h>
 #include <memory>
@@ -92,7 +92,7 @@ EOF
 
     # header blocks in wrong order
     test_env
-    cat > gjs/program.c <<EOF
+    cat > cjs/program.c <<EOF
 #include <config.h>
 #include <memory>
 #include <glib.h>
@@ -168,7 +168,7 @@ function check_config_header {
 files=$(find gi gjs libgjs-private modules test util \
     -name '*.c' -o -name '*.cpp' -o -name '*.h')
 for file in $files; do
-    if [[ "$file" == "gjs/gjs.h" || "$file" == "gjs/macros.h" ]]; then continue; fi
+    if [[ "$file" == "cjs/gjs.h" || "$file" == "cjs/macros.h" ]]; then continue; fi
     if grep -ql "^GJS_EXPORT" "$file"; then continue; fi
     check_config_header "$file"
 done

@@ -14,6 +14,7 @@
 #include <jsapi.h>  // for JS_NewObjectWithGivenProto
 #include <jspubtd.h>  // for JSProtoKey
 
+#include "cjs/auto.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -57,7 +58,7 @@ createFromPNG_func(JSContext *context,
                    JS::Value *vp)
 {
     JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
-    GjsAutoChar filename;
+    Gjs::AutoChar filename;
     cairo_surface_t *surface;
 
     if (!gjs_parse_call_args(context, "createFromPNG", argv, "F",

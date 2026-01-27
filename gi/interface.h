@@ -8,7 +8,6 @@
 
 #include <config.h>
 
-#include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
@@ -16,8 +15,10 @@
 #include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
+#include <mozilla/Maybe.h>
 
 #include "gi/cwrapper.h"
+#include "gi/info.h"
 #include "gi/wrapperutils.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -71,9 +72,13 @@ class InterfaceBase : public GIWrapperBase<InterfaceBase, InterfacePrototype,
 
 class InterfacePrototype
     : public GIWrapperPrototype<InterfaceBase, InterfacePrototype,
-                                InterfaceInstance, GIInterfaceInfo> {
+                                InterfaceInstance,
+                                mozilla::Maybe<GI::AutoInterfaceInfo>,
+                                mozilla::Maybe<GI::InterfaceInfo>> {
     friend class GIWrapperPrototype<InterfaceBase, InterfacePrototype,
-                                    InterfaceInstance, GIInterfaceInfo>;
+                                    InterfaceInstance,
+                                    mozilla::Maybe<GI::AutoInterfaceInfo>,
+                                    mozilla::Maybe<GI::InterfaceInfo>>;
     friend class GIWrapperBase<InterfaceBase, InterfacePrototype,
                                InterfaceInstance>;
     friend class InterfaceBase;  // for has_instance_impl
@@ -81,9 +86,7 @@ class InterfacePrototype
     // the GTypeInterface vtable wrapped by this JS object
     GTypeInterface* m_vtable;
 
-    static constexpr InfoType::Tag info_type_tag = InfoType::Interface;
-
-    explicit InterfacePrototype(GIInterfaceInfo* info, GType gtype);
+    explicit InterfacePrototype(mozilla::Maybe<const GI::InterfaceInfo>, GType);
     ~InterfacePrototype(void);
 
     // JSClass operations

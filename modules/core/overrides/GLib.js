@@ -360,23 +360,23 @@ function _init() {
         GLib.log_variant(logDomain, logLevel, new GLib.Variant('a{sv}', variantFields));
     };
 
-    // CjsPrivate depends on GLib so we cannot import it
+    // GjsPrivate depends on GLib so we cannot import it
     // before GLib is fully resolved.
 
     this.log_set_writer_func_variant = function (...args) {
-        const {log_set_writer_func} = imports.gi.CjsPrivate;
+        const {log_set_writer_func} = imports.gi.GjsPrivate;
 
         log_set_writer_func(...args);
     };
 
     this.log_set_writer_default = function (...args) {
-        const {log_set_writer_default} = imports.gi.CjsPrivate;
+        const {log_set_writer_default} = imports.gi.GjsPrivate;
 
         log_set_writer_default(...args);
     };
 
     this.log_set_writer_func = function (writer_func) {
-        const {log_set_writer_func} = imports.gi.CjsPrivate;
+        const {log_set_writer_func} = imports.gi.GjsPrivate;
 
         if (typeof writer_func !== 'function') {
             log_set_writer_func(writer_func);
@@ -544,17 +544,11 @@ function _init() {
         if (matchInfoPatched)
             return;
 
-        const {MatchInfo} = imports.gi.CjsPrivate;
+        const {MatchInfo} = imports.gi.GjsPrivate;
 
         const originalMatchInfoMethods = new Set(Object.keys(oldMatchInfo.prototype));
         const overriddenMatchInfoMethods = new Set(Object.keys(MatchInfo.prototype));
-        const symmetricDifference = new Set(originalMatchInfoMethods);
-        for (const method of overriddenMatchInfoMethods) {
-            if (symmetricDifference.has(method))
-                symmetricDifference.delete(method);
-            else
-                symmetricDifference.add(method);
-        }
+        const symmetricDifference = originalMatchInfoMethods.symmetricDifference(overriddenMatchInfoMethods);
         if (symmetricDifference.size !== 0)
             throw new Error(`Methods of GMatchInfo and GjsMatchInfo don't match: ${[...symmetricDifference]}`);
 
@@ -563,8 +557,8 @@ function _init() {
     }
 
     // We can't monkeypatch GLib.MatchInfo directly at override time, because
-    // importing CjsPrivate requires GLib. So this monkeypatches GLib.MatchInfo
-    // with a Proxy that overwrites itself with the real CjsPrivate.MatchInfo
+    // importing GjsPrivate requires GLib. So this monkeypatches GLib.MatchInfo
+    // with a Proxy that overwrites itself with the real GjsPrivate.MatchInfo
     // as soon as you try to do anything with it.
     const allProxyOperations = ['apply', 'construct', 'defineProperty',
         'deleteProperty', 'get', 'getOwnPropertyDescriptor', 'getPrototypeOf',
@@ -581,21 +575,21 @@ function _init() {
 
     this.Regex.prototype.match = function (...args) {
         patchMatchInfo(GLib);
-        return imports.gi.CjsPrivate.regex_match(this, ...args);
+        return imports.gi.GjsPrivate.regex_match(this, ...args);
     };
 
     this.Regex.prototype.match_full = function (...args) {
         patchMatchInfo(GLib);
-        return imports.gi.CjsPrivate.regex_match_full(this, ...args);
+        return imports.gi.GjsPrivate.regex_match_full(this, ...args);
     };
 
     this.Regex.prototype.match_all = function (...args) {
         patchMatchInfo(GLib);
-        return imports.gi.CjsPrivate.regex_match_all(this, ...args);
+        return imports.gi.GjsPrivate.regex_match_all(this, ...args);
     };
 
     this.Regex.prototype.match_all_full = function (...args) {
         patchMatchInfo(GLib);
-        return imports.gi.CjsPrivate.regex_match_all_full(this, ...args);
+        return imports.gi.GjsPrivate.regex_match_all_full(this, ...args);
     };
 }

@@ -32,8 +32,10 @@
 #include <mozilla/Atomics.h>  // for Atomic in JSPrincipals
 #include <mozilla/UniquePtr.h>
 
+#include "gi/gerror.h"
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/profiler-private.h"
 #include "util/log.h"
@@ -75,7 +77,7 @@ static void on_cleanup_finalization_registry(JSFunction* cleanup_task,
 
 bool gjs_load_internal_source(JSContext* cx, const char* filename, char** src,
                               size_t* length) {
-    GjsAutoError error;
+    Gjs::AutoError error;
     const char* path = filename + 11;  // len("resource://")
     GBytes* script_bytes =
         g_resources_lookup_data(path, G_RESOURCE_LOOKUP_FLAGS_NONE, &error);
@@ -180,7 +182,17 @@ JSPrincipals* get_internal_principals() {
 
 static const JSSecurityCallbacks security_callbacks = {
     /* contentSecurityPolicyAllows = */ nullptr,
+    /* codeForEvalGets = */ nullptr,
     &ModuleLoaderPrincipals::subsumes,
+};
+
+static bool instance_class_is_error(const JSClass* klass) {
+    return klass == &ErrorBase::klass;
+}
+
+static const js::DOMCallbacks dom_callbacks = {
+    /* instanceClassHasProtoAtDepth = */ nullptr,
+    &instance_class_is_error,
 };
 
 JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
@@ -213,6 +225,7 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
                                            uninitialized_gjs);
     JS::SetHostCleanupFinalizationRegistryCallback(
         cx, on_cleanup_finalization_registry, uninitialized_gjs);
+    js::SetDOMCallbacks(cx, &dom_callbacks);
 
     // We use this to handle "lazy sources" that SpiderMonkey doesn't need to
     // keep in memory. Most sources should be kept in memory, but we can skip

@@ -10,17 +10,12 @@
 #include <locale.h>
 
 #include <gio/gio.h>
-
 #include <glib-object.h>
 #include <glib.h>
 
 #include "cjs/macros.h"
 
 G_BEGIN_DECLS
-
-/* For imports.format */
-GJS_EXPORT
-char * gjs_format_int_alternative_output (int n);
 
 /**
  * GjsCompareDataFunc:
@@ -88,8 +83,8 @@ typedef enum
 } GjsLocaleCategory;
 
 GJS_EXPORT
-const char *gjs_setlocale                (GjsLocaleCategory category,
-                                          const char       *locale);
+const char* gjs_set_thread_locale(GjsLocaleCategory category,
+                                  const char* locale);
 GJS_EXPORT
 void        gjs_textdomain               (const char *domain);
 GJS_EXPORT
@@ -141,7 +136,6 @@ GBinding* gjs_g_object_bind_property_full(
     GDestroyNotify to_notify, GjsBindingTransformFunc from_callback,
     void* from_data, GDestroyNotify from_notify);
 
-#if GLIB_CHECK_VERSION(2, 72, 0)
 /**
  * gjs_g_binding_group_bind_full:
  * @source:
@@ -163,7 +157,6 @@ void gjs_g_binding_group_bind_full(
     GjsBindingTransformFunc to_callback, void* to_data,
     GDestroyNotify to_notify, GjsBindingTransformFunc from_callback,
     void* from_data, GDestroyNotify from_notify);
-#endif
 
 /* For imports.overrides.Gtk */
 GJS_EXPORT

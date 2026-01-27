@@ -7,51 +7,38 @@
 
 #include <config.h>
 
-#include <girepository.h>
 #include <glib-object.h>
 
 #include <js/TypeDecls.h>
+#include <mozilla/Maybe.h>
 
+#include "gi/info.h"
 #include "cjs/macros.h"
-#include "util/log.h"
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_repo(JSContext              *cx,
                      JS::MutableHandleObject repo);
-
-[[nodiscard]] const char* gjs_info_type_name(GIInfoType type);
 GJS_JSAPI_RETURN_CONVENTION
 JSObject*   gjs_lookup_private_namespace        (JSContext      *context);
 GJS_JSAPI_RETURN_CONVENTION
-JSObject*   gjs_lookup_namespace_object         (JSContext      *context,
-                                                 GIBaseInfo     *info);
+JSObject* gjs_lookup_namespace_object(JSContext*, const GI::BaseInfo);
 
 GJS_JSAPI_RETURN_CONVENTION
 JSObject *gjs_lookup_namespace_object_by_name(JSContext   *context,
                                               JS::HandleId name);
 
 GJS_JSAPI_RETURN_CONVENTION
-JSObject *  gjs_lookup_generic_constructor      (JSContext      *context,
-                                                 GIBaseInfo     *info);
+JSObject* gjs_lookup_generic_constructor(JSContext*, const GI::BaseInfo);
 GJS_JSAPI_RETURN_CONVENTION
-JSObject *  gjs_lookup_generic_prototype        (JSContext      *context,
-                                                 GIBaseInfo     *info);
-GJS_JSAPI_RETURN_CONVENTION
-JSObject* gjs_new_object_with_generic_prototype(JSContext* cx,
-                                                GIBaseInfo* info);
+JSObject* gjs_lookup_generic_prototype(JSContext*, const GI::BaseInfo);
 
 GJS_JSAPI_RETURN_CONVENTION
-bool gjs_define_info(JSContext       *context,
-                     JS::HandleObject in_object,
-                     GIBaseInfo      *info,
-                     bool            *defined);
+JSObject* gjs_new_object_with_generic_prototype(JSContext*, const GI::BaseInfo);
+
+GJS_JSAPI_RETURN_CONVENTION
+bool gjs_define_info(JSContext*, JS::HandleObject in_object, const GI::BaseInfo,
+                     bool* defined);
 
 [[nodiscard]] char* gjs_hyphen_from_camel(const char* camel_name);
-
-[[nodiscard]] GIBaseInfo* gjs_lookup_gtype(GIRepository*, GType);
-
-#if GJS_VERBOSE_ENABLE_GI_USAGE
-void _gjs_log_info_usage(GIBaseInfo *info);
-#endif
 
 #endif  // GI_REPO_H_

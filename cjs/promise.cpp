@@ -18,6 +18,7 @@
 #include <jsapi.h>  // for JS_NewPlainObject
 #include <jsfriendapi.h>  // for RunJobs
 
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
@@ -47,16 +48,18 @@
 namespace Gjs {
 
 /**
- * @brief a custom GSource which handles draining our job queue.
+ * PromiseJobDispatcher::Source:
+ *
+ * A custom GSource which handles draining our job queue.
  */
 class PromiseJobDispatcher::Source : public GSource {
     // The private GJS context this source runs within.
     GjsContextPrivate* m_gjs;
     // The main context this source attaches to.
-    GjsAutoMainContext m_main_context;
+    AutoMainContext m_main_context;
     // The cancellable that stops this source.
-    GjsAutoUnref<GCancellable> m_cancellable;
-    GjsAutoPointer<GSource, GSource, g_source_unref> m_cancellable_source;
+    AutoUnref<GCancellable> m_cancellable;
+    AutoPointer<GSource, GSource, g_source_unref> m_cancellable_source;
 
     // G_PRIORITY_HIGH is normally -100, we set 10 times that to ensure our
     // source always has the greatest priority. This means our prepare will
@@ -89,23 +92,20 @@ class PromiseJobDispatcher::Source : public GSource {
 
  public:
     /**
-     * @brief Constructs a new GjsPromiseJobQueueSource GSource and adds a
-     * reference to the associated main context.
+     * Source::Source:
+     * @gjs: the GJS object
+     * @main_context: GLib main context to associate with the source
      *
-     * @param cx the current JSContext
-     * @param cancellable an optional cancellable
+     * Constructs a new GSource for the PromiseJobDispatcher and adds a
+     * reference to the associated main context.
      */
     Source(GjsContextPrivate* gjs, GMainContext* main_context)
         : m_gjs(gjs),
-          m_main_context(main_context, GjsAutoTakeOwnership()),
+          m_main_context(main_context, TakeOwnership{}),
           m_cancellable(g_cancellable_new()),
           m_cancellable_source(g_cancellable_source_new(m_cancellable)) {
         g_source_set_priority(this, PRIORITY);
-#if GLIB_CHECK_VERSION(2, 70, 0)
         g_source_set_static_name(this, "GjsPromiseJobQueueSource");
-#else
-        g_source_set_name(this, "GjsPromiseJobQueueSource");
-#endif
 
         // Add our cancellable source to our main source,
         // this will trigger the main source if our cancellable
@@ -121,13 +121,17 @@ class PromiseJobDispatcher::Source : public GSource {
     bool is_running() { return !!g_source_get_context(this); }
 
     /**
-     * @brief Trigger the cancellable, detaching our source.
+     * Source::cancel:
+     *
+     * Trigger the cancellable, detaching our source.
      */
     void cancel() { g_cancellable_cancel(m_cancellable); }
     /**
-     * @brief Reset the cancellable and prevent the source from stopping,
-     * overriding a previous cancel() call. Called by start() in
-     * PromiseJobDispatcher to ensure the custom source will start.
+     * Source::reset:
+     *
+     * Reset the cancellable and prevent the source from stopping, overriding a
+     * previous cancel() call. Called by PromiseJobDispatcher::start() to ensure
+     * the custom source will start.
      */
     void reset() {
         if (!g_cancellable_is_cancelled(m_cancellable))

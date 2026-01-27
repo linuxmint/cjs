@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2008-2009 Dan Winship
 SPDX-FileCopyrightText: 2008-2010 Colin Walters <walters@verbum.org>
 SPDX-FileCopyrightText: 2008-2011 Johan Dahlin
@@ -76,6 +77,9 @@ typedef void (*RegressAnnotationForeachFunc) (RegressAnnotationObject *object,
 struct _RegressAnnotationObject
 {
   GObject parent_instance;
+  /*< private >*/
+  void *user_data;
+  GDestroyNotify destroy_notify;
 };
 
 struct _RegressAnnotationObjectClass
@@ -231,6 +235,9 @@ GI_TEST_EXTERN
 void regress_annotation_custom_destroy (RegressAnnotationCallback callback,
                                         RegressAnnotationNotifyFunc destroy,
                                         gpointer data);
+
+GI_TEST_EXTERN
+void regress_annotation_custom_destroy_cleanup (void);
 
 GI_TEST_EXTERN
 char *regress_annotation_get_source_file (void);

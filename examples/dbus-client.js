@@ -9,7 +9,7 @@ import Gio from 'gi://Gio';
  */
 const ifaceXml = `
 <node>
-  <interface name="org.cinnamon.cjs.Test">
+  <interface name="org.gnome.gjs.Test">
     <method name="SimpleMethod"/>
     <method name="ComplexMethod">
       <arg type="s" direction="in" name="input"/>
@@ -45,7 +45,7 @@ function onNameAppeared(connection, name, _owner) {
     try {
         proxy = new TestProxy(
             Gio.DBus.session,
-            'org.cinnamon.cjs.Test',
+            'org.gnome.gjs.Test',
             '/org/cinnamon/cjs/Test'
         );
     } catch (err) {
@@ -119,7 +119,7 @@ function onNameVanished(connection, name) {
 
 let busWatchId = Gio.bus_watch_name(
     Gio.BusType.SESSION,
-    'org.cinnamon.cjs.Test',
+    'org.gnome.gjs.Test',
     Gio.BusNameWatcherFlags.NONE,
     onNameAppeared,
     onNameVanished
@@ -143,7 +143,7 @@ proxy = null;
 
 new TestProxy(
     Gio.DBus.session,
-    'org.cinnamon.cjs.Test',
+    'org.gnome.gjs.Test',
     '/org/cinnamon/cjs/Test',
     (sourceObj, error) => {
         // If @error is not `null` it will be an Error object indicating the

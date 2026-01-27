@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2008-2015 Colin Walters <walters@verbum.org>
 SPDX-FileCopyrightText: 2008 Johan Bilien
 SPDX-FileCopyrightText: 2008 Lucas Almeida Rocha
@@ -34,7 +35,7 @@ SPDX-FileCopyrightText: 2015, 2018 Christoph Reiter
 SPDX-FileCopyrightText: 2015 Debarshi Ray
 SPDX-FileCopyrightText: 2015 Ben Iofel
 SPDX-FileCopyrightText: 2016 Lionel Landwerlin
-SPDX-FileCopyrightText: 2016-2019 Philip Chimento <philip.chimento@gmail.com>
+SPDX-FileCopyrightText: 2016-2019, 2024 Philip Chimento <philip.chimento@gmail.com>
 SPDX-FileCopyrightText: 2017 Endless Mobile, Inc.
 SPDX-FileCopyrightText: 2017 Rico Tzschichholz
 SPDX-FileCopyrightText: 2018-2019 Tomasz Miąsko
@@ -56,20 +57,6 @@ SPDX-FileCopyrightText: 2024 Simon McVittie
 #endif /* GI_TEST_DISABLE_CAIRO */
 
 #include "regress.h"
-
-static gboolean abort_on_error = TRUE;
-
-#define ASSERT_VALUE(condition) \
-  if (abort_on_error)           \
-    g_assert (condition);       \
-  else                          \
-    g_warn_if_fail (condition);
-
-void
-regress_set_abort_on_error (gboolean in)
-{
-  abort_on_error = in;
-}
 
 /* return annotations */
 
@@ -105,14 +92,14 @@ regress_test_boolean (gboolean in)
 gboolean
 regress_test_boolean_true (gboolean in)
 {
-  ASSERT_VALUE (in == TRUE);
+  g_assert_true (in);
   return in;
 }
 
 gboolean
 regress_test_boolean_false (gboolean in)
 {
-  ASSERT_VALUE (in == FALSE);
+  g_assert_false (in);
   return in;
 }
 
@@ -2105,6 +2092,12 @@ regress_test_boxed_c_new (void)
   return boxed;
 }
 
+gboolean
+regress_test_boxed_c_name_conflict (RegressTestBoxedC *boxed)
+{
+  return boxed->name_conflict;
+}
+
 static RegressTestBoxedC *
 regress_test_boxed_c_ref (RegressTestBoxedC *boxed)
 {
@@ -3004,6 +2997,7 @@ regress_test_obj_emit_sig_with_obj_full (RegressTestObj *obj)
                  0, g_steal_pointer (&obj_param));
 }
 
+#if GLIB_CHECK_VERSION(2, 68, 0)
 void
 regress_test_obj_emit_sig_with_gstrv_full (RegressTestObj *obj)
 {
@@ -3014,6 +3008,7 @@ regress_test_obj_emit_sig_with_gstrv_full (RegressTestObj *obj)
                  0, g_strv_builder_end (builder));
   g_strv_builder_unref (builder);
 }
+#endif
 
 #ifndef GI_TEST_DISABLE_CAIRO
 void
@@ -4319,16 +4314,45 @@ regress_test_async_ready_callback (GAsyncReadyCallback callback)
   G_GNUC_END_IGNORE_DEPRECATIONS
 }
 
+static GSList *async_function_tasks;
+
 /**
  * regress_test_function_async:
  *
  */
 void
 regress_test_function_async (int io_priority G_GNUC_UNUSED,
-                             GCancellable *cancellable G_GNUC_UNUSED,
-                             GAsyncReadyCallback callback G_GNUC_UNUSED,
-                             gpointer user_data G_GNUC_UNUSED)
+                             GCancellable *cancellable,
+                             GAsyncReadyCallback callback,
+                             gpointer user_data)
 {
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+
+  async_function_tasks = g_slist_prepend (async_function_tasks, task);
+}
+
+/**
+ * regress_test_function_thaw_async:
+ *
+ * Returns: the number of callbacks that were thawed.
+ */
+int
+regress_test_function_thaw_async (void)
+{
+  int retval = 0;
+  GSList *node;
+
+  for (node = async_function_tasks; node != NULL; node = node->next)
+    {
+      GTask *task = node->data;
+      g_task_return_boolean (task, TRUE);
+      g_object_unref (task);
+      retval++;
+    }
+
+  g_slist_free (async_function_tasks);
+  async_function_tasks = NULL;
+  return retval;
 }
 
 /**
@@ -4336,9 +4360,9 @@ regress_test_function_async (int io_priority G_GNUC_UNUSED,
  *
  */
 gboolean
-regress_test_function_finish (GAsyncResult *res G_GNUC_UNUSED, GError **error G_GNUC_UNUSED)
+regress_test_function_finish (GAsyncResult *res, GError **error)
 {
-  return TRUE;
+  return g_task_propagate_boolean (G_TASK(res), error);
 }
 
 /**
@@ -4397,16 +4421,46 @@ regress_test_obj_new_callback (RegressTestCallbackUserData callback, gpointer us
   return g_object_new (REGRESS_TEST_TYPE_OBJ, NULL);
 }
 
+static GSList *async_constructor_tasks;
+
 /**
  * regress_test_obj_new_async:
  *
  */
 void
 regress_test_obj_new_async (const char *x G_GNUC_UNUSED,
-                            GCancellable *cancellable G_GNUC_UNUSED,
-                            GAsyncReadyCallback callback G_GNUC_UNUSED,
-                            gpointer user_data G_GNUC_UNUSED)
+                            GCancellable *cancellable,
+                            GAsyncReadyCallback callback,
+                            gpointer user_data)
 {
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+
+  async_constructor_tasks = g_slist_prepend (async_constructor_tasks, task);
+}
+
+/**
+ * regress_test_obj_constructor_thaw_async:
+ *
+ * Returns: the number of callbacks that were thawed.
+ */
+int
+regress_test_obj_constructor_thaw_async (void)
+{
+  int retval = 0;
+  GSList *node;
+
+  for (node = async_constructor_tasks; node != NULL; node = node->next)
+    {
+      GTask *task = node->data;
+      RegressTestObj *obj = g_object_new (REGRESS_TEST_TYPE_OBJ, NULL);
+      g_task_return_pointer (task, obj, g_object_unref);
+      g_object_unref (task);
+      retval++;
+    }
+
+  g_slist_free (async_constructor_tasks);
+  async_constructor_tasks = NULL;
+  return retval;
 }
 
 /**
@@ -4414,10 +4468,9 @@ regress_test_obj_new_async (const char *x G_GNUC_UNUSED,
  *
  */
 RegressTestObj *
-regress_test_obj_new_finish (GAsyncResult *res G_GNUC_UNUSED,
-                             GError **error G_GNUC_UNUSED)
+regress_test_obj_new_finish (GAsyncResult *res, GError **error)
 {
-  return g_object_new (REGRESS_TEST_TYPE_OBJ, NULL);
+  return g_task_propagate_pointer (G_TASK (res), error);
 }
 
 /**
@@ -5066,17 +5119,47 @@ regress_test_array_struct_in_none (RegressTestStructA *arr, gsize len)
   g_assert_cmpint (arr[2].some_int, ==, 303);
 }
 
+static GSList *async_method_tasks;
+
 /**
  * regress_test_obj_function_async:
  *
  */
 void
-regress_test_obj_function_async (RegressTestObj *self G_GNUC_UNUSED,
+regress_test_obj_function_async (RegressTestObj *self,
                                  int io_priority G_GNUC_UNUSED,
-                                 GCancellable *cancellable G_GNUC_UNUSED,
-                                 GAsyncReadyCallback callback G_GNUC_UNUSED,
-                                 gpointer user_data G_GNUC_UNUSED)
+                                 GCancellable *cancellable,
+                                 GAsyncReadyCallback callback,
+                                 gpointer user_data)
 {
+  GTask *task = g_task_new (self, cancellable, callback, user_data);
+
+  async_method_tasks = g_slist_prepend (async_method_tasks, task);
+}
+
+/**
+ * regress_test_obj_function_thaw_async:
+ * @self:
+ *
+ * Returns: the number of callbacks that were thawed.
+ */
+int
+regress_test_obj_function_thaw_async (RegressTestObj *self G_GNUC_UNUSED)
+{
+  int retval = 0;
+  GSList *node;
+
+  for (node = async_method_tasks; node != NULL; node = node->next)
+    {
+      GTask *task = node->data;
+      g_task_return_boolean (task, TRUE);
+      g_object_unref (task);
+      retval++;
+    }
+
+  g_slist_free (async_method_tasks);
+  async_method_tasks = NULL;
+  return retval;
 }
 
 /**
@@ -5084,9 +5167,9 @@ regress_test_obj_function_async (RegressTestObj *self G_GNUC_UNUSED,
  *
  */
 gboolean
-regress_test_obj_function_finish (RegressTestObj *self G_GNUC_UNUSED, GAsyncResult *res G_GNUC_UNUSED, GError **error G_GNUC_UNUSED)
+regress_test_obj_function_finish (RegressTestObj *self G_GNUC_UNUSED, GAsyncResult *res, GError **error)
 {
-  return TRUE;
+  return g_task_propagate_boolean (G_TASK(res), error);
 }
 
 /**
@@ -5097,4 +5180,101 @@ gboolean
 regress_test_obj_function_sync (RegressTestObj *self G_GNUC_UNUSED, int io_priority G_GNUC_UNUSED)
 {
   return TRUE;
+}
+
+
+/**
+ * regress_test_obj_function2:
+ * @self: a #RegressTestObj
+ * @io_priority: a number
+ * @cancellable: (nullable): a #GCancellable, or %NULL
+ * @test_cb: (nullable) (scope notified) (closure test_data): match reporting callback
+ * @test_data: user data for @test_cb
+ * @test_destroy: (destroy test_data): Destroy notify for @match_data
+ * @callback: the function to call on completion
+ * @user_data: the data to pass to @callback
+ *
+ * This is an example taken from FPrint: `fp_device_verify`.
+ */
+void
+regress_test_obj_function2 (RegressTestObj *self,
+                            int io_priority G_GNUC_UNUSED,
+                            GCancellable *cancellable,
+                            RegressTestCallbackUserData test_cb,
+                            gpointer test_data,
+                            GDestroyNotify test_destroy,
+                            GAsyncReadyCallback callback,
+                            gpointer user_data)
+{
+  GTask *task = g_task_new (self, cancellable, callback, user_data);
+
+  async_method_tasks = g_slist_prepend (async_method_tasks, task);
+
+  if (test_cb != NULL)
+    test_cb (test_data);
+
+  if (test_destroy != NULL)
+    test_destroy (test_data);
+}
+
+/**
+ * regress_test_obj_function2_finish:
+ * @self: A #TestObj
+ * @result: A #GAsyncResult
+ * @match: (out): An extra parameter, similar to `fp_device_verify_finish()`
+ * @some_obj: (out) (transfer full) (nullable): An output object, or %NULL to ignore
+ * @error: Return location for errors, or %NULL to ignore
+ *
+ * Finish function for `regress_test_obj_function2_async()`.
+ *
+ * Returns: (type void): %FALSE on error, %TRUE otherwise
+ */
+gboolean
+regress_test_obj_function2_finish (RegressTestObj *self G_GNUC_UNUSED,
+                                   GAsyncResult *result,
+                                   gboolean *match,
+                                   GObject **some_obj,
+                                   GError **error)
+{
+  gboolean res = g_task_propagate_boolean (G_TASK (result), error);
+
+  *match = res;
+  if (some_obj)
+    *some_obj = NULL;
+
+  return res;
+}
+
+/**
+ * regress_test_obj_function2_sync:
+ *
+ */
+gboolean
+regress_test_obj_function2_sync (RegressTestObj *self G_GNUC_UNUSED, int io_priority G_GNUC_UNUSED)
+{
+  return TRUE;
+}
+
+G_DEFINE_FLAGS_TYPE (RegressTestDiscontinuousFlags, regress_test_discontinuous_flags, G_DEFINE_ENUM_VALUE (REGRESS_TEST_DISCONTINUOUS_FLAG1, "discontinuous1"), G_DEFINE_ENUM_VALUE (REGRESS_TEST_DISCONTINUOUS_FLAG2, "discontinuous2"))
+
+/**
+ * regress_test_discontinuous_1_with_private_values:
+ *
+ * Returns: REGRESS_TEST_DISCONTINUOUS_FLAG1 with a private value lower than the smallest RegressTestDiscontinuousFlags enum value.
+ */
+RegressTestDiscontinuousFlags
+regress_test_discontinuous_1_with_private_values (void)
+{
+  return 1 << 3 | REGRESS_TEST_DISCONTINUOUS_FLAG1;
+}
+
+/**
+ * regress_test_discontinuous_2_with_private_values:
+ *
+ * Returns: REGRESS_TEST_DISCONTINUOUS_FLAG2 with a private value higher than the largest RegressTestDiscontinuousFlags enum value.
+ */
+RegressTestDiscontinuousFlags
+regress_test_discontinuous_2_with_private_values (void)
+{
+  return 1 << 30 | REGRESS_TEST_DISCONTINUOUS_FLAG2;
 }

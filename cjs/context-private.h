@@ -14,10 +14,12 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>  // for pair
 #include <vector>
 
 #include <gio/gio.h>  // for GMemoryMonitor
+#include <girepository/girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
@@ -37,8 +39,9 @@
 #include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
 
 #include "gi/closure.h"
+#include "cjs/auto.h"
 #include "cjs/context.h"
-#include "cjs/jsapi-util.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util-root.h"
 #include "cjs/macros.h"
 #include "cjs/mainloop.h"
@@ -65,6 +68,12 @@ class GjsContextPrivate : public JS::JobQueue {
     using DestroyNotify = void (*)(JSContext*, void* data);
 
  private:
+    struct destroy_data_hash {
+        size_t operator()(const std::pair<DestroyNotify, void*>& p) const {
+            return std::hash<size_t>()(reinterpret_cast<size_t>(p.second));
+        }
+    };
+
     GjsContext* m_public_context;
     JSContext* m_cx;
     JS::Heap<JSObject*> m_main_loop_hook;
@@ -77,6 +86,8 @@ class GjsContextPrivate : public JS::JobQueue {
 
     char** m_search_path;
 
+    char* m_repl_history_path;
+
     unsigned m_auto_gc_id;
 
     GjsAtoms* m_atoms;
@@ -86,9 +97,10 @@ class GjsContextPrivate : public JS::JobQueue {
     JobQueueStorage m_job_queue;
     Gjs::PromiseJobDispatcher m_dispatcher;
     Gjs::MainLoop m_main_loop;
-    GjsAutoUnref<GMemoryMonitor> m_memory_monitor;
+    Gjs::AutoUnref<GMemoryMonitor> m_memory_monitor;
 
-    std::vector<std::pair<DestroyNotify, void*>> m_destroy_notifications;
+    std::unordered_set<std::pair<DestroyNotify, void*>, destroy_data_hash>
+        m_destroy_notifications;
     std::vector<Gjs::Closure::Ptr> m_async_closures;
     std::unordered_map<uint64_t, JS::UniqueChars> m_unhandled_rejection_stacks;
     FunctionVector m_cleanup_tasks;
@@ -140,10 +152,11 @@ class GjsContextPrivate : public JS::JobQueue {
     void warn_about_unhandled_promise_rejections();
 
     GJS_JSAPI_RETURN_CONVENTION bool run_main_loop_hook();
-    [[nodiscard]] bool handle_exit_code(bool no_sync_error_pending,
-                                        const char* source_type,
-                                        const char* identifier,
-                                        uint8_t* exit_code, GError** error);
+    [[nodiscard]]
+    Gjs::GErrorResult<> handle_exit_code(bool no_sync_error_pending,
+                                         const char* source_type,
+                                         const char* identifier,
+                                         uint8_t* exit_code);
     [[nodiscard]] bool auto_profile_enter(void);
     void auto_profile_exit(bool status);
 
@@ -191,6 +204,9 @@ class GjsContextPrivate : public JS::JobQueue {
     [[nodiscard]] const char* program_name() const { return m_program_name; }
     void set_program_name(char* value) { m_program_name = value; }
     GJS_USE const char* program_path(void) const { return m_program_path; }
+    GJS_USE const char* repl_history_path() const {
+        return m_repl_history_path;
+    }
     void set_program_path(char* value) { m_program_path = value; }
     void set_search_path(char** value) { m_search_path = value; }
     void set_should_profile(bool value) { m_should_profile = value; }
@@ -198,6 +214,7 @@ class GjsContextPrivate : public JS::JobQueue {
     void set_should_listen_sigusr2(bool value) {
         m_should_listen_sigusr2 = value;
     }
+    void set_repl_history_path(char* value) { m_repl_history_path = value; }
     void set_args(std::vector<std::string>&& args);
     GJS_JSAPI_RETURN_CONVENTION JSObject* build_args_array();
     [[nodiscard]] bool is_owner_thread() const {
@@ -219,15 +236,19 @@ class GjsContextPrivate : public JS::JobQueue {
         return from_cx(cx)->global();
     }
 
-    [[nodiscard]] bool eval(const char* script, size_t script_len,
-                            const char* filename, int* exit_status_p,
-                            GError** error);
+    void register_non_module_sourcemap(const char* script,
+                                       const char* filename);
+
+    [[nodiscard]]
+    Gjs::GErrorResult<> eval(const char* script, size_t script_len,
+                             const char* filename, int* exit_status_p);
     GJS_JSAPI_RETURN_CONVENTION
     bool eval_with_scope(JS::HandleObject scope_object, const char* script,
                          size_t script_len, const char* filename,
                          JS::MutableHandleValue retval);
-    [[nodiscard]] bool eval_module(const char* identifier, uint8_t* exit_code_p,
-                                   GError** error);
+    [[nodiscard]]
+    Gjs::GErrorResult<> eval_module(const char* identifier,
+                                    uint8_t* exit_code_p);
     GJS_JSAPI_RETURN_CONVENTION
     bool call_function(JS::HandleObject this_obj, JS::HandleValue func_val,
                        const JS::HandleValueArray& args,
@@ -243,7 +264,7 @@ class GjsContextPrivate : public JS::JobQueue {
 
     // Implementations of JS::JobQueue virtual functions
     GJS_JSAPI_RETURN_CONVENTION
-    JSObject* getIncumbentGlobal(JSContext* cx) override;
+    bool getHostDefinedData(JSContext*, JS::MutableHandleObject) const override;
     GJS_JSAPI_RETURN_CONVENTION
     bool enqueuePromiseJob(JSContext* cx, JS::HandleObject promise,
                            JS::HandleObject job,
@@ -269,8 +290,9 @@ class GjsContextPrivate : public JS::JobQueue {
     void unregister_notifier(DestroyNotify notify_func, void* data);
     void async_closure_enqueue_for_gc(Gjs::Closure*);
 
-    [[nodiscard]] bool register_module(const char* identifier,
-                                       const char* filename, GError** error);
+    [[nodiscard]]
+    Gjs::GErrorResult<> register_module(const char* identifier,
+                                        const char* filename);
 
     static void trace(JSTracer* trc, void* data);
 

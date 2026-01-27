@@ -8,7 +8,7 @@ jsunit_resources_files = gnome.compile_resources('jsunit-resources',
     'jsunit.gresources.xml', c_name: 'jsunit_resources')
 
 minijasmine = executable('minijasmine', '../minijasmine.cpp',
-    jsunit_resources_files, dependencies: libcjs_dep,
+    jsunit_resources_files, dependencies: libgjs_dep,
     cpp_args: [
         '-DINSTTESTDIR="@0@"'.format(prefix / installed_tests_execdir),
     ],
@@ -54,10 +54,16 @@ jasmine_tests = [
 
 if not get_option('skip_gtk_tests')
     jasmine_tests += [
-        'Gtk3',
         'GObjectDestructionAccess',
         'LegacyGtk',
     ]
+
+    if have_gtk3
+        jasmine_tests += 'Gtk3'
+    endif
+    if have_gtk4
+        jasmine_tests += 'Gtk4'
+    endif
 endif
 
 installed_js_tests_dir = installed_tests_execdir / 'js'
@@ -66,12 +72,15 @@ gschemas_compiled = gnome.compile_schemas(
     depend_files: 'org.cinnamon.CjsTest.gschema.xml')
 
 tests_dependencies = [
+    gir_deps,
     gschemas_compiled,
-    cjs_private_typelib,
+    gjs_private_typelib,
     gjstest_tools_typelib,
     gi_tests.get_variable('gimarshallingtests_typelib'),
     gi_tests.get_variable('regress_typelib'),
+    gi_tests.get_variable('regress_unix_typelib'),
     gi_tests.get_variable('warnlib_typelib'),
+    gi_tests.get_variable('utility_typelib'),
 ]
 
 foreach test : jasmine_tests
@@ -99,45 +108,32 @@ if get_option('installed_tests')
     install_subdir('modules', install_dir: installed_js_tests_dir)
 endif
 
-# testGDBus.js and testGtk4.js are separate, because they can be skipped, and
+# testGDBus.js is separate, because it can be skipped, and
 # during build should be run using dbus-run-session
+bus_config = files('../../test/test-bus.conf')
+dbus_test_file = files('testGDBus.js')
 
-dbus_tests = ['GDBus']
-if not get_option('skip_gtk_tests')
-    have_gtk4 = dependency('gtk4', required: false).found()
-
-    if have_gtk4
-        # FIXME: find out why GTK4 tries to acquire a message bus
-        dbus_tests += 'Gtk4'
-    endif
+if not get_option('skip_dbus_tests')
+    test('GDBus', dbus_run_session,
+        args: ['--config-file', bus_config, '--', minijasmine, dbus_test_file],
+        env: tests_environment, protocol: 'tap', suite: 'dbus',
+        depends: tests_dependencies)
 endif
 
-bus_config = files('../../test/test-bus.conf')
-foreach test : dbus_tests
-    test_file = files('test@0@.js'.format(test))
+dbus_test_description_subst = {
+    'name': 'testGDBus.js',
+    'installed_tests_execdir': prefix / installed_tests_execdir,
+}
+configure_file(
+    configuration: dbus_test_description_subst,
+    input: '../minijasmine.test.in',
+    output: 'testGDBus.test',
+    install: get_option('installed_tests'),
+    install_dir: installed_tests_metadir)
 
-    if not get_option('skip_dbus_tests')
-        test(test, dbus_run_session,
-            args: ['--config-file', bus_config, '--', minijasmine, test_file],
-            env: tests_environment, protocol: 'tap', suite: 'dbus',
-            depends: tests_dependencies)
-    endif
-
-    dbus_test_description_subst = {
-        'name': 'test@0@.js'.format(test),
-        'installed_tests_execdir': prefix / installed_tests_execdir,
-    }
-    configure_file(
-        configuration: dbus_test_description_subst,
-        input: '../minijasmine.test.in',
-        output: 'test@0@.test'.format(test),
-        install: get_option('installed_tests'),
-        install_dir: installed_tests_metadir)
-
-    if get_option('installed_tests')
-        install_data(test_file, install_dir: installed_js_tests_dir)
-    endif
-endforeach
+if get_option('installed_tests')
+    install_data(dbus_test_file, install_dir: installed_js_tests_dir)
+endif
 
 # tests using ES modules are also separate because they need an extra
 # minijasmine flag
@@ -152,6 +148,7 @@ modules_tests = [
     'GLibLogWriter',
     'Global',
     'Timers',
+    'Utility',
     'WeakRef',
 ]
 

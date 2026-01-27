@@ -210,8 +210,7 @@ static bool warn_deprecated_once_per_callsite(JSContext* cx, unsigned argc,
         return true;
     }
 
-    std::vector<std::string> format_args_str;
-    std::vector<const char*> format_args;
+    std::vector<std::string> format_args;
     for (size_t ix = 1; ix < args.length(); ix++) {
         g_assert(args[ix].isString() &&
                  "warnDeprecatedOncePerCallsite subsequent arguments must be "
@@ -220,8 +219,7 @@ static bool warn_deprecated_once_per_callsite(JSContext* cx, unsigned argc,
         JS::UniqueChars format_arg = JS_EncodeStringToUTF8(cx, v_format_arg);
         if (!format_arg)
             return false;
-        format_args_str.emplace_back(format_arg.get());
-        format_args.emplace_back(format_args_str.back().c_str());
+        format_args.emplace_back(format_arg.get());
     }
 
     _gjs_warn_deprecated_once_per_callsite(
@@ -240,13 +238,13 @@ static constexpr JSFunctionSpec funcs[] = {
     JS_FN("warnDeprecatedOncePerCallsite", warn_deprecated_once_per_callsite, 1,
         GJS_MODULE_PROP_FLAGS),
     JS_FS_END};
-// clang-format on
 
 static constexpr JSPropertySpec props[] = {
     JSPropertySpec::int32Value("PLATFORM_SPECIFIC_TYPELIB",
         GJS_MODULE_PROP_FLAGS,
         GjsDeprecationMessageId::PlatformSpecificTypelib),
     JS_PS_END};
+// clang-format on
 
 bool gjs_define_print_stuff(JSContext* context,
                             JS::MutableHandleObject module) {

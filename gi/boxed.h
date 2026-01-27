@@ -12,7 +12,6 @@
 
 #include <memory>  // for unique_ptr
 
-#include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
@@ -22,10 +21,11 @@
 #include <js/Id.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
+#include <mozilla/Maybe.h>
 
 #include "gi/cwrapper.h"
+#include "gi/info.h"
 #include "gi/wrapperutils.h"
-#include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "util/log.h"
 
@@ -67,21 +67,23 @@ class BoxedBase
     // Helper methods that work on either instances or prototypes
 
     GJS_JSAPI_RETURN_CONVENTION
-    GIFieldInfo* get_field_info(JSContext* cx, uint32_t id) const;
+    mozilla::Maybe<GI::AutoFieldInfo> get_field_info(JSContext*,
+                                                     uint32_t id) const;
 
  public:
     [[nodiscard]] BoxedBase* get_copy_source(JSContext* cx,
                                              JS::Value value) const;
 };
 
-class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
-                                                 BoxedInstance, GIStructInfo> {
+class BoxedPrototype
+    : public GIWrapperPrototype<BoxedBase, BoxedPrototype, BoxedInstance,
+                                GI::AutoStructInfo, GI::StructInfo> {
     friend class GIWrapperPrototype<BoxedBase, BoxedPrototype, BoxedInstance,
-                                    GIStructInfo>;
+                                    GI::AutoStructInfo, GI::StructInfo>;
     friend class GIWrapperBase<BoxedBase, BoxedPrototype, BoxedInstance>;
 
     using FieldMap =
-        JS::GCHashMap<JS::Heap<JSString*>, GjsAutoFieldInfo,
+        JS::GCHashMap<JS::Heap<JSString*>, GI::AutoFieldInfo,
                       js::DefaultHasher<JSString*>, js::SystemAllocPolicy>;
 
     int m_zero_args_constructor;  // -1 if none
@@ -91,12 +93,10 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
     bool m_can_allocate_directly_without_pointers : 1;
     bool m_can_allocate_directly : 1;
 
-    explicit BoxedPrototype(GIStructInfo* info, GType gtype);
+    explicit BoxedPrototype(const GI::StructInfo, GType);
     ~BoxedPrototype(void);
 
     GJS_JSAPI_RETURN_CONVENTION bool init(JSContext* cx);
-
-    static constexpr InfoType::Tag info_type_tag = InfoType::Struct;
 
     // Accessors
 
@@ -113,13 +113,15 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
     [[nodiscard]] bool has_default_constructor() const {
         return m_default_constructor >= 0;
     }
-    [[nodiscard]] GIFunctionInfo* zero_args_constructor_info() const {
-        return g_struct_info_get_method(info(), m_zero_args_constructor);
+    [[nodiscard]]
+    GI::AutoFunctionInfo zero_args_constructor_info() const {
+        g_assert(has_zero_args_constructor());
+        return *info().methods()[m_zero_args_constructor];
     }
     // The ID is traced from the object, so it's OK to create a handle from it.
     [[nodiscard]] JS::HandleId default_constructor_name() const {
         return JS::HandleId::fromMarkedLocation(
-            m_default_constructor_name.address());
+            m_default_constructor_name.unsafeAddress());
     }
 
     // JSClass operations
@@ -138,8 +140,8 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
     // Helper methods
 
     GJS_JSAPI_RETURN_CONVENTION
-    static std::unique_ptr<FieldMap> create_field_map(
-        JSContext* cx, GIStructInfo* struct_info);
+    static std::unique_ptr<FieldMap> create_field_map(JSContext*,
+                                                      const GI::StructInfo);
     GJS_JSAPI_RETURN_CONVENTION
     bool ensure_field_map(JSContext* cx);
     GJS_JSAPI_RETURN_CONVENTION
@@ -148,9 +150,10 @@ class BoxedPrototype : public GIWrapperPrototype<BoxedBase, BoxedPrototype,
  public:
     GJS_JSAPI_RETURN_CONVENTION
     static bool define_class(JSContext* cx, JS::HandleObject in_object,
-                             GIStructInfo* info);
+                             const GI::StructInfo);
     GJS_JSAPI_RETURN_CONVENTION
-    GIFieldInfo* lookup_field(JSContext* cx, JSString* prop_name);
+    mozilla::Maybe<const GI::FieldInfo> lookup_field(JSContext*,
+                                                     JSString* prop_name);
 };
 
 class BoxedInstance
@@ -197,13 +200,11 @@ class BoxedInstance
 
     GJS_JSAPI_RETURN_CONVENTION
     bool get_nested_interface_object(JSContext* cx, JSObject* parent_obj,
-                                     GIFieldInfo* field_info,
-                                     GIStructInfo* interface_info,
+                                     const GI::FieldInfo, const GI::StructInfo,
                                      JS::MutableHandleValue value) const;
     GJS_JSAPI_RETURN_CONVENTION
-    bool set_nested_interface_object(JSContext* cx, GIFieldInfo* field_info,
-                                     GIStructInfo* interface_info,
-                                     JS::HandleValue value);
+    bool set_nested_interface_object(JSContext*, const GI::FieldInfo,
+                                     const GI::StructInfo, JS::HandleValue);
 
     GJS_JSAPI_RETURN_CONVENTION
     static void* copy_ptr(JSContext* cx, GType gtype, void* ptr);
@@ -211,11 +212,10 @@ class BoxedInstance
     // JS property accessors
 
     GJS_JSAPI_RETURN_CONVENTION
-    bool field_getter_impl(JSContext* cx, JSObject* obj, GIFieldInfo* info,
+    bool field_getter_impl(JSContext*, JSObject*, const GI::FieldInfo,
                            JS::MutableHandleValue rval) const;
     GJS_JSAPI_RETURN_CONVENTION
-    bool field_setter_impl(JSContext* cx, GIFieldInfo* info,
-                           JS::HandleValue value);
+    bool field_setter_impl(JSContext*, const GI::FieldInfo, JS::HandleValue);
 
     // JS constructor
 
@@ -235,14 +235,14 @@ class BoxedInstance
     bool init_from_c_struct(JSContext* cx, void* gboxed, NoCopy);
     template <typename... Args>
     GJS_JSAPI_RETURN_CONVENTION static JSObject* new_for_c_struct_impl(
-        JSContext* cx, GIStructInfo* info, void* gboxed, Args&&... args);
+        JSContext*, const GI::StructInfo, void* gboxed, Args&&...);
 
  public:
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_for_c_struct(JSContext* cx, GIStructInfo* info,
+    static JSObject* new_for_c_struct(JSContext*, const GI::StructInfo,
                                       void* gboxed);
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_for_c_struct(JSContext* cx, GIStructInfo* info,
+    static JSObject* new_for_c_struct(JSContext*, const GI::StructInfo,
                                       void* gboxed, NoCopy);
 };
 

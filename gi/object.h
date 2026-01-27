@@ -11,9 +11,10 @@
 #include <stdint.h>  // for uint32_t
 
 #include <functional>
+#include <unordered_set>
 #include <vector>
 
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
@@ -26,11 +27,14 @@
 #include <js/TypeDecls.h>
 #include <mozilla/HashFunctions.h>  // for HashGeneric, HashNumber
 #include <mozilla/Likely.h>         // for MOZ_LIKELY
+#include <mozilla/Maybe.h>
 
+#include "gi/info.h"
 #include "gi/value.h"
 #include "gi/wrapperutils.h"
+#include "cjs/auto.h"
 #include "cjs/jsapi-util-root.h"
-#include "cjs/jsapi-util.h"
+#include "cjs/jsapi-util.h"  // for gjs_throw
 #include "cjs/macros.h"
 #include "util/log.h"
 
@@ -46,6 +50,8 @@ struct ObjectInstance;
 }
 class ObjectInstance;
 class ObjectPrototype;
+class ObjectPropertyInfoCaller;
+class ObjectPropertyPspecCaller;
 
 /*
  * ObjectBase:
@@ -86,8 +92,7 @@ class ObjectBase
                                         GIArgument* arg,
                                         GIDirection transfer_direction,
                                         GITransfer transfer_ownership,
-                                        GType expected_gtype,
-                                        GIBaseInfo* expected_info = nullptr);
+                                        GType expected_gtype);
 
  private:
     // This is used in debug methods only.
@@ -104,15 +109,26 @@ class ObjectBase
     [[nodiscard]] bool is_custom_js_class();
 
  public:
-    GJS_JSAPI_RETURN_CONVENTION
-    static bool typecheck(JSContext* cx, JS::HandleObject obj,
-                          GIObjectInfo* expected_info, GType expected_gtype);
-    [[nodiscard]] static bool typecheck(JSContext* cx, JS::HandleObject obj,
-                                        GIObjectInfo* expected_info,
-                                        GType expected_gtype,
-                                        GjsTypecheckNoThrow no_throw) {
-        return GIWrapperBase::typecheck(cx, obj, expected_info, expected_gtype,
-                                        no_throw);
+    // Overrides GIWrapperBase::typecheck(). We only override the overload that
+    // throws, so that we can throw our own more informative error.
+    template <typename T>
+    GJS_JSAPI_RETURN_CONVENTION static bool typecheck(JSContext* cx,
+                                                      JS::HandleObject obj,
+                                                      T expected) {
+        if (GIWrapperBase::typecheck(cx, obj, expected))
+            return true;
+
+        gjs_throw(cx,
+                  "This JS object wrapper isn't wrapping a GObject."
+                  " If this is a custom subclass, are you sure you chained"
+                  " up to the parent _init properly?");
+        return false;
+    }
+    template <typename T>
+    [[nodiscard]]
+    static bool typecheck(JSContext* cx, JS::HandleObject obj, T expected,
+                          GjsTypecheckNoThrow no_throw) {
+        return GIWrapperBase::typecheck(cx, obj, expected, no_throw);
     }
 
     /* JSClass operations */
@@ -123,12 +139,29 @@ class ObjectBase
     /* JS property getters/setters */
 
  public:
+    template <typename TAG = void>
+    GJS_JSAPI_RETURN_CONVENTION static bool prop_getter(JSContext*, unsigned,
+                                                        JS::Value*);
     GJS_JSAPI_RETURN_CONVENTION
-    static bool prop_getter(JSContext* cx, unsigned argc, JS::Value* vp);
+    static bool prop_getter_write_only(JSContext*, unsigned argc,
+                                       JS::Value* vp);
+    GJS_JSAPI_RETURN_CONVENTION
+    static bool prop_getter_func(JSContext* cx, unsigned argc, JS::Value* vp);
+    template <typename TAG, GITransfer TRANSFER = GI_TRANSFER_NOTHING>
+    GJS_JSAPI_RETURN_CONVENTION static bool prop_getter_simple_type_func(
+        JSContext*, unsigned argc, JS::Value* vp);
     GJS_JSAPI_RETURN_CONVENTION
     static bool field_getter(JSContext* cx, unsigned argc, JS::Value* vp);
+    template <typename TAG = void>
+    GJS_JSAPI_RETURN_CONVENTION static bool prop_setter(JSContext*, unsigned,
+                                                        JS::Value*);
     GJS_JSAPI_RETURN_CONVENTION
-    static bool prop_setter(JSContext* cx, unsigned argc, JS::Value* vp);
+    static bool prop_setter_read_only(JSContext*, unsigned argc, JS::Value* vp);
+    GJS_JSAPI_RETURN_CONVENTION
+    static bool prop_setter_func(JSContext* cx, unsigned argc, JS::Value* vp);
+    template <typename TAG, GITransfer TRANSFER = GI_TRANSFER_NOTHING>
+    GJS_JSAPI_RETURN_CONVENTION static bool prop_setter_simple_type_func(
+        JSContext*, unsigned argc, JS::Value* vp);
     GJS_JSAPI_RETURN_CONVENTION
     static bool field_setter(JSContext* cx, unsigned argc, JS::Value* vp);
 
@@ -180,29 +213,26 @@ struct IdHasher {
 };
 
 class ObjectPrototype
-    : public GIWrapperPrototype<ObjectBase, ObjectPrototype, ObjectInstance> {
-    friend class GIWrapperPrototype<ObjectBase, ObjectPrototype,
-                                    ObjectInstance>;
+    : public GIWrapperPrototype<ObjectBase, ObjectPrototype, ObjectInstance,
+                                mozilla::Maybe<GI::AutoObjectInfo>,
+                                mozilla::Maybe<GI::ObjectInfo>> {
+    friend class GIWrapperPrototype<ObjectBase, ObjectPrototype, ObjectInstance,
+                                    mozilla::Maybe<GI::AutoObjectInfo>,
+                                    mozilla::Maybe<GI::ObjectInfo>>;
     friend class GIWrapperBase<ObjectBase, ObjectPrototype, ObjectInstance>;
 
-    using FieldCache =
-        JS::GCHashMap<JS::Heap<JSString*>, GjsAutoFieldInfo,
-                      js::DefaultHasher<JSString*>, js::SystemAllocPolicy>;
     using NegativeLookupCache =
         JS::GCHashSet<JS::Heap<jsid>, IdHasher, js::SystemAllocPolicy>;
 
-    FieldCache m_field_cache;
     NegativeLookupCache m_unresolvable_cache;
     // a list of vfunc GClosures installed on this prototype, used when tracing
-    std::vector<GClosure*> m_vfuncs;
+    std::unordered_set<GClosure*> m_vfuncs;
     // a list of interface types explicitly associated with this prototype,
     // by gjs_add_interface
     std::vector<GType> m_interface_gtypes;
 
-    ObjectPrototype(GIObjectInfo* info, GType gtype);
+    ObjectPrototype(mozilla::Maybe<GI::ObjectInfo> info, GType gtype);
     ~ObjectPrototype();
-
-    static constexpr InfoType::Tag info_type_tag = InfoType::Object;
 
  public:
     [[nodiscard]] static ObjectPrototype* for_gtype(GType gtype);
@@ -214,14 +244,15 @@ class ObjectPrototype
     GJS_JSAPI_RETURN_CONVENTION
     bool get_parent_constructor(JSContext* cx,
                                 JS::MutableHandleObject constructor) const;
-
-    [[nodiscard]] bool is_vfunc_unchanged(GIVFuncInfo* info);
+    [[nodiscard]]
+    bool is_vfunc_unchanged(const GI::VFuncInfo) const;
     static void vfunc_invalidated_notify(void* data, GClosure* closure);
 
     GJS_JSAPI_RETURN_CONVENTION
-    bool lazy_define_gobject_property(JSContext* cx, JS::HandleObject obj,
-                                      JS::HandleId id, GParamSpec*,
-                                      bool* resolved, const char* name);
+    bool lazy_define_gobject_property(
+        JSContext* cx, JS::HandleObject obj, JS::HandleId id, GParamSpec*,
+        bool* resolved, const char* name,
+        mozilla::Maybe<const GI::AutoPropertyInfo> = {});
 
     enum ResolveWhat { ConsiderOnlyMethods, ConsiderMethodsAndProperties };
     GJS_JSAPI_RETURN_CONVENTION
@@ -237,20 +268,18 @@ class ObjectPrototype
     void set_type_qdata(void);
     GJS_JSAPI_RETURN_CONVENTION
     GParamSpec* find_param_spec_from_id(JSContext*,
-                                        GjsAutoTypeClass<GObjectClass> const&,
+                                        Gjs::AutoTypeClass<GObjectClass> const&,
                                         JS::HandleString key);
     GJS_JSAPI_RETURN_CONVENTION
-    GIFieldInfo* lookup_cached_field_info(JSContext* cx, JS::HandleString key);
-    GJS_JSAPI_RETURN_CONVENTION
     bool props_to_g_parameters(JSContext*,
-                               GjsAutoTypeClass<GObjectClass> const&,
+                               Gjs::AutoTypeClass<GObjectClass> const&,
                                JS::HandleObject props,
                                std::vector<const char*>* names,
                                AutoGValueVector* values);
 
     GJS_JSAPI_RETURN_CONVENTION
     static bool define_class(JSContext* cx, JS::HandleObject in_object,
-                             GIObjectInfo* info, GType gtype,
+                             mozilla::Maybe<const GI::ObjectInfo>, GType,
                              GType* interface_gtypes,
                              uint32_t n_interface_gtypes,
                              JS::MutableHandleObject constructor,
@@ -403,7 +432,7 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     /* Methods to manipulate the linked list of instances */
 
  private:
-    static std::vector<ObjectInstance*> s_wrapped_gobject_list;
+    static std::unordered_set<ObjectInstance*> s_wrapped_gobject_list;
     void link(void);
     void unlink(void);
     [[nodiscard]] static size_t num_wrapped_gobjects() {
@@ -429,16 +458,29 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     /* JS property getters/setters */
 
  private:
+    template <typename TAG>
+    GJS_JSAPI_RETURN_CONVENTION bool prop_getter_impl(
+        JSContext* cx, GParamSpec*, JS::MutableHandleValue rval);
     GJS_JSAPI_RETURN_CONVENTION
-    bool prop_getter_impl(JSContext* cx, GParamSpec*,
-                          JS::MutableHandleValue rval);
+    bool prop_getter_impl(JSContext* cx, ObjectPropertyInfoCaller*,
+                          JS::CallArgs const& args);
+    template <typename TAG, GITransfer TRANSFER = GI_TRANSFER_NOTHING>
+    GJS_JSAPI_RETURN_CONVENTION bool prop_getter_impl(
+        JSContext*, ObjectPropertyPspecCaller*, JS::CallArgs const&);
     GJS_JSAPI_RETURN_CONVENTION
-    bool field_getter_impl(JSContext* cx, JS::HandleString name,
+    bool field_getter_impl(JSContext* cx, GI::AutoFieldInfo const&,
                            JS::MutableHandleValue rval);
+    template <typename TAG>
+    GJS_JSAPI_RETURN_CONVENTION bool prop_setter_impl(JSContext*, GParamSpec*,
+                                                      JS::HandleValue);
     GJS_JSAPI_RETURN_CONVENTION
-    bool prop_setter_impl(JSContext* cx, GParamSpec*, JS::HandleValue value);
+    bool prop_setter_impl(JSContext* cx, ObjectPropertyInfoCaller*,
+                          JS::CallArgs const& args);
+    template <typename TAG, GITransfer TRANSFER = GI_TRANSFER_NOTHING>
+    GJS_JSAPI_RETURN_CONVENTION bool prop_setter_impl(
+        JSContext*, ObjectPropertyPspecCaller*, JS::CallArgs const&);
     GJS_JSAPI_RETURN_CONVENTION
-    bool field_setter_not_impl(JSContext* cx, JS::HandleString name);
+    bool field_setter_not_impl(JSContext* cx, GI::AutoFieldInfo const&);
 
     // JS constructor
 
@@ -464,9 +506,13 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
                    JS::HandleObject obj);
     [[nodiscard]] const char* to_string_kind() const;
 
-    GJS_JSAPI_RETURN_CONVENTION
-    bool typecheck_impl(JSContext* cx, GIBaseInfo* expected_info,
-                        GType expected_type) const;
+    // Overrides GIWrapperInstance::typecheck_impl()
+    template <typename T>
+    GJS_JSAPI_RETURN_CONVENTION bool typecheck_impl(T expected) const {
+        g_assert(m_gobj_disposed || !m_ptr ||
+                 gtype() == G_OBJECT_TYPE(m_ptr.as<GObject*>()));
+        return GIWrapperInstance::typecheck_impl(expected);
+    }
 
     /* Notification callbacks */
     void gobj_dispose_notify(void);

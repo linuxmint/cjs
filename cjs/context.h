@@ -15,10 +15,6 @@
 #include <stdint.h>
 #include <sys/types.h> /* for ssize_t */
 
-#ifndef _WIN32
-#    include <signal.h> /* for siginfo_t */
-#endif
-
 #include <glib-object.h>
 #include <glib.h>
 
@@ -106,6 +102,7 @@ GJS_EXPORT GJS_USE const char* gjs_get_js_version(void);
 GJS_EXPORT
 void gjs_context_setup_debugger_console(GjsContext* gjs);
 
+GJS_EXPORT GJS_USE const char* gjs_context_get_repl_history_path(GjsContext*);
 G_END_DECLS
 
 #endif /* GJS_CONTEXT_H_ */

@@ -129,6 +129,8 @@ do_Create_Artifacts_Folder "$1"
 
 # Ignore extra git security checks as we don't care in CI.
 git config --global --add safe.directory "${PWD}"
+git config --global --add safe.directory \
+    "${PWD}/subprojects/gobject-introspection-tests"
 
 if test "$1" = "SETUP"; then
     do_Show_Info
@@ -139,12 +141,12 @@ elif test "$1" = "BUILD"; then
     do_Set_Env
 
     DEFAULT_CONFIG_OPTS="-Dreadline=enabled -Dprofiler=enabled -Ddtrace=false \
-        -Dsystemtap=false -Dverbose_logs=false --werror"
+        -Dsystemtap=false -Dverbose_logs=false --werror -Dglib:werror=false"
     meson setup _build $DEFAULT_CONFIG_OPTS $CONFIG_OPTS
     ninja -C _build
 
     if test "$TEST" != "skip"; then
-        xvfb-run -a meson test -C _build $TEST_OPTS
+        xvfb-run -a meson test -C _build --suite=gjs $TEST_OPTS
     fi
 
 elif test "$1" = "SH_CHECKS"; then
@@ -164,7 +166,8 @@ elif test "$1" = "SH_CHECKS"; then
 elif test "$1" = "CPPLINT"; then
     do_Print_Labels 'C/C++ Linter report '
 
-    cpplint --quiet $(find . -name \*.cpp -or -name \*.h | sort) 2>&1 >/dev/null | \
+    cpplint --quiet --filter=-build/include_what_you_use \
+        $(find . -name \*.cpp -or -name \*.h | sort) 2>&1 >/dev/null | \
         tee "$save_dir"/analysis/head-report.txt | \
         sed -E -e 's/:[0-9]+:/:LINE:/' -e 's/  +/ /g' \
         > /cwd/head-report.txt
@@ -180,7 +183,8 @@ elif test "$1" = "CPPLINT"; then
         exit 0
     fi
     git checkout ci-upstream-base
-    cpplint --quiet $(find . -name \*.cpp -or -name \*.h | sort) 2>&1 >/dev/null | \
+    cpplint --quiet --filter=-build/include_what_you_use \
+        $(find . -name \*.cpp -or -name \*.h | sort) 2>&1 >/dev/null | \
         tee "$save_dir"/analysis/base-report.txt | \
         sed -E -e 's/:[0-9]+:/:LINE:/' -e 's/  +/ /g' \
         > /cwd/base-report.txt

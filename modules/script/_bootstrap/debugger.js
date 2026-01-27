@@ -1,5 +1,5 @@
 /* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
-/* global debuggee, quit, loadNative, readline, uneval */
+/* global debuggee, quit, loadNative, readline, uneval, getSourceMapRegistry */
 // SPDX-License-Identifier: MPL-2.0
 // SPDX-FileCopyrightText: 2011 Mozilla Foundation and contributors
 
@@ -40,6 +40,29 @@ function dvToString(v) {
     return s;
 }
 
+// Build a nested tree of all private fields wherever they reside. Each level has KV tuples and their descendents:
+// {cur: [[key1, value1], ...], children: {key1: {...next level}}}
+function getProperties(dv, result, seen = new WeakSet()) {
+    if (!dv || seen.has(dv))
+        return;
+
+    if (typeof dv === 'object')
+        seen.add(dv);
+
+    const privateKVs = dv.getOwnPrivateProperties?.().map(k => [k.description, dv.getProperty(k).return]) ?? [];
+    const nonPrivateKVs = dv.getOwnPropertyNames?.().concat(dv.getOwnPropertySymbols()).map(k => [k, dv.getProperty(k).return]) ?? [];
+    result.cur = privateKVs;
+
+    result.children = {};
+    // a private field can be under a non-private field
+    privateKVs.concat(nonPrivateKVs).forEach(([k, v]) => {
+        result.children[k] = {};
+        getProperties(v, result.children[k], seen);
+    });
+    // prettyPrint in the debuggee compartment needs access to the original private field value and not Debugger.Object
+    result.cur.forEach(kv => kv[1]?.unsafeDereference && (kv[1] = kv[1].unsafeDereference()));
+}
+
 function debuggeeValueToString(dv, style = {pretty: options.pretty}) {
     // Special sentinel values returned by Debugger.Environment.getVariable()
     if (typeof dv === 'object' && dv !== null) {
@@ -67,7 +90,9 @@ function debuggeeValueToString(dv, style = {pretty: options.pretty}) {
     if (style.brief)
         return [dvrepr, dvrepr];
 
-    const str = exec('imports._print.getPrettyPrintFunction(globalThis)(v)', {v: dv});
+    const properties = {};
+    getProperties(dv, properties);
+    const str = exec('imports._print.getPrettyPrintFunction(globalThis)(v, extra)', {v: dv, extra: dv.makeDebuggeeValue(properties)});
     if ('throw' in str) {
         if (style.noerror)
             return [dvrepr, undefined];
@@ -137,10 +162,34 @@ Object.defineProperty(Debugger.Frame.prototype, 'line', {
     },
 });
 
+Object.defineProperty(Debugger.Frame.prototype, 'column', {
+    configurable: true,
+    enumerable: false,
+    get() {
+        return this.script?.getOffsetLocation(this.offset).columnNumber ?? null;
+    },
+});
+
 Debugger.Script.prototype.describeOffset = function describeOffset(offset) {
     const {lineNumber, columnNumber} = this.getOffsetLocation(offset);
     const url = this.url || '<unknown>';
-    return `${url}:${lineNumber}:${columnNumber}`;
+    const registry = getSourceMapRegistry();
+    const consumer = registry.get(url);
+
+    let description = `${url}:${lineNumber}:${columnNumber}`;
+    const original = consumer?.originalPositionFor({line: lineNumber, column: columnNumber});
+
+    if (original?.source || Number.isInteger(original?.line) || Number.isInteger(original?.column))
+        description += ' -> ';
+
+    if (original?.source)
+        description += original.source;
+    if (Number.isInteger(original?.line))
+        description += `:${original.line}`;
+    if (Number.isInteger(original?.column))
+        description += `:${original.column + 1}`;
+
+    return description;
 };
 
 function showFrame(f, n, option = {btCommand: false, fullOption: false}) {
@@ -262,9 +311,9 @@ function listCommand(option) {
         print('No frame to list from');
         return;
     }
-    let lineNumber = focusedFrame.line;
+    let lineNumber = focusedFrame.line, columnNumber = focusedFrame.column;
     if (option === '') {
-        printSurroundingLines(lineNumber);
+        printSurroundingLines(lineNumber, columnNumber);
         return;
     }
     let currentLine = Number(option);
@@ -275,11 +324,23 @@ function listCommand(option) {
         print('Unknown option');
 }
 
-function printSurroundingLines(currentLine = 1) {
-    let sourceLines = focusedFrame.script.source.text.split('\n');
-    let lastLine = sourceLines.length - 1;
+function printSurroundingLines(currentLine = 1, columnNumber = 1) {
+    const registry = getSourceMapRegistry();
+    const sourceUrl = focusedFrame.script.source.url;
+    const consumer = registry.get(sourceUrl);
+    const originalObj = consumer?.originalPositionFor({line: currentLine, column: columnNumber - 1});
+    const sourceMapContents = originalObj?.source ? consumer?.sourceContentFor(originalObj.source, true) : null;
+    let sourceLines;
+    if (sourceMapContents) {
+        sourceLines = sourceMapContents.split('\n');
+        currentLine = originalObj?.line ?? 1;
+    } else {
+        sourceLines = focusedFrame.script.source.text.split('\n');
+    }
+    const lastLine = sourceLines.length;
     let maxLineLimit = Math.min(lastLine, currentLine + 5);
     let minLineLimit = Math.max(1, currentLine - 5);
+
     for (let i = minLineLimit; i < maxLineLimit + 1; i++) {
         if (i === currentLine) {
             const code = colorCode('1');
@@ -395,9 +456,11 @@ function keysCommand(rest) {
     }
     const names = dv.getOwnPropertyNames();
     const symbols = dv.getOwnPropertySymbols();
+    const privateFields = dv.getOwnPrivateProperties();
     const keys = [
         ...names.map(s => `"${s}"`),
         ...symbols.map(s => `Symbol("${s.description}")`),
+        ...privateFields.map(s => `${s.description}`),
     ];
     if (keys.length === 0)
         print('No own properties');
@@ -940,6 +1003,9 @@ function onInitialEnterFrame(frame) {
 
 var dbg = new Debugger();
 dbg.onNewPromise = function ({promiseID, promiseAllocationSite}) {
+    // if the promise was not allocated by the script, allocation site is null
+    if (!promiseAllocationSite)
+        return undefined;
     const site = promiseAllocationSite.toString().split('\n')[0];
     print(`Promise ${promiseID} started from ${site}`);
     return undefined;
