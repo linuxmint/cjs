@@ -9,7 +9,7 @@ import Gio from 'gi://Gio';
  */
 const ifaceXml = `
 <node>
-  <interface name="org.cinnamon.cjs.Test">
+  <interface name="org.gnome.gjs.Test">
     <method name="SimpleMethod"/>
     <method name="ComplexMethod">
       <arg type="s" direction="in" name="input"/>
@@ -113,7 +113,7 @@ function onNameLost(_connection, _name) {
 
 let ownerId = Gio.bus_own_name(
     Gio.BusType.SESSION,
-    'org.cinnamon.cjs.Test',
+    'org.gnome.gjs.Test',
     Gio.BusNameOwnerFlags.NONE,
     onBusAcquired,
     onNameAcquired,

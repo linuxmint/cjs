@@ -5,7 +5,7 @@
 #include <config.h>
 
 #include <cairo.h>
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib.h>
 
 #include <js/Array.h>
@@ -23,6 +23,7 @@
 #include "gi/arg.h"
 #include "gi/cwrapper.h"
 #include "gi/foreign.h"
+#include "cjs/auto.h"
 #include "cjs/enum-utils.h"
 #include "cjs/jsapi-class.h"
 #include "cjs/jsapi-util-args.h"
@@ -45,7 +46,7 @@ writeToPNG_func(JSContext *context,
                 JS::Value *vp)
 {
     GJS_GET_THIS(context, argc, vp, argv, obj);
-    GjsAutoChar filename;
+    Gjs::AutoChar filename;
 
     if (!gjs_parse_call_args(context, "writeToPNG", argv, "F",
                              "filename", &filename))
@@ -324,25 +325,25 @@ cairo_surface_t* CairoSurface::for_js(JSContext* cx,
         surface_wrapper, CairoSurface::POINTER);
 }
 
-[[nodiscard]] static bool surface_to_gi_argument(
+GJS_JSAPI_RETURN_CONVENTION static bool surface_to_gi_argument(
     JSContext* context, JS::Value value, const char* arg_name,
     GjsArgumentType argument_type, GITransfer transfer, GjsArgumentFlags flags,
     GIArgument* arg) {
     if (value.isNull()) {
         if (!(flags & GjsArgumentFlags::MAY_BE_NULL)) {
-            GjsAutoChar display_name =
-                gjs_argument_display_name(arg_name, argument_type);
+            Gjs::AutoChar display_name{
+                gjs_argument_display_name(arg_name, argument_type)};
             gjs_throw(context, "%s may not be null", display_name.get());
             return false;
         }
 
-        gjs_arg_unset<void*>(arg);
+        gjs_arg_unset(arg);
         return true;
     }
 
     if (!value.isObject()) {
-        GjsAutoChar display_name =
-            gjs_argument_display_name(arg_name, argument_type);
+        Gjs::AutoChar display_name{
+            gjs_argument_display_name(arg_name, argument_type)};
         gjs_throw(context, "%s is not a Cairo.Surface", display_name.get());
         return false;
     }
@@ -352,7 +353,7 @@ cairo_surface_t* CairoSurface::for_js(JSContext* cx,
     if (!s)
         return false;
     if (transfer == GI_TRANSFER_EVERYTHING)
-        cairo_surface_destroy(s);
+        cairo_surface_reference(s);
 
     gjs_arg_set(arg, s);
     return true;

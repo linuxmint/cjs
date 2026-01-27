@@ -33,6 +33,7 @@
 #include <jsapi.h>       // for JS_IdToValue, JS_InitReflectParse
 
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
 #include "cjs/global.h"
@@ -90,9 +91,9 @@ class GjsBaseGlobal {
     GJS_JSAPI_RETURN_CONVENTION
     static bool run_bootstrap(JSContext* cx, const char* bootstrap_script,
                               JS::HandleObject global) {
-        GjsAutoChar uri = g_strdup_printf(
+        Gjs::AutoChar uri{g_strdup_printf(
             "resource:///org/cinnamon/cjs/modules/script/_bootstrap/%s.js",
-            bootstrap_script);
+            bootstrap_script)};
 
         JSAutoRealm ar(cx, global);
 
@@ -205,6 +206,13 @@ class GjsGlobal : GjsBaseGlobal {
         gjs_set_global_slot(global, GjsGlobalSlot::MODULE_REGISTRY,
                             JS::ObjectValue(*module_registry));
 
+        JS::RootedObject source_map_registry{cx, JS::NewMapObject(cx)};
+        if (!source_map_registry)
+            return false;
+
+        gjs_set_global_slot(global, GjsGlobalSlot::SOURCE_MAP_REGISTRY,
+                            JS::ObjectValue(*source_map_registry));
+
         JS::Value v_importer =
             gjs_get_global_slot(global, GjsGlobalSlot::IMPORTS);
         g_assert(((void) "importer should be defined before passing null "
@@ -282,6 +290,8 @@ class GjsInternalGlobal : GjsBaseGlobal {
         JS_FN("compileInternalModule", gjs_internal_compile_internal_module, 2,
               0),
         JS_FN("getRegistry", gjs_internal_get_registry, 1, 0),
+        JS_FN("getSourceMapRegistry", gjs_internal_get_source_map_registry, 1,
+              0),
         JS_FN("loadResourceOrFile", gjs_internal_load_resource_or_file, 1, 0),
         JS_FN("loadResourceOrFileAsync",
               gjs_internal_load_resource_or_file_async, 1, 0),
@@ -292,6 +302,7 @@ class GjsInternalGlobal : GjsBaseGlobal {
               0),
         JS_FN("setModulePrivate", gjs_internal_set_module_private, 2, 0),
         JS_FN("uriExists", gjs_internal_uri_exists, 1, 0),
+        JS_FN("atob", gjs_internal_atob, 1, 0),
         JS_FS_END};
 
     static constexpr JSClass klass = {
@@ -339,6 +350,13 @@ class GjsInternalGlobal : GjsBaseGlobal {
         gjs_set_global_slot(global, GjsGlobalSlot::MODULE_REGISTRY,
                             JS::ObjectValue(*module_registry));
 
+        JS::RootedObject source_map_registry{cx, JS::NewMapObject(cx)};
+        if (!source_map_registry)
+            return false;
+
+        gjs_set_global_slot(global, GjsGlobalSlot::SOURCE_MAP_REGISTRY,
+                            JS::ObjectValue(*source_map_registry));
+
         return JS_DefineFunctions(cx, global, static_funcs);
     }
 };
@@ -383,11 +401,10 @@ JSObject* gjs_create_global_object(JSContext* cx, GjsGlobalType global_type,
 
 /**
  * gjs_global_is_type:
+ * @cx: the current #JSContext
+ * @type: the global type to test for
  *
- * @param cx the current #JSContext
- * @param type the global type to test for
- *
- * @returns whether the current global is the same type as #type
+ * Returns: whether the current global is the same type as @type
  */
 bool gjs_global_is_type(JSContext* cx, GjsGlobalType type) {
     JSObject* global = JS::CurrentGlobalOrNull(cx);
@@ -427,16 +444,17 @@ GjsGlobalType gjs_global_get_type(JSObject* global) {
 
 /**
  * gjs_global_registry_set:
+ * @cx: the current #JSContext
+ * @registry: a JS Map object
+ * @key: a module identifier, typically a string or symbol
+ * @module: a module object
  *
- * @brief This function inserts a module object into a global registry.
- * Global registries are JS Map objects for easy reuse and access
- * within internal JS. This function will assert if a module has
- * already been inserted at the given key.
-
- * @param cx the current #JSContext
- * @param registry a JS Map object
- * @param key a module identifier, typically a string or symbol
- * @param module a module object
+ * This function inserts a module object into a global registry. Global
+ * registries are JS Map objects for easy reuse and access within internal JS.
+ * This function will assert if a module has already been inserted at the given
+ * key.
+ *
+ * Returns: false if an exception is pending, otherwise true.
  */
 bool gjs_global_registry_set(JSContext* cx, JS::HandleObject registry,
                              JS::PropertyKey key, JS::HandleObject module) {
@@ -457,16 +475,16 @@ bool gjs_global_registry_set(JSContext* cx, JS::HandleObject registry,
 
 /**
  * gjs_global_registry_get:
+ * @cx: the current #JSContext
+ * @registry: a JS Map object
+ * @key: a module identifier, typically a string or symbol
+ * @module_out: (out): handle where a module object will be stored
  *
- * @brief This function retrieves a module record from the global registry,
- * or %NULL if the module record is not present.
- * Global registries are JS Map objects for easy reuse and access
- * within internal JS.
-
- * @param cx the current #JSContext
- * @param registry a JS Map object
- * @param key a module identifier, typically a string or symbol
- * @param module a module object
+ * This function retrieves a module record from the global registry, or null if
+ * the module record is not present. Global registries are JS Map objects for
+ * easy reuse and access within internal JS.
+ *
+ * Returns: false if an exception is pending, otherwise true.
  */
 bool gjs_global_registry_get(JSContext* cx, JS::HandleObject registry,
                              JS::PropertyKey key,
@@ -485,6 +503,39 @@ bool gjs_global_registry_get(JSContext* cx, JS::HandleObject registry,
     }
 
     module_out.set(nullptr);
+    return true;
+}
+
+/**
+ * gjs_global_source_map_get:
+ * @cx: the current #JSContext
+ * @registry: a JS Map object
+ * @key: a source string, such as retrieved from a stack frame
+ * @source_map_consumer_obj: handle where a source map consumer object will be
+ *   stored
+ *
+ * This function retrieves a source map consumer from the source map registry,
+ * or null if the source does not have a source map consumer.
+ *
+ * Returns: false if an exception is pending, otherwise true.
+ */
+bool gjs_global_source_map_get(
+    JSContext* cx, JS::HandleObject registry, JS::HandleString key,
+    JS::MutableHandleObject source_map_consumer_obj) {
+    JS::RootedValue v_key{cx, JS::StringValue(key)};
+    JS::RootedValue v_value{cx};
+    if (!JS::MapGet(cx, registry, v_key, &v_value))
+        return false;
+
+    g_assert((v_value.isUndefined() || v_value.isObject()) &&
+             "Invalid value in source map registry");
+
+    if (v_value.isObject()) {
+        source_map_consumer_obj.set(&v_value.toObject());
+        return true;
+    }
+
+    source_map_consumer_obj.set(nullptr);
     return true;
 }
 

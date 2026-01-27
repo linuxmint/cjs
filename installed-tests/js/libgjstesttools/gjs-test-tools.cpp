@@ -7,8 +7,6 @@
 #include <mutex>
 #include <unordered_set>
 
-#include "cjs/jsapi-util.h"
-
 #ifdef G_OS_UNIX
 #    include <errno.h>
 #    include <fcntl.h> /* for FD_CLOEXEC */
@@ -17,6 +15,8 @@
 
 #    include <glib-unix.h> /* for g_unix_open_pipe */
 #endif
+
+#include "cjs/auto.h"
 
 static std::atomic<GObject*> s_tmp_object = nullptr;
 static GWeakRef s_tmp_weak;
@@ -110,6 +110,21 @@ void gjs_test_tools_ref_other_thread(GObject* object, GError** error) {
     // cppcheck-suppress memleak
 }
 
+static gpointer emit_test_signal_other_thread_func(gpointer data) {
+    g_signal_emit_by_name(data, "test");
+    return nullptr;
+}
+
+void gjs_test_tools_emit_test_signal_other_thread(GObject* object,
+                                                  GError** error) {
+    auto* thread =
+        g_thread_try_new("emit_signal_object",
+                         emit_test_signal_other_thread_func, object, error);
+    if (thread)
+        g_thread_join(thread);
+    // cppcheck-suppress memleak
+}
+
 typedef enum {
     REF = 1 << 0,
     UNREF = 1 << 1,
@@ -135,8 +150,8 @@ static RefThreadData* ref_thread_data_new(GObject* object, int interval,
 }
 
 static void* ref_thread_func(void* data) {
-    GjsAutoPointer<RefThreadData, void, g_free> ref_data =
-        static_cast<RefThreadData*>(data);
+    Gjs::AutoPointer<RefThreadData, void, g_free> ref_data{
+        static_cast<RefThreadData*>(data)};
 
     if (FinalizedObjectsLocked()->count(ref_data->object))
         return nullptr;

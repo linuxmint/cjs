@@ -7,7 +7,7 @@
 
 #include <config.h>
 
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
@@ -15,8 +15,10 @@
 #include <js/TypeDecls.h>
 
 #include "gi/cwrapper.h"
+#include "gi/info.h"
 #include "gi/wrapperutils.h"
-#include "cjs/jsapi-util.h"  // for GjsAutoPointer operators
+#include "cjs/auto.h"  // for Gjs::AutoPointer operators
+#include "cjs/gerror-result.h"
 #include "cjs/macros.h"
 #include "util/log.h"
 
@@ -53,7 +55,12 @@ class ErrorBase
     static constexpr const char* DEBUG_TAG = "gerror";
 
     static const struct JSClassOps class_ops;
+
+ public:
+    // public in order to implement Error.isError()
     static const struct JSClass klass;
+
+ protected:
     static JSPropertySpec proto_properties[];
     static JSFunctionSpec static_methods[];
 
@@ -98,17 +105,16 @@ class ErrorBase
                                         GjsTypecheckNoThrow);
 };
 
-class ErrorPrototype : public GIWrapperPrototype<ErrorBase, ErrorPrototype,
-                                                 ErrorInstance, GIEnumInfo> {
+class ErrorPrototype
+    : public GIWrapperPrototype<ErrorBase, ErrorPrototype, ErrorInstance,
+                                GI::AutoEnumInfo, GI::EnumInfo> {
     friend class GIWrapperPrototype<ErrorBase, ErrorPrototype, ErrorInstance,
-                                    GIEnumInfo>;
+                                    GI::AutoEnumInfo, GI::EnumInfo>;
     friend class GIWrapperBase<ErrorBase, ErrorPrototype, ErrorInstance>;
 
     GQuark m_domain;
 
-    static constexpr InfoType::Tag info_type_tag = InfoType::Enum;
-
-    explicit ErrorPrototype(GIEnumInfo* info, GType gtype);
+    explicit ErrorPrototype(const GI::EnumInfo, GType);
     ~ErrorPrototype(void);
 
     GJS_JSAPI_RETURN_CONVENTION
@@ -119,7 +125,7 @@ class ErrorPrototype : public GIWrapperPrototype<ErrorBase, ErrorPrototype,
 
     GJS_JSAPI_RETURN_CONVENTION
     static bool define_class(JSContext* cx, JS::HandleObject in_object,
-                             GIEnumInfo* info);
+                             const GI::EnumInfo);
 };
 
 class ErrorInstance : public GIWrapperInstance<ErrorBase, ErrorPrototype,
@@ -163,6 +169,6 @@ GError* gjs_gerror_make_from_thrown_value(JSContext* cx);
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_define_error_properties(JSContext* cx, JS::HandleObject obj);
 
-bool gjs_throw_gerror(JSContext* cx, GjsAutoError const&);
+bool gjs_throw_gerror(JSContext* cx, Gjs::AutoError const&);
 
 #endif  // GI_GERROR_H_

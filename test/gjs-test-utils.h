@@ -10,7 +10,6 @@
 
 #include <stdint.h>  // for uintptr_t
 
-#include <iterator>  // for pair
 #include <limits>    // for numeric_limits
 #include <string>
 #include <type_traits>  // for is_same

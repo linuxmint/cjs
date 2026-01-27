@@ -37,24 +37,26 @@ You can also skip this step if you are not writing any C++ code.)
 ## Dependencies
 
 GJS requires five other libraries to be installed: GLib, libffi,
-gobject-introspection, SpiderMonkey (also called "mozjs128" on some
+gobject-introspection, SpiderMonkey (also called "mozjs140" on some
 systems.) and the build tool Meson.
 The readline library is not required, but strongly recommended.
-We recommend installing your system's development packages for GLib,
-libffi, gobject-introspection, Meson and readline.
+We recommend installing your system's development packages for libffi,
+gobject-introspection, Meson and readline.
 
 <details>
     <summary>Ubuntu</summary>
-    <code>sudo apt-get install libglib2.0-dev libffi-dev libreadline-dev libgirepository1.0-dev meson</code>
+    <code>sudo apt-get install libffi-dev libreadline-dev libgirepository1.0-dev meson</code>
 </details>
 
 <details>
     <summary>Fedora</summary>
-    <code>sudo dnf install glib2-devel libffi readline-devel gobject-introspection-devel meson</code>
+    <code>sudo dnf install libffi readline-devel gobject-introspection-devel meson</code>
 </details>
 
 But, if your system's versions of these packages aren't new enough, then
 the build process will download and build sufficient versions.
+(Temporarily, until GNOME 49 is released, GJS requires a development
+version of GLib, so the build process will always download GLib.)
 
 SpiderMonkey cannot be auto-installed, so you will need to install it
 either through your system's package manager, or building it yourself.
@@ -70,15 +72,14 @@ example, Fedora 41 or Ubuntu 24.10 and later versions), then you don't
 need to build it yourself.
 Install SpiderMonkey using your system's package manager instead:
 
-<!--Ubuntu does not currently ship a build of libmozjs-128-->
-<!-- <details>
+<details>
     <summary>Ubuntu</summary>
-    <code>sudo apt-get install libmozjs-128-dev</code>
-</details> -->
+    <code>sudo apt-get install libmozjs-140-dev</code>
+</details>
 
 <details>
     <summary>Fedora</summary>
-    <code>sudo dnf install mozjs128-devel</code>
+    <code>sudo dnf install mozjs140-devel</code>
 </details>
 
 If you _are_ writing C++ code, then please build SpiderMonkey yourself
@@ -86,11 +87,18 @@ with the debugging features enabled.
 This can save you time later when you submit your merge request, because
 the code will be checked using the debugging features.
 
-To build SpiderMonkey, follow the instructions on [this page](https://github.com/mozilla-spidermonkey/spidermonkey-embedding-examples/blob/esr128/docs/Building%20SpiderMonkey.md) to download the source code and build the library.
+To build SpiderMonkey, follow the instructions on [this page](https://github.com/mozilla-spidermonkey/spidermonkey-embedding-examples/blob/esr140/docs/Building%20SpiderMonkey.md) to download the source code and build the library.
 If you are using `-Dprefix` to build GJS into a different path, then
 make sure to use the same build prefix for SpiderMonkey with `--prefix`.
 
 ## First build
+
+Temporarily, until GNOME 49 is released, you will need to first run:
+```sh
+export GI_TYPELIB_PATH=$(pkg-config --variable=typelibdir girepository-2.0)
+```
+You need to do this once per terminal session, and you can put it in
+your shell profile file if you want to do it automatically.
 
 To build GJS, change to your `gjs` directory, and run:
 ```sh
@@ -104,7 +112,7 @@ For a list of available options, run `meson configure`.
 That's it! You can now run your build of gjs for testing and hacking with
 
 ```sh
-meson devenv -C _build cjs-console ../script.js
+meson devenv -C _build gjs-console ../script.js
 ```
 (the path `../script.js` is relative to `_build`, not the root folder)
 
@@ -167,7 +175,7 @@ more likely to show up.
 
 To see which GC zeal options are available:
 ```sh
-JS_GC_ZEAL=-1 js128
+JS_GC_ZEAL=-1 js140
 ```
 
 We include three test setups, `extra_gc`, `pre_verify`, and
@@ -231,7 +239,7 @@ This will build GJS into a separate build directory with code coverage
 instrumentation enabled, run the test suite to collect the coverage
 data, and open the generated HTML report.
 
-[embedder](https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr128/docs/Building%20SpiderMonkey.md)
+[embedder](https://github.com/spidermonkey-embedders/spidermonkey-embedding-examples/blob/esr140/docs/Building%20SpiderMonkey.md)
 
 ## Troubleshooting
 

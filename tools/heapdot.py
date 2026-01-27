@@ -9,7 +9,7 @@
 
 import re
 
-func_regex = re.compile('Function(?: ([^/]+)(?:/([<|\w]+))?)?')
+func_regex = re.compile(r'Function(?: ([^/]+)(?:/([<|\w]+))?)?')
 priv_regex = re.compile(r'([^ ]+) (\(nil\)|0x[a-fA-F0-9]+$)')
 
 
@@ -90,7 +90,7 @@ def output_dot_file(args, graph, targs, fname):
                 if elabel in ['prototype', 'group_proto']:
                     style += ',dashed'
             # Another object native to Gjs
-            elif label.startswith('Cjs') or label.startswith('GIR'):
+            elif label.startswith('Gjs') or label.startswith('GIR'):
                 shape = 'octagon'
         elif label.startswith('Function'):
             fm = func_regex.match(label)

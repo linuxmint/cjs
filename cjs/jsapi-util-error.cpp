@@ -28,7 +28,9 @@
 #include <mozilla/ScopeExit.h>
 
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "util/log.h"
@@ -93,7 +95,7 @@ static bool append_new_cause(JSContext* cx, JS::HandleValue thrown,
 [[gnu::format(printf, 4, 0)]] static void gjs_throw_valist(
     JSContext* cx, JSExnType error_kind, const char* error_name,
     const char* format, va_list args) {
-    GjsAutoChar s = g_strdup_vprintf(format, args);
+    Gjs::AutoChar s{g_strdup_vprintf(format, args)};
     auto fallback = mozilla::MakeScopeExit([cx, &s]() {
         // try just reporting it to error handler? should not
         // happen though pretty much
@@ -212,7 +214,7 @@ gjs_throw_literal(JSContext       *context,
  * and domain don't matter. So, for example, don't use it to throw errors
  * around calling from JS into C code.
  */
-bool gjs_throw_gerror_message(JSContext* cx, GjsAutoError const& error) {
+bool gjs_throw_gerror_message(JSContext* cx, Gjs::AutoError const& error) {
     g_return_val_if_fail(error, false);
     gjs_throw_literal(cx, error->message);
     return false;
@@ -254,8 +256,8 @@ void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
     if (gjs_environment_variable_is_set("GJS_ABORT_ON_OOM") &&
         !report->isWarning() && report->errorNumber == 137) {
         /* 137, JSMSG_OUT_OF_MEMORY */
-        g_error("GJS ran out of memory at %s: %i.", report->filename.c_str(),
-                report->lineno);
+        g_error("GJS ran out of memory at %s:%u:%u.", report->filename.c_str(),
+                report->lineno, report->column.oneOriginValue());
     }
 
     if (report->isWarning()) {
@@ -276,6 +278,7 @@ void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
         level = G_LOG_LEVEL_WARNING;
     }
 
-    g_log(G_LOG_DOMAIN, level, "JS %s: [%s %d]: %s", warning,
-          report->filename.c_str(), report->lineno, report->message().c_str());
+    g_log(G_LOG_DOMAIN, level, "JS %s: %s:%u:%u: %s", warning,
+          report->filename.c_str(), report->lineno,
+          report->column.oneOriginValue(), report->message().c_str());
 }

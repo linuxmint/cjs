@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: 2011 Giovanni Campagna
 
 var GLib = imports.gi.GLib;
-var CjsPrivate = imports.gi.CjsPrivate;
+var GjsPrivate = imports.gi.GjsPrivate;
 var Signals = imports.signals;
-const { warnDeprecatedOncePerCallsite, PLATFORM_SPECIFIC_TYPELIB } = imports._print;
+const {warnDeprecatedOncePerCallsite, PLATFORM_SPECIFIC_TYPELIB} = imports._print;
 var Gio;
 
 // Ensures that a Gio.UnixFDList being passed into or out of a DBus method with
@@ -404,7 +404,7 @@ function _wrapJSObject(interfaceInfo, jsObj) {
         info = Gio.DBusInterfaceInfo.new_for_xml(interfaceInfo);
     info.cache_build();
 
-    var impl = new CjsPrivate.DBusImplementation({g_interface_info: info});
+    var impl = new GjsPrivate.DBusImplementation({g_interface_info: info});
     impl.connect('handle-method-call', function (self, methodName, parameters, invocation) {
         return _handleMethodCall.call(jsObj, info, self, methodName, parameters, invocation);
     });
@@ -481,25 +481,24 @@ function _warnNotIntrospectable(funcName, replacement) {
 function _init() {
     Gio = this;
     let GioPlatform = {};
+    let platformName = '';
 
     Gio.Application.prototype.runAsync = GLib.MainLoop.prototype.runAsync;
 
-    if (GLib.MAJOR_VERSION > 2 ||
-        (GLib.MAJOR_VERSION === 2 && GLib.MINOR_VERSION >= 86)) {
-        // Redefine Gio functions with platform-specific implementations to be
-        // backward compatible with gi-repository 1.0, however when possible we
-        // notify a deprecation warning, to ensure that the surrounding code is
-        // updated.
+    // Redefine Gio functions with platform-specific implementations to be
+    // backward compatible with gi-repository 1.0, however when possible we
+    // notify a deprecation warning, to ensure that the surrounding code is
+    // updated.
+    try {
+        GioPlatform = imports.gi.GioUnix;
+        platformName = 'Unix';
+    } catch {
         try {
-            GioPlatform = imports.gi.GioUnix;
-        } catch {
-            try {
-                GioPlatform = imports.gi.GioWin32;
-            } catch {}
-        }
+            GioPlatform = imports.gi.GioWin32;
+            platformName = 'Win32';
+        } catch {}
     }
 
-    const platformName = `${GioPlatform?.__name__?.slice(3 /* 'Gio'.length */)}`;
     const platformNameLower = platformName.toLowerCase();
     Object.entries(Object.getOwnPropertyDescriptors(GioPlatform)).forEach(([prop, desc]) => {
         let genericProp = prop;
@@ -588,16 +587,16 @@ function _init() {
     _wrapFunction(Gio.DBusNodeInfo, 'new_for_xml', _newNodeInfo);
     Gio.DBusInterfaceInfo.new_for_xml = _newInterfaceInfo;
 
-    Gio.DBusExportedObject = CjsPrivate.DBusImplementation;
+    Gio.DBusExportedObject = GjsPrivate.DBusImplementation;
     Gio.DBusExportedObject.wrapJSObject = _wrapJSObject;
 
     // ListStore
     Gio.ListStore.prototype[Symbol.iterator] = _listModelIterator;
     Gio.ListStore.prototype.insert_sorted = function (item, compareFunc) {
-        return CjsPrivate.list_store_insert_sorted(this, item, compareFunc);
+        return GjsPrivate.list_store_insert_sorted(this, item, compareFunc);
     };
     Gio.ListStore.prototype.sort = function (compareFunc) {
-        return CjsPrivate.list_store_sort(this, compareFunc);
+        return GjsPrivate.list_store_sort(this, compareFunc);
     };
 
     // Promisify

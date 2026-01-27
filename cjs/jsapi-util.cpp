@@ -19,19 +19,23 @@
 
 #include <js/AllocPolicy.h>
 #include <js/Array.h>
+#include <js/CallAndConstruct.h>  // for Call
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>
 #include <js/Class.h>
+#include <js/ColumnNumber.h>  // for TaggedColumnNumberOneOrigin
 #include <js/Conversions.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
-#include <js/GCAPI.h>     // for JS_MaybeGC, NonIncrementalGC, GCRe...
+#include <js/GCAPI.h>        // for JS_MaybeGC, NonIncrementalGC, GCRe...
 #include <js/GCHashTable.h>  // for GCHashSet
-#include <js/GCVector.h>  // for RootedVector
-#include <js/HashTable.h>  // for DefaultHasher
-#include <js/Object.h>    // for GetClass
+#include <js/GCVector.h>     // for RootedVector
+#include <js/HashTable.h>    // for DefaultHasher
+#include <js/Object.h>       // for GetClass
 #include <js/PropertyAndElement.h>
+#include <js/PropertyDescriptor.h>  // for JSPROP_ENUMERATE
 #include <js/RootingAPI.h>
+#include <js/SavedFrameAPI.h>
 #include <js/String.h>
 #include <js/TypeDecls.h>
 #include <js/Value.h>
@@ -42,9 +46,12 @@
 #include <mozilla/ScopeExit.h>
 
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
+#include "cjs/global.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
+#include "cjs/module.h"
 
 static void
 throw_property_lookup_error(JSContext       *cx,
@@ -262,8 +269,37 @@ static JSString* exception_to_string(JSContext* cx, JS::HandleValue exc) {
     return JS::ToString(cx, exc);
 }
 
+// Helper function: log and clear the pending exception, without calling into
+// any JS APIs that might cause more exceptions to be thrown.
+static void log_exception_brief(JSContext* cx) {
+    JS::RootedValue exc{cx};
+    if (!JS_GetPendingException(cx, &exc))
+        return;
+
+    JS_ClearPendingException(cx);
+
+    if (!exc.isObject()) {
+        g_warning("Value thrown while printing exception: %s",
+                  gjs_debug_value(exc).c_str());
+        return;
+    }
+
+    JS::RootedObject exc_obj{cx, &exc.toObject()};
+    JSErrorReport* report = JS_ErrorFromException(cx, exc_obj);
+    if (!report) {
+        g_warning("Non-Error Object thrown while printing exception: %s",
+                  gjs_debug_object(exc_obj).c_str());
+        return;
+    }
+
+    g_warning("Exception thrown while printing exception: %s:%u:%u: %s",
+              report->filename.c_str(), report->lineno,
+              report->column.oneOriginValue(), report->message().c_str());
+}
+
 // Helper function: format the error's stack property.
 static std::string format_exception_stack(JSContext* cx, JS::HandleObject exc) {
+    auto Ok = JS::SavedFrameResult::Ok;
     JS::AutoSaveExceptionState saved_exc(cx);
     auto restore =
         mozilla::MakeScopeExit([&saved_exc]() { saved_exc.restore(); });
@@ -276,25 +312,131 @@ static std::string format_exception_stack(JSContext* cx, JS::HandleObject exc) {
     // have the latter.
     JS::RootedObject saved_frame{cx, JS::ExceptionStackOrNull(exc)};
     if (saved_frame) {
+        GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
+        Gjs::AutoMainRealm ar{gjs};
+        JS::RootedObject global{cx, gjs->global()};
+        JS::RootedObject registry{cx, gjs_get_source_map_registry(global)};
+
         JS::UniqueChars utf8_stack{format_saved_frame(cx, saved_frame)};
         if (!utf8_stack)
             return {};
-        out << '\n' << utf8_stack.get();
+
+        char* utf8_stack_str = utf8_stack.get();
+        std::stringstream ss{utf8_stack_str};
+        // append source map info when available to each line
+        while (saved_frame) {
+            JS::RootedObject consumer{cx};
+            JS::RootedString source_string{cx};
+            uint32_t line;
+            JS::TaggedColumnNumberOneOrigin column;
+            std::string stack_line;
+
+            // print the original stack trace
+            std::getline(ss, stack_line, '\n');
+            out << '\n' << stack_line;
+
+            bool success =
+                JS::GetSavedFrameSource(cx, nullptr, saved_frame,
+                                        &source_string) == Ok &&
+                JS::GetSavedFrameLine(cx, nullptr, saved_frame, &line) == Ok &&
+                JS::GetSavedFrameColumn(cx, nullptr, saved_frame, &column) ==
+                    Ok;
+            if (JS::GetSavedFrameParent(cx, nullptr, saved_frame,
+                                        &saved_frame) != Ok) {
+                // If we can't iterate, bail out and don't print source map info
+                break;
+            }
+
+            if (!success) {
+                continue;
+            }
+
+            if (!gjs_global_source_map_get(cx, registry, source_string,
+                                           &consumer) ||
+                !consumer) {
+                log_exception_brief(cx);
+                continue;  // no source map for this file
+            }
+
+            // build query obj for consumer
+            JS::RootedObject input_obj{cx, JS_NewPlainObject(cx)};
+            if (!input_obj ||
+                !JS_DefineProperty(cx, input_obj, "line", line,
+                                   JSPROP_ENUMERATE) ||
+                !JS_DefineProperty(cx, input_obj, "column",
+                                   column.oneOriginValue() - 1,
+                                   JSPROP_ENUMERATE)) {
+                log_exception_brief(cx);
+                continue;
+            }
+
+            JS::RootedValue val{cx, JS::ObjectValue(*input_obj)};
+            if (!JS::Call(cx, consumer, "originalPositionFor",
+                          JS::HandleValueArray(val), &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            JS::RootedObject rvalObj{cx, &val.toObject()};
+
+            out << " -> ";
+
+            if (!JS_GetProperty(cx, rvalObj, "name", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isString()) {
+                JS::UniqueChars name{gjs_string_to_utf8(cx, val)};
+                if (name)
+                    out << name.get() << "@";
+                log_exception_brief(cx);
+            }
+            if (!JS_GetProperty(cx, rvalObj, "source", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isString()) {
+                JS::UniqueChars source{gjs_string_to_utf8(cx, val)};
+                if (source)
+                    out << source.get();
+                log_exception_brief(cx);
+            }
+            if (!JS_GetProperty(cx, rvalObj, "line", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isInt32()) {
+                out << ":" << val.toInt32();
+            }
+            if (!JS_GetProperty(cx, rvalObj, "column", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isInt32()) {
+                out << ":" << val.toInt32() + 1;
+            }
+        }
         return out.str();
     }
 
     JS::RootedValue stack{cx};
-    if (!JS_GetPropertyById(cx, exc, atoms.stack(), &stack) || !stack.isString())
+    if (!JS_GetPropertyById(cx, exc, atoms.stack(), &stack) ||
+        !stack.isString()) {
+        log_exception_brief(cx);
         return {};
+    }
 
     JS::RootedString str{cx, stack.toString()};
     bool is_empty;
-    if (!JS_StringEqualsLiteral(cx, str, "", &is_empty) || is_empty)
+    if (!JS_StringEqualsLiteral(cx, str, "", &is_empty) || is_empty) {
+        log_exception_brief(cx);
         return {};
+    }
 
     JS::UniqueChars utf8_stack{JS_EncodeStringToUTF8(cx, str)};
-    if (!utf8_stack)
+    if (!utf8_stack) {
+        log_exception_brief(cx);
         return {};
+    }
 
     out << '\n' << utf8_stack.get();
     return out.str();
@@ -312,14 +454,14 @@ static std::string format_syntax_error_location(JSContext* cx,
         if (property.isInt32())
             line = property.toInt32();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     int32_t column = 0;
     if (JS_GetPropertyById(cx, exc, atoms.column_number(), &property)) {
         if (property.isInt32())
             column = property.toInt32();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     JS::UniqueChars utf8_filename;
     if (JS_GetPropertyById(cx, exc, atoms.file_name(), &property)) {
@@ -328,7 +470,7 @@ static std::string format_syntax_error_location(JSContext* cx,
             utf8_filename = JS_EncodeStringToUTF8(cx, str);
         }
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     std::ostringstream out;
     out << " @ ";
@@ -353,7 +495,7 @@ static std::string format_exception_with_cause(
 
     JS::RootedValue v_cause(cx);
     if (!JS_GetPropertyById(cx, exc_obj, atoms.cause(), &v_cause))
-        JS_ClearPendingException(cx);
+        log_exception_brief(cx);
     if (v_cause.isUndefined())
         return out.str();
 
@@ -374,7 +516,7 @@ static std::string format_exception_with_cause(
         if (utf8_exception)
             out << utf8_exception.get();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     if (v_cause.isObject())
         out << format_exception_with_cause(cx, cause, seen_causes);
@@ -389,7 +531,7 @@ static std::string format_exception_log_message(JSContext* cx,
 
     if (message) {
         JS::UniqueChars utf8_message = JS_EncodeStringToUTF8(cx, message);
-        JS_ClearPendingException(cx);
+        log_exception_brief(cx);
         if (utf8_message)
             out << utf8_message.get() << ": ";
     }
@@ -400,7 +542,7 @@ static std::string format_exception_log_message(JSContext* cx,
         if (utf8_exception)
             out << utf8_exception.get();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     if (!exc.isObject())
         return out.str();
@@ -499,7 +641,7 @@ static void _linux_get_self_process_size(long* rss_size)  // NOLINT(runtime/int)
 
     *rss_size = 0;
 
-    GjsAutoChar contents;
+    Gjs::AutoChar contents;
     if (!g_file_get_contents("/proc/self/stat", contents.out(), &len, nullptr))
         return;
 

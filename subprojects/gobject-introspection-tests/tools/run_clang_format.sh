@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
+# SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2024 Philip Chimento <philip.chimento@gmail.com>
 
 CLANG_FORMAT=${CLANG_FORMAT:-clang-format}

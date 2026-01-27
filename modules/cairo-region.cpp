@@ -5,7 +5,7 @@
 #include <config.h>
 
 #include <cairo.h>
-#include <girepository.h>
+#include <girepository/girepository.h>
 
 #include <js/CallArgs.h>
 #include <js/Conversions.h>
@@ -21,6 +21,7 @@
 #include "gi/arg.h"
 #include "gi/foreign.h"
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/enum-utils.h"
 #include "cjs/jsapi-util-args.h"
@@ -227,19 +228,19 @@ void CairoRegion::finalize_impl(JS::GCContext*, cairo_region_t* region) {
     cairo_region_destroy(region);
 }
 
-[[nodiscard]] static bool region_to_gi_argument(
+GJS_JSAPI_RETURN_CONVENTION static bool region_to_gi_argument(
     JSContext* context, JS::Value value, const char* arg_name,
     GjsArgumentType argument_type, GITransfer transfer, GjsArgumentFlags flags,
     GIArgument* arg) {
     if (value.isNull()) {
         if (!(flags & GjsArgumentFlags::MAY_BE_NULL)) {
-            GjsAutoChar display_name =
-                gjs_argument_display_name(arg_name, argument_type);
+            Gjs::AutoChar display_name{
+                gjs_argument_display_name(arg_name, argument_type)};
             gjs_throw(context, "%s may not be null", display_name.get());
             return false;
         }
 
-        gjs_arg_unset<void*>(arg);
+        gjs_arg_unset(arg);
         return true;
     }
 
@@ -249,7 +250,7 @@ void CairoRegion::finalize_impl(JS::GCContext*, cairo_region_t* region) {
     if (!CairoRegion::for_js_typecheck(context, obj, &region))
         return false;
     if (transfer == GI_TRANSFER_EVERYTHING)
-        cairo_region_destroy(region);
+        cairo_region_reference(region);
 
     gjs_arg_set(arg, region);
     return true;

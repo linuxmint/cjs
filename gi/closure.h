@@ -16,8 +16,8 @@
 #include <js/TypeDecls.h>
 
 #include "gi/utils-inl.h"
+#include "cjs/auto.h"
 #include "cjs/jsapi-util-root.h"
-#include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 
 class JSTracer;
@@ -53,7 +53,7 @@ class Closure : public GClosure {
     static void unref(Closure* self) { g_closure_unref(self); }
 
  public:
-    using Ptr = GjsAutoPointer<Closure, Closure, unref, ref>;
+    using Ptr = Gjs::AutoPointer<Closure, Closure, unref, ref>;
 
     [[nodiscard]] constexpr static Closure* for_gclosure(GClosure* gclosure) {
         // We need to do this in order to ensure this is a constant expression

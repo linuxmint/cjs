@@ -26,7 +26,7 @@ let ExampleApplication = GObject.registerClass({
 }, class ExampleApplication extends Gtk.Application {
     constructor() {
         super({
-            application_id: 'org.cinnamon.cjs.ExampleApplication',
+            application_id: 'org.gnome.gjs.ExampleApplication',
             flags: Gio.ApplicationFlags.FLAGS_NONE,
         });
     }
@@ -82,7 +82,7 @@ let ExampleApplication = GObject.registerClass({
         notif.set_title('Example Notification');
         notif.set_body('Example Body');
         notif.set_icon(
-            new Gio.ThemedIcon({name: 'xsi-dialog-information-symbolic'})
+            new Gio.ThemedIcon({name: 'dialog-information-symbolic'})
         );
 
         // A default action for when the body of the notification is clicked

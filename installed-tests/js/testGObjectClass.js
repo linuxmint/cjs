@@ -11,6 +11,18 @@ const GLib = imports.gi.GLib;
 const GObject = imports.gi.GObject;
 const Gtk = imports.gi.Gtk;
 
+// Sometimes tests pass if we are comparing two inaccurate values in JS with
+// each other. That's fine for now. Then we just have to suppress the warnings.
+function warn64(func, ...args) {
+    GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        '*cannot be safely stored*');
+    const ret = func(...args);
+    const error = new Error();
+    GLib.test_assert_expected_messages_internal('Gjs',
+        error.fileName, error.lineNumber, 'warn64');
+    return ret;
+}
+
 const MyObject = GObject.registerClass({
     Properties: {
         'readwrite': GObject.ParamSpec.string('readwrite', 'ParamReadwrite',
@@ -312,12 +324,12 @@ describe('GObject class with decorator', function () {
     });
 
     it('warns if more than one argument passed to the default constructor', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_MESSAGE,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_MESSAGE,
             '*Too many arguments*');
 
         new ObjectWithDefaultConstructor({}, 'this is ignored', 123);
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'testGObjectClassTooManyArguments');
     });
 
@@ -533,11 +545,11 @@ describe('GObject class with decorator', function () {
         }, class PropInt64 extends GObject.Object {});
 
         let int64 = GLib.MAXINT64_BIGINT - 5n;
-        let obj = new PropInt64({int64});
+        let obj = warn64(() => new PropInt64({int64}));
         expect(obj.int64).toEqual(Number(int64));
 
         int64 = GLib.MININT64_BIGINT + 555n;
-        obj = new PropInt64({int64});
+        obj = warn64(() => new PropInt64({int64}));
         expect(obj.int64).toEqual(Number(int64));
     });
 
@@ -552,7 +564,7 @@ describe('GObject class with decorator', function () {
             },
         }, class PropDefaultInt64Init extends GObject.Object {});
 
-        const obj = new PropInt64Init();
+        const obj = warn64(() => new PropInt64Init());
         expect(obj.int64).toEqual(Number(defaultValue));
     });
 
@@ -566,7 +578,7 @@ describe('GObject class with decorator', function () {
         }, class PropUint64 extends GObject.Object {});
 
         const uint64 = GLib.MAXUINT64_BIGINT - 5n;
-        const obj = new PropUint64({uint64});
+        const obj = warn64(() => new PropUint64({uint64}));
         expect(obj.uint64).toEqual(Number(uint64));
     });
 
@@ -580,7 +592,7 @@ describe('GObject class with decorator', function () {
             },
         }, class PropDefaultUint64Init extends GObject.Object {});
 
-        const obj = new PropUint64Init();
+        const obj = warn64(() => new PropUint64Init());
         expect(obj.uint64).toEqual(Number(defaultValue));
     });
 
@@ -625,7 +637,7 @@ describe('GObject class with decorator', function () {
         expect(() => (obj.anchors = 'foo')).not.toThrow();
         expect(obj.anchors).toEqual('foo');
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'testGObjectClassForgottenOverride');
     });
 
@@ -665,7 +677,10 @@ describe('GObject class with decorator', function () {
             }
         });
 
-        expect(() => new MyCustomCharset() && new MySecondCustomCharset()).not.toThrow();
+        expect(() => {
+            new MyCustomCharset();
+            new MySecondCustomCharset();
+        }).not.toThrow();
     });
 
     it('resolves properties from interfaces', function () {
@@ -952,6 +967,12 @@ describe('GObject virtual function', function () {
         }, class Foo extends GObject.Object {
             vfunc_init_async() {}
         })).toThrow();
+
+        expect(() => GObject.registerClass({
+            Implements: [Gio.AsyncInitable],
+        }, class FooStatic extends GObject.Object {
+            static vfunc_not_existing() {}
+        })).toThrow();
     });
 
     it('are defined also for static virtual functions', function () {
@@ -962,6 +983,34 @@ describe('GObject virtual function', function () {
         expect(CustomEmptyGIcon.deserialize).toBe(Gio.Icon.deserialize);
         expect(Gio.Icon.new_for_string).toBeInstanceOf(Function);
         expect(CustomEmptyGIcon.new_for_string).toBe(Gio.Icon.new_for_string);
+    });
+
+    it('supports static methods', function () {
+        if (!Gio.Icon.vfunc_from_tokens)
+            pending('https://gitlab.gnome.org/GNOME/glib/-/merge_requests/4457');
+        expect(() => GObject.registerClass({
+            Implements: [Gio.Icon],
+        }, class extends GObject.Object {
+            static vfunc_from_tokens() {}
+        })).not.toThrow();
+    });
+
+    it('must be non-static for methods', function () {
+        expect(() => GObject.registerClass({
+            Implements: [Gio.Icon],
+        }, class extends GObject.Object {
+            static vfunc_serialize() {}
+        })).toThrowError(/.* static definition of non-static.*/);
+    });
+
+    it('must be static for methods', function () {
+        if (!Gio.Icon.vfunc_from_tokens)
+            pending('https://gitlab.gnome.org/GNOME/glib/-/merge_requests/4457');
+        expect(() => GObject.registerClass({
+            Implements: [Gio.Icon],
+        }, class extends GObject.Object {
+            vfunc_from_tokens() {}
+        })).toThrowError(/.*non-static definition of static.*/);
     });
 });
 
@@ -1038,7 +1087,7 @@ describe('Register GType name', function () {
         let gtypeName = 'GType$Test/WithLòt\'s of*bad§chars!';
         let expectedSanitized = 'GType_Test_WithL_t_s_of_bad_chars_';
 
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             `*RangeError: Provided GType name '${gtypeName}' is not valid; ` +
             `automatically sanitized to '${expectedSanitized}'*`);
 
@@ -1046,7 +1095,7 @@ describe('Register GType name', function () {
             GTypeName: gtypeName,
         }, class extends GObject.Object {});
 
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'testGObjectRegisterClassSanitize');
 
         expect(GtypeClass.$gtype.name).toEqual(expectedSanitized);
@@ -1729,38 +1778,38 @@ describe('GObject class with JSObject signals', function () {
     // be caught from signal handlers, so we check for logged messages instead
 
     it('throws an error when returning a boolean value', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*JSObject expected*');
         myInstance.connect('get-object', () => true);
         myInstance.emit('get-object', {});
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'throws an error when returning a boolean value');
     });
 
     it('throws an error when returning an int value', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*JSObject expected*');
         myInstance.connect('get-object', () => 1);
         myInstance.emit('get-object', {});
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'throws an error when returning a boolean value');
     });
 
     it('throws an error when returning a numeric value', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*JSObject expected*');
         myInstance.connect('get-object', () => Math.PI);
         myInstance.emit('get-object', {});
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'throws an error when returning a boolean value');
     });
 
     it('throws an error when returning a string value', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*JSObject expected*');
         myInstance.connect('get-object', () => 'string');
         myInstance.emit('get-object', {});
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectClass.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectClass.js', 0,
             'throws an error when returning a boolean value');
     });
 });

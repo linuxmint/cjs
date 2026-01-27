@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2024 Philip Chimento <philip.chimento@gmail.com>
+
+include:
+  - project: Infrastructure/freedesktop-ci-templates
+    file: templates/alpine.yml
+    ref: 6a40df92957c8ce9ee741aaccc5daaaf70545b1e
+
+stages:
+  - image-build
+  - check
+
+variables:
+  FDO_UPSTREAM_REPO: GNOME/gobject-introspection-tests
+
+.gitests.alpine:
+  variables:
+    FDO_DISTRIBUTION_TAG: '2024-09-11.0'
+
+build-alpine-image:
+  extends:
+    - .fdo.container-build@alpine
+    - .gitests.alpine
+  stage: image-build
+  variables:
+    FDO_DISTRIBUTION_PACKAGES: reuse
+
+license-check:
+  extends:
+    - .fdo.distribution-image@alpine
+    - .gitests.alpine
+  stage: check
+  dependencies: []  # don't check artifacts from container build
+  script:
+    - reuse --version
+    - reuse lint

@@ -15,6 +15,7 @@
 #include <glib.h>
 
 #include <js/CallArgs.h>
+#include <js/ErrorReport.h>  // for ReportUncatchableException
 #include <js/PropertyAndElement.h>
 #include <js/PropertySpec.h>
 #include <js/Realm.h>
@@ -26,12 +27,14 @@
 #include <jsapi.h>  // for JS_WrapObject
 
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/context.h"
 #include "cjs/global.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
+#include "cjs/module.h"
 
 #include "util/console.h"
 
@@ -45,7 +48,8 @@ static bool quit(JSContext* cx, unsigned argc, JS::Value* vp) {
 
     GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
     gjs->exit(exitcode);
-    return false;  // without gjs_throw() == "throw uncatchable exception"
+    JS::ReportUncatchableException(cx);
+    return false;
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -56,7 +60,7 @@ static bool do_readline(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!gjs_parse_call_args(cx, "readline", args, "|s", "prompt", &prompt))
         return false;
 
-    GjsAutoChar line;
+    Gjs::AutoChar line;
     do {
         const char* real_prompt = prompt ? prompt.get() : "db> ";
 #ifdef HAVE_READLINE_READLINE_H
@@ -93,9 +97,25 @@ static bool do_readline(JSContext* cx, unsigned argc, JS::Value* vp) {
     /* Add line to history and convert it to a JSString so that we can pass it
      * back as the return value */
 #ifdef HAVE_READLINE_READLINE_H
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
     add_history(line);
+    gjs_console_write_repl_history(gjs->repl_history_path());
 #endif
     args.rval().setString(JS_NewStringCopyZ(cx, line));
+    return true;
+}
+
+static bool get_source_map_registry(JSContext* cx, unsigned argc,
+                                    JS::Value* vp) {
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
+
+    JS::RootedObject registry{cx, gjs_get_source_map_registry(gjs->global())};
+    if (!JS_WrapObject(cx, &registry)) {
+        gjs_log_exception(cx);
+        return false;
+    }
+    args.rval().setObject(*registry);
     return true;
 }
 
@@ -103,6 +123,7 @@ static bool do_readline(JSContext* cx, unsigned argc, JS::Value* vp) {
 static JSFunctionSpec debugger_funcs[] = {
     JS_FN("quit", quit, 1, GJS_MODULE_PROP_FLAGS),
     JS_FN("readline", do_readline, 1, GJS_MODULE_PROP_FLAGS),
+    JS_FN("getSourceMapRegistry", get_source_map_registry, 0, GJS_MODULE_PROP_FLAGS),
     JS_FS_END
 };
 // clang-format on

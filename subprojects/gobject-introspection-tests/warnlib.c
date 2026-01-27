@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2012 Colin Walters <walters@verbum.org>
 SPDX-FileCopyrightText: 2013 Dieter Verfaillie
 */

@@ -19,41 +19,47 @@
 #    include <windows.h>
 #endif
 
-#include <new>
+#ifdef HAVE_READLINE_READLINE_H
+#    include <readline/history.h>
+#endif
+
 #include <string>       // for u16string
 #include <thread>       // for get_id
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>  // for move
 #include <vector>
 
 #include <gio/gio.h>
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
-#include <js/AllocPolicy.h>  // for SystemAllocPolicy
+#include <js/AllocPolicy.h>       // for SystemAllocPolicy
 #include <js/CallAndConstruct.h>  // for Call, JS_CallFunctionValue
-#include <js/CallArgs.h>     // for UndefinedHandleValue
+#include <js/CallArgs.h>          // for UndefinedHandleValue
 #include <js/CharacterEncoding.h>
 #include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
 #include <js/Context.h>
+#include <js/EnvironmentChain.h>
 #include <js/ErrorReport.h>
-#include <js/Exception.h>           // for StealPendingExceptionStack
-#include <js/GCAPI.h>               // for JS_GC, JS_AddExtraGCRootsTr...
-#include <js/GCHashTable.h>         // for WeakCache
-#include <js/GCVector.h>            // for RootedVector
-#include <js/GlobalObject.h>        // for CurrentGlobalOrNull
-#include <js/HeapAPI.h>             // for ExposeObjectToActiveJS
+#include <js/Exception.h>     // for StealPendingExceptionStack
+#include <js/GCAPI.h>         // for JS_GC, JS_AddExtraGCRootsTr...
+#include <js/GCHashTable.h>   // for WeakCache
+#include <js/GCVector.h>      // for RootedVector
+#include <js/GlobalObject.h>  // for CurrentGlobalOrNull
+#include <js/HeapAPI.h>       // for ExposeObjectToActiveJS
 #include <js/Id.h>
 #include <js/Modules.h>
-#include <js/Promise.h>             // for JobQueue::SavedJobQueue
+#include <js/Promise.h>  // for JobQueue::SavedJobQueue
 #include <js/PropertyAndElement.h>
 #include <js/PropertyDescriptor.h>  // for JSPROP_PERMANENT, JSPROP_RE...
 #include <js/Realm.h>
 #include <js/RootingAPI.h>
 #include <js/ScriptPrivate.h>
 #include <js/SourceText.h>
+#include <js/String.h>  // for JS_NewStringCopyZ
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 #include <js/UniquePtr.h>
@@ -61,8 +67,9 @@
 #include <js/Value.h>
 #include <js/ValueArray.h>
 #include <js/friend/DumpFunctions.h>
-#include <jsapi.h>        // for JS_GetFunctionObject, JS_Ge...
-#include <jsfriendapi.h>  // for ScriptEnvironmentPreparer
+#include <jsapi.h>              // for JS_GetFunctionObject, JS_Ge...
+#include <jsfriendapi.h>        // for ScriptEnvironmentPreparer
+#include <mozilla/Result.h>
 #include <mozilla/UniquePtr.h>  // for UniquePtr::get
 
 #include "gi/closure.h"  // for Closure::Ptr, Closure
@@ -70,13 +77,14 @@
 #include "gi/object.h"
 #include "gi/private.h"
 #include "gi/repo.h"
-#include "gi/utils-inl.h"
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/byteArray.h"
 #include "cjs/context-private.h"
 #include "cjs/context.h"
 #include "cjs/engine.h"
 #include "cjs/error-types.h"
+#include "cjs/gerror-result.h"
 #include "cjs/global.h"
 #include "cjs/importer.h"
 #include "cjs/internal.h"
@@ -99,6 +107,9 @@
 namespace mozilla {
 union Utf8Unit;
 }
+
+using Gjs::GErrorResult;
+using mozilla::Err, mozilla::Ok;
 
 static void     gjs_context_dispose           (GObject               *object);
 static void     gjs_context_finalize          (GObject               *object);
@@ -151,12 +162,13 @@ enum {
     PROP_PROFILER_ENABLED,
     PROP_PROFILER_SIGUSR2,
     PROP_EXEC_AS_MODULE,
+    PROP_REPL_HISTORY_PATH
 };
 
 static GMutex contexts_lock;
 static GList *all_contexts = NULL;
 
-static GjsAutoChar dump_heap_output;
+static Gjs::AutoChar dump_heap_output;
 static unsigned dump_heap_idle_id = 0;
 
 #ifdef G_OS_UNIX
@@ -170,8 +182,8 @@ gjs_context_dump_heaps(void)
     gjs_memory_report("signal handler", false);
 
     /* dump to sequential files to allow easier comparisons */
-    GjsAutoChar filename = g_strdup_printf("%s.%jd.%u", dump_heap_output.get(),
-                                           intmax_t(getpid()), counter);
+    Gjs::AutoChar filename{g_strdup_printf("%s.%jd.%u", dump_heap_output.get(),
+                                           intmax_t(getpid()), counter)};
     ++counter;
 
     FILE *fp = fopen(filename, "w");
@@ -320,19 +332,35 @@ gjs_context_class_init(GjsContextClass *klass)
     g_object_class_install_property(object_class, PROP_EXEC_AS_MODULE, pspec);
     g_param_spec_unref(pspec);
 
-    /* For CjsPrivate */
+    /**
+     * GjsContext:repl-history-path:
+     *
+     * Set this property to persist repl command history in the console or
+     * debugger. If NULL, then command history will not be persisted.
+     */
+    pspec = g_param_spec_string(
+        "repl-history-path", "REPL History Path",
+        "The writable path to persist repl history", nullptr,
+        (GParamFlags)(G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                      G_PARAM_STATIC_STRINGS));
+    g_object_class_install_property(object_class, PROP_REPL_HISTORY_PATH,
+                                    pspec);
+    g_param_spec_unref(pspec);
+
+    /* For GjsPrivate */
     if (!g_getenv("GJS_USE_UNINSTALLED_FILES")) {
 #ifdef G_OS_WIN32
         extern HMODULE gjs_dll;
-        GjsAutoChar basedir =
-            g_win32_get_package_installation_directory_of_module(gjs_dll);
-        GjsAutoChar priv_typelib_dir = g_build_filename(
-            basedir, "lib", "gjs", "girepository-1.0", nullptr);
+        Gjs::AutoChar basedir{
+            g_win32_get_package_installation_directory_of_module(gjs_dll)};
+        Gjs::AutoChar priv_typelib_dir{g_build_filename(
+            basedir, "lib", "gjs", "girepository-1.0", nullptr)};
 #else
-        GjsAutoChar priv_typelib_dir =
-            g_build_filename(PKGLIBDIR, "girepository-1.0", nullptr);
+        Gjs::AutoChar priv_typelib_dir{
+            g_build_filename(PKGLIBDIR, "girepository-1.0", nullptr)};
 #endif
-        g_irepository_prepend_search_path(priv_typelib_dir);
+        GI::Repository repo;
+        repo.prepend_search_path(priv_typelib_dir);
     }
     auto& registry = Gjs::NativeModuleDefineFuncs::get();
     registry.add("_promiseNative", gjs_define_native_promise_stuff);
@@ -409,13 +437,13 @@ void GjsContextPrivate::free_profiler(void) {
 
 void GjsContextPrivate::register_notifier(DestroyNotify notify_func,
                                           void* data) {
-    m_destroy_notifications.push_back({notify_func, data});
+    m_destroy_notifications.insert({notify_func, data});
 }
 
 void GjsContextPrivate::unregister_notifier(DestroyNotify notify_func,
                                             void* data) {
     auto target = std::make_pair(notify_func, data);
-    Gjs::remove_one_from_unsorted_vector(&m_destroy_notifications, target);
+    m_destroy_notifications.erase(target);
 }
 
 void GjsContextPrivate::dispose(void) {
@@ -487,6 +515,7 @@ GjsContextPrivate::~GjsContextPrivate(void) {
     g_clear_pointer(&m_search_path, g_strfreev);
     g_clear_pointer(&m_program_path, g_free);
     g_clear_pointer(&m_program_name, g_free);
+    g_clear_pointer(&m_repl_history_path, g_free);
 }
 
 static void
@@ -528,6 +557,17 @@ gjs_context_constructed(GObject *object)
     g_mutex_unlock(&contexts_lock);
 
     setup_dump_heap();
+
+#ifdef HAVE_READLINE_READLINE_H
+    const char* path = gjs_context_get_repl_history_path(js_context);
+    // Populate command history from persisted file
+    if (path) {
+        int err = read_history(path);
+        if (err != 0 && g_getenv("GJS_REPL_HISTORY"))
+            g_warning("Could not read REPL history file %s: %s", path,
+                      g_strerror(err));
+    }
+#endif
 }
 
 static bool on_context_module_rejected_log_exception(JSContext* cx,
@@ -747,10 +787,14 @@ GjsContextPrivate::GjsContextPrivate(JSContext* cx, GjsContext* public_context)
         g_error("Failed to define module global in internal global.");
     }
 
-    if (!gjs_load_internal_module(cx, "loader")) {
+    if (!gjs_load_internal_module(cx, "internalLoader")) {
         gjs_log_exception(cx);
         g_error("Failed to load internal module loaders.");
     }
+
+    load_context_module(cx,
+                        "resource:///org/cinnamon/cjs/modules/internal/loader.js",
+                        "module loader");
 
     {
         Gjs::AutoMainRealm ar{this};
@@ -801,6 +845,9 @@ gjs_context_get_property (GObject     *object,
     case PROP_PROGRAM_PATH:
         g_value_set_string(value, gjs->program_path());
         break;
+    case PROP_REPL_HISTORY_PATH:
+        g_value_set_string(value, gjs->repl_history_path());
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
         break;
@@ -833,6 +880,9 @@ gjs_context_set_property (GObject      *object,
         break;
     case PROP_EXEC_AS_MODULE:
         gjs->set_execute_as_module(g_value_get_boolean(value));
+        break;
+    case PROP_REPL_HISTORY_PATH:
+        gjs->set_repl_history_path(g_value_dup_string(value));
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -923,7 +973,6 @@ void GjsContextPrivate::on_garbage_collection(JSGCStatus status, JS::GCReason re
             m_async_closures.shrink_to_fit();
             break;
         case JSGC_END:
-            m_destroy_notifications.shrink_to_fit();
             gjs_debug_lifecycle(GJS_DEBUG_CONTEXT, "End garbage collection");
             break;
         default:
@@ -956,9 +1005,11 @@ void GjsContextPrivate::stop_draining_job_queue(void) {
     m_dispatcher.stop();
 }
 
-JSObject* GjsContextPrivate::getIncumbentGlobal(JSContext* cx) {
+bool GjsContextPrivate::getHostDefinedData(JSContext* cx,
+                                           JS::MutableHandleObject data) const {
     // This is equivalent to SpiderMonkey's behavior.
-    return JS::CurrentGlobalOrNull(cx);
+    data.set(JS::CurrentGlobalOrNull(cx));
+    return true;
 }
 
 // See engine.cpp and JS::SetJobQueue().
@@ -1267,6 +1318,13 @@ gjs_context_get_native_context (GjsContext *js_context)
     return gjs->context();
 }
 
+static inline bool result_to_c(GErrorResult<> result, GError** error_out) {
+    if (result.isOk())
+        return true;
+    *error_out = result.unwrapErr().release();
+    return false;
+}
+
 bool
 gjs_context_eval(GjsContext   *js_context,
                  const char   *script,
@@ -1279,20 +1337,22 @@ gjs_context_eval(GjsContext   *js_context,
 
     size_t real_len = script_len < 0 ? strlen(script) : script_len;
 
-    GjsAutoUnref<GjsContext> js_context_ref(js_context, GjsAutoTakeOwnership());
-
+    Gjs::AutoUnref<GjsContext> js_context_ref{js_context, Gjs::TakeOwnership{}};
     GjsContextPrivate* gjs = GjsContextPrivate::from_object(js_context);
-    return gjs->eval(script, real_len, filename, exit_status_p, error);
+
+    gjs->register_non_module_sourcemap(script, filename);
+    return result_to_c(gjs->eval(script, real_len, filename, exit_status_p),
+                       error);
 }
 
 bool gjs_context_eval_module(GjsContext* js_context, const char* identifier,
                              uint8_t* exit_code, GError** error) {
     g_return_val_if_fail(GJS_IS_CONTEXT(js_context), false);
 
-    GjsAutoUnref<GjsContext> js_context_ref(js_context, GjsAutoTakeOwnership());
+    Gjs::AutoUnref<GjsContext> js_context_ref{js_context, Gjs::TakeOwnership{}};
 
     GjsContextPrivate* gjs = GjsContextPrivate::from_object(js_context);
-    return gjs->eval_module(identifier, exit_code, error);
+    return result_to_c(gjs->eval_module(identifier, exit_code), error);
 }
 
 bool gjs_context_register_module(GjsContext* js_context, const char* identifier,
@@ -1301,7 +1361,7 @@ bool gjs_context_register_module(GjsContext* js_context, const char* identifier,
 
     GjsContextPrivate* gjs = GjsContextPrivate::from_object(js_context);
 
-    return gjs->register_module(identifier, uri, error);
+    return result_to_c(gjs->register_module(identifier, uri), error);
 }
 
 bool GjsContextPrivate::auto_profile_enter() {
@@ -1323,57 +1383,61 @@ void GjsContextPrivate::auto_profile_exit(bool auto_profile) {
         gjs_profiler_stop(m_profiler);
 }
 
-bool GjsContextPrivate::handle_exit_code(bool no_sync_error_pending,
-                                         const char* source_type,
-                                         const char* identifier,
-                                         uint8_t* exit_code, GError** error) {
+GErrorResult<> GjsContextPrivate::handle_exit_code(bool no_sync_error_pending,
+                                                   const char* source_type,
+                                                   const char* identifier,
+                                                   uint8_t* exit_code) {
     uint8_t code;
     if (should_exit(&code)) {
         /* exit_status_p is public API so can't be changed, but should be
          * uint8_t, not int */
-        g_set_error(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT,
+        Gjs::AutoError error;
+        g_set_error(error.out(), GJS_ERROR, GJS_ERROR_SYSTEM_EXIT,
                     "Exit with code %d", code);
 
         *exit_code = code;
-        return false;  // Don't log anything
+        return Err(error.release());  // Don't log anything
     }
 
     // Once the main loop exits an exception could
     // be pending even if the script returned
     // true synchronously
     if (JS_IsExceptionPending(m_cx)) {
-        g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+        Gjs::AutoError error;
+        g_set_error(error.out(), GJS_ERROR, GJS_ERROR_FAILED,
                     "%s %s threw an exception", source_type, identifier);
         gjs_log_exception_uncaught(m_cx);
 
         *exit_code = 1;
-        return false;
+        return Err(error.release());
     }
 
     if (m_unhandled_exception) {
-        g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+        Gjs::AutoError error;
+        g_set_error(error.out(), GJS_ERROR, GJS_ERROR_FAILED,
                     "%s %s threw an exception", source_type, identifier);
         *exit_code = 1;
-        return false;
+        return Err(error.release());
     }
 
     // Assume success if no error was thrown and should exit isn't
     // set
     if (no_sync_error_pending) {
         *exit_code = 0;
-        return true;
+        return Ok{};
     }
 
     g_critical("%s %s terminated with an uncatchable exception", source_type,
                identifier);
-    g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+    Gjs::AutoError error;
+    g_set_error(error.out(), GJS_ERROR, GJS_ERROR_FAILED,
                 "%s %s terminated with an uncatchable exception", source_type,
                 identifier);
 
     gjs_log_exception_uncaught(m_cx);
     /* No exit code from script, but we don't want to exit(0) */
     *exit_code = 1;
-    return false;
+    return Err(error.release());
 }
 
 bool GjsContextPrivate::set_main_loop_hook(JSObject* callable) {
@@ -1400,9 +1464,43 @@ bool GjsContextPrivate::run_main_loop_hook() {
                     JS::HandleValueArray::empty(), &ignored_rval);
 }
 
-bool GjsContextPrivate::eval(const char* script, size_t script_len,
-                             const char* filename, int* exit_status_p,
-                             GError** error) {
+// source maps parsing is built upon hooks for resolving or loading modules
+// for non-module runs we need to invoke this logic manually
+void GjsContextPrivate::register_non_module_sourcemap(const char* script,
+                                                      const char* filename) {
+    using AutoURI = Gjs::AutoPointer<GUri, GUri, g_uri_unref>;
+    Gjs::AutoMainRealm ar{this};
+
+    JS::RootedObject global{m_cx, JS::CurrentGlobalOrNull(m_cx)};
+    JS::RootedValue v_loader{
+        m_cx, gjs_get_global_slot(global, GjsGlobalSlot::MODULE_LOADER)};
+    g_assert(v_loader.isObject());
+    JS::RootedObject v_loader_obj{m_cx, &v_loader.toObject()};
+
+    JS::RootedValueArray<3> args{m_cx};
+    JS::RootedString script_str{m_cx, JS_NewStringCopyZ(m_cx, script)};
+    JS::RootedString file_name_str{m_cx, JS_NewStringCopyZ(m_cx, filename)};
+    args[0].setString(script_str);
+    args[1].setString(file_name_str);
+
+    // if the file uri is not an absolute uri with a scheme, build one assuming
+    // file:// this parameter is used to help locate non-inlined source map file
+    AutoURI uri = g_uri_parse(filename, G_URI_FLAGS_NONE, nullptr);
+    if (!uri) {
+        Gjs::AutoUnref<GFile> file = g_file_new_for_path(filename);
+        Gjs::AutoChar file_uri = g_file_get_uri(file);
+        JS::RootedString abs_filename_scheme_str{
+            m_cx, JS_NewStringCopyZ(m_cx, file_uri.get())};
+        args[2].setString(abs_filename_scheme_str);
+    }
+
+    JS::RootedValue ignored{m_cx};
+    JS::Call(m_cx, v_loader_obj, "populateSourceMap", args, &ignored);
+}
+
+GErrorResult<> GjsContextPrivate::eval(const char* script, size_t script_len,
+                                       const char* filename,
+                                       int* exit_status_p) {
     AutoResetExit reset(this);
 
     bool auto_profile = auto_profile_enter();
@@ -1451,10 +1549,10 @@ bool GjsContextPrivate::eval(const char* script, size_t script_len,
     auto_profile_exit(auto_profile);
 
     uint8_t out_code;
-    ok = handle_exit_code(ok, "Script", filename, &out_code, error);
+    GErrorResult<> result = handle_exit_code(ok, "Script", filename, &out_code);
 
     if (exit_status_p) {
-        if (ok && retval.isInt32()) {
+        if (result.isOk() && retval.isInt32()) {
             int code = retval.toInt32();
             gjs_debug(GJS_DEBUG_CONTEXT,
                       "Script returned integer code %d", code);
@@ -1464,11 +1562,11 @@ bool GjsContextPrivate::eval(const char* script, size_t script_len,
         }
     }
 
-    return ok;
+    return result;
 }
 
-bool GjsContextPrivate::eval_module(const char* identifier,
-                                    uint8_t* exit_status_p, GError** error) {
+GErrorResult<> GjsContextPrivate::eval_module(const char* identifier,
+                                              uint8_t* exit_status_p) {
     AutoResetExit reset(this);
 
     bool auto_profile = auto_profile_enter();
@@ -1479,22 +1577,24 @@ bool GjsContextPrivate::eval_module(const char* identifier,
     JS::RootedId key(m_cx, gjs_intern_string_to_id(m_cx, identifier));
     JS::RootedObject obj(m_cx);
     if (!gjs_global_registry_get(m_cx, registry, key, &obj) || !obj) {
-        g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+        Gjs::AutoError error;
+        g_set_error(error.out(), GJS_ERROR, GJS_ERROR_FAILED,
                     "Cannot load module with identifier: '%s'", identifier);
 
         if (exit_status_p)
             *exit_status_p = 1;
-        return false;
+        return Err(error.release());
     }
 
     if (!JS::ModuleLink(m_cx, obj)) {
         gjs_log_exception(m_cx);
-        g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+        Gjs::AutoError error;
+        g_set_error(error.out(), GJS_ERROR, GJS_ERROR_FAILED,
                     "Failed to resolve imports for module: '%s'", identifier);
 
         if (exit_status_p)
             *exit_status_p = 1;
-        return false;
+        return Err(error.release());
     }
 
     JS::RootedValue evaluation_promise(m_cx);
@@ -1541,19 +1641,20 @@ bool GjsContextPrivate::eval_module(const char* identifier,
     auto_profile_exit(auto_profile);
 
     uint8_t out_code;
-    ok = handle_exit_code(ok, "Module", identifier, &out_code, error);
+    GErrorResult<> result =
+        handle_exit_code(ok, "Module", identifier, &out_code);
     if (exit_status_p)
         *exit_status_p = out_code;
 
-    return ok;
+    return result;
 }
 
-bool GjsContextPrivate::register_module(const char* identifier, const char* uri,
-                                        GError** error) {
+GErrorResult<> GjsContextPrivate::register_module(const char* identifier,
+                                                  const char* uri) {
     Gjs::AutoMainRealm ar{this};
 
     if (gjs_module_load(m_cx, identifier, uri))
-        return true;
+        return Ok{};
 
     const char* msg = "unknown";
     JS::ExceptionStack exn_stack(m_cx);
@@ -1566,11 +1667,12 @@ bool GjsContextPrivate::register_module(const char* identifier, const char* uri,
         JS_ClearPendingException(m_cx);
     }
 
-    g_set_error(error, GJS_ERROR, GJS_ERROR_FAILED,
+    Gjs::AutoError error;
+    g_set_error(error.out(), GJS_ERROR, GJS_ERROR_FAILED,
                 "Failed to parse module '%s': %s", identifier,
                 msg ? msg : "unknown");
 
-    return false;
+    return Err(error.release());
 }
 
 bool
@@ -1579,9 +1681,9 @@ gjs_context_eval_file(GjsContext    *js_context,
                       int           *exit_status_p,
                       GError       **error)
 {
-    GjsAutoChar script;
+    Gjs::AutoChar script;
     size_t script_len;
-    GjsAutoUnref<GFile> file = g_file_new_for_commandline_arg(filename);
+    Gjs::AutoUnref<GFile> file{g_file_new_for_commandline_arg(filename)};
 
     if (!g_file_load_contents(file, nullptr, script.out(), &script_len, nullptr,
                               error))
@@ -1593,8 +1695,8 @@ gjs_context_eval_file(GjsContext    *js_context,
 
 bool gjs_context_eval_module_file(GjsContext* js_context, const char* filename,
                                   uint8_t* exit_status_p, GError** error) {
-    GjsAutoUnref<GFile> file = g_file_new_for_commandline_arg(filename);
-    GjsAutoChar uri = g_file_get_uri(file);
+    Gjs::AutoUnref<GFile> file{g_file_new_for_commandline_arg(filename)};
+    Gjs::AutoChar uri{g_file_get_uri(file)};
 
     return gjs_context_register_module(js_context, uri, uri, error) &&
            gjs_context_eval_module(js_context, uri, exit_status_p, error);
@@ -1632,7 +1734,7 @@ bool GjsContextPrivate::eval_with_scope(JS::HandleObject scope_object,
     if (!buf.init(m_cx, source, source_len, JS::SourceOwnership::Borrowed))
         return false;
 
-    JS::RootedObjectVector scope_chain(m_cx);
+    JS::EnvironmentChain scope_chain{m_cx, JS::SupportUnscopables::No};
     if (!scope_chain.append(eval_obj)) {
         JS_ReportOutOfMemory(m_cx);
         return false;
@@ -1641,8 +1743,8 @@ bool GjsContextPrivate::eval_with_scope(JS::HandleObject scope_object,
     JS::CompileOptions options(m_cx);
     options.setFileAndLine(filename, 1).setNonSyntacticScope(true);
 
-    GjsAutoUnref<GFile> file = g_file_new_for_commandline_arg(filename);
-    GjsAutoChar uri = g_file_get_uri(file);
+    Gjs::AutoUnref<GFile> file{g_file_new_for_commandline_arg(filename)};
+    Gjs::AutoChar uri{g_file_get_uri(file)};
     JS::RootedObject priv(m_cx, gjs_script_module_build_private(m_cx, uri));
     if (!priv)
         return false;
@@ -1821,6 +1923,17 @@ const char *
 gjs_get_js_version(void)
 {
     return JS_GetImplementationVersion();
+}
+
+/**
+ * gjs_context_get_repl_history_path:
+ *
+ * Returns the path property for persisting REPL command history
+ *
+ * Returns: a string
+ */
+const char* gjs_context_get_repl_history_path(GjsContext* self) {
+    return GjsContextPrivate::from_object(self)->repl_history_path();
 }
 
 /**

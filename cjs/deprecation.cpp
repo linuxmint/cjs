@@ -62,7 +62,7 @@ struct DeprecationEntry {
     std::string loc;
 
     DeprecationEntry(GjsDeprecationMessageId an_id, const char* a_loc)
-        : id(an_id), loc(a_loc) {}
+        : id(an_id), loc(a_loc ? a_loc : "unknown") {}
 
     bool operator==(const DeprecationEntry& other) const {
         return id == other.id && loc == other.loc;
@@ -81,10 +81,11 @@ struct hash<DeprecationEntry> {
 static std::unordered_set<DeprecationEntry> logged_messages;
 
 GJS_JSAPI_RETURN_CONVENTION
-static JS::UniqueChars get_callsite(JSContext* cx, unsigned max_frames) {
+static JS::UniqueChars get_callsite(JSContext* cx,
+                                    unsigned max_frames /* = 1 */) {
     JS::RootedObject stack_frame(cx);
     if (!JS::CaptureCurrentStack(cx, &stack_frame,
-                                 JS::StackCapture(JS::MaxFrames(max_frames))) ||
+                                 JS::StackCapture{JS::MaxFrames{max_frames}}) ||
         !stack_frame)
         return nullptr;
 
@@ -99,8 +100,8 @@ static JS::UniqueChars get_callsite(JSContext* cx, unsigned max_frames) {
 static void warn_deprecated_unsafe_internal(JSContext* cx,
                                             const GjsDeprecationMessageId id,
                                             const char* msg,
-                                            unsigned max_frames) {
-    JS::UniqueChars callsite(get_callsite(cx, max_frames));
+                                            unsigned max_frames /* = 1 */) {
+    JS::UniqueChars callsite{get_callsite(cx, max_frames)};
     DeprecationEntry entry(id, callsite.get());
     if (!logged_messages.count(entry)) {
         JS::UniqueChars stack_dump =
@@ -121,8 +122,7 @@ void _gjs_warn_deprecated_once_per_callsite(JSContext* cx,
 
 void _gjs_warn_deprecated_once_per_callsite(
     JSContext* cx, GjsDeprecationMessageId id,
-    const std::vector<const char*>& args,
-    unsigned max_frames) {
+    const std::vector<std::string>& args, unsigned max_frames) {
     // In C++20, use std::format() for this
     std::string_view format_string{messages[id]};
     std::stringstream message;
@@ -152,5 +152,6 @@ void _gjs_warn_deprecated_once_per_callsite(
     message << format_string.substr(copied, std::string::npos);
 
     std::string message_formatted = message.str();
-    warn_deprecated_unsafe_internal(cx, id, message_formatted.c_str(), max_frames);
+    warn_deprecated_unsafe_internal(cx, id, message_formatted.c_str(),
+                                    max_frames);
 }

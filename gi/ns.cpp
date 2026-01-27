@@ -8,7 +8,6 @@
 
 #include <vector>
 
-#include <girepository.h>
 #include <glib.h>
 
 #include <js/CallArgs.h>
@@ -23,100 +22,55 @@
 #include <js/TypeDecls.h>
 #include <js/Utility.h>  // for UniqueChars
 #include <jsapi.h>       // for JS_NewObjectWithGivenProto
+#include <mozilla/Maybe.h>
 
 #include "gi/cwrapper.h"
+#include "gi/info.h"
 #include "gi/ns.h"
 #include "gi/repo.h"
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
+#include "cjs/deprecation.h"
 #include "cjs/global.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "cjs/mem-private.h"
 #include "util/log.h"
 
-#if GLIB_CHECK_VERSION(2, 79, 2)
-#    include "cjs/deprecation.h"
-#endif  // GLib >= 2.79.2
+using mozilla::Maybe;
 
-[[nodiscard]] static bool type_is_enumerable(GIInfoType info_type) {
-    switch (info_type) {
-        case GI_INFO_TYPE_BOXED:
-        case GI_INFO_TYPE_STRUCT:
-        case GI_INFO_TYPE_UNION:
-        case GI_INFO_TYPE_OBJECT:
-        case GI_INFO_TYPE_ENUM:
-        case GI_INFO_TYPE_FLAGS:
-        case GI_INFO_TYPE_INTERFACE:
-        case GI_INFO_TYPE_FUNCTION:
-        case GI_INFO_TYPE_CONSTANT:
-            return true;
-        // Don't enumerate types which GJS doesn't define on namespaces.
-        // See gjs_define_info
-        case GI_INFO_TYPE_INVALID:
-        case GI_INFO_TYPE_INVALID_0:
-        case GI_INFO_TYPE_CALLBACK:
-        case GI_INFO_TYPE_VALUE:
-        case GI_INFO_TYPE_SIGNAL:
-        case GI_INFO_TYPE_VFUNC:
-        case GI_INFO_TYPE_PROPERTY:
-        case GI_INFO_TYPE_FIELD:
-        case GI_INFO_TYPE_ARG:
-        case GI_INFO_TYPE_TYPE:
-        case GI_INFO_TYPE_UNRESOLVED:
-        default:
-            return false;
-    }
+// helper function
+void platform_specific_warning_glib(JSContext* cx, const char* prefix,
+                                    const char* platform,
+                                    const char* resolved_name) {
+    if (!g_str_has_prefix(resolved_name, prefix))
+        return;
+
+    const char* base_name = resolved_name + strlen(prefix);
+    Gjs::AutoChar old_name{g_strdup_printf("GLib.%s", resolved_name)};
+    Gjs::AutoChar new_name{g_strdup_printf("GLib%s.%s", platform, base_name)};
+    _gjs_warn_deprecated_once_per_callsite(
+        cx, GjsDeprecationMessageId::PlatformSpecificTypelib,
+        {old_name.get(), new_name.get()});
 }
 
-class Ns : private GjsAutoChar, public CWrapper<Ns> {
+class Ns : private Gjs::AutoChar, public CWrapper<Ns> {
     friend CWrapperPointerOps<Ns>;
     friend CWrapper<Ns>;
-
-#if GLIB_CHECK_VERSION(2, 79, 2)
-    bool m_is_gio_or_glib : 1;
-#endif  // GLib >= 2.79.2
 
     static constexpr auto PROTOTYPE_SLOT = GjsGlobalSlot::PROTOTYPE_ns;
     static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_GNAMESPACE;
 
     explicit Ns(const char* ns_name)
-        : GjsAutoChar(const_cast<char*>(ns_name), GjsAutoTakeOwnership()) {
+        : Gjs::AutoChar(const_cast<char*>(ns_name), Gjs::TakeOwnership{}) {
         GJS_INC_COUNTER(ns);
-#if GLIB_CHECK_VERSION(2, 79, 2)
-        m_is_gio_or_glib =
-            strcmp(ns_name, "Gio") == 0 || strcmp(ns_name, "GLib") == 0;
-#endif  // GLib >= 2.79.2
+        m_is_glib = strcmp(ns_name, "GLib") == 0;
     }
 
     ~Ns() { GJS_DEC_COUNTER(ns); }
 
-#if GLIB_CHECK_VERSION(2, 79, 2)
-    // helper function
-    void platform_specific_warning(JSContext* cx, const char* prefix,
-                                   const char* platform,
-                                   const char* resolved_name,
-                                   const char** exceptions = nullptr) {
-        if (!g_str_has_prefix(resolved_name, prefix))
-            return;
-
-        const char* base_name = resolved_name + strlen(prefix);
-        GjsAutoChar old_name =
-            g_strdup_printf("%s.%s", this->get(), resolved_name);
-        if (exceptions) {
-            for (const char** exception = exceptions; *exception; exception++) {
-                if (strcmp(old_name, *exception) == 0)
-                    return;
-            }
-        }
-
-        GjsAutoChar new_name =
-            g_strdup_printf("%s%s.%s", this->get(), platform, base_name);
-        _gjs_warn_deprecated_once_per_callsite(
-            cx, GjsDeprecationMessageId::PlatformSpecificTypelib,
-            {old_name.get(), new_name.get()});
-    }
-#endif  // GLib >= 2.79.2
+    bool m_is_glib : 1;
 
     // JSClass operations
 
@@ -145,8 +99,8 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
             return true;  // not resolved, but no error
         }
 
-        GjsAutoBaseInfo info =
-            g_irepository_find_by_name(nullptr, get(), name.get());
+        Maybe<GI::AutoBaseInfo> info{
+            GI::Repository{}.find_by_name(get(), name.get())};
         if (!info) {
             *resolved = false;  // No property defined, but no error either
             return true;
@@ -154,30 +108,19 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
 
         gjs_debug(GJS_DEBUG_GNAMESPACE,
                   "Found info type %s for '%s' in namespace '%s'",
-                  gjs_info_type_name(info.type()), info.name(), info.ns());
+                  info->type_string(), info->name(), info->ns());
 
-#if GLIB_CHECK_VERSION(2, 79, 2)
-        static const char* unix_types_exceptions[] = {
-            "Gio.UnixConnection",
-            "Gio.UnixCredentialsMessage",
-            "Gio.UnixFDList",
-            "Gio.UnixSocketAddress",
-            "Gio.UnixSocketAddressType",
-            nullptr};
-
-        if (m_is_gio_or_glib) {
-            platform_specific_warning(cx, "Unix", "Unix", name.get(),
-                                      unix_types_exceptions);
-            platform_specific_warning(cx, "unix_", "Unix", name.get());
-            platform_specific_warning(cx, "Win32", "Win32", name.get());
-            platform_specific_warning(cx, "win32_", "Win32", name.get());
+        if (m_is_glib) {
+            platform_specific_warning_glib(cx, "Unix", "Unix", name.get());
+            platform_specific_warning_glib(cx, "unix_", "Unix", name.get());
+            platform_specific_warning_glib(cx, "Win32", "Win32", name.get());
+            platform_specific_warning_glib(cx, "win32_", "Win32", name.get());
         }
-#endif  // GLib >= 2.79.2
 
         bool defined;
-        if (!gjs_define_info(cx, obj, info, &defined)) {
+        if (!gjs_define_info(cx, obj, info.ref(), &defined)) {
             gjs_debug(GJS_DEBUG_GNAMESPACE, "Failed to define info '%s'",
-                      info.name());
+                      info->name());
             return false;
         }
 
@@ -191,21 +134,17 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
                             JS::HandleObject obj [[maybe_unused]],
                             JS::MutableHandleIdVector properties,
                             bool only_enumerable [[maybe_unused]]) {
-        int n = g_irepository_get_n_infos(nullptr, get());
-        if (!properties.reserve(properties.length() + n)) {
+        GI::Repository::Iterator infos{GI::Repository{}.infos(get())};
+        if (!properties.reserve(properties.length() + infos.size())) {
             JS_ReportOutOfMemory(cx);
             return false;
         }
 
-        for (int k = 0; k < n; k++) {
-            GjsAutoBaseInfo info = g_irepository_get_info(nullptr, get(), k);
-            GIInfoType info_type = g_base_info_get_type(info);
-            if (!type_is_enumerable(info_type))
+        for (GI::AutoBaseInfo info : infos) {
+            if (!info.is_enumerable())
                 continue;
 
-            const char* name = info.name();
-
-            jsid id = gjs_intern_string_to_id(cx, name);
+            jsid id = gjs_intern_string_to_id(cx, info.name());
             if (id.isVoid())
                 return false;
             properties.infallibleAppend(id);
@@ -230,7 +169,7 @@ class Ns : private GjsAutoChar, public CWrapper<Ns> {
     GJS_JSAPI_RETURN_CONVENTION
     static bool get_version(JSContext* cx, unsigned argc, JS::Value* vp) {
         GJS_CHECK_WRAPPER_PRIV(cx, argc, vp, args, this_obj, Ns, priv);
-        const char *version = g_irepository_get_version(nullptr, priv->get());
+        const char* version = GI::Repository{}.get_version(priv->get());
         return gjs_string_from_utf8(cx, version, args.rval());
     }
 

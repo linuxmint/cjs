@@ -8,9 +8,7 @@
 #endif
 
 #ifdef ENABLE_PROFILER
-// IWYU has a weird loop where if this is present, it asks for it to be removed,
-// and if absent, asks for it to be added
-#    include <alloca.h>  // IWYU pragma: keep
+#    include <alloca.h>
 #    include <errno.h>
 #    include <stdint.h>
 #    include <stdio.h>        // for sscanf
@@ -39,6 +37,7 @@
 #include <js/TypeDecls.h>
 #include <mozilla/Atomics.h>  // for ProfilingStack operators
 
+#include "cjs/auto.h"
 #include "cjs/context.h"
 #include "cjs/jsapi-util.h"  // for gjs_explain_gc_reason
 #include "cjs/mem-private.h"
@@ -149,15 +148,14 @@ static GjsContext *profiling_context;
 
     g_assert(((void) "Profiler must be set up before extracting maps", self));
 
-    GjsAutoChar path = g_strdup_printf("/proc/%jd/maps", intmax_t(self->pid));
+    Gjs::AutoChar path{g_strdup_printf("/proc/%jd/maps", intmax_t(self->pid))};
 
-    char *content_tmp;
+    Gjs::AutoChar content;
     size_t len;
-    if (!g_file_get_contents(path, &content_tmp, &len, nullptr))
-      return false;
-    GjsAutoChar content = content_tmp;
+    if (!g_file_get_contents(path, content.out(), &len, nullptr))
+        return false;
 
-    GjsAutoStrv lines = g_strsplit(content, "\n", 0);
+    Gjs::AutoStrv lines{g_strsplit(content, "\n", 0)};
 
     for (size_t ix = 0; lines[ix]; ix++) {
         char file[256];
@@ -523,7 +521,7 @@ gjs_profiler_start(GjsProfiler *self)
         self->capture = sysprof_capture_writer_new_from_fd(self->fd, 0);
         self->fd = -1;
     } else {
-        GjsAutoChar path = g_strdup(self->filename);
+        Gjs::AutoChar path{g_strdup(self->filename)};
         if (!path)
             path = g_strdup_printf("gjs-%jd.syscap", intmax_t(self->pid));
 
@@ -878,7 +876,7 @@ void gjs_profiler_set_fd(GjsProfiler* self, int fd) {
 void _gjs_profiler_set_finalize_status(GjsProfiler* self,
                                        JSFinalizeStatus status) {
 #ifdef ENABLE_PROFILER
-    // Implementation note for mozjs-128:
+    // Implementation note for mozjs-140:
     //
     // Sweeping happens in three phases:
     // 1st phase (JSFINALIZE_GROUP_PREPARE): the collector prepares to sweep a
@@ -886,9 +884,9 @@ void _gjs_profiler_set_finalize_status(GjsProfiler* self,
     // unmarked things have been removed, but no GC thing has been swept. 3rd
     // Phase (JSFINALIZE_GROUP_END): all dead GC things for a group of zones
     // have been swept. The above repeats for each sweep group.
-    // JSFINALIZE_COLLECTION_END occurs at the end of all GC. (see jsgc.cpp,
-    // BeginSweepPhase/BeginSweepingZoneGroup and SweepPhase, all called from
-    // IncrementalCollectSlice).
+    // JSFINALIZE_COLLECTION_END occurs at the end of all GC. (see
+    // js/src/gc/GC.cpp, GCRuntime::beginSweepPhase, beginSweepingSweepGroup,
+    // and endSweepPhase, all called from incrementalSlice).
     //
     // Incremental GC muddies the waters, because BeginSweepPhase is always run
     // to entirety, but SweepPhase can be run incrementally and mixed with JS

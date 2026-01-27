@@ -21,6 +21,7 @@
 #include <js/Value.h>
 #include <js/ValueArray.h>
 #include <jsapi.h>  // for JS_NewPlainObject
+#include <mozilla/Maybe.h>
 
 #include "gi/closure.h"
 #include "gi/gobject.h"
@@ -32,10 +33,13 @@
 #include "gi/repo.h"
 #include "gi/value.h"
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
+
+using mozilla::Nothing;
 
 /* gi/private.cpp - private "imports._gi" module with operations that we need
  * to use from JS in order to create GObject classes, but should not be exposed
@@ -67,7 +71,7 @@ static bool gjs_override_property(JSContext* cx, unsigned argc, JS::Value* vp) {
         pspec = g_object_interface_find_property(interface_type, name.get());
         g_type_default_interface_unref(interface_type);
     } else {
-        GjsAutoTypeClass<GObjectClass> class_type(gtype);
+        Gjs::AutoTypeClass<GObjectClass> class_type{gtype};
         pspec = g_object_class_find_property(class_type, name.get());
     }
 
@@ -77,7 +81,7 @@ static bool gjs_override_property(JSContext* cx, unsigned argc, JS::Value* vp) {
         return false;
     }
 
-    GjsAutoParam new_pspec = g_param_spec_override(name.get(), pspec);
+    Gjs::AutoParam new_pspec{g_param_spec_override(name.get(), pspec)};
 
     g_param_spec_set_qdata(new_pspec, ObjectBase::custom_property_quark(),
                            GINT_TO_POINTER(1));
@@ -211,7 +215,7 @@ static bool gjs_register_interface_impl(JSContext* cx, const char* name,
                                                  &n_interfaces, &n_properties))
         return false;
 
-    GjsAutoPointer<GType> iface_types = g_new(GType, n_interfaces);
+    Gjs::AutoPointer<GType> iface_types{g_new(GType, n_interfaces)};
 
     /* We do interface addition in two passes so that any failure
        is caught early, before registering the GType (which we can't undo) */
@@ -264,7 +268,7 @@ static bool gjs_register_interface(JSContext* cx, unsigned argc,
         return false;  // error will have been thrown already
 
     JS::RootedObject constructor(cx), ignored_prototype(cx);
-    if (!InterfacePrototype::create_class(cx, module, nullptr, interface_type,
+    if (!InterfacePrototype::create_class(cx, module, Nothing{}, interface_type,
                                           &constructor, &ignored_prototype))
         return false;
 
@@ -295,7 +299,7 @@ static bool gjs_register_interface_with_class(JSContext* cx, unsigned argc,
         return false;  // error will have been thrown already
 
     JS::RootedObject prototype(cx);
-    if (!InterfacePrototype::wrap_class(cx, module, nullptr, interface_type,
+    if (!InterfacePrototype::wrap_class(cx, module, Nothing{}, interface_type,
                                         klass, &prototype))
         return false;
 
@@ -331,7 +335,7 @@ static bool gjs_register_type_impl(JSContext* cx, const char* name,
                                                  &n_interfaces, &n_properties))
         return false;
 
-    GjsAutoPointer<GType> iface_types = g_new(GType, n_interfaces);
+    Gjs::AutoPointer<GType> iface_types{g_new(GType, n_interfaces)};
 
     /* We do interface addition in two passes so that any failure
        is caught early, before registering the GType (which we can't undo) */
@@ -392,7 +396,7 @@ static bool gjs_register_type(JSContext* cx, unsigned argc, JS::Value* vp) {
         return false;
 
     GType instance_type;
-    GjsAutoPointer<GType> iface_types;
+    Gjs::AutoPointer<GType> iface_types;
     uint32_t n_interfaces;
     if (!gjs_register_type_impl(cx, name.get(), type_flags, parent, interfaces,
                                 properties, iface_types.out(), &n_interfaces,
@@ -402,7 +406,7 @@ static bool gjs_register_type(JSContext* cx, unsigned argc, JS::Value* vp) {
     /* create a custom JSClass */
     JS::RootedObject module(cx, gjs_lookup_private_namespace(cx));
     JS::RootedObject constructor(cx), prototype(cx);
-    if (!ObjectPrototype::define_class(cx, module, nullptr, instance_type,
+    if (!ObjectPrototype::define_class(cx, module, Nothing{}, instance_type,
                                        iface_types, n_interfaces, &constructor,
                                        &prototype))
         return false;
@@ -431,7 +435,7 @@ static bool gjs_register_type_with_class(JSContext* cx, unsigned argc,
 
     GType instance_type;
     uint32_t n_interfaces;
-    GjsAutoPointer<GType> iface_types;
+    Gjs::AutoPointer<GType> iface_types;
     if (!gjs_register_type_impl(cx, name.get(), type_flags, parent, interfaces,
                                 properties, iface_types.out(), &n_interfaces,
                                 &instance_type))
@@ -444,7 +448,7 @@ static bool gjs_register_type_with_class(JSContext* cx, unsigned argc,
 
     JS::RootedObject prototype(cx);
     ObjectPrototype* priv = ObjectPrototype::wrap_class(
-        cx, module, nullptr, instance_type, klass, &prototype);
+        cx, module, Nothing{}, instance_type, klass, &prototype);
     if (!priv)
         return false;
 
@@ -498,7 +502,7 @@ static bool gjs_signal_new(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!JS::GetArrayLength(cx, params_obj, &n_parameters))
         return false;
 
-    GjsAutoPointer<GType> params = g_new(GType, n_parameters);
+    Gjs::AutoPointer<GType> params{g_new(GType, n_parameters)};
     JS::RootedValue gtype_val(cx);
     for (uint32_t ix = 0; ix < n_parameters; ix++) {
         if (!JS_GetElement(cx, params_obj, ix, &gtype_val) ||

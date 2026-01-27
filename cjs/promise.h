@@ -11,25 +11,26 @@
 
 #include <js/TypeDecls.h>
 
-#include "cjs/jsapi-util.h"
+#include "cjs/auto.h"
 
 class GjsContextPrivate;
 
-using GjsAutoMainContext =
-    GjsAutoPointer<GMainContext, GMainContext, g_main_context_unref,
-                   g_main_context_ref>;
-
 namespace Gjs {
 
+using AutoMainContext = AutoPointer<GMainContext, GMainContext,
+                                    g_main_context_unref, g_main_context_ref>;
+
 /**
- * @brief A class which wraps a custom GSource and handles associating it with a
+ * PromiseJobDispatcher:
+ *
+ * A class which wraps a custom GSource and handles associating it with a
  * GMainContext. While it is running, it will attach the source to the main
  * context so that promise jobs are run at the appropriate time.
  */
 class PromiseJobDispatcher {
     class Source;
     // The thread-default GMainContext
-    GjsAutoMainContext m_main_context;
+    AutoMainContext m_main_context;
     // The custom source.
     std::unique_ptr<Source> m_source;
 
@@ -38,17 +39,23 @@ class PromiseJobDispatcher {
     ~PromiseJobDispatcher();
 
     /**
-     * @brief Start (or resume) dispatching jobs from the promise job queue
+     * PromiseJobDispatcher::start:
+     *
+     * Starts (or resumes) dispatching jobs from the promise job queue.
      */
     void start();
 
     /**
-     * @brief Stop dispatching
+     * PromiseJobDispatcher::stop:
+     *
+     * Stops dispatching jobs from the promise job queue.
      */
     void stop();
 
     /**
-     * @brief Whether the dispatcher is currently running
+     * PromiseJobDispatcher::is_running:
+     *
+     * Returns: Whether the dispatcher is currently running.
      */
     bool is_running();
 };

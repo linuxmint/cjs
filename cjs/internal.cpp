@@ -15,10 +15,10 @@
 #include <js/CallAndConstruct.h>  // for JS_CallFunction
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>
-#include <js/CompilationAndEvaluation.h>
 #include <js/CompileOptions.h>
 #include <js/ErrorReport.h>  // for JSEXN_ERR
 #include <js/Exception.h>
+#include <js/Id.h>  // for PropertyKey
 #include <js/Modules.h>
 #include <js/Promise.h>
 #include <js/PropertyAndElement.h>
@@ -34,8 +34,10 @@
 #include <jsapi.h>        // for JS_NewPlainObject, JS_ObjectIsFunction
 #include <jsfriendapi.h>  // for JS_GetObjectFunction, SetFunctionNativeReserved
 
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
+#include "cjs/gerror-result.h"
 #include "cjs/global.h"
 #include "cjs/internal.h"
 #include "cjs/jsapi-util-args.h"
@@ -54,25 +56,24 @@ union Utf8Unit;
 
 /**
  * gjs_load_internal_module:
+ * @cx: the current JSContext
+ * @identifier: the identifier of the internal module
  *
- * @brief Loads a module source from an internal resource,
+ * Loads a module source from an internal resource,
  * resource:///org/cinnamon/cjs/modules/internal/{#identifier}.js, registers it in
  * the internal global's module registry, and proceeds to compile, initialize,
  * and evaluate the module.
  *
- * @param cx the current JSContext
- * @param identifier the identifier of the internal module
- *
- * @returns whether an error occurred while loading or evaluating the module.
+ * Returns: whether an error occurred while loading or evaluating the module.
  */
 bool gjs_load_internal_module(JSContext* cx, const char* identifier) {
-    GjsAutoChar full_path(g_strdup_printf(
+    Gjs::AutoChar full_path(g_strdup_printf(
         "resource:///org/cinnamon/cjs/modules/internal/%s.js", identifier));
 
     gjs_debug(GJS_DEBUG_IMPORTER, "Loading internal module '%s' (%s)",
               identifier, full_path.get());
 
-    GjsAutoChar script;
+    Gjs::AutoChar script;
     size_t script_len;
     if (!gjs_load_internal_source(cx, full_path, script.out(), &script_len))
         return false;
@@ -87,9 +88,26 @@ bool gjs_load_internal_module(JSContext* cx, const char* identifier) {
     options.setSelfHostingMode(false);
 
     Gjs::AutoInternalRealm ar{cx};
+    GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
+    JS::RootedObject internal_global{cx, gjs->internal_global()};
+    JS::RootedObject module{cx, JS::CompileModule(cx, options, buf)};
+    if (!module)
+        return false;
 
-    JS::RootedValue ignored(cx);
-    return JS::Evaluate(cx, options, buf, &ignored);
+    JS::RootedObject registry{cx, gjs_get_module_registry(internal_global)};
+
+    JS::RootedId key{cx, gjs_intern_string_to_id(cx, full_path)};
+    if (key.isVoid())
+        return false;
+
+    JS::RootedValue ignore{cx};
+    if (!gjs_global_registry_set(cx, registry, key, module) ||
+        !JS::ModuleLink(cx, module) ||
+        !JS::ModuleEvaluate(cx, module, &ignore)) {
+        return false;
+    }
+
+    return true;
 }
 
 static bool handle_wrong_args(JSContext* cx) {
@@ -100,13 +118,16 @@ static bool handle_wrong_args(JSContext* cx) {
 
 /**
  * gjs_internal_set_global_module_loader:
+ * @global: the JS global object
+ * @loader: the JS module loader object to store in @global
  *
- * @brief Sets the MODULE_LOADER slot of the passed global object.
- * The second argument should be an instance of ModuleLoader or
- * InternalModuleLoader. Its moduleResolveHook and moduleLoadHook properties
- * will be called.
+ * JS function exposed as `setGlobalModuleLoader` in the internal global scope.
  *
- * @returns guaranteed to return true or assert.
+ * Sets the MODULE_LOADER slot of @global. @loader should be an instance of
+ * ModuleLoader or InternalModuleLoader. Its `moduleResolveHook` and
+ * `moduleLoadHook` properties will be called.
+ *
+ * Returns: JS undefined
  */
 bool gjs_internal_set_global_module_loader(JSContext* cx, unsigned argc,
                                            JS::Value* vp) {
@@ -125,16 +146,15 @@ bool gjs_internal_set_global_module_loader(JSContext* cx, unsigned argc,
 
 /**
  * compile_module:
+ * @cx: the current JSContext
+ * @uri: The URI of the module
+ * @source: The source text of the module
+ * @v_module_out: (out): Return location for the module as a JS value
  *
- * @brief Compiles the a module source text into an internal #Module object
- * given the module's URI as the first argument.
+ * Compiles the a module source text into an internal #Module object given the
+ * module's URI as the first argument.
  *
- * @param cx the current JSContext
- * @param uri The URI of the module
- * @param source The source text of the module
- * @param v_module_out Return location for the module as a JS value
- *
- * @returns whether an error occurred while compiling the module.
+ * Returns: whether an error occurred while compiling the module.
  */
 static bool compile_module(JSContext* cx, const JS::UniqueChars& uri,
                            JS::HandleString source,
@@ -161,17 +181,17 @@ static bool compile_module(JSContext* cx, const JS::UniqueChars& uri,
 
 /**
  * gjs_internal_compile_internal_module:
+ * @uri: The URI of the module (JS string)
+ * @source: The source text of the module (JS string)
  *
- * @brief Compiles a module source text within the internal global's realm.
+ * JS function exposed as `compileInternalModule` in the internal global scope.
+ *
+ * Compiles a module source text within the internal global's realm.
  *
  * NOTE: Modules compiled with this function can only be executed
  * within the internal global's realm.
  *
- * @param cx the current JSContext
- * @param argc
- * @param vp
- *
- * @returns whether an error occurred while compiling the module.
+ * Returns: The compiled JS module object.
  */
 bool gjs_internal_compile_internal_module(JSContext* cx, unsigned argc,
                                           JS::Value* vp) {
@@ -190,17 +210,17 @@ bool gjs_internal_compile_internal_module(JSContext* cx, unsigned argc,
 
 /**
  * gjs_internal_compile_module:
+ * @uri: The URI of the module (JS string)
+ * @source: The source text of the module (JS string)
  *
- * @brief Compiles a module source text within the main realm.
+ * JS function exposed as `compileModule` in the internal global scope.
+ *
+ * Compiles a module source text within the main realm.
  *
  * NOTE: Modules compiled with this function can only be executed
  * within the main realm.
  *
- * @param cx the current JSContext
- * @param argc
- * @param vp
- *
- * @returns whether an error occurred while compiling the module.
+ * Returns: The compiled JS module object.
  */
 bool gjs_internal_compile_module(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
@@ -218,15 +238,14 @@ bool gjs_internal_compile_module(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 /**
  * gjs_internal_set_module_private:
+ * @module: The JS module object
+ * @private: The JS module private object for @module
  *
- * @brief Sets the private object of an internal #Module object.
- * The private object must be a #JSObject.
+ * JS function exposed as `setModulePrivate` in the internal global scope.
  *
- * @param cx the current JSContext
- * @param argc
- * @param vp
+ * Sets the private object of an internal #Module object.
  *
- * @returns whether an error occurred while setting the private.
+ * Returns: JS undefined
  */
 bool gjs_internal_set_module_private(JSContext* cx, unsigned argc,
                                      JS::Value* vp) {
@@ -242,14 +261,13 @@ bool gjs_internal_set_module_private(JSContext* cx, unsigned argc,
 
 /**
  * gjs_internal_get_registry:
+ * @global: The JS global object
  *
- * @brief Retrieves the module registry for the passed global object.
+ * JS function exposed as `getRegistry` in the internal global scope.
  *
- * @param cx the current JSContext
- * @param argc
- * @param vp
+ * Retrieves the module registry for @global.
  *
- * @returns whether an error occurred while retrieving the registry.
+ * Returns: the module registry, a JS Map object.
  */
 bool gjs_internal_get_registry(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
@@ -264,27 +282,58 @@ bool gjs_internal_get_registry(JSContext* cx, unsigned argc, JS::Value* vp) {
     return true;
 }
 
-bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
-    using AutoHashTable =
-        GjsAutoPointer<GHashTable, GHashTable, g_hash_table_destroy>;
-    using AutoURI = GjsAutoPointer<GUri, GUri, g_uri_unref>;
-
-    JS::CallArgs args = CallArgsFromVp(argc, vp);
-    JS::RootedString string_arg(cx);
-    if (!gjs_parse_call_args(cx, "parseUri", args, "S", "uri", &string_arg))
+/**
+ * gjs_internal_get_source_map_registry:
+ * @global: The JS global object
+ *
+ * JS function exposed as `getSourceMapRegistry` in the internal global scope.
+ *
+ * Retrieves the source map registry for @global.
+ *
+ * Returns: the source map registry, a JS Map object.
+ */
+bool gjs_internal_get_source_map_registry(JSContext* cx, unsigned argc,
+                                          JS::Value* vp) {
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+    JS::RootedObject global{cx};
+    if (!gjs_parse_call_args(cx, "getSourceMapRegistry", args, "o", "global",
+                             &global))
         return handle_wrong_args(cx);
 
-    JS::UniqueChars uri = JS_EncodeStringToUTF8(cx, string_arg);
-    if (!uri)
-        return false;
+    JSAutoRealm ar{cx, global};
 
-    GjsAutoError error;
-    AutoURI parsed = g_uri_parse(uri.get(), G_URI_FLAGS_NONE, &error);
+    JSObject* registry = gjs_get_source_map_registry(global);
+    args.rval().setObject(*registry);
+    return true;
+}
+
+/**
+ * gjs_uri_object:
+ * @cx: the current JSContext
+ * @uri: the URI to parse into a JS URI object
+ * @rval: (out): handle to a JSValue where the URI object will be stored
+ *
+ * Parses @uri and creates a JS object with the various parsed parts available
+ * as properties. See type `Uri` in modules/internal/environment.d.ts.
+ *
+ * Basically a JS wrapper for g_uri_parse() for use in the internal global scope
+ * where we don't have access to gobject-introspection.
+ *
+ * Returns: false if an exception is pending, otherwise true
+ */
+static bool gjs_uri_object(JSContext* cx, const char* uri,
+                           JS::MutableHandleValue rval) {
+    using AutoHashTable =
+        Gjs::AutoPointer<GHashTable, GHashTable, g_hash_table_destroy>;
+    using AutoURI = Gjs::AutoPointer<GUri, GUri, g_uri_unref>;
+
+    Gjs::AutoError error;
+    AutoURI parsed = g_uri_parse(uri, G_URI_FLAGS_ENCODED, &error);
     if (!parsed) {
         Gjs::AutoMainRealm ar{cx};
 
         gjs_throw_custom(cx, JSEXN_ERR, "ImportError",
-                         "Attempted to import invalid URI: %s (%s)", uri.get(),
+                         "Attempted to import invalid URI: %s (%s)", uri,
                          error->message);
         return false;
     }
@@ -301,8 +350,8 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
             Gjs::AutoMainRealm ar{cx};
 
             gjs_throw_custom(cx, JSEXN_ERR, "ImportError",
-                             "Attempted to import invalid URI: %s (%s)",
-                             uri.get(), error->message);
+                             "Attempted to import invalid URI: %s (%s)", uri,
+                             error->message);
             return false;
         }
 
@@ -328,6 +377,11 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!return_obj)
         return false;
 
+    JS::RootedValue v_uri{cx};
+    Gjs::AutoChar uri_string{g_uri_to_string(parsed)};
+    if (!gjs_string_from_utf8(cx, uri_string, &v_uri))
+        return false;
+
     // JS_NewStringCopyZ() used here and below because the URI components are
     // %-encoded, meaning ASCII-only
     JS::RootedString scheme(cx,
@@ -343,15 +397,15 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!path)
         return false;
 
-    GjsAutoChar no_query_str =
-        g_uri_to_string_partial(parsed, G_URI_HIDE_QUERY);
+    Gjs::AutoChar no_query_str{
+        g_uri_to_string_partial(parsed, G_URI_HIDE_QUERY)};
     JS::RootedString uri_no_query{cx, JS_NewStringCopyZ(cx, no_query_str)};
     if (!uri_no_query)
         return false;
 
     if (!JS_DefineProperty(cx, return_obj, "uri", uri_no_query,
                            JSPROP_ENUMERATE) ||
-        !JS_DefineProperty(cx, return_obj, "uriWithQuery", string_arg,
+        !JS_DefineProperty(cx, return_obj, "uriWithQuery", v_uri,
                            JSPROP_ENUMERATE) ||
         !JS_DefineProperty(cx, return_obj, "scheme", scheme,
                            JSPROP_ENUMERATE) ||
@@ -361,8 +415,21 @@ bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
                            JSPROP_ENUMERATE))
         return false;
 
-    args.rval().setObject(*return_obj);
+    rval.setObject(*return_obj);
     return true;
+}
+
+bool gjs_internal_parse_uri(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    JS::RootedString string_arg{cx};
+    if (!gjs_parse_call_args(cx, "parseURI", args, "S", "uri", &string_arg))
+        return handle_wrong_args(cx);
+
+    JS::UniqueChars uri = JS_EncodeStringToUTF8(cx, string_arg);
+    if (!uri)
+        return false;
+
+    return gjs_uri_object(cx, uri.get(), args.rval());
 }
 
 bool gjs_internal_resolve_relative_resource_or_file(JSContext* cx,
@@ -374,23 +441,12 @@ bool gjs_internal_resolve_relative_resource_or_file(JSContext* cx,
                              "uri", &uri, "relativePath", &relative_path))
         return handle_wrong_args(cx);
 
-    GjsAutoUnref<GFile> module_file = g_file_new_for_uri(uri.get());
+    Gjs::AutoUnref<GFile> module_file{g_file_new_for_uri(uri.get())};
 
-    if (module_file) {
-        GjsAutoChar output_uri = g_uri_resolve_relative(
-            uri.get(), relative_path.get(), G_URI_FLAGS_NONE, nullptr);
+    Gjs::AutoChar output_uri{g_uri_resolve_relative(
+        uri.get(), relative_path.get(), G_URI_FLAGS_NONE, nullptr)};
 
-        JS::ConstUTF8CharsZ uri_chars(output_uri, strlen(output_uri));
-        JS::RootedString retval(cx, JS_NewStringCopyUTF8Z(cx, uri_chars));
-        if (!retval)
-            return false;
-
-        args.rval().setString(retval);
-        return true;
-    }
-
-    args.rval().setNull();
-    return true;
+    return gjs_uri_object(cx, output_uri.get(), args.rval());
 }
 
 bool gjs_internal_load_resource_or_file(JSContext* cx, unsigned argc,
@@ -400,11 +456,11 @@ bool gjs_internal_load_resource_or_file(JSContext* cx, unsigned argc,
     if (!gjs_parse_call_args(cx, "loadResourceOrFile", args, "s", "uri", &uri))
         return handle_wrong_args(cx);
 
-    GjsAutoUnref<GFile> file = g_file_new_for_uri(uri.get());
+    Gjs::AutoUnref<GFile> file{g_file_new_for_uri(uri.get())};
 
     char* contents;
     size_t length;
-    GjsAutoError error;
+    Gjs::AutoError error;
     if (!g_file_load_contents(file, /* cancellable = */ nullptr, &contents,
                               &length, /* etag_out = */ nullptr, &error)) {
         Gjs::AutoMainRealm ar{cx};
@@ -432,9 +488,29 @@ bool gjs_internal_uri_exists(JSContext* cx, unsigned argc, JS::Value* vp) {
     if (!gjs_parse_call_args(cx, "uriExists", args, "!s", "uri", &uri))
         return handle_wrong_args(cx);
 
-    GjsAutoUnref<GFile> file = g_file_new_for_uri(uri.get());
+    Gjs::AutoUnref<GFile> file{g_file_new_for_uri(uri.get())};
 
     args.rval().setBoolean(g_file_query_exists(file, nullptr));
+    return true;
+}
+
+bool gjs_internal_atob(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+    JS::UniqueChars text;
+    size_t result_len;
+    if (!gjs_parse_call_args(cx, "atob", args, "!s", "text", &text))
+        return handle_wrong_args(cx);
+
+    Gjs::AutoChar decoded =
+        reinterpret_cast<char*>(g_base64_decode(text.get(), &result_len));
+    JS::ConstUTF8CharsZ contents_chars{decoded, result_len};
+    JS::RootedString contents_str{cx,
+                                  JS_NewStringCopyUTF8Z(cx, contents_chars)};
+
+    if (!contents_str)
+        return false;
+
+    args.rval().setString(contents_str);
     return true;
 }
 
@@ -493,10 +569,10 @@ static void load_async_callback(GObject* file, GAsyncResult* res, void* data) {
 
     char* contents;
     size_t length;
-    GjsAutoError error;
+    Gjs::AutoError error;
     if (!g_file_load_contents_finish(G_FILE(file), res, &contents, &length,
                                      /* etag_out = */ nullptr, &error)) {
-        GjsAutoChar uri = g_file_get_uri(G_FILE(file));
+        Gjs::AutoChar uri{g_file_get_uri(G_FILE(file))};
         gjs_throw_custom(promise->cx, JSEXN_ERR, "ImportError",
                          "Unable to load file async from: %s (%s)", uri.get(),
                          error->message);
@@ -528,7 +604,7 @@ static bool load_async_executor(JSContext* cx, unsigned argc, JS::Value* vp) {
 
     JS::Value priv_value = js::GetFunctionNativeReserved(&args.callee(), 0);
     g_assert(!priv_value.isNull() && "Executor called twice");
-    GjsAutoUnref<GFile> file = G_FILE(priv_value.toPrivate());
+    Gjs::AutoUnref<GFile> file{G_FILE(priv_value.toPrivate())};
     g_assert(file && "Executor called twice");
     // We now own the GFile, and will pass the reference to the GAsyncResult, so
     // remove it from the executor's private slot so it doesn't become dangling
@@ -553,7 +629,7 @@ bool gjs_internal_load_resource_or_file_async(JSContext* cx, unsigned argc,
                              &uri))
         return handle_wrong_args(cx);
 
-    GjsAutoUnref<GFile> file = g_file_new_for_uri(uri.get());
+    Gjs::AutoUnref<GFile> file{g_file_new_for_uri(uri.get())};
 
     JS::RootedObject executor(cx,
                               JS_GetFunctionObject(js::NewFunctionWithReserved(

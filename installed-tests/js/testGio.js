@@ -396,9 +396,6 @@ describe('Gio.FileEnumerator overrides', function () {
 });
 
 describe('Gio.DesktopAppInfo fallback', function () {
-    const requiredVersion =
-        GLib.MAJOR_VERSION > 2 ||
-            (GLib.MAJOR_VERSION === 2 && GLib.MINOR_VERSION >= 86);
     let keyFile;
     const desktopFileContent = `[Desktop Entry]
 Version=1.0
@@ -407,7 +404,6 @@ Name=Some Application
 Exec=${GLib.find_program_in_path('sh')}
 `;
     beforeAll(function () {
-        // Set up log writer for tests to override
         keyFile = new GLib.KeyFile();
         keyFile.load_from_data(desktopFileContent, desktopFileContent.length,
             GLib.KeyFileFlags.NONE);
@@ -416,20 +412,14 @@ Exec=${GLib.find_program_in_path('sh')}
     beforeEach(function () {
         if (!GioUnix)
             pending('Not supported platform');
-
-        if (!requiredVersion)
-            pending('Installed Gio is not new enough for this test');
     });
 
     function expectDeprecationWarning(testFunction) {
-        if (!requiredVersion)
-            pending('Installed Gio is not new enough for this test');
-
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*Gio.DesktopAppInfo has been moved to a separate platform-specific library. ' +
             'Please update your code to use GioUnix.DesktopAppInfo instead*');
         testFunction();
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGio.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGio.js', 0,
             'Gio.DesktopAppInfo expectWarnsOnNewerGio');
     }
 
@@ -446,9 +436,6 @@ Exec=${GLib.find_program_in_path('sh')}
 
     describe('provides platform-independent functions', function () {
         [Gio, GioUnix].forEach(ns => it(`when created from ${ns.__name__}`, function () {
-            if (!requiredVersion)
-                pending('Installed Gio is not new enough for this test');
-
             const maybeExpectDeprecationWarning = ns === Gio
                 ? expectDeprecationWarning : tf => tf();
 
@@ -461,9 +448,6 @@ Exec=${GLib.find_program_in_path('sh')}
 
     describe('provides unix-only functions', function () {
         [Gio, GioUnix].forEach(ns => it(`when created from ${ns.__name__}`, function () {
-            if (!requiredVersion)
-                pending('Installed Gio is not new enough for this test');
-
             const maybeExpectDeprecationWarning = ns === Gio
                 ? expectDeprecationWarning : tf => tf();
 
@@ -483,14 +467,14 @@ describe('Non-introspectable file attribute overrides', function () {
     function expectWarnings(count) {
         numExpectedWarnings = count;
         for (let c = 0; c < count; c++) {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 '*not introspectable*');
         }
     }
 
     function assertWarnings(testName) {
         for (let c = 0; c < numExpectedWarnings; c++) {
-            GLib.test_assert_expected_messages_internal('Cjs', 'testGio.js', 0,
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGio.js', 0,
                 `test Gio.${testName}`);
         }
         numExpectedWarnings = 0;
@@ -541,7 +525,7 @@ describe('Non-introspectable file attribute overrides', function () {
 
     it('works for object', function () {
         expectWarnings(2);
-        const icon = Gio.ThemedIcon.new_from_names(['xsi-list-add-symbolic']);
+        const icon = Gio.ThemedIcon.new_from_names(['list-add-symbolic']);
         expect(() =>
             file.set_attribute(Gio.FILE_ATTRIBUTE_STANDARD_ICON, Gio.FileAttributeType.OBJECT, icon, ...flags))
             .toThrowError(/not introspectable/);

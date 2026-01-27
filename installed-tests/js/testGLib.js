@@ -149,14 +149,14 @@ describe('GLib string function overrides', function () {
     function expectWarnings(count) {
         numExpectedWarnings = count;
         for (let c = 0; c < count; c++) {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 '*not introspectable*');
         }
     }
 
     function assertWarnings(testName) {
         for (let c = 0; c < numExpectedWarnings; c++) {
-            GLib.test_assert_expected_messages_internal('Cjs', 'testGLib.js', 0,
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGLib.js', 0,
                 `test GLib.${testName}`);
         }
         numExpectedWarnings = 0;
@@ -301,7 +301,7 @@ describe('GLib.MatchInfo', function () {
     it('is returned from GLib.Regex.match', function () {
         const [, match] = regex.match('foo', 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     it('stores the string that was matched', function () {
@@ -317,19 +317,19 @@ describe('GLib.MatchInfo', function () {
     it('is returned from GLib.Regex.match_all', function () {
         const [, match] = regex.match_all('foo', 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     it('is returned from GLib.Regex.match_all_full', function () {
         const [, match] = regex.match_all_full('foo', 0, 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     it('is returned from GLib.Regex.match_full', function () {
         const [, match] = regex.match_full('foo', 0, 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     describe('method', function () {
@@ -392,5 +392,61 @@ describe('GLib.MatchInfo', function () {
             expect(match.next()).toBeTrue();
             expect(shouldBePatchedProtoype.next.call(match)).toBeFalse();
         });
+    });
+});
+
+describe('GLibUnix functionality', function () {
+    let GLibUnix;
+    try {
+        GLibUnix = imports.gi.GLibUnix;
+    } catch {}
+
+    beforeEach(function () {
+        if (!GLibUnix)
+            pending('Not supported platform');
+    });
+
+    it('provides structs', function () {
+        new GLibUnix.Pipe();
+    });
+
+    it('provides functions', function () {
+        GLibUnix.fd_source_new(0, GLib.IOCondition.IN);
+    });
+
+    it('provides enums', function () {
+        expect(GLibUnix.PipeEnd.READ).toBe(0);
+        expect(GLibUnix.PipeEnd.WRITE).toBe(1);
+    });
+});
+
+describe('GLibUnix compatibility fallback', function () {
+    // Only test this if GLibUnix is available
+    const skip = imports.gi.versions.GLibUnix !== '2.0';
+
+    beforeEach(function () {
+        if (skip)
+            pending('Not supported platform');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*GLib.* has been moved to a separate platform-specific library. ' +
+            'Please update your code to use GLibUnix.* instead*');
+    });
+
+    it('provides structs', function () {
+        new GLib.UnixPipe();
+    });
+
+    it('provides functions', function () {
+        GLib.unix_fd_source_new(0, GLib.IOCondition.IN);
+    });
+
+    it('provides enums', function () {
+        expect(GLib.UnixPipeEnd.READ).toBe(0);
+        expect(GLib.UnixPipeEnd.WRITE).toBe(1);
+    });
+
+    afterEach(function () {
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGLib.js', 0,
+            'GLib.Unix expect warning');
     });
 });
