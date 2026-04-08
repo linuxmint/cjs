@@ -6,8 +6,10 @@
 // except for the class machinery, interface machinery, and GObject.ParamSpec,
 // which are big enough to get their own files.
 
-const {GLib, GObject} = imports.gi;
-const {system: System} = imports;
+import GjsTestTools from 'gi://GjsTestTools';
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import System from 'system';
 
 const TestObj = GObject.registerClass({
     Properties: {
@@ -50,6 +52,16 @@ describe('GObject overrides', function () {
             handler.calls.reset();
             GObject.signal_emit_by_name(o, 'test');
             expect(handler).not.toHaveBeenCalled();
+        });
+
+        it('guards against signal emission on non-js thread', function () {
+            handler.calls.reset();
+            GObject.signal_connect(o, 'test', handler);
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_CRITICAL, 'Attempting to call back into JSAPI on a different thread.*The offending signal was test on Gjs_TestObj*');
+            GjsTestTools.emit_test_signal_other_thread(o);
+            expect(handler).not.toHaveBeenCalled();
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGObject.js', 0,
+                'testSignalEmissionOtherThread');
         });
     });
 

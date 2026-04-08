@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2020 Marco Trevisan <marco.trevisan@canonical.com>
 
-const {GLib, GObject, GIMarshallingTests, Regress} = imports.gi;
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import GIMarshallingTests from 'gi://GIMarshallingTests';
+import Regress from 'gi://Regress';
 
 const SIGNED_TYPES = ['schar', 'int', 'int64', 'long'];
 const UNSIGNED_TYPES = ['char', 'uchar', 'uint', 'uint64', 'ulong'];
 const FLOATING_TYPES = ['double', 'float'];
 const NUMERIC_TYPES = [...SIGNED_TYPES, ...UNSIGNED_TYPES, ...FLOATING_TYPES];
-const SPECIFIC_TYPES = ['gtype', 'boolean', 'string', 'param', 'variant', 'boxed', 'gvalue'];
+const SPECIFIC_TYPES = ['gtype', 'boolean', 'string', 'param', 'variant', 'boxed', 'gvalue', 'enum'];
 const INSTANCED_TYPES = ['object', 'instance'];
 const ALL_TYPES = [...NUMERIC_TYPES, ...SPECIFIC_TYPES, ...INSTANCED_TYPES];
 
+// Test that constructors can be used in place of GType arguments and corresponds to specified type
+const CONSTRUCTORS = [[String, 'string'], [Number, 'double'], [Boolean, 'boolean'], [Object, 'boxed'], [GIMarshallingTests.PropertiesObject, 'object'], [Regress.TestEnum, 'enum']];
 describe('GObject value (GValue)', function () {
-    let v;
+    let v, overrideV;
     beforeEach(function () {
         v = new GObject.Value();
     });
@@ -31,6 +36,10 @@ describe('GObject value (GValue)', function () {
         if (type === 'gtype')
             return getGType(ALL_TYPES[Math.random() * ALL_TYPES.length | 0]);
 
+        if (type === 'enum')
+            return Regress.TestEnum[`VALUE${(Math.random() * 5 | 0) + 1}`];
+
+
         if (type === 'boxed' || type === 'boxed-struct') {
             return new GIMarshallingTests.BoxedStruct({
                 long_: getDefaultContentByType('long'),
@@ -38,20 +47,21 @@ describe('GObject value (GValue)', function () {
             });
         }
         if (type === 'object') {
-            const wasCreatingObject = this.creatingObject;
-            this.creatingObject = true;
+            const wasCreatingObject = globalThis.creatingObject;
+            globalThis.creatingObject = true;
             const props = ALL_TYPES.filter(e =>
                 (e !== 'object' || !wasCreatingObject) &&
                 e !== 'boxed' &&
                 e !== 'gtype' &&
                 e !== 'instance' &&
                 e !== 'param' &&
-                e !== 'schar').concat([
+                e !== 'schar' &&
+                e !== 'enum').concat([
                 'boxed-struct',
             ]).reduce((ac, a) => ({
                 ...ac, [`some-${a}`]: getDefaultContentByType(a),
             }), {});
-            delete this.creatingObject;
+            delete globalThis.creatingObject;
             return new GIMarshallingTests.PropertiesObject(props);
         }
         if (type === 'param') {
@@ -117,8 +127,14 @@ describe('GObject value (GValue)', function () {
             pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/272');
     }
 
-    ALL_TYPES.forEach(type => {
-        const gtype = getGType(type);
+    [...ALL_TYPES, ...CONSTRUCTORS].forEach(type => {
+        let gtype;
+        // for testing constructor/type tuples
+        if (Array.isArray(type))
+            [gtype, type] = [type[0], type[1]];
+        else
+            gtype = getGType(type);
+
         it(`initializes ${type}`, function () {
             v.init(gtype);
         });
@@ -136,12 +152,14 @@ describe('GObject value (GValue)', function () {
             beforeEach(function () {
                 v.init(gtype);
                 randomContent = getDefaultContentByType(type);
+                overrideV = new GObject.Value(gtype, randomContent);
             });
 
             it(`sets and gets ${type}`, function () {
                 skipUnsupported(type);
                 setContent(v, type, randomContent);
                 expect(getContent(v, type)).toEqual(randomContent);
+                expect(getContent(overrideV, type)).toEqual(randomContent);
             });
 
             it(`can be passed to a function and returns a ${type}`, function () {
@@ -149,6 +167,8 @@ describe('GObject value (GValue)', function () {
                 setContent(v, type, randomContent);
                 expect(GIMarshallingTests.gvalue_round_trip(v)).toEqual(randomContent);
                 expect(GIMarshallingTests.gvalue_copy(v)).toEqual(randomContent);
+                expect(GIMarshallingTests.gvalue_round_trip(overrideV)).toEqual(randomContent);
+                expect(GIMarshallingTests.gvalue_copy(overrideV)).toEqual(randomContent);
             });
 
             it(`copies ${type}`, function () {
@@ -158,6 +178,9 @@ describe('GObject value (GValue)', function () {
                 const other = new GObject.Value();
                 other.init(gtype);
                 v.copy(other);
+                expect(getContent(other, type)).toEqual(randomContent);
+
+                overrideV.copy(other);
                 expect(getContent(other, type)).toEqual(randomContent);
             });
         });
@@ -183,10 +206,13 @@ describe('GObject value (GValue)', function () {
             const instance = getDefaultContentByType(type);
             v.init_from_instance(instance);
             expect(getContent(v, type)).toEqual(instance);
+            overrideV.init_from_instance(instance);
+            expect(getContent(overrideV, type)).toEqual(instance);
         });
     });
 
     afterEach(function () {
         v.unset();
+        overrideV?.unset();
     });
 });

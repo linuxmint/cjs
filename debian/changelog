@@ -1,3 +1,9 @@
+cjs (139.9) unstable; urgency=medium
+
+  * mozjs 140, gjs 1.86.0
+
+ -- Michael Webster <miketwebster@gmail.com>  Thu, 22 Jan 2026 12:00:00 +0000
+
 cjs (128.1) zena; urgency=medium
 
   [ Michael Webster ]

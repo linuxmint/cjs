@@ -23,25 +23,27 @@
 #include "gi/cwrapper.h"
 #include "gi/gtype.h"
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/global.h"
+#include "cjs/jsapi-util-root.h"  // for WeakPtr methods
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "util/log.h"
 
-/*
+/**
  * GTypeObj:
  *
- * Wrapper object used to represent a GType in JavaScript.
- * In C, GTypes are just a pointer-sized integer, but in JS they have a 'name'
- * property and a toString() method.
- * The integer is stuffed into CWrapper's pointer slot.
+ * Wrapper object used to represent a GType in JavaScript. In C, GTypes are just
+ * a pointer-sized integer, but in JS they have a 'name' property and a
+ * toString() method. The integer is stuffed into CWrapper's pointer slot.
  */
 class GTypeObj : public CWrapper<GTypeObj, void> {
     friend CWrapperPointerOps<GTypeObj, void>;
     friend CWrapper<GTypeObj, void>;
 
-    static constexpr auto PROTOTYPE_SLOT = GjsGlobalSlot::PROTOTYPE_gtype;
+    static constexpr GjsGlobalSlot PROTOTYPE_SLOT =
+        GjsGlobalSlot::PROTOTYPE_gtype;
     static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_GTYPE;
 
     // JSClass operations
@@ -71,17 +73,17 @@ class GTypeObj : public CWrapper<GTypeObj, void> {
         if (gtype == 0)
             return false;
 
-        GjsAutoChar strval =
-            g_strdup_printf("[object GType for '%s']", g_type_name(gtype));
+        Gjs::AutoChar strval{
+            g_strdup_printf("[object GType for '%s']", g_type_name(gtype))};
         return gjs_string_from_utf8(cx, strval, rec.rval());
     }
 
-    // clang-format off
     static constexpr JSPropertySpec proto_props[] = {
         JS_PSG("name", &GTypeObj::get_name, JSPROP_PERMANENT),
         JS_STRING_SYM_PS(toStringTag, "GIRepositoryGType", JSPROP_READONLY),
         JS_PS_END};
 
+    // clang-format off
     static constexpr JSFunctionSpec proto_funcs[] = {
         JS_FN("toString", &GTypeObj::to_string, 0, 0),
         JS_FS_END};
@@ -195,11 +197,11 @@ class GTypeObj : public CWrapper<GTypeObj, void> {
     }
 };
 
-JSObject* gjs_gtype_create_gtype_wrapper(JSContext* context, GType gtype) {
-    return GTypeObj::create(context, gtype);
+JSObject* gjs_gtype_create_gtype_wrapper(JSContext* cx, GType gtype) {
+    return GTypeObj::create(cx, gtype);
 }
 
-bool gjs_gtype_get_actual_gtype(JSContext* context, JS::HandleObject object,
+bool gjs_gtype_get_actual_gtype(JSContext* cx, JS::HandleObject object,
                                 GType* gtype_out) {
-    return GTypeObj::actual_gtype(context, object, gtype_out);
+    return GTypeObj::actual_gtype(cx, object, gtype_out);
 }

@@ -6,12 +6,11 @@
 #include <config.h>
 
 #include <limits.h>  // for SSIZE_MAX
-#include <stddef.h>  // for size_t
 #include <stdint.h>
 #include <string.h>  // for strcmp, memchr, strlen
 
 #include <algorithm>
-#include <iosfwd>    // for nullptr_t
+#include <cstddef>  // for nullptr_t, size_t
 #include <iterator>  // for distance
 #include <memory>    // for unique_ptr
 #include <string>    // for u16string
@@ -43,6 +42,8 @@
 #include <mozilla/Span.h>
 #include <mozilla/UniquePtr.h>
 
+#include "cjs/auto.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util-args.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -55,7 +56,7 @@ static void gfree_arraybuffer_contents(void* contents, void*) {
 }
 
 static std::nullptr_t gjs_throw_type_error_from_gerror(
-    JSContext* cx, GjsAutoError const& error) {
+    JSContext* cx, Gjs::AutoError const& error) {
     g_return_val_if_fail(error, nullptr);
     gjs_throw_custom(cx, JSEXN_TYPEERR, nullptr, "%s", error->message);
     return nullptr;
@@ -77,9 +78,9 @@ GJS_JSAPI_RETURN_CONVENTION
 static JSString* gjs_lossy_decode_from_uint8array_slow(
     JSContext* cx, const uint8_t* bytes, size_t bytes_len,
     const char* from_codeset) {
-    GjsAutoError error;
-    GjsAutoUnref<GCharsetConverter> converter(
-        g_charset_converter_new(UTF16_CODESET, from_codeset, &error));
+    Gjs::AutoError error;
+    Gjs::AutoUnref<GCharsetConverter> converter{
+        g_charset_converter_new(UTF16_CODESET, from_codeset, &error)};
 
     // This should only throw if an encoding is not available.
     if (error)
@@ -112,17 +113,18 @@ static JSString* gjs_lossy_decode_from_uint8array_slow(
     // some dialectal characters are in the supplemental plane
     // Adding a padding of 12 prevents a few dialectal characters
     // from requiring a reallocation.
-    size_t buffer_size = std::max(bytes_len * 2 + 12, static_cast<size_t>(256u));
+    size_t buffer_size =
+        std::max(bytes_len * 2 + 12, static_cast<size_t>(256u));
 
     // Cast data to correct input types
     const char* input = reinterpret_cast<const char*>(bytes);
     size_t input_len = bytes_len;
 
     // The base string that we'll append to.
-    std::u16string output_str = u"";
+    std::u16string output_str;
 
     do {
-        GjsAutoError local_error;
+        Gjs::AutoError local_error;
 
         // Create a buffer to convert into.
         std::unique_ptr<char[]> buffer = std::make_unique<char[]>(buffer_size);
@@ -210,11 +212,11 @@ static JSString* gjs_decode_from_uint8array_slow(JSContext* cx,
     }
 
     size_t bytes_written, bytes_read;
-    GjsAutoError error;
+    Gjs::AutoError error;
 
-    GjsAutoChar bytes =
-        g_convert(reinterpret_cast<const char*>(input), input_len,
-                  UTF16_CODESET, encoding, &bytes_read, &bytes_written, &error);
+    Gjs::AutoChar bytes{g_convert(reinterpret_cast<const char*>(input),
+                                  input_len, UTF16_CODESET, encoding,
+                                  &bytes_read, &bytes_written, &error)};
 
     if (error)
         return gjs_throw_type_error_from_gerror(cx, error);
@@ -228,7 +230,8 @@ static JSString* gjs_decode_from_uint8array_slow(JSContext* cx,
     return JS_NewUCStringCopyN(cx, unicode_bytes, bytes_written / 2);
 }
 
-[[nodiscard]] static bool is_utf8_label(const char* encoding) {
+[[nodiscard]]
+static bool is_utf8_label(const char* encoding) {
     // We could be smarter about utf8 synonyms here.
     // For now, we handle any casing and trailing/leading
     // whitespace.
@@ -239,7 +242,7 @@ static JSString* gjs_decode_from_uint8array_slow(JSContext* cx,
         g_ascii_strcasecmp(encoding, "utf8") == 0)
         return true;
 
-    GjsAutoChar stripped(g_strdup(encoding));
+    Gjs::AutoChar stripped{g_strdup(encoding)};
     g_strstrip(stripped);  // modifies in place
     return g_ascii_strcasecmp(stripped, "utf-8") == 0 ||
            g_ascii_strcasecmp(stripped, "utf8") == 0;
@@ -247,12 +250,13 @@ static JSString* gjs_decode_from_uint8array_slow(JSContext* cx,
 
 // Finds the length of a given data array, stopping at the first 0 byte.
 template <class T>
-[[nodiscard]] static size_t zero_terminated_length(const T* data, size_t len) {
+[[nodiscard]]
+static size_t zero_terminated_length(const T* data, size_t len) {
     if (!data || len == 0)
         return 0;
 
     const T* start = data;
-    auto* found = static_cast<const T*>(std::memchr(start, '\0', len));
+    auto* found = static_cast<const T*>(memchr(start, '\0', len));
 
     // If a null byte was not found, return the passed length.
     if (!found)
@@ -402,12 +406,12 @@ JSObject* gjs_encode_to_uint8array(JSContext* cx, JS::HandleString str,
         array_buffer =
             JS::NewArrayBufferWithContents(cx, utf8_len, std::move(utf8));
     } else {
-        GjsAutoError error;
-        GjsAutoChar encoded = nullptr;
+        Gjs::AutoError error;
+        Gjs::AutoChar encoded;
         size_t bytes_written;
 
-        /* Scope for AutoCheckCannotGC, will crash if a GC is triggered
-         * while we are using the string's chars */
+        /* Scope for AutoCheckCannotGC, will crash if a GC is triggered while we
+         * are using the string's chars */
         {
             JS::AutoCheckCannotGC nogc;
             size_t len;

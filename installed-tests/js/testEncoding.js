@@ -382,7 +382,7 @@ describe('Text Encoding', function () {
 
             // Straight from https://encoding.spec.whatwg.org/encodings.json
             const encodingsTable = loadJSONFromResource(
-                'resource:///org/cjs/jsunit/modules/encodings.json'
+                'resource:///org/gjs/jsunit/modules/encodings.json'
             );
 
             const singleByteEncodings = encodingsTable.filter(group => {

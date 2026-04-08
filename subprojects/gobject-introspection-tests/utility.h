@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2008 Colin Walters <walters@verbum.org>
 SPDX-FileCopyrightText: 2008 Johan Dahlin
 SPDX-FileCopyrightText: 2008-2009 Andreas Rottmann <a.rottmann@gmx.at>
@@ -21,6 +22,9 @@ typedef struct _UtilityObjectClass UtilityObjectClass;
 struct _UtilityObject
 {
   GObject parent_instance;
+  /*< private >*/
+  void *user_data;
+  GDestroyNotify destroy_notify;
 };
 
 struct _UtilityObjectClass

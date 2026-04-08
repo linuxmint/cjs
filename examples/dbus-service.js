@@ -4,12 +4,10 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
-/*
- * An XML DBus Interface
- */
+// An XML DBus Interface
 const ifaceXml = `
 <node>
-  <interface name="org.cinnamon.cjs.Test">
+  <interface name="org.gnome.gjs.Test">
     <method name="SimpleMethod"/>
     <method name="ComplexMethod">
       <arg type="s" direction="in" name="input"/>
@@ -23,7 +21,6 @@ const ifaceXml = `
     <property name="ReadWriteProperty" type="b" access="readwrite"/>
   </interface>
 </node>`;
-
 
 // An example of the service-side implementation of the above interface.
 class Service {
@@ -75,7 +72,6 @@ class Service {
     }
 }
 
-
 // Once you've created an instance of your service, you will want to own a name
 // on the bus so clients can connect to it.
 let serviceObj = new Service();
@@ -85,7 +81,7 @@ let serviceSignalId = 0;
 function onBusAcquired(connection, _name) {
     // At this point you have acquired a connection to the bus, and you should
     // export your interfaces now.
-    serviceObj.dbus.export(connection, '/org/cinnamon/cjs/Test');
+    serviceObj.dbus.export(connection, '/org/gnome/gjs/Test');
 }
 
 function onNameAcquired(_connection, _name) {
@@ -113,13 +109,12 @@ function onNameLost(_connection, _name) {
 
 let ownerId = Gio.bus_own_name(
     Gio.BusType.SESSION,
-    'org.cinnamon.cjs.Test',
+    'org.gnome.gjs.Test',
     Gio.BusNameOwnerFlags.NONE,
     onBusAcquired,
     onNameAcquired,
     onNameLost
 );
-
 
 // Start an event loop
 let loop = GLib.MainLoop.new(null, false);

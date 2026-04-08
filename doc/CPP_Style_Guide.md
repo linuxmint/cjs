@@ -174,6 +174,8 @@ without reading the code itself.
 
 Either C++ style comments (`//`) or C style (`/* */`) comments are
 acceptable.
+C++ style comments are preferred if nothing needs to come after the
+comment on the same line.
 However, when documenting a method or function, use [gtk-doc style]
 comments which are based on C style (`/** */`).
 When C style comments take more than one line, put an asterisk (`*`) at
@@ -419,7 +421,7 @@ Note that the header `<config.h>` must be included before any
 SpiderMonkey headers.
 
 GJS headers should use quotes, _except_ in public header files (any
-header file included from `<cjs/gjs.h>`.)
+header file included from `<gjs/gjs.h>`.)
 
 If you need to include headers conditionally, add the conditional
 after the group that it belongs to, separated by a blank line.
@@ -830,14 +832,13 @@ and we don't want it executed when assertions are disabled.
 Code like this should move the call into the assert itself.
 In the second case, the side effects of the call must happen whether the
 assert is enabled or not.
-In this case, the value should be cast to void to disable the warning.
+In this case, annotate the variable with the `GJS_USED_ASSERT` macro.
 To be specific, it is preferred to write the code like this:
 
 ```c++
 g_assert(v.size() > 42 && "Vector smaller than it should be");
 
-bool new_to_set = my_set.insert(value);
-(void)new_to_set;
+bool new_to_set GJS_USED_ASSERT = my_set.insert(value);
 g_assert(new_to_set && "The value shouldn't be in the set yet");
 ```
 
@@ -1019,3 +1020,16 @@ Instead, use `g_utf8_to_utf16()` and friends (unfortunately not
 typesafe) or `mozilla::ConvertUtf8toUtf16()` and friends (when that
 becomes possible; it is currently not possible due to a linker bug.)
 
+#### Function annotations
+
+Annotations go on a separate line, _unless_ the entire function can
+fit on one line, including the annotation and the body:
+
+```c++
+[[nodiscard]]
+std::unique_ptr<Foo> get_complicated_thing() {
+    return compute_complicated(m_int);
+}
+
+[[nodiscard]] int get_int() { return m_int; }
+```

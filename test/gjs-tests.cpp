@@ -12,7 +12,7 @@
 #include <string>  // for u16string, u32string
 #include <type_traits>
 
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 #include <glib/gstdio.h>  // for g_unlink
@@ -37,8 +37,10 @@
 
 #include "gi/arg-inl.h"
 #include "gi/js-value-inl.h"
+#include "cjs/auto.h"
 #include "cjs/context.h"
 #include "cjs/error-types.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/profiler.h"
 #include "test/gjs-test-no-introspection-object.h"
@@ -49,16 +51,16 @@ namespace mozilla {
 union Utf8Unit;
 }
 
-// COMPAT: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1553
-#ifdef __clang_analyzer__
-void g_assertion_message(const char*, const char*, int, const char*,
-                         const char*) __attribute__((analyzer_noreturn));
-#endif
+namespace Gjs::Tag {
+struct Enum;
+struct GBoolean;
+struct GType;
+struct UnsignedEnum;
+}  // namespace Gjs::Tag
 
 #define VALID_UTF8_STRING "\303\211\303\226 foobar \343\203\237"
 
-namespace Gjs {
-namespace Test {
+namespace Gjs::Test {
 static unsigned cpp_random_seed = 0;
 
 using Gjs::Test::assert_equal;
@@ -100,45 +102,34 @@ T get_random_number() {
     } else if constexpr (std::is_pointer_v<T>) {
         return reinterpret_cast<T>(get_random_number<uintptr_t>());
     }
-
-    // COMPAT: Work around cppcheck bug https://trac.cppcheck.net/ticket/10731
-    g_assert_not_reached();
 }
 
-static void
-gjstest_test_func_gjs_context_construct_destroy(void)
-{
-    GjsContext *context;
-
-    /* Construct twice just to possibly a case where global state from
-     * the first leaks.
+static void gjstest_test_func_gjs_context_construct_destroy() {
+    /* Construct twice just to possibly a case where global state from the first
+     * leaks.
      */
-    context = gjs_context_new ();
-    g_object_unref (context);
+    GjsContext* gjs_context = gjs_context_new();
+    g_object_unref(gjs_context);
 
-    context = gjs_context_new ();
-    g_object_unref (context);
+    gjs_context = gjs_context_new();
+    g_object_unref(gjs_context);
 }
 
-static void
-gjstest_test_func_gjs_context_construct_eval(void)
-{
-    GjsContext *context;
+static void gjstest_test_func_gjs_context_construct_eval() {
     int estatus;
-    GjsAutoError error;
+    AutoError error;
 
-    context = gjs_context_new ();
-    if (!gjs_context_eval (context, "1+1", -1, "<input>", &estatus, &error))
-        g_error ("%s", error->message);
-    g_object_unref (context);
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    if (!gjs_context_eval(gjs_context, "1+1", -1, "<input>", &estatus, &error))
+        g_error("%s", error->message);
 }
 
 static void gjstest_test_func_gjs_context_eval_dynamic_import() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
 
-    bool ok = gjs_context_eval(gjs, R"js(
+    bool ok = gjs_context_eval(gjs_context, R"js(
         import('system')
             .catch(logError)
             .finally(() => imports.mainloop.quit());
@@ -151,8 +142,8 @@ static void gjstest_test_func_gjs_context_eval_dynamic_import() {
 }
 
 static void gjstest_test_func_gjs_context_eval_dynamic_import_relative() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
 
     bool ok = g_file_set_contents("num.js", "export default 77;", -1, &error);
@@ -160,7 +151,7 @@ static void gjstest_test_func_gjs_context_eval_dynamic_import_relative() {
     g_assert_true(ok);
     g_assert_no_error(error);
 
-    ok = gjs_context_eval(gjs, R"js(
+    ok = gjs_context_eval(gjs_context, R"js(
         let num;
         import('./num.js')
             .then(module => (num = module.default))
@@ -179,14 +170,14 @@ static void gjstest_test_func_gjs_context_eval_dynamic_import_relative() {
 }
 
 static void gjstest_test_func_gjs_context_eval_dynamic_import_bad() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
-                          "*Unknown module: 'badmodule'*");
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
+                          "*ImportError*badmodule*");
 
-    bool ok = gjs_context_eval(gjs, R"js(
+    bool ok = gjs_context_eval(gjs_context, R"js(
         let isBad = false;
         import('badmodule')
             .catch(err => {
@@ -206,27 +197,26 @@ static void gjstest_test_func_gjs_context_eval_dynamic_import_bad() {
     g_test_assert_expected_messages();
 }
 
-static void gjstest_test_func_gjs_context_eval_non_zero_terminated(void) {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+static void gjstest_test_func_gjs_context_eval_non_zero_terminated() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
 
     // This string is invalid JS if it is treated as zero-terminated
-    bool ok = gjs_context_eval(gjs, "77!", 2, "<input>", &status, &error);
+    bool ok =
+        gjs_context_eval(gjs_context, "77!", 2, "<input>", &status, &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
     g_assert_cmpint(status, ==, 77);
 }
 
-static void
-gjstest_test_func_gjs_context_exit(void)
-{
-    GjsContext *context = gjs_context_new();
-    GjsAutoError error;
+static void gjstest_test_func_gjs_context_exit() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
 
-    bool ok = gjs_context_eval(context, "imports.system.exit(0);", -1,
+    bool ok = gjs_context_eval(gjs_context, "imports.system.exit(0);", -1,
                                "<input>", &status, &error);
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT);
@@ -234,22 +224,20 @@ gjstest_test_func_gjs_context_exit(void)
 
     error.reset();
 
-    ok = gjs_context_eval(context, "imports.system.exit(42);", -1, "<input>",
-                          &status, &error);
+    ok = gjs_context_eval(gjs_context, "imports.system.exit(42);", -1,
+                          "<input>", &status, &error);
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_SYSTEM_EXIT);
     g_assert_cmpuint(status, ==, 42);
-
-    g_object_unref(context);
 }
 
 static void gjstest_test_func_gjs_context_eval_module_file() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
     uint8_t exit_status;
-    GjsAutoError error;
+    AutoError error;
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
         &exit_status, &error);
 
     g_assert_true(ok);
@@ -259,14 +247,14 @@ static void gjstest_test_func_gjs_context_eval_module_file() {
 }
 
 static void gjstest_test_func_gjs_context_eval_module_file_throw() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
     uint8_t exit_status;
-    GjsAutoError error;
+    AutoError error;
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/throws.js",
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/throws.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -277,12 +265,12 @@ static void gjstest_test_func_gjs_context_eval_module_file_throw() {
 }
 
 static void gjstest_test_func_gjs_context_eval_module_file_exit() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     uint8_t exit_status;
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/exit0.js",
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/exit0.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -292,7 +280,7 @@ static void gjstest_test_func_gjs_context_eval_module_file_exit() {
     error.reset();
 
     ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/exit.js",
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/exit.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -301,16 +289,16 @@ static void gjstest_test_func_gjs_context_eval_module_file_exit() {
 }
 
 static void gjstest_test_func_gjs_context_eval_module_file_fail_instantiate() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     uint8_t exit_status;
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING, "*foo*");
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "*foo*");
 
     // evaluating this module without registering 'foo' first should make it
     // fail ModuleLink
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/import.js",
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/import.js",
         &exit_status, &error);
 
     g_assert_false(ok);
@@ -320,15 +308,16 @@ static void gjstest_test_func_gjs_context_eval_module_file_fail_instantiate() {
     g_test_assert_expected_messages();
 }
 
-static void gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_warning() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+static void
+gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_warning() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING, "*foo*");
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "*foo*");
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/import.js", nullptr,
-        &error);
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/import.js",
+        nullptr, &error);
 
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
@@ -338,26 +327,26 @@ static void gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_war
 
 static void
 gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_no_warning() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
     bool ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/default.js", nullptr,
-        &error);
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
+        nullptr, &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
 }
 
 static void gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*bad module*");
 
     bool ok = gjs_context_eval_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/throws.js", nullptr,
-        &error);
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/throws.js",
+        nullptr, &error);
 
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
@@ -365,31 +354,32 @@ static void gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw() {
     g_test_assert_expected_messages();
 }
 
-static void gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+static void
+gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
     bool ok = gjs_context_eval_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/nothrows.js", nullptr,
-        &error);
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/nothrows.js",
+        nullptr, &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
 }
 
 static void gjstest_test_func_gjs_context_register_module_eval_module() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
     bool ok = gjs_context_register_module(
-        gjs, "foo", "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
-        &error);
+        gjs_context, "foo",
+        "resource:///org/cinnamon/cjs/mock/test/modules/default.js", &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
 
     uint8_t exit_status;
-    ok = gjs_context_eval_module(gjs, "foo", &exit_status, &error);
+    ok = gjs_context_eval_module(gjs_context, "foo", &exit_status, &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
@@ -397,19 +387,19 @@ static void gjstest_test_func_gjs_context_register_module_eval_module() {
 }
 
 static void gjstest_test_func_gjs_context_register_module_eval_module_file() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
     bool ok = gjs_context_register_module(
-        gjs, "foo", "resource:///org/cinnamon/cjs/mock/test/modules/default.js",
-        &error);
+        gjs_context, "foo",
+        "resource:///org/cinnamon/cjs/mock/test/modules/default.js", &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
 
     uint8_t exit_status;
     ok = gjs_context_eval_module_file(
-        gjs, "resource:///org/cinnamon/cjs/mock/test/modules/import.js",
+        gjs_context, "resource:///org/cinnamon/cjs/mock/test/modules/import.js",
         &exit_status, &error);
 
     g_assert_true(ok);
@@ -419,7 +409,7 @@ static void gjstest_test_func_gjs_context_register_module_eval_module_file() {
 
 static void gjstest_test_func_gjs_context_register_module_eval_jsapi(
     GjsUnitTestFixture* fx, const void*) {
-    GjsAutoError error;
+    AutoError error;
 
     bool ok = gjs_context_register_module(
         fx->gjs_context, "foo",
@@ -475,56 +465,59 @@ static void gjstest_test_func_gjs_context_register_module_eval_jsapi_rel(
     JS::RootedValue unused{fx->cx};
     ok = JS::Evaluate(fx->cx, options, source, &unused);
     g_assert_false(ok);
-    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
                           "JS ERROR: ImportError*relative*");
     gjs_log_exception(fx->cx);
     g_test_assert_expected_messages();
 }
 
 static void gjstest_test_func_gjs_context_register_module_non_existent() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
-    bool ok = gjs_context_register_module(gjs, "foo", "nonexist.js", &error);
+    bool ok =
+        gjs_context_register_module(gjs_context, "foo", "nonexist.js", &error);
 
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
 }
 
 static void gjstest_test_func_gjs_context_eval_module_unregistered() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     uint8_t exit_status;
 
-    bool ok = gjs_context_eval_module(gjs, "foo", &exit_status, &error);
+    bool ok = gjs_context_eval_module(gjs_context, "foo", &exit_status, &error);
 
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
     g_assert_cmpuint(exit_status, ==, 1);
 }
 
-static void gjstest_test_func_gjs_context_eval_module_exit_code_omitted_throw() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+static void
+gjstest_test_func_gjs_context_eval_module_exit_code_omitted_throw() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
-    bool ok = gjs_context_eval_module(gjs, "foo", nullptr, &error);
+    bool ok = gjs_context_eval_module(gjs_context, "foo", nullptr, &error);
 
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
 }
 
-static void gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+static void
+gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
     bool ok = gjs_context_register_module(
-        gjs, "lies", "resource:///org/cinnamon/cjs/mock/test/modules/nothrows.js",
-        &error);
+        gjs_context, "lies",
+        "resource:///org/cinnamon/cjs/mock/test/modules/nothrows.js", &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
 
-    ok = gjs_context_eval_module(gjs, "lies", NULL, &error);
+    ok = gjs_context_eval_module(gjs_context, "lies", nullptr, &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
@@ -532,7 +525,7 @@ static void gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw
 
 static void gjstest_test_func_gjs_context_module_eval_jsapi_throws(
     GjsUnitTestFixture* fx, const void*) {
-    GjsAutoError error;
+    AutoError error;
 
     bool ok = gjs_context_register_module(
         fx->gjs_context, "foo",
@@ -574,9 +567,10 @@ static void gjstest_test_func_gjs_context_module_eval_jsapi_throws(
 }
 
 static void gjstest_test_func_gjs_context_run_in_realm() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
 
-    auto* cx = static_cast<JSContext*>(gjs_context_get_native_context(gjs));
+    auto* cx =
+        static_cast<JSContext*>(gjs_context_get_native_context(gjs_context));
     g_assert_null(JS::GetCurrentRealmOrNull(cx));
 
     struct RunInRealmData {
@@ -585,14 +579,14 @@ static void gjstest_test_func_gjs_context_run_in_realm() {
     } data{42, false};
 
     gjs_context_run_in_realm(
-        gjs,
-        [](GjsContext* gjs, void* ptr) {
-            g_assert_true(GJS_IS_CONTEXT(gjs));
+        gjs_context,
+        [](GjsContext* gjs_context, void* ptr) {
+            g_assert_true(GJS_IS_CONTEXT(gjs_context));
             auto* data = static_cast<RunInRealmData*>(ptr);
             g_assert_cmpint(data->sentinel, ==, 42);
 
-            auto* cx =
-                static_cast<JSContext*>(gjs_context_get_native_context(gjs));
+            auto* cx = static_cast<JSContext*>(
+                gjs_context_get_native_context(gjs_context));
             g_assert_nonnull(JS::GetCurrentRealmOrNull(cx));
 
             data->has_run = true;
@@ -603,46 +597,46 @@ static void gjstest_test_func_gjs_context_run_in_realm() {
     g_assert_true(data.has_run);
 }
 
-#define JS_CLASS "\
-const GObject = imports.gi.GObject; \
-const FooBar = GObject.registerClass(class FooBar extends GObject.Object {}); \
-"
-
-static void
-gjstest_test_func_gjs_gobject_js_defined_type(void)
-{
-    GjsContext *context = gjs_context_new();
-    GjsAutoError error;
+static void gjstest_test_func_gjs_gobject_js_defined_type() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
-    bool ok = gjs_context_eval(context, JS_CLASS, -1, "<input>", &status, &error);
+    static const char js_class[] = R"js(
+        const GObject = imports.gi.GObject;
+        const FooBar = GObject.registerClass(
+            class FooBar extends GObject.Object {});
+    )js";
+    bool ok =
+        gjs_context_eval(gjs_context, js_class, -1, "<input>", &status, &error);
     g_assert_no_error(error);
     g_assert_true(ok);
 
     GType foo_type = g_type_from_name("Gjs_FooBar");
     g_assert_cmpuint(foo_type, !=, G_TYPE_INVALID);
 
-    gpointer foo = g_object_new(foo_type, NULL);
+    void* foo = g_object_new(foo_type, nullptr);
     g_assert_true(G_IS_OBJECT(foo));
 
     g_object_unref(foo);
-    g_object_unref(context);
 }
 
-static void gjstest_test_func_gjs_gobject_without_introspection(void) {
-    GjsAutoUnref<GjsContext> context = gjs_context_new();
-    GjsAutoError error;
+static void gjstest_test_func_gjs_gobject_without_introspection() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
 
-    /* Ensure class */
+    // Ensure class
     g_type_class_ref(GJSTEST_TYPE_NO_INTROSPECTION_OBJECT);
 
-#define TESTJS                                                         \
-    "const {GObject} = imports.gi;"                                    \
-    "var obj = GObject.Object.newv("                                   \
-    "    GObject.type_from_name('GjsTestNoIntrospectionObject'), []);" \
-    "obj.a_int = 1234;"
+    static const char testjs[] = R"js(
+        const {GObject} = imports.gi;
+        var obj = GObject.Object.newv(
+            GObject.type_from_name('GjsTestNoIntrospectionObject'), []);
+        obj.a_int = 1234;
+    )js";
 
-    bool ok = gjs_context_eval(context, TESTJS, -1, "<input>", &status, &error);
+    bool ok =
+        gjs_context_eval(gjs_context, testjs, -1, "<input>", &status, &error);
     g_assert_true(ok);
     g_assert_no_error(error);
 
@@ -650,21 +644,22 @@ static void gjstest_test_func_gjs_gobject_without_introspection(void) {
     g_assert_nonnull(obj);
 
     int val = 0;
-    g_object_get(obj, "a-int", &val, NULL);
+    g_object_get(obj, "a-int", &val, nullptr);
     g_assert_cmpint(val, ==, 1234);
 
 #undef TESTJS
 }
 
 static void gjstest_test_func_gjs_context_eval_exit_code_omitted_throw() {
-    GjsAutoUnref<GjsContext> context = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_CRITICAL, "*wrong code*");
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, "*wrong code*");
 
     const char bad_js[] = "throw new Error('wrong code');";
 
-    bool ok = gjs_context_eval(context, bad_js, -1, "<input>", nullptr, &error);
+    bool ok =
+        gjs_context_eval(gjs_context, bad_js, -1, "<input>", nullptr, &error);
 
     g_assert_false(ok);
     g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
@@ -673,13 +668,13 @@ static void gjstest_test_func_gjs_context_eval_exit_code_omitted_throw() {
 }
 
 static void gjstest_test_func_gjs_context_eval_exit_code_omitted_no_throw() {
-    GjsAutoUnref<GjsContext> context = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
 
     const char good_js[] = "let num = 77;";
 
     bool ok =
-        gjs_context_eval(context, good_js, -1, "<input>", nullptr, &error);
+        gjs_context_eval(gjs_context, good_js, -1, "<input>", nullptr, &error);
 
     g_assert_true(ok);
     g_assert_no_error(error);
@@ -700,7 +695,7 @@ static void gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture* fx,
                                                          const void*) {
     JS::RootedValue exc(fx->cx), value(fx->cx);
 
-    /* Test that we can throw */
+    // Test that we can throw
 
     gjs_throw(fx->cx, "This is an exception %d", 42);
 
@@ -718,14 +713,14 @@ static void gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture* fx,
     g_assert_nonnull(s);
     g_assert_cmpstr(s.get(), ==, "This is an exception 42");
 
-    /* keep this around before we clear it */
+    // keep this around before we clear it
     JS::RootedValue previous(fx->cx, exc);
 
     JS_ClearPendingException(fx->cx);
 
     g_assert_false(JS_IsExceptionPending(fx->cx));
 
-    /* Check that we don't overwrite a pending exception */
+    // Check that we don't overwrite a pending exception
     JS_SetPendingException(fx->cx, previous);
 
     g_assert_true(JS_IsExceptionPending(fx->cx));
@@ -742,7 +737,7 @@ static void gjstest_test_func_gjs_jsapi_util_error_throw(GjsUnitTestFixture* fx,
 
 static void test_jsapi_util_error_throw_cause(GjsUnitTestFixture* fx,
                                               const void*) {
-    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
                           "JS ERROR: Error: Exception 1\n"
                           "Caused by: Error: Exception 2");
 
@@ -750,7 +745,7 @@ static void test_jsapi_util_error_throw_cause(GjsUnitTestFixture* fx,
     gjs_throw(fx->cx, "Exception 2");
     gjs_log_exception(fx->cx);
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING,
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING,
                           "JS ERROR: Error: Exception 1\n"
                           "Caused by: Error: Exception 2\n"
                           "Caused by: Error: Exception 3");
@@ -760,7 +755,7 @@ static void test_jsapi_util_error_throw_cause(GjsUnitTestFixture* fx,
     gjs_throw(fx->cx, "Exception 3");
     gjs_log_exception(fx->cx);
 
-    g_test_expect_message("Cjs", G_LOG_LEVEL_WARNING, "JS ERROR: 42");
+    g_test_expect_message("Gjs", G_LOG_LEVEL_WARNING, "JS ERROR: 42");
 
     JS::RootedValue non_object(fx->cx, JS::Int32Value(42));
     JS_SetPendingException(fx->cx, non_object);
@@ -781,7 +776,7 @@ static void test_jsapi_util_string_utf8_nchars_to_js(GjsUnitTestFixture* fx,
 
 static void test_jsapi_util_string_char16_data(GjsUnitTestFixture* fx,
                                                const void*) {
-    char16_t *chars;
+    char16_t* chars;
     size_t len;
 
     JS::ConstUTF8CharsZ jschars(VALID_UTF8_STRING, strlen(VALID_UTF8_STRING));
@@ -791,7 +786,7 @@ static void test_jsapi_util_string_char16_data(GjsUnitTestFixture* fx,
     g_assert_true(result == u"\xc9\xd6 foobar \u30df");
     g_free(chars);
 
-    /* Try with a string that is likely to be stored as Latin-1 */
+    // Try with a string that is likely to be stored as Latin-1
     str = JS_NewStringCopyZ(fx->cx, "abcd");
     bool ok = gjs_string_get_char16_data(fx->cx, str, &chars, &len);
     g_assert_true(ok);
@@ -803,7 +798,7 @@ static void test_jsapi_util_string_char16_data(GjsUnitTestFixture* fx,
 
 static void test_jsapi_util_string_to_ucs4(GjsUnitTestFixture* fx,
                                            const void*) {
-    gunichar *chars;
+    gunichar* chars;
     size_t len;
 
     JS::ConstUTF8CharsZ jschars(VALID_UTF8_STRING, strlen(VALID_UTF8_STRING));
@@ -814,7 +809,7 @@ static void test_jsapi_util_string_to_ucs4(GjsUnitTestFixture* fx,
     g_assert_true(result == U"\xc9\xd6 foobar \u30df");
     g_free(chars);
 
-    /* Try with a string that is likely to be stored as Latin-1 */
+    // Try with a string that is likely to be stored as Latin-1
     str = JS_NewStringCopyZ(fx->cx, "abcd");
     bool ok = gjs_string_to_ucs4(fx->cx, str, &chars, &len);
     g_assert_true(ok);
@@ -856,7 +851,7 @@ static void test_gjs_debug_value_bigint_uint64(GjsUnitTestFixture* fx,
                                                const void*) {
     // gjs_debug_value(BigIntValue) prints whatever fits into int64_t, because
     // more complicated operations might be fallible
-    JS::BigInt* bi = JS::NumberToBigInt(fx->cx, G_MAXUINT64);
+    JS::BigInt* bi = JS::NumberToBigInt(fx->cx, UINT64_MAX);
     std::string debug_output = gjs_debug_bigint(bi);
 
     g_assert_cmpstr(debug_output.c_str(), ==,
@@ -890,64 +885,50 @@ static void test_gjs_debug_value_string_quotes(GjsUnitTestFixture* fx,
     g_assert_cmpstr(debug_output.c_str(), ==, "\"a string\"");
 }
 
-static void
-gjstest_test_func_util_misc_strv_concat_null(void)
-{
-    char **ret;
-
-    ret = gjs_g_strv_concat(NULL, 0);
+static void gjstest_test_func_util_misc_strv_concat_null() {
+    char** ret = gjs_g_strv_concat(nullptr, 0);
     g_assert_nonnull(ret);
     g_assert_null(ret[0]);
 
     g_strfreev(ret);
 }
 
-static void
-gjstest_test_func_util_misc_strv_concat_pointers(void)
-{
-    char  *strv0[2] = {(char*)"foo", NULL};
-    char  *strv1[1] = {NULL};
-    char **strv2    = NULL;
-    char  *strv3[2] = {(char*)"bar", NULL};
-    char **stuff[4];
-    char **ret;
+static void gjstest_test_func_util_misc_strv_concat_pointers() {
+    const char* strv0[2] = {"foo", nullptr};
+    const char* strv1[1] = {nullptr};
+    const char** strv2 = nullptr;
+    const char* strv3[2] = {"bar", nullptr};
+    const char** stuff[4];
 
     stuff[0] = strv0;
     stuff[1] = strv1;
     stuff[2] = strv2;
     stuff[3] = strv3;
 
-    ret = gjs_g_strv_concat(stuff, 4);
+    AutoStrv ret = gjs_g_strv_concat(stuff, 4);
     g_assert_nonnull(ret);
-    g_assert_cmpstr(ret[0], ==, strv0[0]);  /* same string */
+    g_assert_cmpstr(ret[0], ==, strv0[0]);  // same string
     g_assert_true(ret[0] != strv0[0]);      // different pointer
     g_assert_cmpstr(ret[1], ==, strv3[0]);
     g_assert_true(ret[1] != strv3[0]);
     g_assert_null(ret[2]);
-
-    g_strfreev(ret);
 }
 
-static void
-gjstest_test_profiler_start_stop(void)
-{
-    GjsAutoUnref<GjsContext> context = GJS_CONTEXT(
-        g_object_new(GJS_TYPE_CONTEXT, "profiler-enabled", TRUE, nullptr));
-    GjsProfiler *profiler = gjs_context_get_profiler(context);
+static void gjstest_test_profiler_start_stop() {
+    AutoUnref<GjsContext> gjs_context{GJS_CONTEXT(
+        g_object_new(GJS_TYPE_CONTEXT, "profiler-enabled", TRUE, nullptr))};
+    GjsProfiler* profiler = gjs_context_get_profiler(gjs_context);
 
     gjs_profiler_set_filename(profiler, "dont-conflict-with-other-test.syscap");
     gjs_profiler_start(profiler);
 
+    static const char testjs[] = "[1,5,7,1,2,3,67,8].sort()";
     for (size_t ix = 0; ix < 100; ix++) {
-        GjsAutoError error;
+        AutoError error;
         int estatus;
-
-#define TESTJS "[1,5,7,1,2,3,67,8].sort()"
-
-        if (!gjs_context_eval(context, TESTJS, -1, "<input>", &estatus, &error))
+        if (!gjs_context_eval(gjs_context, testjs, -1, "<input>", &estatus,
+                              &error))
             g_printerr("ERROR: %s", error->message);
-
-#undef TESTJS
     }
 
     gjs_profiler_stop(profiler);
@@ -993,7 +974,7 @@ static void gjstest_test_args_set_get_unset() {
 
     gjs_arg_set(&arg, true);
     g_assert_true(arg.v_boolean);
-    gjs_arg_unset<bool>(&arg);
+    gjs_arg_unset(&arg);
     g_assert_false(arg.v_boolean);
 
     int8_t random_int8 = get_random_number<int8_t>();
@@ -1056,43 +1037,44 @@ static void gjstest_test_args_set_get_unset() {
     assert_equal(arg.v_pointer, random_ptr);
     assert_equal(gjs_arg_get<void*>(&arg), random_ptr);
 
-    GjsAutoChar cstr = g_strdup("Gjs argument string");
+    AutoChar cstr{g_strdup("Gjs argument string")};
     gjs_arg_set(&arg, cstr.get());
     assert_equal(arg.v_string, const_cast<char*>("Gjs argument string"));
     assert_equal(static_cast<void*>(arg.v_string),
                  static_cast<void*>(cstr.get()));
 
-    gjs_arg_set<gboolean, GI_TYPE_TAG_BOOLEAN>(&arg, TRUE);
+    gjs_arg_set<Gjs::Tag::GBoolean>(&arg, TRUE);
     g_assert_true(arg.v_boolean);
-    g_assert_true((gjs_arg_get<gboolean, GI_TYPE_TAG_BOOLEAN>(&arg)));
+    g_assert_true((gjs_arg_get<Gjs::Tag::GBoolean>(&arg)));
 
-    gjs_arg_set<gboolean, GI_TYPE_TAG_BOOLEAN>(&arg, FALSE);
+    gjs_arg_set<Gjs::Tag::GBoolean>(&arg, FALSE);
     g_assert_false(arg.v_boolean);
-    g_assert_false((gjs_arg_get<gboolean, GI_TYPE_TAG_BOOLEAN>(&arg)));
+    g_assert_false((gjs_arg_get<Gjs::Tag::GBoolean>(&arg)));
 
-    gjs_arg_set<gboolean, GI_TYPE_TAG_BOOLEAN>(&arg, TRUE);
+    gjs_arg_set<Gjs::Tag::GBoolean>(&arg, TRUE);
     g_assert_true(arg.v_boolean);
-    gjs_arg_unset<gboolean, GI_TYPE_TAG_BOOLEAN>(&arg);
+    gjs_arg_unset(&arg);
     g_assert_false(arg.v_boolean);
 
     GType random_gtype = get_random_number<GType>();
-    gjs_arg_set<GType, GI_TYPE_TAG_GTYPE>(&arg, random_gtype);
+    gjs_arg_set<Gjs::Tag::GType>(&arg, random_gtype);
+    // Don't replace gsize and gulong with size_t and unsigned long, since
+    // GLib may define them differently on some platforms.
     if constexpr (std::is_same_v<GType, gsize>)
         assert_equal(static_cast<GType>(arg.v_size), random_gtype);
     else if constexpr (std::is_same_v<GType, gulong>)
         assert_equal(static_cast<GType>(arg.v_ulong), random_gtype);
-    assert_equal(gjs_arg_get<GType, GI_TYPE_TAG_GTYPE>(&arg), random_gtype);
+    assert_equal(gjs_arg_get<Gjs::Tag::GType>(&arg), random_gtype);
 
     int random_signed_iface = get_random_number<int>();
-    gjs_arg_set<int, GI_TYPE_TAG_INTERFACE>(&arg, random_signed_iface);
+    gjs_arg_set<Gjs::Tag::Enum>(&arg, random_signed_iface);
     assert_equal(arg.v_int, random_signed_iface);
-    assert_equal(gjs_arg_get<int, GI_TYPE_TAG_INTERFACE>(&arg),
-                 random_signed_iface);
+    assert_equal(gjs_arg_get<Gjs::Tag::Enum>(&arg), random_signed_iface);
 
     unsigned random_unsigned_iface = get_random_number<unsigned>();
-    gjs_arg_set<unsigned, GI_TYPE_TAG_INTERFACE>(&arg, random_unsigned_iface);
+    gjs_arg_set<Gjs::Tag::UnsignedEnum>(&arg, random_unsigned_iface);
     assert_equal(arg.v_uint, random_unsigned_iface);
-    assert_equal(gjs_arg_get<unsigned, GI_TYPE_TAG_INTERFACE>(&arg),
+    assert_equal(gjs_arg_get<Gjs::Tag::UnsignedEnum>(&arg),
                  random_unsigned_iface);
 }
 
@@ -1128,17 +1110,18 @@ static void gjstest_test_args_rounded_values() {
 }
 
 static void gjstest_test_func_gjs_context_argv_array() {
-    GjsAutoUnref<GjsContext> gjs = gjs_context_new();
-    GjsAutoError error;
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    AutoError error;
     int status;
 
     const char* argv[1] = {"test"};
-    bool ok = gjs_context_define_string_array(gjs, "ARGV", 1, argv, &error);
+    bool ok =
+        gjs_context_define_string_array(gjs_context, "ARGV", 1, argv, &error);
 
     g_assert_no_error(error);
     g_assert_true(ok);
 
-    ok = gjs_context_eval(gjs, R"js(
+    ok = gjs_context_eval(gjs_context, R"js(
         imports.system.exit(ARGV[0] === "test" ? 0 : 1)
     )js",
                           -1, "<main>", &status, &error);
@@ -1148,26 +1131,103 @@ static void gjstest_test_func_gjs_context_argv_array() {
     g_assert_false(ok);
 }
 
-}  // namespace Test
-}  // namespace Gjs
+static void gjstest_test_func_gjs_context_eval_module_source_map() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    uint8_t exit_status;
+    AutoError error;
+    const char* pattern =
+        "*get2ndNumber*number.js:2:5 -> number.ts:6:5*numberWork.js:2:13 -> "
+        "numberWork.ts:3:13*";
 
-int
-main(int    argc,
-     char **argv)
-{
+    // separate source map
+    bool ok = gjs_context_register_module(gjs_context,
+                                          "resource:///org/cinnamon/cjs/mock/test/"
+                                          "source-maps/separate/numberWork.js",
+                                          "resource:///org/cinnamon/cjs/mock/test/"
+                                          "source-maps/separate/numberWork.js",
+                                          &error);
+    g_assert_true(ok);
+
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, pattern);
+    ok = gjs_context_eval_module(gjs_context,
+                                 "resource:///org/cinnamon/cjs/mock/test/"
+                                 "source-maps/separate/numberWork.js",
+                                 &exit_status, &error);
+
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+    g_assert_cmpuint(exit_status, ==, 1);
+    g_test_assert_expected_messages();
+
+    // inlined source maps
+    error = nullptr;
+    ok = gjs_context_register_module(gjs_context,
+                                     "resource:///org/cinnamon/cjs/mock/test/"
+                                     "source-maps/inlined/numberWork.js",
+                                     "resource:///org/cinnamon/cjs/mock/test/"
+                                     "source-maps/inlined/numberWork.js",
+                                     &error);
+    g_assert_true(ok);
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, pattern);
+    ok = gjs_context_eval_module(gjs_context,
+                                 "resource:///org/cinnamon/cjs/mock/test/"
+                                 "source-maps/inlined/numberWork.js",
+                                 &exit_status, &error);
+
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+    g_assert_cmpuint(exit_status, ==, 1);
+    g_test_assert_expected_messages();
+}
+
+static void gjstest_test_func_gjs_context_eval_file_source_map() {
+    AutoUnref<GjsContext> gjs_context{gjs_context_new()};
+    int exit_status;
+    AutoError error;
+    const char* pattern = "*noModule.js:2:9 -> noModule.ts:6:11*";
+    const char* separate_test_file =
+        "resource:///org/cinnamon/cjs/mock/test/source-maps/separate/noModule.js";
+    const char* inlined_test_file =
+        "resource:///org/cinnamon/cjs/mock/test/source-maps/inlined/noModule.js";
+
+    // separate source map
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, pattern);
+    bool ok = gjs_context_eval_file(gjs_context, separate_test_file,
+                                    &exit_status, &error);
+
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+    g_assert_cmpuint(exit_status, ==, 1);
+    g_test_assert_expected_messages();
+
+    // inlined source map
+    error = nullptr;
+    g_test_expect_message("Gjs", G_LOG_LEVEL_CRITICAL, pattern);
+    ok = gjs_context_eval_file(gjs_context, inlined_test_file, &exit_status,
+                               &error);
+    g_assert_false(ok);
+    g_assert_error(error, GJS_ERROR, GJS_ERROR_FAILED);
+    g_assert_cmpuint(exit_status, ==, 1);
+    g_test_assert_expected_messages();
+}
+}  // namespace Gjs::Test
+
+int main(int argc, char* argv[]) {
+    mozilla::Span<char*> args{argv, static_cast<size_t>(argc)};
+
     using namespace Gjs::Test;  // NOLINT(build/namespaces)
 
-    /* Avoid interference in the tests from stray environment variable */
+    // Avoid interference in the tests from stray environment variable
     g_unsetenv("GJS_ENABLE_PROFILER");
     g_unsetenv("GJS_TRACE_FD");
 
-    for (int i = 0; i < argc; i++) {
+    for (size_t i = 0; i < args.size(); i++) {
         const char* seed = nullptr;
 
-        if (g_str_has_prefix(argv[i], "--cpp-seed=") && strlen(argv[i]) > 11)
-            seed = argv[i] + 11;
-        else if (i < argc - 1 && g_str_equal(argv[i], "--cpp-seed"))
-            seed = argv[i + 1];
+        if (g_str_has_prefix(args[i], "--cpp-seed=") && strlen(args[i]) > 11)
+            seed = args[i] + 11;
+        else if (i < args.size() - 1 && g_str_equal(args[i], "--cpp-seed"))
+            seed = args[i + 1];
 
         if (seed)
             cpp_random_seed = std::stoi(seed);
@@ -1180,49 +1240,53 @@ main(int    argc,
 
     g_message("Using C++ random seed %u\n", cpp_random_seed);
 
-    g_test_add_func("/cjs/context/construct/destroy", gjstest_test_func_gjs_context_construct_destroy);
-    g_test_add_func("/cjs/context/construct/eval", gjstest_test_func_gjs_context_construct_eval);
-    g_test_add_func("/cjs/context/argv",
+    g_test_add_func("/gjs/context/construct/destroy",
+                    gjstest_test_func_gjs_context_construct_destroy);
+    g_test_add_func("/gjs/context/construct/eval",
+                    gjstest_test_func_gjs_context_construct_eval);
+    g_test_add_func("/gjs/context/argv",
                     gjstest_test_func_gjs_context_argv_array);
-    g_test_add_func("/cjs/context/eval/dynamic-import",
+    g_test_add_func("/gjs/context/eval/dynamic-import",
                     gjstest_test_func_gjs_context_eval_dynamic_import);
-    g_test_add_func("/cjs/context/eval/dynamic-import/relative",
+    g_test_add_func("/gjs/context/eval/dynamic-import/relative",
                     gjstest_test_func_gjs_context_eval_dynamic_import_relative);
-    g_test_add_func("/cjs/context/eval/dynamic-import/bad",
+    g_test_add_func("/gjs/context/eval/dynamic-import/bad",
                     gjstest_test_func_gjs_context_eval_dynamic_import_bad);
-    g_test_add_func("/cjs/context/eval/non-zero-terminated",
+    g_test_add_func("/gjs/context/eval/non-zero-terminated",
                     gjstest_test_func_gjs_context_eval_non_zero_terminated);
-    g_test_add_func("/cjs/context/exit", gjstest_test_func_gjs_context_exit);
-    g_test_add_func("/cjs/context/eval-module-file",
+    g_test_add_func("/gjs/context/exit", gjstest_test_func_gjs_context_exit);
+    g_test_add_func("/gjs/context/eval-module-file",
                     gjstest_test_func_gjs_context_eval_module_file);
-    g_test_add_func("/cjs/context/eval-module-file/throw",
+    g_test_add_func("/gjs/context/eval-module-file/throw",
                     gjstest_test_func_gjs_context_eval_module_file_throw);
-    g_test_add_func("/cjs/context/eval-module-file/exit",
+    g_test_add_func("/gjs/context/eval-module-file/exit",
                     gjstest_test_func_gjs_context_eval_module_file_exit);
     g_test_add_func(
-        "/cjs/context/eval-module-file/fail-instantiate",
+        "/gjs/context/eval-module-file/fail-instantiate",
         gjstest_test_func_gjs_context_eval_module_file_fail_instantiate);
-    g_test_add_func("/cjs/context/register-module/eval-module",
+    g_test_add_func("/gjs/context/register-module/eval-module",
                     gjstest_test_func_gjs_context_register_module_eval_module);
     g_test_add_func(
-        "/cjs/context/register-module/eval-module-file",
+        "/gjs/context/register-module/eval-module-file",
         gjstest_test_func_gjs_context_register_module_eval_module_file);
-    g_test_add("/cjs/context/register-module/eval-jsapi", GjsUnitTestFixture,
+    g_test_add("/gjs/context/register-module/eval-jsapi", GjsUnitTestFixture,
                nullptr, gjs_unit_test_fixture_setup,
                gjstest_test_func_gjs_context_register_module_eval_jsapi,
                gjs_unit_test_fixture_teardown);
-    g_test_add("/cjs/context/register-module/eval-jsapi-relative",
+    g_test_add("/gjs/context/register-module/eval-jsapi-relative",
                GjsUnitTestFixture, nullptr, gjs_unit_test_fixture_setup,
                gjstest_test_func_gjs_context_register_module_eval_jsapi_rel,
                gjs_unit_test_fixture_teardown);
-    g_test_add_func("/cjs/context/register-module/non-existent",
+    g_test_add_func("/gjs/context/register-module/non-existent",
                     gjstest_test_func_gjs_context_register_module_non_existent);
-    g_test_add_func("/cjs/context/eval-module/unregistered",
+    g_test_add_func("/gjs/context/eval-module/unregistered",
                     gjstest_test_func_gjs_context_eval_module_unregistered);
-    g_test_add_func("/cjs/gobject/js_defined_type", gjstest_test_func_gjs_gobject_js_defined_type);
-    g_test_add_func("/cjs/gobject/without_introspection",
+    g_test_add_func("/gjs/gobject/js_defined_type",
+                    gjstest_test_func_gjs_gobject_js_defined_type);
+    g_test_add_func("/gjs/gobject/without_introspection",
                     gjstest_test_func_gjs_gobject_without_introspection);
-    g_test_add_func("/cjs/profiler/start_stop", gjstest_test_profiler_start_stop);
+    g_test_add_func("/gjs/profiler/start_stop",
+                    gjstest_test_profiler_start_stop);
     g_test_add_func("/util/misc/strv/concat/null",
                     gjstest_test_func_util_misc_strv_concat_null);
     g_test_add_func("/util/misc/strv/concat/pointers",
@@ -1233,34 +1297,43 @@ main(int    argc,
                     gjstest_test_args_rounded_values);
 
     g_test_add_func(
-        "/cjs/context/eval-module-file/exit-code-omitted-warning",
+        "/gjs/context/eval-module-file/exit-code-omitted-warning",
         gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_warning);
     g_test_add_func(
-        "/cjs/context/eval-module-file/exit-code-omitted-no-warning",
+        "/gjs/context/eval-module-file/exit-code-omitted-no-warning",
         gjstest_test_func_gjs_context_eval_module_file_exit_code_omitted_no_warning);
-    g_test_add_func("/cjs/context/eval-file/exit-code-omitted-no-throw",
-                    gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw);
-    g_test_add_func("/cjs/context/eval-file/exit-code-omitted-throw",
-                    gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw);
-    g_test_add_func("/cjs/context/eval/exit-code-omitted-throw",
-                    gjstest_test_func_gjs_context_eval_exit_code_omitted_throw);
-    g_test_add_func("/cjs/context/eval/exit-code-omitted-no-throw",
-                    gjstest_test_func_gjs_context_eval_exit_code_omitted_no_throw);
-    g_test_add_func("/cjs/context/eval-module/exit-code-omitted-throw",
-                    gjstest_test_func_gjs_context_eval_module_exit_code_omitted_throw);
     g_test_add_func(
-        "/cjs/context/eval-module/exit-code-omitted-no-throw",
+        "/gjs/context/eval-file/exit-code-omitted-no-throw",
+        gjstest_test_func_gjs_context_eval_file_exit_code_omitted_no_throw);
+    g_test_add_func(
+        "/gjs/context/eval-file/exit-code-omitted-throw",
+        gjstest_test_func_gjs_context_eval_file_exit_code_omitted_throw);
+    g_test_add_func("/gjs/context/eval/exit-code-omitted-throw",
+                    gjstest_test_func_gjs_context_eval_exit_code_omitted_throw);
+    g_test_add_func(
+        "/gjs/context/eval/exit-code-omitted-no-throw",
+        gjstest_test_func_gjs_context_eval_exit_code_omitted_no_throw);
+    g_test_add_func(
+        "/gjs/context/eval-module/exit-code-omitted-throw",
+        gjstest_test_func_gjs_context_eval_module_exit_code_omitted_throw);
+    g_test_add_func(
+        "/gjs/context/eval-module/exit-code-omitted-no-throw",
         gjstest_test_func_gjs_context_eval_module_exit_code_omitted_no_throw);
-    g_test_add("/cjs/context/eval-module/jsapi-throw", GjsUnitTestFixture,
+    g_test_add("/gjs/context/eval-module/jsapi-throw", GjsUnitTestFixture,
                nullptr, gjs_unit_test_fixture_setup,
                gjstest_test_func_gjs_context_module_eval_jsapi_throws,
                gjs_unit_test_fixture_teardown);
-    g_test_add_func("/cjs/context/run-in-realm",
+    g_test_add_func("/gjs/context/run-in-realm",
                     gjstest_test_func_gjs_context_run_in_realm);
 
-#define ADD_JSAPI_UTIL_TEST(path, func)                            \
-    g_test_add("/cjs/jsapi/util/" path, GjsUnitTestFixture, NULL,  \
-               gjs_unit_test_fixture_setup, func,                  \
+    g_test_add_func("/gjs/context/eval-module/source-map",
+                    gjstest_test_func_gjs_context_eval_module_source_map);
+    g_test_add_func("/gjs/context/eval-file/source-map",
+                    gjstest_test_func_gjs_context_eval_file_source_map);
+
+#define ADD_JSAPI_UTIL_TEST(path, func)                              \
+    g_test_add("/gjs/jsapi/util/" path, GjsUnitTestFixture, nullptr, \
+               gjs_unit_test_fixture_setup, func,                    \
                gjs_unit_test_fixture_teardown)
 
     ADD_JSAPI_UTIL_TEST("error/throw",
@@ -1294,7 +1367,7 @@ main(int    argc,
 
 #undef ADD_JSAPI_UTIL_TEST
 
-    gjs_test_add_tests_for_coverage ();
+    gjs_test_add_tests_for_coverage();
 
     g_test_run();
 

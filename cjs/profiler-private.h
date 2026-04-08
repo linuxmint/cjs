@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2018 Endless Mobile, Inc.
 
-#ifndef GJS_PROFILER_PRIVATE_H_
-#define GJS_PROFILER_PRIVATE_H_
+#pragma once
 
 #include <config.h>
 
 #include <stdint.h>
+
+#include <chrono>
+#include <ratio>  // for nano
+#include <string>
 
 #include <js/GCAPI.h>  // for JSFinalizeStatus, JSGCStatus, GCReason
 #include <js/ProfilingCategory.h>
@@ -17,21 +20,25 @@
 
 #include "cjs/context.h"
 #include "cjs/profiler.h"
+#include "util/misc.h"
+
+#define GJS_PROFILER_DYNAMIC_STRING(cx, str) \
+    js::GetContextProfilingStackIfEnabled(cx) ? (str) : ""
 
 class AutoProfilerLabel {
  public:
-    explicit inline AutoProfilerLabel(JSContext* cx, const char* label,
-                                      const char* dynamicString,
-                                      JS::ProfilingCategoryPair categoryPair =
-                                          JS::ProfilingCategoryPair::OTHER,
-                                      uint32_t flags = 0)
+    explicit AutoProfilerLabel(JSContext* cx, const char* label,
+                               const std::string& dynamicString,
+                               JS::ProfilingCategoryPair categoryPair =
+                                   JS::ProfilingCategoryPair::OTHER,
+                               uint32_t flags = 0)
         : m_stack(js::GetContextProfilingStackIfEnabled(cx)) {
         if (m_stack)
-            m_stack->pushLabelFrame(label, dynamicString, this, categoryPair,
-                                    flags);
+            m_stack->pushLabelFrame(label, dynamicString.c_str(), this,
+                                    categoryPair, flags);
     }
 
-    inline ~AutoProfilerLabel() {
+    ~AutoProfilerLabel() {
         if (m_stack)
             m_stack->pop();
     }
@@ -41,24 +48,27 @@ class AutoProfilerLabel {
 };
 
 namespace Gjs {
-enum GCCounters { GC_HEAP_BYTES, MALLOC_HEAP_BYTES, N_COUNTERS };
+enum GCCounters : uint8_t { GC_HEAP_BYTES, MALLOC_HEAP_BYTES, N_COUNTERS };
 }  // namespace Gjs
 
-GjsProfiler *_gjs_profiler_new(GjsContext *context);
-void _gjs_profiler_free(GjsProfiler *self);
+GjsProfiler* gjs_profiler_new(GjsContext*);
+void gjs_profiler_free(GjsProfiler*);
 
-void _gjs_profiler_add_mark(GjsProfiler* self, int64_t time, int64_t duration,
-                            const char* group, const char* name,
-                            const char* message);
+using ProfilerTimePoint =
+    std::chrono::time_point<GLib::MonotonicClock, std::chrono::nanoseconds>;
+using ProfilerDuration = std::chrono::duration<uint64_t, std::nano>;
 
-[[nodiscard]] bool _gjs_profiler_sample_gc_memory_info(
-    GjsProfiler* self, int64_t gc_counters[Gjs::GCCounters::N_COUNTERS]);
+void gjs_profiler_add_mark(GjsProfiler*, ProfilerTimePoint, ProfilerDuration,
+                           const char* group, const char* name,
+                           const char* message);
 
-[[nodiscard]] bool _gjs_profiler_is_running(GjsProfiler* self);
+[[nodiscard]]
+bool gjs_profiler_sample_gc_memory_info(
+    GjsProfiler*, const int64_t gc_counters[Gjs::GCCounters::N_COUNTERS]);
 
-void _gjs_profiler_setup_signals(GjsProfiler *self, GjsContext *context);
+[[nodiscard]] bool gjs_profiler_is_running(GjsProfiler*);
 
-void _gjs_profiler_set_finalize_status(GjsProfiler*, JSFinalizeStatus);
-void _gjs_profiler_set_gc_status(GjsProfiler*, JSGCStatus, JS::GCReason);
+void gjs_profiler_setup_signals(GjsProfiler*, GjsContext*);
 
-#endif  // GJS_PROFILER_PRIVATE_H_
+void gjs_profiler_set_finalize_status(GjsProfiler*, JSFinalizeStatus);
+void gjs_profiler_set_gc_status(GjsProfiler*, JSGCStatus, JS::GCReason);

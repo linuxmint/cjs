@@ -5,13 +5,11 @@
 
 #include <config.h>
 
-#include <stdio.h>   // for sscanf
-#include <string.h>  // for strlen
-
 #ifdef _WIN32
 #    include <windows.h>
 #endif
 
+#include <chrono>  // for duration, operator""us
 #include <sstream>
 #include <string>
 #include <utility>  // for move
@@ -19,19 +17,23 @@
 
 #include <js/AllocPolicy.h>
 #include <js/Array.h>
+#include <js/CallAndConstruct.h>  // for Call
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>
 #include <js/Class.h>
+#include <js/ColumnNumber.h>  // for TaggedColumnNumberOneOrigin
 #include <js/Conversions.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
-#include <js/GCAPI.h>     // for JS_MaybeGC, NonIncrementalGC, GCRe...
+#include <js/GCAPI.h>        // for JS_MaybeGC, NonIncrementalGC, GCRe...
 #include <js/GCHashTable.h>  // for GCHashSet
-#include <js/GCVector.h>  // for RootedVector
-#include <js/HashTable.h>  // for DefaultHasher
-#include <js/Object.h>    // for GetClass
+#include <js/GCVector.h>     // for RootedVector
+#include <js/HashTable.h>    // for DefaultHasher
+#include <js/Object.h>       // for GetClass
 #include <js/PropertyAndElement.h>
+#include <js/PropertyDescriptor.h>  // for JSPROP_ENUMERATE
 #include <js/RootingAPI.h>
+#include <js/SavedFrameAPI.h>
 #include <js/String.h>
 #include <js/TypeDecls.h>
 #include <js/Value.h>
@@ -42,19 +44,20 @@
 #include <mozilla/ScopeExit.h>
 
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
+#include "cjs/global.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
+#include "cjs/module.h"
+#include "util/misc.h"
 
-static void
-throw_property_lookup_error(JSContext       *cx,
-                            JS::HandleObject obj,
-                            const char      *description,
-                            JS::HandleId     property_name,
-                            const char      *reason)
-{
-    /* remember gjs_throw() is a no-op if JS_GetProperty()
-     * already set an exception
+static void throw_property_lookup_error(JSContext* cx, JS::HandleObject obj,
+                                        const char* description,
+                                        JS::HandleId property_name,
+                                        const char* reason) {
+    /* remember gjs_throw() is a no-op if JS_GetProperty() already set an
+     * exception
      */
     if (description)
         gjs_throw(cx, "No property '%s' in %s (or %s)",
@@ -64,42 +67,35 @@ throw_property_lookup_error(JSContext       *cx,
                   gjs_debug_id(property_name).c_str(), obj.get(), reason);
 }
 
-/* Returns whether the object had the property; if the object did
- * not have the property, always sets an exception. Treats
- * "the property's value is undefined" the same as "no such property,".
- * Guarantees that *value_p is set to something, if only JS::UndefinedValue(),
- * even if an exception is set and false is returned.
+/* Returns whether the object had the property; if the object did not have the
+ * property, always sets an exception. Treats "the property's value is
+ * undefined" the same as "no such property,". Guarantees that value_p is set to
+ * something, if only JS::UndefinedValue(), even if an exception is set and
+ * false is returned.
  *
- * SpiderMonkey will emit a warning if the property is not present, so don't
- * use this if you expect the property not to be present some of the time.
+ * SpiderMonkey will emit a warning if the property is not present, so don't use
+ * this if you expect the property not to be present some of the time.
  */
-bool
-gjs_object_require_property(JSContext             *context,
-                            JS::HandleObject       obj,
-                            const char            *obj_description,
-                            JS::HandleId           property_name,
-                            JS::MutableHandleValue value)
-{
+bool gjs_object_require_property(JSContext* cx, JS::HandleObject obj,
+                                 const char* obj_description,
+                                 JS::HandleId property_name,
+                                 JS::MutableHandleValue value) {
     value.setUndefined();
 
-    if (G_UNLIKELY(!JS_GetPropertyById(context, obj, property_name, value)))
+    if (G_UNLIKELY(!JS_GetPropertyById(cx, obj, property_name, value)))
         return false;
 
     if (G_LIKELY(!value.isUndefined()))
         return true;
 
-    throw_property_lookup_error(context, obj, obj_description, property_name,
+    throw_property_lookup_error(cx, obj, obj_description, property_name,
                                 "its value was undefined");
     return false;
 }
 
-bool
-gjs_object_require_property(JSContext       *cx,
-                            JS::HandleObject obj,
-                            const char      *description,
-                            JS::HandleId     property_name,
-                            bool            *value)
-{
+bool gjs_object_require_property(JSContext* cx, JS::HandleObject obj,
+                                 const char* description,
+                                 JS::HandleId property_name, bool* value) {
     JS::RootedValue prop_value(cx);
     if (JS_GetPropertyById(cx, obj, property_name, &prop_value) &&
         prop_value.isBoolean()) {
@@ -112,13 +108,9 @@ gjs_object_require_property(JSContext       *cx,
     return false;
 }
 
-bool
-gjs_object_require_property(JSContext       *cx,
-                            JS::HandleObject obj,
-                            const char      *description,
-                            JS::HandleId     property_name,
-                            int32_t         *value)
-{
+bool gjs_object_require_property(JSContext* cx, JS::HandleObject obj,
+                                 const char* description,
+                                 JS::HandleId property_name, int32_t* value) {
     JS::RootedValue prop_value(cx);
     if (JS_GetPropertyById(cx, obj, property_name, &prop_value) &&
         prop_value.isInt32()) {
@@ -131,7 +123,7 @@ gjs_object_require_property(JSContext       *cx,
     return false;
 }
 
-/* Converts JS string value to UTF-8 string. */
+// Converts JS string value to UTF-8 string.
 bool gjs_object_require_property(JSContext* cx, JS::HandleObject obj,
                                  const char* description,
                                  JS::HandleId property_name,
@@ -150,13 +142,10 @@ bool gjs_object_require_property(JSContext* cx, JS::HandleObject obj,
     return false;
 }
 
-bool
-gjs_object_require_property(JSContext              *cx,
-                            JS::HandleObject        obj,
-                            const char             *description,
-                            JS::HandleId            property_name,
-                            JS::MutableHandleObject value)
-{
+bool gjs_object_require_property(JSContext* cx, JS::HandleObject obj,
+                                 const char* description,
+                                 JS::HandleId property_name,
+                                 JS::MutableHandleObject value) {
     JS::RootedValue prop_value(cx);
     if (JS_GetPropertyById(cx, obj, property_name, &prop_value) &&
         prop_value.isObject()) {
@@ -169,13 +158,10 @@ gjs_object_require_property(JSContext              *cx,
     return false;
 }
 
-bool
-gjs_object_require_converted_property(JSContext       *cx,
-                                      JS::HandleObject obj,
-                                      const char      *description,
-                                      JS::HandleId     property_name,
-                                      uint32_t        *value)
-{
+bool gjs_object_require_converted_property(JSContext* cx, JS::HandleObject obj,
+                                           const char* description,
+                                           JS::HandleId property_name,
+                                           uint32_t* value) {
     JS::RootedValue prop_value(cx);
     if (JS_GetPropertyById(cx, obj, property_name, &prop_value) &&
         JS::ToUint32(cx, prop_value, value)) {
@@ -187,57 +173,54 @@ gjs_object_require_converted_property(JSContext       *cx,
     return false;
 }
 
-void
-gjs_throw_constructor_error(JSContext *context)
-{
-    gjs_throw(context,
-              "Constructor called as normal method. Use 'new SomeObject()' not 'SomeObject()'");
+void gjs_throw_constructor_error(JSContext* cx) {
+    gjs_throw(cx,
+              "Constructor called as normal method. Use 'new SomeObject()' not "
+              "'SomeObject()'");
 }
 
-void gjs_throw_abstract_constructor_error(JSContext* context,
+void gjs_throw_abstract_constructor_error(JSContext* cx,
                                           const JS::CallArgs& args) {
-    const JSClass *proto_class;
-    const char *name = "anonymous";
+    const char* name = "anonymous";
 
-    const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
-    JS::RootedObject callee(context, &args.callee());
-    JS::RootedValue prototype(context);
-    if (JS_GetPropertyById(context, callee, atoms.prototype(), &prototype)) {
-        proto_class = JS::GetClass(&prototype.toObject());
+    const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
+    JS::RootedObject callee{cx, &args.callee()};
+    JS::RootedValue prototype{cx};
+    if (JS_GetPropertyById(cx, callee, atoms.prototype(), &prototype)) {
+        const JSClass* proto_class = JS::GetClass(&prototype.toObject());
         name = proto_class->name;
     }
 
-    gjs_throw(context, "You cannot construct new instances of '%s'", name);
+    gjs_throw(cx, "You cannot construct new instances of '%s'", name);
 }
 
-JSObject* gjs_build_string_array(JSContext* context,
+JSObject* gjs_build_string_array(JSContext* cx,
                                  const std::vector<std::string>& strings) {
-    JS::RootedValueVector elems(context);
+    JS::RootedValueVector elems{cx};
     if (!elems.reserve(strings.size())) {
-        JS_ReportOutOfMemory(context);
+        JS_ReportOutOfMemory(cx);
         return nullptr;
     }
 
     for (const std::string& string : strings) {
         JS::ConstUTF8CharsZ chars(string.c_str(), string.size());
-        JS::RootedValue element(context,
-            JS::StringValue(JS_NewStringCopyUTF8Z(context, chars)));
+        JS::RootedValue element{
+            cx, JS::StringValue(JS_NewStringCopyUTF8Z(cx, chars))};
         elems.infallibleAppend(element);
     }
 
-    return JS::NewArrayObject(context, elems);
+    return JS::NewArrayObject(cx, elems);
 }
 
-JSObject* gjs_define_string_array(JSContext* context,
-                                  JS::HandleObject in_object,
+JSObject* gjs_define_string_array(JSContext* cx, JS::HandleObject in_object,
                                   const char* array_name,
                                   const std::vector<std::string>& strings,
                                   unsigned attrs) {
-    JS::RootedObject array(context, gjs_build_string_array(context, strings));
+    JS::RootedObject array{cx, gjs_build_string_array(cx, strings)};
     if (!array)
         return nullptr;
 
-    if (!JS_DefineProperty(context, in_object, array_name, array, attrs))
+    if (!JS_DefineProperty(cx, in_object, array_name, array, attrs))
         return nullptr;
 
     return array;
@@ -262,8 +245,37 @@ static JSString* exception_to_string(JSContext* cx, JS::HandleValue exc) {
     return JS::ToString(cx, exc);
 }
 
+// Helper function: log and clear the pending exception, without calling into
+// any JS APIs that might cause more exceptions to be thrown.
+static void log_exception_brief(JSContext* cx) {
+    JS::RootedValue exc{cx};
+    if (!JS_GetPendingException(cx, &exc))
+        return;
+
+    JS_ClearPendingException(cx);
+
+    if (!exc.isObject()) {
+        g_warning("Value thrown while printing exception: %s",
+                  gjs_debug_value(exc).c_str());
+        return;
+    }
+
+    JS::RootedObject exc_obj{cx, &exc.toObject()};
+    JSErrorReport* report = JS_ErrorFromException(cx, exc_obj);
+    if (!report) {
+        g_warning("Non-Error Object thrown while printing exception: %s",
+                  gjs_debug_object(exc_obj).c_str());
+        return;
+    }
+
+    g_warning("Exception thrown while printing exception: %s:%u:%u: %s",
+              report->filename.c_str(), report->lineno,
+              report->column.oneOriginValue(), report->message().c_str());
+}
+
 // Helper function: format the error's stack property.
 static std::string format_exception_stack(JSContext* cx, JS::HandleObject exc) {
+    auto Ok = JS::SavedFrameResult::Ok;
     JS::AutoSaveExceptionState saved_exc(cx);
     auto restore =
         mozilla::MakeScopeExit([&saved_exc]() { saved_exc.restore(); });
@@ -276,25 +288,131 @@ static std::string format_exception_stack(JSContext* cx, JS::HandleObject exc) {
     // have the latter.
     JS::RootedObject saved_frame{cx, JS::ExceptionStackOrNull(exc)};
     if (saved_frame) {
+        GjsContextPrivate* gjs = GjsContextPrivate::from_cx(cx);
+        Gjs::AutoMainRealm ar{gjs};
+        JS::RootedObject global{cx, gjs->global()};
+        JS::RootedObject registry{cx, gjs_get_source_map_registry(global)};
+
         JS::UniqueChars utf8_stack{format_saved_frame(cx, saved_frame)};
         if (!utf8_stack)
             return {};
-        out << '\n' << utf8_stack.get();
+
+        char* utf8_stack_str = utf8_stack.get();
+        std::stringstream ss{utf8_stack_str};
+        // append source map info when available to each line
+        while (saved_frame) {
+            JS::RootedObject consumer{cx};
+            JS::RootedString source_string{cx};
+            uint32_t line;
+            JS::TaggedColumnNumberOneOrigin column;
+            std::string stack_line;
+
+            // print the original stack trace
+            std::getline(ss, stack_line, '\n');
+            out << '\n' << stack_line;
+
+            bool success =
+                JS::GetSavedFrameSource(cx, nullptr, saved_frame,
+                                        &source_string) == Ok &&
+                JS::GetSavedFrameLine(cx, nullptr, saved_frame, &line) == Ok &&
+                JS::GetSavedFrameColumn(cx, nullptr, saved_frame, &column) ==
+                    Ok;
+            if (JS::GetSavedFrameParent(cx, nullptr, saved_frame,
+                                        &saved_frame) != Ok) {
+                // If we can't iterate, bail out and don't print source map info
+                break;
+            }
+
+            if (!success) {
+                continue;
+            }
+
+            if (!gjs_global_source_map_get(cx, registry, source_string,
+                                           &consumer) ||
+                !consumer) {
+                log_exception_brief(cx);
+                continue;  // no source map for this file
+            }
+
+            // build query obj for consumer
+            JS::RootedObject input_obj{cx, JS_NewPlainObject(cx)};
+            if (!input_obj ||
+                !JS_DefineProperty(cx, input_obj, "line", line,
+                                   JSPROP_ENUMERATE) ||
+                !JS_DefineProperty(cx, input_obj, "column",
+                                   column.oneOriginValue() - 1,
+                                   JSPROP_ENUMERATE)) {
+                log_exception_brief(cx);
+                continue;
+            }
+
+            JS::RootedValue val{cx, JS::ObjectValue(*input_obj)};
+            if (!JS::Call(cx, consumer, "originalPositionFor",
+                          JS::HandleValueArray(val), &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            JS::RootedObject rvalObj{cx, &val.toObject()};
+
+            out << " -> ";
+
+            if (!JS_GetProperty(cx, rvalObj, "name", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isString()) {
+                JS::UniqueChars name{gjs_string_to_utf8(cx, val)};
+                if (name)
+                    out << name.get() << "@";
+                log_exception_brief(cx);
+            }
+            if (!JS_GetProperty(cx, rvalObj, "source", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isString()) {
+                JS::UniqueChars source{gjs_string_to_utf8(cx, val)};
+                if (source)
+                    out << source.get();
+                log_exception_brief(cx);
+            }
+            if (!JS_GetProperty(cx, rvalObj, "line", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isInt32()) {
+                out << ":" << val.toInt32();
+            }
+            if (!JS_GetProperty(cx, rvalObj, "column", &val)) {
+                log_exception_brief(cx);
+                continue;
+            }
+            if (val.isInt32()) {
+                out << ":" << val.toInt32() + 1;
+            }
+        }
         return out.str();
     }
 
     JS::RootedValue stack{cx};
-    if (!JS_GetPropertyById(cx, exc, atoms.stack(), &stack) || !stack.isString())
+    if (!JS_GetPropertyById(cx, exc, atoms.stack(), &stack) ||
+        !stack.isString()) {
+        log_exception_brief(cx);
         return {};
+    }
 
     JS::RootedString str{cx, stack.toString()};
     bool is_empty;
-    if (!JS_StringEqualsLiteral(cx, str, "", &is_empty) || is_empty)
+    if (!JS_StringEqualsLiteral(cx, str, "", &is_empty) || is_empty) {
+        log_exception_brief(cx);
         return {};
+    }
 
     JS::UniqueChars utf8_stack{JS_EncodeStringToUTF8(cx, str)};
-    if (!utf8_stack)
+    if (!utf8_stack) {
+        log_exception_brief(cx);
         return {};
+    }
 
     out << '\n' << utf8_stack.get();
     return out.str();
@@ -312,14 +430,14 @@ static std::string format_syntax_error_location(JSContext* cx,
         if (property.isInt32())
             line = property.toInt32();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     int32_t column = 0;
     if (JS_GetPropertyById(cx, exc, atoms.column_number(), &property)) {
         if (property.isInt32())
             column = property.toInt32();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     JS::UniqueChars utf8_filename;
     if (JS_GetPropertyById(cx, exc, atoms.file_name(), &property)) {
@@ -328,7 +446,7 @@ static std::string format_syntax_error_location(JSContext* cx,
             utf8_filename = JS_EncodeStringToUTF8(cx, str);
         }
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     std::ostringstream out;
     out << " @ ";
@@ -353,7 +471,7 @@ static std::string format_exception_with_cause(
 
     JS::RootedValue v_cause(cx);
     if (!JS_GetPropertyById(cx, exc_obj, atoms.cause(), &v_cause))
-        JS_ClearPendingException(cx);
+        log_exception_brief(cx);
     if (v_cause.isUndefined())
         return out.str();
 
@@ -374,7 +492,7 @@ static std::string format_exception_with_cause(
         if (utf8_exception)
             out << utf8_exception.get();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     if (v_cause.isObject())
         out << format_exception_with_cause(cx, cause, seen_causes);
@@ -389,7 +507,7 @@ static std::string format_exception_log_message(JSContext* cx,
 
     if (message) {
         JS::UniqueChars utf8_message = JS_EncodeStringToUTF8(cx, message);
-        JS_ClearPendingException(cx);
+        log_exception_brief(cx);
         if (utf8_message)
             out << utf8_message.get() << ": ";
     }
@@ -400,7 +518,7 @@ static std::string format_exception_log_message(JSContext* cx,
         if (utf8_exception)
             out << utf8_exception.get();
     }
-    JS_ClearPendingException(cx);
+    log_exception_brief(cx);
 
     if (!exc.isObject())
         return out.str();
@@ -451,16 +569,14 @@ void gjs_log_exception_full(JSContext* cx, JS::HandleValue exc,
  *
  * Returns: %true if an exception was logged, %false if there was none pending.
  */
-bool
-gjs_log_exception(JSContext  *context)
-{
-    JS::RootedValue exc(context);
-    if (!JS_GetPendingException(context, &exc))
+bool gjs_log_exception(JSContext* cx) {
+    JS::RootedValue exc{cx};
+    if (!JS_GetPendingException(cx, &exc))
         return false;
 
-    JS_ClearPendingException(context);
+    JS_ClearPendingException(cx);
 
-    gjs_log_exception_full(context, exc, nullptr, G_LOG_LEVEL_WARNING);
+    gjs_log_exception_full(cx, exc, nullptr, G_LOG_LEVEL_WARNING);
     return true;
 }
 
@@ -487,80 +603,53 @@ bool gjs_log_exception_uncaught(JSContext* cx) {
     return true;
 }
 
+void gjs_gc_if_needed(JSContext* cx) {
 #ifdef __linux__
-// This type has to be long and not int32_t or int64_t, because of the %ld
-// sscanf specifier mandated in "man proc". The NOLINT comment is because
-// cpplint will ask you to avoid long in favour of defined bit width types.
-static void _linux_get_self_process_size(long* rss_size)  // NOLINT(runtime/int)
-{
-    char *iter;
-    gsize len;
-    int i;
+    using std::chrono_literals::operator""us;
 
-    *rss_size = 0;
+    // We initiate a GC if RSS has grown by this much. It is initialized to 0,
+    // so currently we always do a full GC early.
+    static uint64_t linux_rss_trigger;
+    static GLib::MonotonicTime last_gc_check_time;
 
-    GjsAutoChar contents;
-    if (!g_file_get_contents("/proc/self/stat", contents.out(), &len, nullptr))
+    // We rate limit GCs to at most one per 5 frames. One frame is 16666
+    // microseconds (1000000/60)
+    GLib::MonotonicTime now{GLib::MonotonicClock::now()};
+    if (now - last_gc_check_time < 5 * 16666us)
         return;
 
-    iter = contents;
-    // See "man proc" for where this 23 comes from
-    for (i = 0; i < 23; i++) {
-        iter = strchr (iter, ' ');
-        if (!iter)
-            return;
-        iter++;
+    last_gc_check_time = now;
+
+    Gjs::AutoChar contents;
+    if (!g_file_get_contents("/proc/self/statm", contents.out(), nullptr,
+                             nullptr)) {
+        g_critical("Error reading contents of /proc/self/statm");
+        return;
     }
-    sscanf(iter, " %ld", rss_size);
-}
 
-// We initiate a GC if RSS has grown by this much
-static uint64_t linux_rss_trigger;
-static int64_t last_gc_check_time;
-#endif
+    Gjs::StatmParseResult result = Gjs::parse_statm_file_rss(contents);
+    if (result.isErr()) {
+        std::string message{result.unwrapErr()};
+        g_critical("%s", message.c_str());
+        return;
+    }
+    uint64_t rss = result.unwrap();
 
-void
-gjs_gc_if_needed (JSContext *context)
-{
-#ifdef __linux__
-    {
-        long rss_size;  // NOLINT(runtime/int)
-        gint64 now;
-
-        /* We rate limit GCs to at most one per 5 frames.
-           One frame is 16666 microseconds (1000000/60)*/
-        now = g_get_monotonic_time();
-        if (now - last_gc_check_time < 5 * 16666)
-            return;
-
-        last_gc_check_time = now;
-
-        _linux_get_self_process_size(&rss_size);
-
-        /* linux_rss_trigger is initialized to 0, so currently
-         * we always do a full GC early.
-         *
-         * Here we see if the RSS has grown by 25% since
-         * our last look; if so, initiate a full GC.  In
-         * theory using RSS is bad if we get swapped out,
-         * since we may be overzealous in GC, but on the
-         * other hand, if swapping is going on, better
-         * to GC.
-         */
-        if (rss_size < 0)
-            return;  // doesn't make sense
-        uint64_t rss_usize = rss_size;
-        if (rss_usize > linux_rss_trigger) {
-            linux_rss_trigger = MIN(G_MAXUINT32, rss_usize * 1.25);
-            JS::NonIncrementalGC(context, JS::GCOptions::Shrink,
-                                 Gjs::GCReason::LINUX_RSS_TRIGGER);
-        } else if (rss_size < (0.75 * linux_rss_trigger)) {
-            /* If we've shrunk by 75%, lower the trigger */
-            linux_rss_trigger = rss_usize * 1.25;
-        }
+    // Here we see if the RSS has grown by 25% since our last look; if so,
+    // initiate a full compacting GC. In theory using RSS is bad if we get
+    // swapped out, since we may be overzealous in GC, but on the other hand, if
+    // swapping is going on, better to GC.
+    if (rss > linux_rss_trigger) {
+        linux_rss_trigger = MIN(UINT32_MAX, rss * 1.25);
+        JS::NonIncrementalGC(cx, JS::GCOptions::Shrink,
+                             Gjs::GCReason::LINUX_RSS_TRIGGER);
+    } else if (rss < (0.75 * linux_rss_trigger)) {
+        // If we've shrunk back to 75%, lower the trigger to 25% above the
+        // current value
+        linux_rss_trigger = rss * 1.25;
     }
 #else  // !__linux__
-    (void)context;
+    (void)cx;
 #endif
 }
 
@@ -569,11 +658,9 @@ gjs_gc_if_needed (JSContext *context)
  *
  * Low level version of gjs_context_maybe_gc().
  */
-void
-gjs_maybe_gc (JSContext *context)
-{
-    JS_MaybeGC(context);
-    gjs_gc_if_needed(context);
+void gjs_maybe_gc(JSContext* cx) {
+    JS_MaybeGC(cx);
+    gjs_gc_if_needed(cx);
 }
 
 const char* gjs_explain_gc_reason(JS::GCReason reason) {
@@ -581,13 +668,8 @@ const char* gjs_explain_gc_reason(JS::GCReason reason) {
         return JS::ExplainGCReason(reason);
 
     static const char* reason_strings[] = {
-        // clang-format off
-        "RSS above threshold",
-        "GjsContext disposed",
-        "Big Hammer hit",
-        "gjs_context_gc() called",
-        "Memory usage is low",
-        // clang-format on
+        "RSS above threshold",     "GjsContext disposed", "Big Hammer hit",
+        "gjs_context_gc() called", "Memory usage is low",
     };
     static_assert(G_N_ELEMENTS(reason_strings) == Gjs::GCReason::N_REASONS,
                   "Explanations must match the values in Gjs::GCReason");

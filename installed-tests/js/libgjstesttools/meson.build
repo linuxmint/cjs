@@ -13,12 +13,12 @@ gjstest_tools_sources = [
 ]
 libgjstesttools = library('gjstesttools',
     sources: gjstest_tools_sources,
-    include_directories: top_include, dependencies: libcjs_dep,
-    cpp_args: libcjs_cpp_args + libgjstesttools_extra_cpp_args,
+    include_directories: top_include, dependencies: libgjs_dep,
+    cpp_args: libgjs_cpp_args + libgjstesttools_extra_cpp_args,
     install: get_option('installed_tests'), install_dir: installed_tests_execdir)
 gjstest_tools_gir = gnome.generate_gir(libgjstesttools,
     includes: ['GObject-2.0', 'Gio-2.0'], sources: gjstest_tools_sources,
-    namespace: 'CjsTestTools', nsversion: '1.0',
+    namespace: 'GjsTestTools', nsversion: '1.0',
     symbol_prefix: 'gjs_test_tools_', fatal_warnings: get_option('werror'),
     install: get_option('installed_tests'), install_gir: false,
     install_dir_typelib: installed_tests_execdir)

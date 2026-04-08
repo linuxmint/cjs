@@ -3,7 +3,7 @@
 // SPDX-FileContributor: Authored by: Marco Trevisan <marco.trevisan@canonical.com>
 // SPDX-FileCopyrightText: 2022 Canonical, Ltd.
 
-const {GLib} = imports.gi;
+import GLib from 'gi://GLib';
 
 class SubPromise extends Promise {
     constructor(executor) {
@@ -82,10 +82,10 @@ describe('Promise', function () {
         expect(thenHandler).not.toHaveBeenCalled();
 
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => loop.quit());
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'Unhandled promise rejection.*');
         loop.run();
-        GLib.test_assert_expected_messages_internal('Cjs', 'testPromise.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testPromise.js', 0,
             'warnsIfRejected');
     });
 

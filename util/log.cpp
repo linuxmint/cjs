@@ -26,7 +26,7 @@
 
 #include <glib.h>
 
-#include "cjs/jsapi-util.h"
+#include "cjs/auto.h"
 #include "util/log.h"
 #include "util/misc.h"
 
@@ -34,7 +34,7 @@ static std::atomic_bool s_initialized = ATOMIC_VAR_INIT(false);
 static bool s_debug_log_enabled = false;
 static bool s_print_thread = false;
 static std::unique_ptr<LogFile> s_log_file;
-static GjsAutoPointer<GTimer, GTimer, g_timer_destroy> s_timer;
+static Gjs::AutoPointer<GTimer, GTimer, g_timer_destroy> s_timer;
 static std::array<bool, GJS_DEBUG_LAST> s_enabled_topics;
 
 static const char* topic_to_prefix(GjsDebugTopic topic) {
@@ -109,17 +109,16 @@ void gjs_log_init() {
         s_debug_log_enabled = true;
     } else if (debug_output) {
         std::string log_file;
-        char* c;
 
-        /* Allow debug-%u.log for per-pid logfiles as otherwise log
-         * messages from multiple processes can overwrite each other.
+        /* Allow debug-%u.log for per-pid logfiles as otherwise log messages
+         * from multiple processes can overwrite each other.
          *
          * (printf below should be safe as we check '%u' is the only format
          * string)
          */
-        c = strchr(const_cast<char*>(debug_output), '%');
+        char* c = strchr(const_cast<char*>(debug_output), '%');
         if (c && c[1] == 'u' && !strchr(c + 1, '%')) {
-            GjsAutoChar file_name;
+            Gjs::AutoChar file_name;
 #if defined(__clang__) || __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
             _Pragma("GCC diagnostic push")
                 _Pragma("GCC diagnostic ignored \"-Wformat-nonliteral\"")
@@ -133,7 +132,7 @@ void gjs_log_init() {
             log_file = debug_output;
         }
 
-        /* avoid truncating in case we're using shared logfile */
+        // avoid truncating in case we're using shared logfile
         s_log_file = std::make_unique<LogFile>(log_file.c_str());
         if (s_log_file->has_error()) {
             fprintf(stderr, "Failed to open log file `%s': %s\n",
@@ -147,11 +146,11 @@ void gjs_log_init() {
         s_log_file = std::make_unique<LogFile>(nullptr, stderr);
 
     if (s_debug_log_enabled) {
-        auto* topics = g_getenv("GJS_DEBUG_TOPICS");
+        const char* topics = g_getenv("GJS_DEBUG_TOPICS");
         s_enabled_topics.fill(topics == nullptr);
         if (topics) {
-            GjsAutoStrv prefixes(g_strsplit(topics, ";", -1));
-            for (unsigned i = 0; prefixes[i] != NULL; i++) {
+            Gjs::AutoStrv prefixes{g_strsplit(topics, ";", -1)};
+            for (unsigned i = 0; prefixes[i] != nullptr; i++) {
                 GjsDebugTopic topic = prefix_to_topic(prefixes[i]);
                 if (topic != GJS_DEBUG_LAST)
                     s_enabled_topics[topic] = true;
@@ -171,12 +170,8 @@ void gjs_log_cleanup() {
 
 #define PREFIX_LENGTH 12
 
-static void
-write_to_stream(FILE       *logfp,
-                const char *prefix,
-                const char *s)
-{
-    /* seek to end to avoid truncating in case we're using shared logfile */
+static void write_to_stream(FILE* logfp, const char* prefix, const char* s) {
+    // seek to end to avoid truncating in case we're using shared logfile
     (void)fseek(logfp, 0, SEEK_END);
 
     fprintf(logfp, "%*s: %s", PREFIX_LENGTH, prefix, s);
@@ -185,27 +180,21 @@ write_to_stream(FILE       *logfp,
     fflush(logfp);
 }
 
-void
-gjs_debug(GjsDebugTopic topic,
-          const char   *format,
-          ...)
-{
+void gjs_debug(GjsDebugTopic topic, const char* format, ...) {
     va_list args;
-    char *s;
 
     if (!s_debug_log_enabled || !s_enabled_topics[topic])
         return;
 
-    va_start (args, format);
-    s = g_strdup_vprintf (format, args);
-    va_end (args);
+    va_start(args, format);
+    Gjs::AutoChar s{g_strdup_vprintf(format, args)};
+    va_end(args);
 
     if (s_timer) {
-        static gdouble previous = 0.0;
-        gdouble total = g_timer_elapsed(s_timer, NULL) * 1000.0;
-        gdouble since = total - previous;
-        const char *ts_suffix;
-        char *s2;
+        static double previous = 0.0;
+        double total = g_timer_elapsed(s_timer, nullptr) * 1000.0;
+        double since = total - previous;
+        const char* ts_suffix;
 
         if (since > 50.0) {
             ts_suffix = "!!  ";
@@ -217,21 +206,14 @@ gjs_debug(GjsDebugTopic topic,
             ts_suffix = "    ";
         }
 
-        s2 = g_strdup_printf("%g %s%s",
-                             total, ts_suffix, s);
-        g_free(s);
-        s = s2;
+        s.reset(g_strdup_printf("%g %s%s", total, ts_suffix, s.get()));
 
         previous = total;
     }
 
     if (s_print_thread) {
-        char *s2 = g_strdup_printf("(thread %p) %s", g_thread_self(), s);
-        g_free(s);
-        s = s2;
+        s.reset(g_strdup_printf("(thread %p) %s", g_thread_self(), s.get()));
     }
 
     write_to_stream(s_log_file->fp(), topic_to_prefix(topic), s);
-
-    g_free(s);
 }

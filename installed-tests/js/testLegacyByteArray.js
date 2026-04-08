@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: 2017 Philip Chimento <philip.chimento@gmail.com>
 
 const ByteArray = imports.byteArray;
-const {GIMarshallingTests, CjsTestTools, GLib} = imports.gi;
+const {GIMarshallingTests, GjsTestTools, GLib} = imports.gi;
 
 describe('Uint8Array with legacy ByteArray functions', function () {
     it('can be created from a string', function () {
@@ -74,14 +74,14 @@ describe('Uint8Array with legacy ByteArray functions', function () {
     });
 
     it('deals gracefully with a non-aligned GBytes', function () {
-        const unalignedBytes = CjsTestTools.new_unaligned_bytes(48);
+        const unalignedBytes = GjsTestTools.new_unaligned_bytes(48);
         const arr = ByteArray.fromGBytes(unalignedBytes);
         expect(arr.length).toEqual(48);
         expect(Array.prototype.slice.call(arr, 0, 4)).toEqual([1, 2, 3, 4]);
     });
 
     it('deals gracefully with a GBytes in static storage', function () {
-        const staticBytes = CjsTestTools.new_static_bytes();
+        const staticBytes = GjsTestTools.new_static_bytes();
         const arr = ByteArray.fromGBytes(staticBytes);
         arr[2] = 42;
         expect(Array.from(arr)).toEqual([104, 101, 42, 108, 111, 0]);
@@ -100,7 +100,7 @@ describe('Uint8Array with legacy ByteArray functions', function () {
 
     describe('legacy toString() behavior', function () {
         beforeEach(function () {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 'Some code called array.toString()*');
         });
 
@@ -115,7 +115,7 @@ describe('Uint8Array with legacy ByteArray functions', function () {
         });
 
         afterEach(function () {
-            GLib.test_assert_expected_messages_internal('Cjs',
+            GLib.test_assert_expected_messages_internal('Gjs',
                 'testByteArray.js', 0, 'testToStringCompatibility');
         });
     });

@@ -10,7 +10,7 @@
 
 #include <js/TypeDecls.h>
 
-#include "cjs/jsapi-util.h"
+#include "cjs/auto.h"
 #include "cjs/macros.h"
 
 class JSTracer;
@@ -19,7 +19,7 @@ class ObjectBox {
     static void destroy(ObjectBox*);
 
  public:
-    using Ptr = GjsAutoPointer<ObjectBox, ObjectBox, ObjectBox::destroy>;
+    using Ptr = Gjs::AutoPointer<ObjectBox, ObjectBox, ObjectBox::destroy>;
 
     [[nodiscard]] static GType gtype();
 
@@ -29,7 +29,7 @@ class ObjectBox {
     GJS_JSAPI_RETURN_CONVENTION
     static JSObject* object_for_c_ptr(JSContext*, ObjectBox*);
 
-    void trace(JSTracer* trc);
+    void trace(JSTracer*);
 
  private:
     explicit ObjectBox(JSObject*);
@@ -39,5 +39,5 @@ class ObjectBox {
 
     struct impl;
     static void destroy_impl(impl*);
-    GjsAutoPointer<impl, impl, destroy_impl> m_impl;
+    Gjs::AutoPointer<impl, impl, destroy_impl> m_impl;
 };

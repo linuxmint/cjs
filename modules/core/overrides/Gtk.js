@@ -3,12 +3,12 @@
 // SPDX-FileCopyrightText: 2013 Giovanni Campagna
 
 const Legacy = imports._legacy;
-const {Gio, CjsPrivate, GLib, GObject} = imports.gi;
+const {Gio, GjsPrivate, GLib, GObject} = imports.gi;
 const {_createBuilderConnectFunc, _createClosure, _registerType} = imports._common;
 const Gi = imports._gi;
 
 let Gtk;
-let BuilderScope;
+let TemplateBuilderScope;
 
 function _init() {
     Gtk = this;
@@ -23,14 +23,14 @@ function _init() {
 
     if (Gtk.Container && Gtk.Container.prototype.child_set_property) {
         Gtk.Container.prototype.child_set_property = function (child, property, value) {
-            CjsPrivate.gtk_container_child_set_property(this, child, property, value);
+            GjsPrivate.gtk_container_child_set_property(this, child, property, value);
         };
     }
 
     if (Gtk.CustomSorter) {
-        Gtk.CustomSorter.new = CjsPrivate.gtk_custom_sorter_new;
+        Gtk.CustomSorter.new = GjsPrivate.gtk_custom_sorter_new;
         Gtk.CustomSorter.prototype.set_sort_func = function (sortFunc) {
-            CjsPrivate.gtk_custom_sorter_set_sort_func(this, sortFunc);
+            GjsPrivate.gtk_custom_sorter_set_sort_func(this, sortFunc);
         };
     }
 
@@ -73,20 +73,122 @@ function _init() {
         };
     }
 
-    if (Gtk.BuilderScope) {
-        BuilderScope = GObject.registerClass({
-            Implements: [Gtk.BuilderScope],
-        }, class extends GObject.Object {
-            vfunc_create_closure(builder, handlerName, flags, connectObject) {
-                const swapped = flags & Gtk.BuilderClosureFlags.SWAPPED;
-                const thisArg = builder.get_current_object();
-                return Gi.associateClosure(
-                    connectObject ?? thisArg,
-                    _createClosure(builder, thisArg, handlerName, swapped, connectObject)
-                );
+    // Everything after this is GTK4-only, for the Gtk.Builder JS implementation
+    if (!Gtk.BuilderScope)
+        return;
+
+    TemplateBuilderScope = GObject.registerClass({
+        Implements: [Gtk.BuilderScope],
+    }, class extends GObject.Object {
+        vfunc_create_closure(builder, handlerName, flags, connectObject) {
+            const swapped = flags & Gtk.BuilderClosureFlags.SWAPPED;
+            const thisArg = builder.get_current_object();
+            return Gi.associateClosure(
+                connectObject ?? thisArg,
+                _createClosure(thisArg, handlerName, swapped, connectObject)
+            );
+        }
+    });
+
+    const NonTemplateBuilderScope = GObject.registerClass(class extends GObject.Object {
+        static [GObject.GTypeName] = 'NonTemplateBuilderScope';
+        static [GObject.interfaces] = [Gtk.BuilderScope];
+        #callbacks;
+
+        constructor(callbacks = {}) {
+            super();
+            this.#callbacks = callbacks;
+        }
+
+        vfunc_create_closure(builder, handlerName, flags, connectObject) {
+            const swapped = flags & Gtk.BuilderClosureFlags.SWAPPED;
+            const builderCurrentObject = builder.get_current_object();
+            if (connectObject || builderCurrentObject || this.#callbacks instanceof GObject.Object) {
+                const lifetimeObject = connectObject ?? builderCurrentObject ?? this.#callbacks;
+                return Gi.associateClosure(lifetimeObject,
+                    _createClosure(this.#callbacks, handlerName,
+                        swapped, connectObject ?? builderCurrentObject));
             }
-        });
+            return _createClosure(this.#callbacks, handlerName, swapped);
+        }
+    });
+
+    class GtkJSBuilder extends Gtk.Builder {
+        static [GObject.GTypeName] = 'GtkJSBuilder';
+        static {
+            GObject.registerClass(GtkJSBuilder);
+        }
+
+        /**
+         * @param {object} [props] Construct properties
+         * @param {string | Uint8Array} [props.data] XML interface description
+         * @param {string} [props.filename] Local filename for XML interface
+         * @param {string} [props.resource] Resource path for XML interface
+         * @param {object} [props.callbacks] Object with callbacks to expose
+         * @param {object} [props.objects] Object with other objects to expose
+         * @param {Gtk.BuilderConstructParameters} [props.props] Other
+         *   Gtk.Builder construct properties
+         */
+        constructor({data, filename, resource, callbacks, objects, ...props} = {}) {
+            const countOfDataSources = [data, filename, resource]
+            .filter(source => source !== undefined)
+            .length;
+
+            if (countOfDataSources === 0) {
+                if (!callbacks && !objects) {
+                    super(props);
+                    return;  // default behaviour if no extra properties passed
+                }
+            } else if (countOfDataSources !== 1) {
+                throw new Error('Pass at most one of data, filename, or resource');
+            }
+            if (props.scope)
+                throw new Error("Don't pass a scope property when using JS Gtk.Builder features");
+
+            const scope = new NonTemplateBuilderScope(callbacks);
+            super({...props, scope});
+
+            if (objects)
+                this.exposeObjects(objects);
+
+            if (data) {
+                const str = typeof data === 'string' ? data : new TextDecoder().decode(data);
+                this.add_from_string(str, -1);
+            } else if (resource) {
+                this.add_from_resource(resource);
+            } else if (filename) {
+                this.add_from_file(filename);
+            }
+        }
+
+        // override for original get_objects() method that returns a Proxy which
+        // accesses get_object() on property accesses, so that you can do
+        // const {name1, name2} = builder.get_objects();
+        // Note the builder instance is kept alive by the proxy!
+        get_objects() {
+            const builder = this;
+            const proxyHandler = {
+                get(objectsArray, id, receiver) {
+                    if (Reflect.has(objectsArray, id))
+                        return Reflect.get(objectsArray, id, receiver);
+                    if (typeof id !== 'string')
+                        return undefined;
+                    const obj = builder.get_object(id);
+                    objectsArray[id] = obj;
+                    return obj;
+                },
+            };
+            const objectsArray = super.get_objects();
+            return new Proxy(objectsArray, proxyHandler);
+        }
+
+        // convenience method
+        exposeObjects(objects) {
+            for (const [name, object] of Object.entries(objects))
+                this.expose_object(name, object);
+        }
     }
+    Gtk.Builder = GtkJSBuilder;
 }
 
 function _registerWidgetType(klass) {
@@ -132,8 +234,8 @@ function _registerWidgetType(klass) {
             Gtk.Widget.set_template.call(klass, template);
         }
 
-        if (BuilderScope)
-            Gtk.Widget.set_template_scope.call(klass, new BuilderScope());
+        if (TemplateBuilderScope)
+            Gtk.Widget.set_template_scope.call(klass, new TemplateBuilderScope());
         else
             Gtk.Widget.set_connect_func.call(klass, _createBuilderConnectFunc(klass));
     }

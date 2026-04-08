@@ -2,53 +2,52 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2010 litl, LLC
 
-#ifndef GI_FOREIGN_H_
-#define GI_FOREIGN_H_
+#pragma once
 
 #include <config.h>
 
-#include <girepository.h>
+#include <girepository/girepository.h>
 
 #include <js/TypeDecls.h>
 #include <js/Value.h>
 
 #include "gi/arg.h"
+#include "gi/info.h"
 #include "cjs/macros.h"
 
-typedef bool (*GjsArgOverrideToGIArgumentFunc)(JSContext*, JS::Value,
-                                               const char* arg_name,
-                                               GjsArgumentType, GITransfer,
-                                               GjsArgumentFlags, GIArgument*);
+using GjsArgOverrideToGIArgumentFunc = bool (*)(JSContext*, JS::Value,
+                                                const char* arg_name,
+                                                GjsArgumentType, GITransfer,
+                                                GjsArgumentFlags, GIArgument*);
 
-typedef bool (*GjsArgOverrideFromGIArgumentFunc)(JSContext*,
-                                                 JS::MutableHandleValue,
-                                                 GIArgument*);
+using GjsArgOverrideFromGIArgumentFunc = bool (*)(JSContext*,
+                                                  JS::MutableHandleValue,
+                                                  GIArgument*);
 
-typedef bool (*GjsArgOverrideReleaseGIArgumentFunc)(JSContext*, GITransfer,
-                                                    GIArgument*);
+using GjsArgOverrideReleaseGIArgumentFunc = bool (*)(JSContext*, GITransfer,
+                                                     GIArgument*);
 
-typedef struct {
+struct GjsForeignInfo {
     GjsArgOverrideToGIArgumentFunc to_func;
     GjsArgOverrideFromGIArgumentFunc from_func;
     GjsArgOverrideReleaseGIArgumentFunc release_func;
-} GjsForeignInfo;
+};
 
 void gjs_struct_foreign_register(const char* gi_namespace,
-                                 const char* type_name, GjsForeignInfo* info);
+                                 const char* type_name, GjsForeignInfo*);
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_struct_foreign_convert_to_gi_argument(JSContext*, JS::Value,
-                                               GIStructInfo*,
+                                               const GI::StructInfo&,
                                                const char* arg_name,
                                                GjsArgumentType, GITransfer,
                                                GjsArgumentFlags, GIArgument*);
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_struct_foreign_convert_from_gi_argument(JSContext*,
                                                  JS::MutableHandleValue,
-                                                 GIStructInfo*, GIArgument*);
+                                                 const GI::StructInfo&,
+                                                 GIArgument*);
 
 GJS_JSAPI_RETURN_CONVENTION
 bool gjs_struct_foreign_release_gi_argument(JSContext*, GITransfer,
-                                            GIStructInfo*, GIArgument*);
-
-#endif  // GI_FOREIGN_H_
+                                            const GI::StructInfo&, GIArgument*);

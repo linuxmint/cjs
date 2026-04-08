@@ -4,7 +4,9 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_cairo_pdf_surface_proto_props@Base 5.4.0
  gjs_clear_terminal@Base 5.4.0
  gjs_console_clear@Base 5.4.0
+ gjs_console_get_repl_history_path@Base 140.0
  gjs_console_is_tty@Base 5.4.0
+ gjs_console_write_repl_history@Base 140.0
  gjs_context_define_string_array@Base 2.0.0
  gjs_context_eval@Base 2.0.0
  gjs_context_eval_file@Base 2.0.0
@@ -15,6 +17,7 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_context_get_current@Base 2.4.1
  gjs_context_get_native_context@Base 2.0.0
  gjs_context_get_profiler@Base 4.0.0
+ gjs_context_get_repl_history_path@Base 140.0
  gjs_context_get_type@Base 2.0.0
  gjs_context_make_current@Base 2.4.1
  gjs_context_maybe_gc@Base 2.0.0
@@ -36,7 +39,6 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_dbus_implementation_unexport_from_connection@Base 5.7.0
  gjs_dumpstack@Base 2.0.0
  gjs_error_quark@Base 2.0.0
- gjs_format_int_alternative_output@Base 2.4.1
  gjs_g_binding_group_bind_full@Base 5.7.0
  gjs_g_object_bind_property_full@Base 5.4.0
  gjs_get_js_version@Base 4.0.0
@@ -88,5 +90,5 @@ libcjs.so.0 libcjs0 #MINVER#
  gjs_regex_match_all_full@Base 6.5.0
  gjs_regex_match_full@Base 6.5.0
  gjs_repo_class@Base 5.4.0
- gjs_setlocale@Base 3.4.4
+ gjs_set_thread_locale@Base 140.0
  gjs_textdomain@Base 2.4.1

@@ -24,6 +24,7 @@
 #include "gi/gobject.h"
 #include "gi/object.h"
 #include "gi/value.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/context.h"
 #include "cjs/jsapi-util.h"
@@ -31,7 +32,8 @@
 
 static std::unordered_map<GType, AutoParamArray> class_init_properties;
 
-[[nodiscard]] static JSContext* current_js_context() {
+[[nodiscard]]
+static JSContext* current_js_context() {
     GjsContext* gjs = gjs_context_get_current();
     return static_cast<JSContext*>(gjs_context_get_native_context(gjs));
 }
@@ -57,13 +59,14 @@ static bool jsobj_set_gproperty(JSContext* cx, JS::HandleObject object,
     if (!gjs_value_from_g_value(cx, &jsvalue, value))
         return false;
 
-    GjsAutoChar underscore_name = gjs_hyphen_to_underscore(pspec->name);
+    Gjs::AutoChar underscore_name{gjs_hyphen_to_underscore(pspec->name)};
 
     if (pspec->flags & G_PARAM_CONSTRUCT_ONLY) {
         unsigned flags = GJS_MODULE_PROP_FLAGS | JSPROP_READONLY;
-        GjsAutoChar camel_name = gjs_hyphen_to_camel(pspec->name);
+        Gjs::AutoChar camel_name{gjs_hyphen_to_camel(pspec->name)};
 
-        if (g_param_spec_get_qdata(pspec, ObjectBase::custom_property_quark())) {
+        if (g_param_spec_get_qdata(pspec,
+                                   ObjectBase::custom_property_quark())) {
             JS::Rooted<mozilla::Maybe<JS::PropertyDescriptor>> jsprop(cx);
             JS::RootedObject holder(cx);
             JS::RootedObject getter(cx);
@@ -146,8 +149,8 @@ static GObject* gjs_object_constructor(
     if (!gjs->object_init_list().empty()) {
         GType parent_type = g_type_parent(type);
 
-        /* The object is being constructed from JS:
-         * Simply chain up to the first non-gjs constructor
+        /* The object is being constructed from JS: simply chain up to the first
+         * non-gjs constructor
          */
         while (G_OBJECT_CLASS(g_type_class_peek(parent_type))->constructor ==
                gjs_object_constructor)
@@ -158,8 +161,8 @@ static GObject* gjs_object_constructor(
     }
 
     /* The object is being constructed from native code (e.g. GtkBuilder):
-     * Construct the JS object from the constructor, then use the GObject
-     * that was associated in gjs_object_custom_init()
+     * Construct the JS object from the constructor, then use the GObject that
+     * was associated in gjs_object_custom_init()
      */
     Gjs::AutoMainRealm ar{gjs};
 
@@ -191,8 +194,8 @@ static GObject* gjs_object_constructor(
     /* Should have been set in init_impl() and pushed into object_init_list,
      * then popped from object_init_list in gjs_object_custom_init() */
     g_assert(priv);
-    /* We only hold a toggle ref at this point, add back a ref that the
-     * native code can own.
+    /* We only hold a toggle ref at this point, add back a ref that the native
+     * code can own.
      */
     return G_OBJECT(g_object_ref(priv->to_instance()->ptr()));
 }
@@ -201,7 +204,7 @@ static void gjs_object_set_gproperty(GObject* object,
                                      unsigned property_id [[maybe_unused]],
                                      const GValue* value, GParamSpec* pspec) {
     auto* priv = ObjectInstance::for_gobject(object);
-    if (!priv) {
+    if (!priv || !priv->wrapper()) {
         g_warning("Wrapper for GObject %p was disposed, cannot set property %s",
                   object, g_param_spec_get_name(pspec));
         return;
@@ -220,7 +223,7 @@ static void gjs_object_get_gproperty(GObject* object,
                                      unsigned property_id [[maybe_unused]],
                                      GValue* value, GParamSpec* pspec) {
     auto* priv = ObjectInstance::for_gobject(object);
-    if (!priv) {
+    if (!priv || !priv->wrapper()) {
         g_warning("Wrapper for GObject %p was disposed, cannot get property %s",
                   object, g_param_spec_get_name(pspec));
         return;
@@ -232,7 +235,7 @@ static void gjs_object_get_gproperty(GObject* object,
     JS::RootedValue jsvalue(cx);
     JSAutoRealm ar(cx, js_obj);
 
-    GjsAutoChar underscore_name = gjs_hyphen_to_underscore(pspec->name);
+    Gjs::AutoChar underscore_name{gjs_hyphen_to_underscore(pspec->name)};
     if (!JS_GetProperty(cx, js_obj, underscore_name, &jsvalue)) {
         gjs_log_exception_uncaught(cx);
         return;
@@ -254,7 +257,7 @@ static void gjs_object_class_init(void* class_pointer, void*) {
         return;
 
     unsigned i = 0;
-    for (GjsAutoParam& pspec : properties) {
+    for (Gjs::AutoParam& pspec : properties) {
         g_param_spec_set_qdata(pspec, ObjectBase::custom_property_quark(),
                                GINT_TO_POINTER(1));
         g_object_class_install_property(klass, ++i, pspec);
@@ -275,9 +278,7 @@ static void gjs_object_custom_init(GTypeInstance* instance,
     ObjectInstance* priv = priv_base->to_instance();
 
     if (priv_base->gtype() != G_TYPE_FROM_INSTANCE(instance)) {
-        /* This is not the most derived instance_init function,
-           do nothing.
-         */
+        // This is not the most derived instance_init function, do nothing.
         return;
     }
 
@@ -294,7 +295,7 @@ static void gjs_interface_init(void* g_iface, void*) {
     if (!pop_class_init_properties(gtype, &properties))
         return;
 
-    for (GjsAutoParam& pspec : properties) {
+    for (Gjs::AutoParam& pspec : properties) {
         g_param_spec_set_qdata(pspec, ObjectBase::custom_property_quark(),
                                GINT_TO_POINTER(1));
         g_object_interface_install_property(g_iface, pspec);

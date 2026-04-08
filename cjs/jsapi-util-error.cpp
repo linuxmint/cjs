@@ -28,7 +28,9 @@
 #include <mozilla/ScopeExit.h>
 
 #include "cjs/atoms.h"
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "util/log.h"
@@ -90,10 +92,11 @@ static bool append_new_cause(JSContext* cx, JS::HandleValue thrown,
     return true;
 }
 
-[[gnu::format(printf, 4, 0)]] static void gjs_throw_valist(
-    JSContext* cx, JSExnType error_kind, const char* error_name,
-    const char* format, va_list args) {
-    GjsAutoChar s = g_strdup_vprintf(format, args);
+[[gnu::format(printf, 4, 0)]]
+static void gjs_throw_valist(JSContext* cx, JSExnType error_kind,
+                             const char* error_name, const char* format,
+                             va_list args) {
+    Gjs::AutoChar s{g_strdup_vprintf(format, args)};
     auto fallback = mozilla::MakeScopeExit([cx, &s]() {
         // try just reporting it to error handler? should not
         // happen though pretty much
@@ -157,30 +160,23 @@ static bool append_new_cause(JSContext* cx, JS::HandleValue thrown,
 
 /* Throws an exception, like "throw new Error(message)"
  *
- * If an exception is already set in the context, this will
- * NOT overwrite it. That's an important semantic since
- * we want the "root cause" exception. To overwrite,
- * use JS_ClearPendingException() first.
+ * If an exception is already set in the context, this will NOT overwrite it.
+ * That's an important semantic since we want the "root cause" exception. To
+ * overwrite, use JS_ClearPendingException() first.
  */
-void
-gjs_throw(JSContext       *context,
-          const char      *format,
-          ...)
-{
+void gjs_throw(JSContext* cx, const char* format, ...) {
     va_list args;
 
     va_start(args, format);
-    gjs_throw_valist(context, JSEXN_ERR, nullptr, format, args);
+    gjs_throw_valist(cx, JSEXN_ERR, nullptr, format, args);
     va_end(args);
 }
 
-/*
- * Like gjs_throw, but allows to customize the error
- * class and 'name' property. Mainly used for throwing TypeError instead of
- * error.
+/* Like gjs_throw, but allows to customize the error class and 'name' property.
+ * Mainly used for throwing TypeError instead of error.
  */
-void gjs_throw_custom(JSContext *cx, JSExnType kind, const char *error_name,
-                      const char *format, ...) {
+void gjs_throw_custom(JSContext* cx, JSExnType kind, const char* error_name,
+                      const char* format, ...) {
     va_list args;
 
     va_start(args, format);
@@ -191,14 +187,10 @@ void gjs_throw_custom(JSContext *cx, JSExnType kind, const char *error_name,
 /**
  * gjs_throw_literal:
  *
- * Similar to gjs_throw(), but does not treat its argument as
- * a format string.
+ * Similar to gjs_throw(), but does not treat its argument as a format string.
  */
-void
-gjs_throw_literal(JSContext       *context,
-                  const char      *string)
-{
-    gjs_throw(context, "%s", string);
+void gjs_throw_literal(JSContext* cx, const char* string) {
+    gjs_throw(cx, "%s", string);
 }
 
 /**
@@ -209,10 +201,10 @@ gjs_throw_literal(JSContext       *context,
  * the GError's message into it.
  *
  * Use this when handling a GError in an internal function, where the error code
- * and domain don't matter. So, for example, don't use it to throw errors
- * around calling from JS into C code.
+ * and domain don't matter. So, for example, don't use it to throw errors around
+ * calling from JS into C code.
  */
-bool gjs_throw_gerror_message(JSContext* cx, GjsAutoError const& error) {
+bool gjs_throw_gerror_message(JSContext* cx, Gjs::AutoError const& error) {
     g_return_val_if_fail(error, false);
     gjs_throw_literal(cx, error->message);
     return false;
@@ -225,9 +217,8 @@ bool gjs_throw_gerror_message(JSContext* cx, GjsAutoError const& error) {
  * @indent: (optional): spaces of indentation
  *
  * Formats a stack trace as a UTF-8 string. If there are errors, ignores them
- * and returns null.
- * If you print this to stderr, you will need to re-encode it in filename
- * encoding with g_filename_from_utf8().
+ * and returns null. If you print this to stderr, you will need to re-encode it
+ * in filename encoding with g_filename_from_utf8().
  *
  * Returns (nullable) (transfer full): unique string
  */
@@ -246,28 +237,27 @@ JS::UniqueChars format_saved_frame(JSContext* cx, JS::HandleObject saved_frame,
 }
 
 void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
-    const char *warning;
     GLogLevelFlags level;
 
     g_assert(report);
 
     if (gjs_environment_variable_is_set("GJS_ABORT_ON_OOM") &&
         !report->isWarning() && report->errorNumber == 137) {
-        /* 137, JSMSG_OUT_OF_MEMORY */
-        g_error("GJS ran out of memory at %s: %i.", report->filename.c_str(),
-                report->lineno);
+        // 137, JSMSG_OUT_OF_MEMORY
+        g_error("GJS ran out of memory at %s:%u:%u.", report->filename.c_str(),
+                report->lineno, report->column.oneOriginValue());
     }
 
+    const char* warning;
     if (report->isWarning()) {
         warning = "WARNING";
         level = G_LOG_LEVEL_MESSAGE;
 
-        /* suppress bogus warnings. See mozilla/js/src/js.msg */
+        // suppress bogus warnings. See mozilla/js/src/js.msg
         if (report->errorNumber == 162) {
-            /* 162, JSMSG_UNDEFINED_PROP: warns every time a lazy property
-             * is resolved, since the property starts out
-             * undefined. When this is a real bug it should usually
-             * fail somewhere else anyhow.
+            /* 162, JSMSG_UNDEFINED_PROP: warns every time a lazy property is
+             * resolved, since the property starts out undefined. When this is a
+             * real bug it should usually fail somewhere else anyhow.
              */
             return;
         }
@@ -276,6 +266,7 @@ void gjs_warning_reporter(JSContext*, JSErrorReport* report) {
         level = G_LOG_LEVEL_WARNING;
     }
 
-    g_log(G_LOG_DOMAIN, level, "JS %s: [%s %d]: %s", warning,
-          report->filename.c_str(), report->lineno, report->message().c_str());
+    g_log(G_LOG_DOMAIN, level, "JS %s: %s:%u:%u: %s", warning,
+          report->filename.c_str(), report->lineno,
+          report->column.oneOriginValue(), report->message().c_str());
 }

@@ -3,20 +3,20 @@
  * SPDX-FileCopyrightText: 2010 Red Hat, Inc.
  */
 
-probe cjs.object_wrapper_new = process("@EXPANDED_LIBDIR@/libcjs-gi.so.0.0.0").mark("object__wrapper__new")
+probe gjs.object_wrapper_new = process("@EXPANDED_LIBDIR@/libgjs-gi.so.0.0.0").mark("object__wrapper__new")
 {
   wrapper_address = $arg1;
   gobject_address = $arg2;
   gi_namespace = user_string($arg3);
   gi_name = user_string($arg4);
-  probestr = sprintf("cjs.object_wrapper_new(%p, %s, %s)", wrapper_address, gi_namespace, gi_name);
+  probestr = sprintf("gjs.object_wrapper_new(%p, %s, %s)", wrapper_address, gi_namespace, gi_name);
 }
 
-probe cjs.object_wrapper_finalize = process("@EXPANDED_LIBDIR@/libcjs-gi.so.0.0.0").mark("object__wrapper__finalize")
+probe gjs.object_wrapper_finalize = process("@EXPANDED_LIBDIR@/libgjs-gi.so.0.0.0").mark("object__wrapper__finalize")
 {
   wrapper_address = $arg1;
   gobject_address = $arg2;
   gi_namespace = user_string($arg3);
   gi_name = user_string($arg4);
-  probestr = sprintf("cjs.object_wrapper_finalize(%p, %s, %s)", wrapper_address, gi_namespace, gi_name);
+  probestr = sprintf("gjs.object_wrapper_finalize(%p, %s, %s)", wrapper_address, gi_namespace, gi_name);
 }

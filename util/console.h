@@ -4,8 +4,7 @@
  * SPDX-FileCopyrightText: 2021 Evan Welsh <contact@evanwelsh.com>
  */
 
-#ifndef UTIL_CONSOLE_H_
-#define UTIL_CONSOLE_H_
+#pragma once
 
 #include <config.h>
 
@@ -28,6 +27,9 @@ bool gjs_console_is_tty(int fd);
 
 bool gjs_console_clear(void);
 
-G_END_DECLS
+#ifdef HAVE_READLINE_READLINE_H
+char* gjs_console_get_repl_history_path();
+void gjs_console_write_repl_history(const char*);
+#endif
 
-#endif  // UTIL_CONSOLE_H_
+G_END_DECLS

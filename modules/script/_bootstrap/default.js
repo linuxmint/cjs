@@ -38,17 +38,25 @@
                 value.toString === Date.prototype.toString;
     }
 
-    function prettyPrint(value) {
+    function prettyPrint(value, extra) {
         switch (typeof value) {
         case 'object':
             if (value === null)
                 return 'null';
 
-            if (_hasStandardToString(value)) {
-                const printedObjects = new WeakSet();
-                return formatObject(value, printedObjects);
+            if (_hasStandardToString(value))
+                return formatObject(value, extra);
+
+            if (!value.toString) {
+                let str = formatObject(value, extra);
+                // object has null prototype either from Object.create(null) or cases like the module namespace object
+                if (Object.getPrototypeOf(value) === null)
+                    str = `[Object: null prototype] ${str}`;
+
+                return str;
             }
-            // If the object has a nonstandard toString, prefer that
+
+            // Prefer the non-standard toString
             return value.toString();
         case 'function':
             if (value.toString === Function.prototype.toString)
@@ -71,18 +79,21 @@
         return `${key}`;
     }
 
-    function formatObject(obj, printedObjects) {
+    function formatObject(obj, properties, printedObjects = new WeakSet()) {
         printedObjects.add(obj);
         if (Array.isArray(obj) || _isTypedArray(obj))
-            return formatArray(obj, printedObjects).toString();
+            return formatArray(obj, properties, printedObjects).toString();
 
         if (obj instanceof Date)
             return formatDate(obj);
 
         const formattedObject = [];
-        const keys = Object.getOwnPropertyNames(obj).concat(Object.getOwnPropertySymbols(obj));
-        for (const propertyKey of keys) {
-            const value = obj[propertyKey];
+        let keys = Object.getOwnPropertyNames(obj).concat(Object.getOwnPropertySymbols(obj)).map(k => [k, obj[k]]);
+        // properties is only passed to us in the debugger
+        if (properties?.cur)
+            keys = keys.concat(properties.cur);
+
+        for (const [propertyKey, value] of keys) {
             const key = formatPropertyKey(propertyKey);
             switch (typeof value) {
             case 'object':
@@ -91,7 +102,7 @@
                 else if (value === null)
                     formattedObject.push(`${key}: null`);
                 else if (_hasStandardToString(value))
-                    formattedObject.push(`${key}: ${formatObject(value, printedObjects)}`);
+                    formattedObject.push(`${key}: ${formatObject(value, properties?.children[propertyKey], printedObjects)}`);
                 else
                     formattedObject.push(`${key}: ${value.toString()}`);
                 break;
@@ -113,13 +124,13 @@
             : `{ ${formattedObject.join(', ')} }`;
     }
 
-    function formatArray(arr, printedObjects) {
+    function formatArray(arr, properties, printedObjects) {
         const formattedArray = [];
         for (const [key, value] of arr.entries()) {
             if (printedObjects.has(value))
                 formattedArray[key] = '[Circular]';
             else
-                formattedArray[key] = prettyPrint(value);
+                formattedArray[key] = prettyPrint(value, properties?.children[key]);
         }
         return `[${formattedArray.join(', ')}]`;
     }

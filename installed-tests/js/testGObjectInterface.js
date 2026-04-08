@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2015 Endless Mobile, Inc.
 
-const Gio = imports.gi.Gio;
-const GLib = imports.gi.GLib;
-const GObject = imports.gi.GObject;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 
 const AGObjectInterface = GObject.registerClass({
     GTypeName: 'ArbitraryGTypeName',
@@ -272,7 +272,7 @@ describe('GObject interface', function () {
             requiredG() {}
         });
         // g_test_assert_expected_messages() is a macro, not introspectable
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGObjectInterface.js',
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGObjectInterface.js',
             253, 'testGObjectMustOverrideInterfaceProperties');
     });
 

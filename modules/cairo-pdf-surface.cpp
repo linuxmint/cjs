@@ -20,11 +20,8 @@
 #    include <js/RootingAPI.h>
 #    include <jsapi.h>    // for JS_NewObjectWithGivenProto
 #    include <jspubtd.h>  // for JSProtoKey
-#endif
 
-#include "cjs/jsapi-util.h"
-
-#if CAIRO_HAS_PDF_SURFACE
+#    include "cjs/auto.h"
 #    include "cjs/jsapi-util-args.h"
 #    include "modules/cairo-private.h"
 
@@ -37,21 +34,18 @@ JSObject* CairoPDFSurface::new_proto(JSContext* cx, JSProtoKey) {
     return JS_NewObjectWithGivenProto(cx, nullptr, parent_proto);
 }
 
-cairo_surface_t* CairoPDFSurface::constructor_impl(JSContext* context,
-                                                   const JS::CallArgs& argv) {
-    GjsAutoChar filename;
+cairo_surface_t* CairoPDFSurface::constructor_impl(JSContext* cx,
+                                                   const JS::CallArgs& args) {
+    Gjs::AutoChar filename;
     double width, height;
-    cairo_surface_t *surface;
-    if (!gjs_parse_call_args(context, "PDFSurface", argv, "Fff",
-                             "filename", &filename,
-                             "width", &width,
-                             "height", &height))
+    if (!gjs_parse_call_args(cx, "PDFSurface", args, "Fff", "filename",
+                             &filename, "width", &width, "height", &height))
         return nullptr;
 
-    surface = cairo_pdf_surface_create(filename, width, height);
+    cairo_surface_t* surface =
+        cairo_pdf_surface_create(filename, width, height);
 
-    if (!gjs_cairo_check_status(context, cairo_surface_status(surface),
-                                "surface"))
+    if (!gjs_cairo_check_status(cx, cairo_surface_status(surface), "surface"))
         return nullptr;
 
     return surface;
@@ -63,11 +57,10 @@ JSPropertySpec gjs_cairo_pdf_surface_proto_props[] = {
     JS_PS_END};
 // clang-format on
 #else
-JSObject* CairoPDFSurface::from_c_ptr(JSContext* context,
-                                      cairo_surface_t* surface) {
-    gjs_throw(context,
-        "could not create PDF surface, recompile cairo and gjs with "
-        "PDF support.");
+JSObject* CairoPDFSurface::from_c_ptr(JSContext* cx, cairo_surface_t* surface) {
+    gjs_throw(cx,
+              "could not create PDF surface, recompile cairo and gjs with PDF "
+              "support.");
     return nullptr;
 }
-#endif /* CAIRO_HAS_PDF_SURFACE */
+#endif  // CAIRO_HAS_PDF_SURFACE

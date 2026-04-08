@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2008-2009 Dan Winship
 SPDX-FileCopyrightText: 2008-2010 Colin Walters <walters@verbum.org>
 SPDX-FileCopyrightText: 2008-2011 Johan Dahlin
@@ -80,6 +81,15 @@ regress_annotation_object_get_property (GObject *object,
 }
 
 static void
+regress_annotation_object_finalize (GObject *gobj)
+{
+  RegressAnnotationObject *self = (RegressAnnotationObject *)gobj;
+  if (self->destroy_notify)
+    self->destroy_notify(self->user_data);
+  G_OBJECT_CLASS(regress_annotation_object_parent_class)->finalize(gobj);
+}
+
+static void
 regress_annotation_object_class_init (RegressAnnotationObjectClass *klass)
 {
   GObjectClass *gobject_class;
@@ -88,6 +98,7 @@ regress_annotation_object_class_init (RegressAnnotationObjectClass *klass)
 
   gobject_class->set_property = regress_annotation_object_set_property;
   gobject_class->get_property = regress_annotation_object_get_property;
+  gobject_class->finalize = regress_annotation_object_finalize;
 
   /**
    * RegressAnnotationObject::string-signal:
@@ -637,11 +648,13 @@ regress_annotation_object_watch (RegressAnnotationObject *object G_GNUC_UNUSED,
  * Test overriding via the "Rename To" annotation.
  */
 void
-regress_annotation_object_watch_full (RegressAnnotationObject *object G_GNUC_UNUSED,
+regress_annotation_object_watch_full (RegressAnnotationObject *object,
                                       RegressAnnotationForeachFunc func G_GNUC_UNUSED,
-                                      gpointer user_data G_GNUC_UNUSED,
-                                      GDestroyNotify destroy G_GNUC_UNUSED)
+                                      gpointer user_data,
+                                      GDestroyNotify destroy)
 {
+  object->user_data = user_data;
+  object->destroy_notify = destroy;
 }
 
 /**
@@ -725,6 +738,9 @@ regress_annotation_object_extra_annos (RegressAnnotationObject *object G_GNUC_UN
 {
 }
 
+static void *regress_annotation_user_data;
+static GDestroyNotify regress_annotation_destroy_notify;
+
 /**
  * regress_annotation_custom_destroy:
  * @callback: (destroy destroy) (closure data): Destroy notification
@@ -734,9 +750,24 @@ regress_annotation_object_extra_annos (RegressAnnotationObject *object G_GNUC_UN
  */
 void
 regress_annotation_custom_destroy (RegressAnnotationCallback callback G_GNUC_UNUSED,
-                                   RegressAnnotationNotifyFunc destroy G_GNUC_UNUSED,
-                                   gpointer data G_GNUC_UNUSED)
+                                   RegressAnnotationNotifyFunc destroy,
+                                   gpointer data)
 {
+  regress_annotation_user_data = data;
+  regress_annotation_destroy_notify = destroy;
+}
+
+/**
+ * regress_annotation_custom_destroy_cleanup:
+ *
+ * Use in tests for bindings with managed memory, to clean up the callback
+ * passed to regress_annotation_custom_destroy().
+ */
+void
+regress_annotation_custom_destroy_cleanup (void)
+{
+  if (regress_annotation_destroy_notify)
+    regress_annotation_destroy_notify(regress_annotation_user_data);
 }
 
 /**
@@ -807,7 +838,8 @@ regress_annotation_test_parsing_bug630862 (void)
   return NULL;
 }
 
-/**
+/* clang-format off */
+/** 
  * regress_annotation_space_after_comment_bug631690:
  *
  * Explicitly test having a space after the ** here.
@@ -816,6 +848,7 @@ void
 regress_annotation_space_after_comment_bug631690 (void)
 {
 }
+/* clang-format on */
 
 /**
  * regress_annotation_return_filename:

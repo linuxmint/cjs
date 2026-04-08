@@ -3,21 +3,20 @@
 // SPDX-FileCopyrightText: 2008 litl, LLC
 // SPDX-FileCopyrightText: 2012 Red Hat, Inc.
 
-#ifndef GI_INTERFACE_H_
-#define GI_INTERFACE_H_
+#pragma once
 
 #include <config.h>
 
-#include <girepository.h>
 #include <glib-object.h>
 #include <glib.h>
 
 #include <js/CallArgs.h>
-#include <js/PropertySpec.h>
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
+#include <mozilla/Maybe.h>
 
 #include "gi/cwrapper.h"
+#include "gi/info.h"
 #include "gi/wrapperutils.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
@@ -25,6 +24,7 @@
 
 class InterfacePrototype;
 class InterfaceInstance;
+struct JSFunctionSpec;
 
 /* For more information on this Base/Prototype/Interface scheme, see the notes
  * in wrapperutils.h.
@@ -66,14 +66,18 @@ class InterfaceBase : public GIWrapperBase<InterfaceBase, InterfacePrototype,
     }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static bool has_instance(JSContext* cx, unsigned argc, JS::Value* vp);
+    static bool has_instance(JSContext*, unsigned, JS::Value*);
 };
 
 class InterfacePrototype
     : public GIWrapperPrototype<InterfaceBase, InterfacePrototype,
-                                InterfaceInstance, GIInterfaceInfo> {
+                                InterfaceInstance,
+                                mozilla::Maybe<GI::AutoInterfaceInfo>,
+                                mozilla::Maybe<GI::InterfaceInfo>> {
     friend class GIWrapperPrototype<InterfaceBase, InterfacePrototype,
-                                    InterfaceInstance, GIInterfaceInfo>;
+                                    InterfaceInstance,
+                                    mozilla::Maybe<GI::AutoInterfaceInfo>,
+                                    mozilla::Maybe<GI::InterfaceInfo>>;
     friend class GIWrapperBase<InterfaceBase, InterfacePrototype,
                                InterfaceInstance>;
     friend class InterfaceBase;  // for has_instance_impl
@@ -81,26 +85,25 @@ class InterfacePrototype
     // the GTypeInterface vtable wrapped by this JS object
     GTypeInterface* m_vtable;
 
-    static constexpr InfoType::Tag info_type_tag = InfoType::Interface;
-
-    explicit InterfacePrototype(GIInterfaceInfo* info, GType gtype);
-    ~InterfacePrototype(void);
+    explicit InterfacePrototype(const mozilla::Maybe<const GI::InterfaceInfo>&,
+                                GType);
+    ~InterfacePrototype();
 
     // JSClass operations
 
     GJS_JSAPI_RETURN_CONVENTION
-    bool resolve_impl(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
+    bool resolve_impl(JSContext*, JS::HandleObject, JS::HandleId,
                       bool* resolved);
 
     GJS_JSAPI_RETURN_CONVENTION
-    bool new_enumerate_impl(JSContext* cx, JS::HandleObject obj,
+    bool new_enumerate_impl(JSContext*, JS::HandleObject,
                             JS::MutableHandleIdVector properties,
                             bool only_enumerable);
 
     // JS methods
 
     GJS_JSAPI_RETURN_CONVENTION
-    bool has_instance_impl(JSContext* cx, const JS::CallArgs& args);
+    bool has_instance_impl(JSContext*, const JS::CallArgs&);
 };
 
 class InterfaceInstance
@@ -116,12 +119,9 @@ class InterfaceInstance
         : GIWrapperInstance(prototype, obj) {
         g_assert_not_reached();
     }
-    [[noreturn]] ~InterfaceInstance(void) { g_assert_not_reached(); }
+    [[noreturn]] ~InterfaceInstance() { g_assert_not_reached(); }
 };
 
 GJS_JSAPI_RETURN_CONVENTION
-bool gjs_lookup_interface_constructor(JSContext             *context,
-                                      GType                  gtype,
-                                      JS::MutableHandleValue value_p);
-
-#endif  // GI_INTERFACE_H_
+bool gjs_lookup_interface_constructor(JSContext*, GType,
+                                      JS::MutableHandleValue);
