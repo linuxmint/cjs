@@ -3,14 +3,13 @@
 // SPDX-FileCopyrightText: 2017 Endless Mobile, Inc.
 // SPDX-FileCopyrightText: 2019 Canonical, Ltd.
 
-#ifndef GJS_JSAPI_UTIL_ROOT_H_
-#define GJS_JSAPI_UTIL_ROOT_H_
+#pragma once
 
 #include <config.h>
 
-#include <cstddef>  // for nullptr_t
+#include <cstddef>
 #include <memory>
-#include <new>
+#include <new>  // IWYU pragma: keep (actually for clangd)
 
 #include <glib.h>
 
@@ -29,8 +28,8 @@ namespace JS { template <typename T> struct GCPolicy; }
  * JS Objects and other things that can be collected by the garbage collector
  * (collectively called "GC things.")
  *
- * GjsMaybeOwned is a multi-purpose wrapper for a JSObject. You can
- * wrap a thing in one of three ways:
+ * GjsMaybeOwned is a multi-purpose wrapper for a JSObject. You can wrap a thing
+ * in one of three ways:
  *
  * - trace the object (tie it to the lifetime of another GC thing),
  * - root the object (keep it alive as long as the wrapper is in existence),
@@ -48,8 +47,8 @@ namespace JS { template <typename T> struct GCPolicy; }
  * destroyed.
  *
  * To switch between one of the three modes, you must first call reset(). This
- * drops all references to any object and leaves the GjsMaybeOwned in the
- * same state as if it had just been constructed.
+ * drops all references to any object and leaves the GjsMaybeOwned in the same
+ * state as if it had just been constructed.
  */
 
 /* GjsMaybeOwned is intended for use as a member of classes that are allocated
@@ -57,25 +56,24 @@ namespace JS { template <typename T> struct GCPolicy; }
  * any instances of classes that have it as a member on the stack either. */
 class GjsMaybeOwned {
  private:
-    /* m_root value controls which of these members we can access. When switching
-     * from one to the other, be careful to call the constructor and destructor
-     * of JS::Heap, since they use post barriers. */
+    /* m_root value controls which of these members we can access. When
+     * switching from one to the other, be careful to call the constructor and
+     * destructor of JS::Heap, since they use post barriers. */
     JS::Heap<JSObject*> m_heap;
     std::unique_ptr<JS::PersistentRootedObject> m_root;
 
-    /* No-op unless GJS_VERBOSE_ENABLE_LIFECYCLE is defined to 1. */
-    inline void debug(const char* what GJS_USED_VERBOSE_LIFECYCLE) {
+    // No-op unless GJS_VERBOSE_ENABLE_LIFECYCLE is defined to 1.
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void debug(const char* what GJS_USED_VERBOSE_LIFECYCLE) {
         gjs_debug_lifecycle(GJS_DEBUG_KEEP_ALIVE, "GjsMaybeOwned %p %s", this,
                             what);
     }
 
-    void
-    teardown_rooting()
-    {
+    void teardown_rooting() {
         debug("teardown_rooting()");
         g_assert(m_root);
 
-        m_root.reset();
+        m_root = nullptr;
 
         new (&m_heap) JS::Heap<JSObject*>();
     }
@@ -90,13 +88,15 @@ class GjsMaybeOwned {
     }
 
     // COMPAT: constexpr in C++23
-    [[nodiscard]] JSObject* get() const {
+    [[nodiscard]]
+    JSObject* get() const {
         return m_root ? m_root->get() : m_heap.get();
     }
 
     // Use debug_addr() only for debug logging, because it is unbarriered.
     // COMPAT: constexpr in C++23
-    [[nodiscard]] const void* debug_addr() const {
+    [[nodiscard]]
+    const void* debug_addr() const {
         return m_root ? m_root->get() : m_heap.unbarrieredGet();
     }
 
@@ -124,9 +124,10 @@ class GjsMaybeOwned {
 
     // You can get a Handle<T> if the thing is rooted, so that you can use this
     // wrapper with stack rooting. However, you must not do this if the
-    // JSContext can be destroyed while the Handle is live. */
+    // JSContext can be destroyed while the Handle is live.
     // COMPAT: constexpr in C++23
-    [[nodiscard]] JS::HandleObject handle() {
+    [[nodiscard]]
+    JS::HandleObject handle() {
         g_assert(m_root);
         return *m_root;
     }
@@ -149,8 +150,8 @@ class GjsMaybeOwned {
     }
 
     /* Marks an object as reachable for one GC with ExposeObjectToActiveJS().
-     * Use to avoid stopping tracing an object during GC. This makes no sense
-     * in the rooted case. */
+     * Use to avoid stopping tracing an object during GC. This makes no sense in
+     * the rooted case. */
     void prevent_collection() {
         debug("prevent_collection()");
         g_assert(!m_root);
@@ -200,10 +201,7 @@ class GjsMaybeOwned {
 
     /* Tracing makes no sense in the rooted case, because JS::PersistentRooted
      * already takes care of that. */
-    void
-    trace(JSTracer   *tracer,
-          const char *name)
-    {
+    void trace(JSTracer* tracer, const char* name) {
         debug("trace()");
         g_assert(!m_root);
         JS::TraceEdge(tracer, &m_heap, name);
@@ -254,5 +252,3 @@ struct GCPolicy<Gjs::WeakPtr<T>> {
 };
 
 }  // namespace JS
-
-#endif  // GJS_JSAPI_UTIL_ROOT_H_

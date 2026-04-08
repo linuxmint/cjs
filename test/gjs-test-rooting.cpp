@@ -3,16 +3,12 @@
 
 #include <config.h>
 
-#include <stddef.h>  // for size_t
-
 #include <glib.h>
 
-#include <js/Class.h>
 #include <js/GCAPI.h>  // for JS_GC, JS_SetGCCallback, JSGCStatus
-#include <js/Object.h>
+#include <js/ObjectWithStashedPointer.h>
 #include <js/TypeDecls.h>
-#include <js/Value.h>
-#include <jsapi.h>  // for JS_NewObject
+#include <jsapi.h>
 
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util-root.h"
@@ -20,54 +16,23 @@
 
 class JSTracer;
 
-// COMPAT: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1553
-#ifdef __clang_analyzer__
-void g_assertion_message(const char*, const char*, int, const char*,
-                         const char*) __attribute__((analyzer_noreturn));
-#endif
-
 static GMutex gc_lock;
 static GCond gc_finished;
 static int gc_counter;
 
-// TestObj reserved slots
-static const size_t POINTER = 0;
-
-#define PARENT(fx) ((GjsUnitTestFixture *)fx)
-struct GjsRootingFixture {
-    GjsUnitTestFixture parent;
-
+struct GjsRootingFixture : GjsUnitTestFixture {
     bool finalized;
     bool notify_called;
 
     GjsMaybeOwned* obj;  // only used in callback test cases
 };
 
-static void test_obj_finalize(JS::GCContext*, JSObject* obj) {
-    bool* finalized_p = JS::GetMaybePtrFromReservedSlot<bool>(obj, POINTER);
-    g_assert_false(*finalized_p);
-    *finalized_p = true;
-}
-
-static const JSClassOps test_obj_class_ops = {
-    nullptr,  // addProperty
-    nullptr,  // deleteProperty
-    nullptr,  // enumerate
-    nullptr,  // newEnumerate
-    nullptr,  // resolve
-    nullptr,  // mayResolve
-    test_obj_finalize};
-
-static JSClass test_obj_class = {
-    "TestObj", JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_FOREGROUND_FINALIZE,
-    &test_obj_class_ops};
-
-static JSObject *
-test_obj_new(GjsRootingFixture *fx)
-{
-    JSObject *retval = JS_NewObject(PARENT(fx)->cx, &test_obj_class);
-    JS::SetReservedSlot(retval, POINTER, JS::PrivateValue(&fx->finalized));
-    return retval;
+static JSObject* test_obj_new(GjsRootingFixture* fx) {
+    return JS::NewObjectWithStashedPointer(fx->cx, fx,
+                                           [](GjsRootingFixture* data) {
+                                               g_assert_false(data->finalized);
+                                               data->finalized = true;
+                                           });
 }
 
 static void on_gc(JSContext*, JSGCStatus status, JS::GCReason, void*) {
@@ -80,27 +45,19 @@ static void on_gc(JSContext*, JSGCStatus status, JS::GCReason, void*) {
     g_mutex_unlock(&gc_lock);
 }
 
-static void
-setup(GjsRootingFixture *fx,
-      gconstpointer      unused)
-{
-    gjs_unit_test_fixture_setup(PARENT(fx), unused);
-    JS_SetGCCallback(PARENT(fx)->cx, on_gc, fx);
+static void setup(GjsRootingFixture* fx, const void* unused) {
+    gjs_unit_test_fixture_setup(fx, unused);
+    JS_SetGCCallback(fx->cx, on_gc, fx);
 }
 
-static void
-teardown(GjsRootingFixture *fx,
-         gconstpointer      unused)
-{
-    gjs_unit_test_fixture_teardown(PARENT(fx), unused);
+static void teardown(GjsRootingFixture* fx, const void* unused) {
+    gjs_unit_test_fixture_teardown(fx, unused);
 }
 
-static void
-wait_for_gc(GjsRootingFixture *fx)
-{
+static void wait_for_gc(GjsRootingFixture* fx) {
     int count = g_atomic_int_get(&gc_counter);
 
-    JS_GC(PARENT(fx)->cx);
+    JS_GC(fx->cx);
 
     g_mutex_lock(&gc_lock);
     while (count == g_atomic_int_get(&gc_counter)) {
@@ -112,7 +69,7 @@ wait_for_gc(GjsRootingFixture *fx)
 static void test_maybe_owned_rooted_flag_set_when_rooted(GjsRootingFixture* fx,
                                                          const void*) {
     auto* obj = new GjsMaybeOwned();
-    obj->root(PARENT(fx)->cx, JS_NewPlainObject(PARENT(fx)->cx));
+    obj->root(fx->cx, JS_NewPlainObject(fx->cx));
     g_assert_true(obj->rooted());
     delete obj;
 }
@@ -120,7 +77,7 @@ static void test_maybe_owned_rooted_flag_set_when_rooted(GjsRootingFixture* fx,
 static void test_maybe_owned_rooted_flag_not_set_when_not_rooted(
     GjsRootingFixture* fx, const void*) {
     auto* obj = new GjsMaybeOwned();
-    *obj = JS_NewPlainObject(PARENT(fx)->cx);
+    *obj = JS_NewPlainObject(fx->cx);
     g_assert_false(obj->rooted());
     delete obj;
 }
@@ -128,7 +85,7 @@ static void test_maybe_owned_rooted_flag_not_set_when_not_rooted(
 static void test_maybe_owned_rooted_keeps_alive_across_gc(GjsRootingFixture* fx,
                                                           const void*) {
     auto* obj = new GjsMaybeOwned();
-    obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    obj->root(fx->cx, test_obj_new(fx));
 
     wait_for_gc(fx);
     g_assert_false(fx->finalized);
@@ -141,7 +98,7 @@ static void test_maybe_owned_rooted_keeps_alive_across_gc(GjsRootingFixture* fx,
 static void test_maybe_owned_rooted_is_collected_after_reset(
     GjsRootingFixture* fx, const void*) {
     auto* obj = new GjsMaybeOwned();
-    obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    obj->root(fx->cx, test_obj_new(fx));
     obj->reset();
 
     wait_for_gc(fx);
@@ -160,19 +117,17 @@ static void test_maybe_owned_weak_pointer_is_collected_by_gc(
     auto* obj = new GjsMaybeOwned();
     *obj = test_obj_new(fx);
 
-    JS_AddWeakPointerCompartmentCallback(PARENT(fx)->cx, &update_weak_pointer,
-                                         obj);
+    JS_AddWeakPointerCompartmentCallback(fx->cx, &update_weak_pointer, obj);
     wait_for_gc(fx);
     g_assert_true(fx->finalized);
-    JS_RemoveWeakPointerCompartmentCallback(PARENT(fx)->cx,
-                                            &update_weak_pointer);
+    JS_RemoveWeakPointerCompartmentCallback(fx->cx, &update_weak_pointer);
     delete obj;
 }
 
 static void test_maybe_owned_heap_rooted_keeps_alive_across_gc(
     GjsRootingFixture* fx, const void*) {
     auto* obj = new GjsMaybeOwned();
-    obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    obj->root(fx->cx, test_obj_new(fx));
 
     wait_for_gc(fx);
     g_assert_false(fx->finalized);
@@ -184,17 +139,17 @@ static void test_maybe_owned_heap_rooted_keeps_alive_across_gc(
 
 static void test_maybe_owned_switching_mode_keeps_same_value(
     GjsRootingFixture* fx, const void*) {
-    JSObject *test_obj = test_obj_new(fx);
+    JSObject* test_obj = test_obj_new(fx);
     auto* obj = new GjsMaybeOwned();
 
     *obj = test_obj;
     g_assert_true(*obj == test_obj);
 
-    obj->switch_to_rooted(PARENT(fx)->cx);
+    obj->switch_to_rooted(fx->cx);
     g_assert_true(obj->rooted());
     g_assert_true(*obj == test_obj);
 
-    obj->switch_to_unrooted(PARENT(fx)->cx);
+    obj->switch_to_unrooted(fx->cx);
     g_assert_false(obj->rooted());
     g_assert_true(*obj == test_obj);
 
@@ -206,7 +161,7 @@ static void test_maybe_owned_switch_to_rooted_prevents_collection(
     auto* obj = new GjsMaybeOwned();
     *obj = test_obj_new(fx);
 
-    obj->switch_to_rooted(PARENT(fx)->cx);
+    obj->switch_to_rooted(fx->cx);
     wait_for_gc(fx);
     g_assert_false(fx->finalized);
 
@@ -216,21 +171,19 @@ static void test_maybe_owned_switch_to_rooted_prevents_collection(
 static void test_maybe_owned_switch_to_unrooted_allows_collection(
     GjsRootingFixture* fx, const void*) {
     auto* obj = new GjsMaybeOwned();
-    obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    obj->root(fx->cx, test_obj_new(fx));
 
-    obj->switch_to_unrooted(PARENT(fx)->cx);
-    JS_AddWeakPointerCompartmentCallback(PARENT(fx)->cx, &update_weak_pointer,
-                                         obj);
+    obj->switch_to_unrooted(fx->cx);
+    JS_AddWeakPointerCompartmentCallback(fx->cx, &update_weak_pointer, obj);
     wait_for_gc(fx);
     g_assert_true(fx->finalized);
-    JS_RemoveWeakPointerCompartmentCallback(PARENT(fx)->cx,
-                                            &update_weak_pointer);
+    JS_RemoveWeakPointerCompartmentCallback(fx->cx, &update_weak_pointer);
 
     delete obj;
 }
 
 static void context_destroyed(JSContext*, void* data) {
-    auto fx = static_cast<GjsRootingFixture *>(data);
+    auto* fx = static_cast<GjsRootingFixture*>(data);
     g_assert_false(fx->notify_called);
     g_assert_false(fx->finalized);
     fx->notify_called = true;
@@ -239,31 +192,29 @@ static void context_destroyed(JSContext*, void* data) {
 
 static void test_maybe_owned_notify_callback_called_on_context_destroy(
     GjsRootingFixture* fx, const void*) {
-    auto* gjs = GjsContextPrivate::from_cx(PARENT(fx)->cx);
+    auto* gjs = GjsContextPrivate::from_cx(fx->cx);
     fx->obj = new GjsMaybeOwned();
-    fx->obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    fx->obj->root(fx->cx, test_obj_new(fx));
     gjs->register_notifier(context_destroyed, fx);
 
-    gjs_unit_test_destroy_context(PARENT(fx));
+    gjs_unit_test_destroy_context(fx);
     g_assert_true(fx->notify_called);
     delete fx->obj;
 }
 
 static void test_maybe_owned_object_destroyed_after_notify(
     GjsRootingFixture* fx, const void*) {
-    auto* gjs = GjsContextPrivate::from_cx(PARENT(fx)->cx);
+    auto* gjs = GjsContextPrivate::from_cx(fx->cx);
     fx->obj = new GjsMaybeOwned();
-    fx->obj->root(PARENT(fx)->cx, test_obj_new(fx));
+    fx->obj->root(fx->cx, test_obj_new(fx));
     gjs->register_notifier(context_destroyed, fx);
 
-    gjs_unit_test_destroy_context(PARENT(fx));
+    gjs_unit_test_destroy_context(fx);
     g_assert_true(fx->finalized);
     delete fx->obj;
 }
 
-void
-gjs_test_add_tests_for_rooting(void)
-{
+void gjs_test_add_tests_for_rooting() {
 #define ADD_ROOTING_TEST(path, f)                                      \
     g_test_add("/rooting/" path, GjsRootingFixture, nullptr, setup, f, \
                teardown);
@@ -292,8 +243,9 @@ gjs_test_add_tests_for_rooting(void)
 #define ADD_CONTEXT_DESTROY_TEST(path, f) \
     g_test_add("/rooting/" path, GjsRootingFixture, nullptr, setup, f, nullptr);
 
-    ADD_CONTEXT_DESTROY_TEST("maybe-owned/notify-callback-called-on-context-destroy",
-                             test_maybe_owned_notify_callback_called_on_context_destroy);
+    ADD_CONTEXT_DESTROY_TEST(
+        "maybe-owned/notify-callback-called-on-context-destroy",
+        test_maybe_owned_notify_callback_called_on_context_destroy);
     ADD_CONTEXT_DESTROY_TEST("maybe-owned/object-destroyed-after-notify",
                              test_maybe_owned_object_destroyed_after_notify);
 

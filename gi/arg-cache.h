@@ -3,8 +3,7 @@
 // SPDX-FileCopyrightText: 2013 Giovanni Campagna <scampa.giovanni@gmail.com>
 // SPDX-FileCopyrightText: 2020 Marco Trevisan <marco.trevisan@canonical.com>
 
-#ifndef GI_ARG_CACHE_H_
-#define GI_ARG_CACHE_H_
+#pragma once
 
 #include <config.h>
 
@@ -12,14 +11,16 @@
 
 #include <limits>
 
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib-object.h>
 
 #include <js/TypeDecls.h>
+#include <mozilla/Maybe.h>
 
 #include "gi/arg.h"
+#include "gi/info.h"
+#include "cjs/auto.h"
 #include "cjs/enum-utils.h"
-#include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 
 class GjsFunctionCallState;
@@ -39,32 +40,82 @@ enum NotIntrospectableReason : uint8_t {
 namespace Gjs {
 namespace Arg {
 
-using ReturnValue = struct GenericOut;
 struct Instance;
 
-enum class Kind {
+enum class Kind : uint8_t {
     NORMAL,
     INSTANCE,
     RETURN_VALUE,
 };
 
+class ReturnTag {
+    GITypeTag m_tag : 5;
+    bool m_is_enum_or_flags_interface : 1;
+    bool m_is_pointer : 1;
+
+ public:
+    constexpr explicit ReturnTag(GITypeTag tag)
+        : m_tag(tag),
+          m_is_enum_or_flags_interface(false),
+          m_is_pointer(false) {}
+    constexpr explicit ReturnTag(GITypeTag tag, bool is_enum_or_flags_interface,
+                                 bool is_pointer)
+        : m_tag(tag),
+          m_is_enum_or_flags_interface(is_enum_or_flags_interface),
+          m_is_pointer(is_pointer) {}
+    explicit ReturnTag(const GI::TypeInfo& type_info)
+        : m_tag(type_info.tag()),
+          m_is_pointer(type_info.is_pointer()) {
+        if (m_tag == GI_TYPE_TAG_INTERFACE) {
+            GI::AutoBaseInfo interface_info{type_info.interface()};
+            m_is_enum_or_flags_interface = interface_info.is_enum_or_flags();
+        } else {
+            m_is_enum_or_flags_interface = false;
+        }
+    }
+
+    [[nodiscard]] constexpr GITypeTag tag() const { return m_tag; }
+    [[nodiscard]]
+    constexpr bool is_enum_or_flags_interface() const {
+        return m_tag == GI_TYPE_TAG_INTERFACE && m_is_enum_or_flags_interface;
+    }
+    [[nodiscard]]
+    constexpr GType interface_gtype() const {
+        return is_enum_or_flags_interface() ? GI_TYPE_ENUM_INFO : G_TYPE_NONE;
+    }
+    [[nodiscard]] constexpr bool is_pointer() const { return m_is_pointer; }
+};
+
 }  // namespace Arg
 
+// When creating an Argument, pass it directly to ArgsCache::set_argument() or
+// one of the similar methods, which will call init_common() on it and store it
+// in the appropriate place in the arguments cache.
 struct Argument {
+    // Convenience struct to prevent long argument lists to make() and the
+    // functions that call it
+    struct Init {
+        const char* name;
+        uint8_t index;
+        GITransfer transfer : 2;
+        GjsArgumentFlags flags : 6;
+    };
+
     virtual ~Argument() = default;
 
     GJS_JSAPI_RETURN_CONVENTION
-    virtual bool in(JSContext* cx, GjsFunctionCallState*,
-                    GIArgument* in_argument, JS::HandleValue value);
+    virtual bool in(JSContext*, GjsFunctionCallState*, GIArgument* in_argument,
+                    JS::HandleValue);
 
     GJS_JSAPI_RETURN_CONVENTION
-    virtual bool out(JSContext* cx, GjsFunctionCallState*,
-                     GIArgument* out_argument, JS::MutableHandleValue value);
+    virtual bool out(JSContext*, GjsFunctionCallState*,
+                     GIArgument* out_argument, JS::MutableHandleValue);
 
     GJS_JSAPI_RETURN_CONVENTION
-    virtual bool release(JSContext* cx, GjsFunctionCallState*,
+    virtual bool release(JSContext*, GjsFunctionCallState*,
                          GIArgument* in_argument, GIArgument* out_argument);
 
+    [[nodiscard]]
     virtual GjsArgumentFlags flags() const {
         GjsArgumentFlags flags = GjsArgumentFlags::NONE;
         if (m_skip_in)
@@ -85,18 +136,23 @@ struct Argument {
     static constexpr uint8_t MAX_ARGS = std::numeric_limits<uint8_t>::max() - 2;
     static constexpr uint8_t ABSENT = std::numeric_limits<uint8_t>::max();
 
-    constexpr const char* arg_name() const { return m_arg_name; }
+    [[nodiscard]] constexpr const char* arg_name() const { return m_arg_name; }
 
-    constexpr bool skip_in() const { return m_skip_in; }
+    [[nodiscard]] constexpr bool skip_in() const { return m_skip_in; }
 
-    constexpr bool skip_out() const { return m_skip_out; }
+    [[nodiscard]] constexpr bool skip_out() const { return m_skip_out; }
 
  protected:
     constexpr Argument() : m_skip_in(false), m_skip_out(false) {}
 
-    virtual GITypeTag return_tag() const { return GI_TYPE_TAG_VOID; }
-    virtual const GITypeInfo* return_type() const { return nullptr; }
-    virtual const Arg::Instance* as_instance() const { return nullptr; }
+    [[nodiscard]]
+    virtual mozilla::Maybe<Arg::ReturnTag> return_tag() const {
+        return {};
+    }
+    [[nodiscard]]
+    virtual mozilla::Maybe<const Arg::Instance*> as_instance() const {
+        return {};
+    }
 
     constexpr void set_instance_parameter() {
         m_arg_name = "instance parameter";
@@ -105,7 +161,7 @@ struct Argument {
 
     constexpr void set_return_value() { m_arg_name = "return value"; }
 
-    bool invalid(JSContext*, const char* func = nullptr) const;
+    static bool invalid(JSContext*, const char* func = nullptr);
 
     const char* m_arg_name = nullptr;
     bool m_skip_in : 1;
@@ -114,13 +170,11 @@ struct Argument {
  private:
     friend struct ArgsCache;
 
-    template <typename T, Arg::Kind ArgKind, typename... Args>
-    static GjsAutoCppPointer<T> make(uint8_t index, const char* name,
-                                     GITypeInfo* type_info, GITransfer transfer,
-                                     GjsArgumentFlags flags, Args&&... args);
+    template <typename T, Arg::Kind ArgKind>
+    static void init_common(const Init&, T* arg);
 };
 
-using ArgumentPtr = GjsAutoCppPointer<Argument>;
+using ArgumentPtr = AutoCppPointer<Argument>;
 
 // This is a trick to print out the sizes of the structs at compile time, in
 // an error message:
@@ -141,7 +195,7 @@ static_assert(sizeof(Argument) <= 24,
 
 struct ArgsCache {
     GJS_JSAPI_RETURN_CONVENTION
-    bool initialize(JSContext* cx, GICallableInfo* callable);
+    bool initialize(JSContext*, const GI::CallableInfo&);
 
     // COMPAT: in C++20, use default initializers for these bitfields
     ArgsCache() : m_is_method(false), m_has_return(false) {}
@@ -149,63 +203,56 @@ struct ArgsCache {
     constexpr bool initialized() { return m_args != nullptr; }
     constexpr void clear() { m_args.reset(); }
 
-    void build_arg(uint8_t gi_index, GIDirection, GIArgInfo*, GICallableInfo*,
-                   bool* inc_counter_out);
+    void build_arg(uint8_t gi_index, GIDirection, const GI::ArgInfo&,
+                   const GI::CallableInfo&, bool* inc_counter_out);
 
-    void build_return(GICallableInfo* callable, bool* inc_counter_out);
+    void build_return(const GI::CallableInfo&, bool* inc_counter_out);
 
-    void build_instance(GICallableInfo* callable);
+    void build_instance(const GI::CallableInfo&);
 
-    GType instance_type() const;
-    GITypeTag return_tag() const;
-    GITypeInfo* return_type() const;
+    [[nodiscard]] mozilla::Maybe<GType> instance_type() const;
+    [[nodiscard]] mozilla::Maybe<Arg::ReturnTag> return_tag() const;
 
  private:
-    void build_normal_in_arg(uint8_t gi_index, GITypeInfo*, GIArgInfo*,
-                             GjsArgumentFlags);
-    void build_normal_out_arg(uint8_t gi_index, GITypeInfo*, GIArgInfo*,
-                              GjsArgumentFlags);
-    void build_normal_inout_arg(uint8_t gi_index, GITypeInfo*, GIArgInfo*,
-                                GjsArgumentFlags);
+    void build_normal_in_arg(uint8_t gi_index, const GI::TypeInfo&,
+                             const GI::ArgInfo&, GjsArgumentFlags);
+    void build_normal_out_arg(uint8_t gi_index, const GI::TypeInfo&,
+                              const GI::ArgInfo&, GjsArgumentFlags);
+    void build_normal_inout_arg(uint8_t gi_index, const GI::TypeInfo&,
+                                const GI::ArgInfo&, GjsArgumentFlags);
 
+    // GITypeInfo is not available for instance parameters (see
+    // https://gitlab.gnome.org/GNOME/gobject-introspection/-/issues/334) but
+    // for other parameters, this function additionally takes a GITypeInfo.
     template <Arg::Kind ArgKind = Arg::Kind::NORMAL>
-    void build_interface_in_arg(uint8_t gi_index, GITypeInfo*, GIBaseInfo*,
-                                GITransfer, const char* name, GjsArgumentFlags);
+    void build_interface_in_arg(const Argument::Init&,
+                                const GI::BaseInfo& interface_info);
 
-    template <typename T, Arg::Kind ArgKind = Arg::Kind::NORMAL,
-              typename... Args>
-    constexpr T* set_argument(uint8_t index, const char* name, GITypeInfo*,
-                              GITransfer, GjsArgumentFlags flags,
-                              Args&&... args);
+    template <Arg::Kind ArgKind = Arg::Kind::NORMAL, typename T>
+    constexpr void set_argument(T* arg, const Argument::Init&);
 
-    template <typename T, Arg::Kind ArgKind = Arg::Kind::NORMAL,
-              typename... Args>
-    constexpr T* set_argument(uint8_t index, const char* name, GITransfer,
-                              GjsArgumentFlags flags, Args&&... args);
+    void set_array_argument(const GI::CallableInfo&, uint8_t gi_index,
+                            const GI::TypeInfo&, GIDirection,
+                            const GI::ArgInfo&, GjsArgumentFlags,
+                            unsigned length_pos);
 
-    template <typename T, Arg::Kind ArgKind = Arg::Kind::NORMAL,
-              typename... Args>
-    constexpr T* set_argument_auto(Args&&... args);
+    void set_array_return(const GI::CallableInfo&, const GI::TypeInfo&,
+                          GjsArgumentFlags, unsigned length_pos);
 
-    template <typename T, Arg::Kind ArgKind = Arg::Kind::NORMAL, typename Tuple,
-              typename... Args>
-    constexpr T* set_argument_auto(Tuple&& tuple, Args&&... args);
-
-    template <Arg::Kind ArgKind = Arg::Kind::NORMAL>
-    void set_array_argument(GICallableInfo* callable, uint8_t gi_index,
-                            GITypeInfo*, GIDirection, GIArgInfo*,
-                            GjsArgumentFlags flags, int length_pos);
+    void init_out_array_length_argument(const GI::ArgInfo&, GjsArgumentFlags,
+                                        unsigned length_pos);
 
     template <typename T>
-    constexpr T* set_return(GITypeInfo*, GITransfer, GjsArgumentFlags);
+    constexpr void set_return(T* arg, GITransfer, GjsArgumentFlags);
 
     template <typename T>
-    constexpr T* set_instance(GITransfer,
-                              GjsArgumentFlags flags = GjsArgumentFlags::NONE);
+    constexpr void set_instance(
+        T* arg, GITransfer, GjsArgumentFlags flags = GjsArgumentFlags::NONE);
 
-    constexpr void set_skip_all(uint8_t index, const char* name = nullptr);
+    void set_skip_all(uint8_t index, const char* name = nullptr);
 
     template <Arg::Kind ArgKind = Arg::Kind::NORMAL>
+    [[nodiscard]]
     constexpr uint8_t arg_index(uint8_t index
                                 [[maybe_unused]] = Argument::MAX_ARGS) const {
         if constexpr (ArgKind == Arg::Kind::RETURN_VALUE)
@@ -217,36 +264,38 @@ struct ArgsCache {
     }
 
     template <Arg::Kind ArgKind = Arg::Kind::NORMAL>
+    [[nodiscard]]
     constexpr ArgumentPtr& arg_get(uint8_t index = Argument::MAX_ARGS) const {
         return m_args[arg_index<ArgKind>(index)];
     }
 
  public:
+    [[nodiscard]]
     constexpr Argument* argument(uint8_t index) const {
         return arg_get(index).get();
     }
 
-    constexpr Argument* instance() const {
+    [[nodiscard]]
+    constexpr mozilla::Maybe<Argument*> instance() const {
         if (!m_is_method)
-            return nullptr;
+            return {};
 
-        return arg_get<Arg::Kind::INSTANCE>().get();
+        return mozilla::Some(arg_get<Arg::Kind::INSTANCE>().get());
     }
 
-    constexpr Argument* return_value() const {
+    [[nodiscard]]
+    constexpr mozilla::Maybe<Argument*> return_value() const {
         if (!m_has_return)
-            return nullptr;
+            return {};
 
-        return arg_get<Arg::Kind::RETURN_VALUE>().get();
+        return mozilla::Some(arg_get<Arg::Kind::RETURN_VALUE>().get());
     }
 
  private:
-    GjsAutoCppPointer<ArgumentPtr[]> m_args;
+    AutoCppPointer<ArgumentPtr[]> m_args;
 
     bool m_is_method : 1;
     bool m_has_return : 1;
 };
 
 }  // namespace Gjs
-
-#endif  // GI_ARG_CACHE_H_

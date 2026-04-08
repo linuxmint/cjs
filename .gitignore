@@ -5,11 +5,11 @@
 /container-build-report.xml
 debian/tmp
 debian/libcjs0
-debian/libcjs-dbg
 debian/libcjs-dev
 debian/cjs
 debian/.debhelper
+debian/libcjs-dbg
 debian/*.substvars
-debian/*.debhelper.log
+debian/*.log
 debian/debhelper-build-stamp
 debian/files

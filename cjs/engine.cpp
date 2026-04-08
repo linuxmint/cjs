@@ -29,32 +29,36 @@
 #include <js/Warnings.h>
 #include <js/experimental/SourceHook.h>
 #include <jsapi.h>  // for JS_SetGlobalJitCompilerOption
-#include <mozilla/Atomics.h>  // for Atomic in JSPrincipals
+#include <jsfriendapi.h>      // for SetDOMCallbacks, DOMCallbacks
 #include <mozilla/UniquePtr.h>
 
+#ifndef G_DISABLE_ASSERT
+#    include <mozilla/Atomics.h>  // for Atomic::operator==
+#endif
+
+#include "gi/gerror.h"
 #include "cjs/context-private.h"
 #include "cjs/engine.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/profiler-private.h"
 #include "util/log.h"
-
-struct JSStructuredCloneWriter;
 
 static void gjs_finalize_callback(JS::GCContext*, JSFinalizeStatus status,
                                   void* data) {
     auto* gjs = static_cast<GjsContextPrivate*>(data);
     if (gjs->profiler())
-        _gjs_profiler_set_finalize_status(gjs->profiler(), status);
+        gjs_profiler_set_finalize_status(gjs->profiler(), status);
 }
 
 static void on_promise_unhandled_rejection(
     JSContext* cx, bool mutedErrors [[maybe_unused]], JS::HandleObject promise,
     JS::PromiseRejectionHandlingState state, void* data) {
-    auto gjs = static_cast<GjsContextPrivate*>(data);
+    auto* gjs = static_cast<GjsContextPrivate*>(data);
     uint64_t id = JS::GetPromiseID(promise);
 
     if (state == JS::PromiseRejectionHandlingState::Handled) {
-        /* This happens when catching an exception from an await expression. */
+        // This happens when catching an exception from an await expression.
         gjs->unregister_unhandled_promise_rejection(id);
         return;
     }
@@ -75,7 +79,7 @@ static void on_cleanup_finalization_registry(JSFunction* cleanup_task,
 
 bool gjs_load_internal_source(JSContext* cx, const char* filename, char** src,
                               size_t* length) {
-    GjsAutoError error;
+    Gjs::AutoError error;
     const char* path = filename + 11;  // len("resource://")
     GBytes* script_bytes =
         g_resources_lookup_data(path, G_RESOURCE_LOOKUP_FLAGS_NONE, &error);
@@ -89,7 +93,7 @@ bool gjs_load_internal_source(JSContext* cx, const char* filename, char** src,
 class GjsSourceHook : public js::SourceHook {
     bool load(JSContext* cx, const char* filename,
               char16_t** two_byte_source [[maybe_unused]], char** utf8_source,
-              size_t* length) {
+              size_t* length) override {
         // caller owns the source, per documentation of SourceHook
         return gjs_load_internal_source(cx, filename, utf8_source, length);
     }
@@ -113,9 +117,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
             JS_ShutDown();
             break;
 
-        default:
-            /* do nothing */
-            ;
+        default: {
+        }
     }
 
     return TRUE;
@@ -123,7 +126,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 
 #else
 class GjsInit {
-public:
+ public:
     GjsInit() {
         const char* reason = JS_InitWithFailureDiagnostic();
         if (reason)
@@ -156,9 +159,7 @@ class ModuleLoaderPrincipals final : public JSPrincipals {
 
  public:
     static bool subsumes(JSPrincipals* first, JSPrincipals* second) {
-        if (first != &the_principals && second == &the_principals)
-            return false;
-        return true;
+        return first == &the_principals || second != &the_principals;
     }
 
     static void destroy(JSPrincipals* principals [[maybe_unused]]) {
@@ -180,12 +181,22 @@ JSPrincipals* get_internal_principals() {
 
 static const JSSecurityCallbacks security_callbacks = {
     /* contentSecurityPolicyAllows = */ nullptr,
+    /* codeForEvalGets = */ nullptr,
     &ModuleLoaderPrincipals::subsumes,
+};
+
+static bool instance_class_is_error(const JSClass* klass) {
+    return klass == &ErrorBase::klass;
+}
+
+static const js::DOMCallbacks dom_callbacks = {
+    /* instanceClassHasProtoAtDepth = */ nullptr,
+    &instance_class_is_error,
 };
 
 JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
     g_assert(gjs_is_inited);
-    JSContext *cx = JS_NewContext(32 * 1024 * 1024 /* max bytes */);
+    JSContext* cx = JS_NewContext(/* max bytes = */ 32 * 1024 * 1024);
     if (!cx)
         return nullptr;
 
@@ -196,12 +207,12 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
 
     // For additional context on these options, see
     // https://searchfox.org/mozilla-esr91/rev/c49725508e97c1e2e2bb3bf9ed0ba14b2016abac/js/public/GCAPI.h#53
-    JS_SetNativeStackQuota(cx, 1024 * 1024);
+    JS_SetNativeStackQuota(cx, 1024UL * 1024UL);
     JS_SetGCParameter(cx, JSGC_MAX_BYTES, -1);
     JS_SetGCParameter(cx, JSGC_INCREMENTAL_GC_ENABLED, 1);
-    JS_SetGCParameter(cx, JSGC_SLICE_TIME_BUDGET_MS, 10); /* ms */
+    JS_SetGCParameter(cx, JSGC_SLICE_TIME_BUDGET_MS, 10);
 
-    /* set ourselves as the private data */
+    // set ourselves as the private data
     JS_SetContextPrivate(cx, uninitialized_gjs);
 
     JS_SetSecurityCallbacks(cx, &security_callbacks);
@@ -213,6 +224,7 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
                                            uninitialized_gjs);
     JS::SetHostCleanupFinalizationRegistryCallback(
         cx, on_cleanup_finalization_registry, uninitialized_gjs);
+    js::SetDOMCallbacks(cx, &dom_callbacks);
 
     // We use this to handle "lazy sources" that SpiderMonkey doesn't need to
     // keep in memory. Most sources should be kept in memory, but we can skip
@@ -240,7 +252,8 @@ JSContext* gjs_create_js_context(GjsContextPrivate* uninitialized_gjs) {
     JS_SetGlobalJitCompilerOption(
         cx, JSJitCompilerOption::JSJITCOMPILER_BASELINE_ENABLE, value);
     JS_SetGlobalJitCompilerOption(
-        cx, JSJitCompilerOption::JSJITCOMPILER_BASELINE_INTERPRETER_ENABLE, value);
+        cx, JSJitCompilerOption::JSJITCOMPILER_BASELINE_INTERPRETER_ENABLE,
+        value);
 
     return cx;
 }

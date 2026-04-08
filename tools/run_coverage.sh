@@ -4,9 +4,12 @@
 
 SOURCEDIR=$(pwd)
 BUILDDIR="$(pwd)/_coverage_build"
-LCOV_ARGS="--config-file $SOURCEDIR/tools/lcovrc"
-GENHTML_ARGS='--legend --show-details --branch-coverage'
-IGNORE="*/gjs/test/* *-resources.c *minijasmine.cpp */gjs/subprojects/glib/* */gjs/subprojects/gobject-introspection/*"
+LCOV_ARGS=(--config-file "$SOURCEDIR/tools/lcovrc")
+GENHTML_ARGS=(--legend --show-details --branch-coverage)
+IGNORE=(*/gjs/test/* *-resources.c *minijasmine.cpp
+    */gjs/installed-tests/js/libgjstesttools/* */gjs/subprojects/glib/*
+    */gjs/_coverage_build/subprojects/glib/*
+    */gjs/subprojects/gobject-introspection/*)
 
 rm -rf "$BUILDDIR"
 meson setup "$BUILDDIR" -Db_coverage=true
@@ -14,11 +17,39 @@ meson setup "$BUILDDIR" -Db_coverage=true
 VERSION=$(meson introspect "$BUILDDIR" --projectinfo | python -c 'import json, sys; print(json.load(sys.stdin)["version"])')
 
 mkdir -p _coverage
-meson test -C "$BUILDDIR" --num-processes 1
-lcov --directory "$BUILDDIR" --capture --output-file _coverage/gjs.lcov.run --no-checksum $LCOV_ARGS
-lcov --extract _coverage/gjs.lcov.run "$SOURCEDIR/*" $LCOV_ARGS -o _coverage/gjs.lcov.sources
-lcov --remove _coverage/gjs.lcov.sources $IGNORE $LCOV_ARGS -o _coverage/gjs.lcov
-genhtml --prefix "$BUILDDIR/lcov/org/cinnamon/cjs" --prefix "$BUILDDIR" --prefix "$SOURCEDIR" \
+meson test -C "$BUILDDIR" --num-processes 1 --suite=gjs
+lcov --directory "$BUILDDIR" --capture --output-file _coverage/gjs.lcov.run \
+    --no-checksum "${LCOV_ARGS[@]}"
+lcov --extract _coverage/gjs.lcov.run "$SOURCEDIR/*" "${LCOV_ARGS[@]}" \
+    -o _coverage/gjs.lcov.sources
+lcov --remove _coverage/gjs.lcov.sources "${IGNORE[@]}" "${LCOV_ARGS[@]}" \
+    -o _coverage/gjs.lcov
+
+lcov_outputs=(
+    "$BUILDDIR"/lcov/coverage.lcov
+    "$PWD"/_coverage/gjs.lcov
+)
+
+lcov_js_prefix=lcov/org/gnome/gjs
+genhtml --prefix "$BUILDDIR/$lcov_js_prefix" --prefix "$BUILDDIR" --prefix "$SOURCEDIR" \
     --output-directory _coverage/html \
     --title "gjs-$VERSION Code Coverage" \
-    $GENHTML_ARGS _coverage/gjs.lcov "$BUILDDIR"/lcov/coverage.lcov
+    "${GENHTML_ARGS[@]}" "${lcov_outputs[@]}"
+
+for lcov_output in "${lcov_outputs[@]}"; do
+    cobertura_base=$(basename "$lcov_output" .lcov).cobertura
+    cobertura_xml=${cobertura_base}.xml
+    lcov_cobertura "$lcov_output" --output "$BUILDDIR/$cobertura_xml"
+    sed -i "s,$(basename "$BUILDDIR")/$lcov_js_prefix/,,g" "$BUILDDIR/$cobertura_xml"
+    cobertura_xml_stripped="${cobertura_base}.stripped.xml"
+    xmllint --nonet --noblanks --output "$BUILDDIR/$cobertura_xml_stripped" "$BUILDDIR/$cobertura_xml"
+    mv "$BUILDDIR/$cobertura_xml_stripped" "$BUILDDIR/$cobertura_xml"
+
+    # Check the file is small enough for gitlab
+    # See: https://gitlab.com/gitlab-org/gitlab/-/issues/328772
+    file_size=$(stat -c%s "$BUILDDIR/$cobertura_xml" 2>/dev/null)
+    if [[ $file_size -gt 10485760 ]]; then
+        echo "Error: LCOV file $BUILDDIR/$cobertura_xml is larger than 10MB (${file_size} bytes)" >&2
+        exit 1
+    fi
+done

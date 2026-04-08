@@ -17,6 +17,7 @@
 #include <js/TracingAPI.h>
 #include <js/TypeDecls.h>
 
+#include "cjs/auto.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 #include "cjs/objectbox.h"
@@ -53,7 +54,7 @@ struct ObjectBox::impl {
     }
 
     ~impl() {
-        auto it = std::find(m_wrappers.begin(), m_wrappers.end(), m_parent);
+        auto* it = std::find(m_wrappers.begin(), m_wrappers.end(), m_parent);
         m_wrappers.erase(it);
         debug("Finalized");
     }
@@ -69,6 +70,7 @@ struct ObjectBox::impl {
             delete m_parent;
     }
 
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void debug(const char* what GJS_USED_VERBOSE_LIFECYCLE) {
         gjs_debug_lifecycle(GJS_DEBUG_GBOXED,
                             "%s: ObjectBox %p, JSObject %s", what, m_parent,

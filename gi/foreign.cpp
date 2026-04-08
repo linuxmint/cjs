@@ -5,29 +5,32 @@
 #include <config.h>
 
 #include <stddef.h>  // for size_t
+#include <stdint.h>
 
 #include <string>
 #include <unordered_map>
 #include <utility>  // for pair
 
-#include <girepository.h>
+#include <girepository/girepository.h>
 #include <glib.h>
 
 #include <js/RootingAPI.h>
 #include <js/TypeDecls.h>
 
 #include "gi/foreign.h"
+#include "gi/info.h"
 #include "cjs/context-private.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
 
-enum LoadedStatus { NotLoaded, Loaded };
+enum LoadedStatus : uint8_t { NotLoaded, Loaded };
 static std::unordered_map<std::string, LoadedStatus> foreign_modules{
     {"cairo", NotLoaded}};
 
 using StructID = std::pair<std::string, std::string>;
 struct StructIDHash {
-    [[nodiscard]] size_t operator()(StructID val) const {
+    [[nodiscard]]
+    size_t operator()(const StructID& val) const {
         std::hash<std::string> hasher;
         return hasher(val.first) ^ hasher(val.second);
     }
@@ -35,8 +38,9 @@ struct StructIDHash {
 static std::unordered_map<StructID, GjsForeignInfo*, StructIDHash>
     foreign_structs_table;
 
-[[nodiscard]] static bool gjs_foreign_load_foreign_module(
-    JSContext* cx, const char* gi_namespace) {
+[[nodiscard]]
+static bool gjs_foreign_load_foreign_module(JSContext* cx,
+                                            const char* gi_namespace) {
     auto entry = foreign_modules.find(gi_namespace);
     if (entry == foreign_modules.end())
         return false;
@@ -65,12 +69,11 @@ void gjs_struct_foreign_register(const char* gi_namespace,
 
 GJS_JSAPI_RETURN_CONVENTION
 static GjsForeignInfo* gjs_struct_foreign_lookup(JSContext* cx,
-                                                 GIStructInfo* info) {
-    const char* ns = g_base_info_get_namespace(info);
-    StructID key{ns, g_base_info_get_name(info)};
+                                                 const GI::StructInfo& info) {
+    StructID key{info.ns(), info.name()};
     auto entry = foreign_structs_table.find(key);
     if (entry == foreign_structs_table.end()) {
-        if (gjs_foreign_load_foreign_module(cx, ns))
+        if (gjs_foreign_load_foreign_module(cx, info.ns()))
             entry = foreign_structs_table.find(key);
     }
 
@@ -84,48 +87,45 @@ static GjsForeignInfo* gjs_struct_foreign_lookup(JSContext* cx,
 }
 
 bool gjs_struct_foreign_convert_to_gi_argument(
-    JSContext* context, JS::Value value, GIStructInfo* info,
+    JSContext* cx, JS::Value value, const GI::StructInfo& info,
     const char* arg_name, GjsArgumentType argument_type, GITransfer transfer,
     GjsArgumentFlags flags, GIArgument* arg) {
-    GjsForeignInfo *foreign;
-
-    foreign = gjs_struct_foreign_lookup(context, info);
+    GjsForeignInfo* foreign = gjs_struct_foreign_lookup(cx, info);
     if (!foreign)
         return false;
 
-    if (!foreign->to_func(context, value, arg_name, argument_type, transfer,
-                          flags, arg))
+    if (!foreign->to_func(cx, value, arg_name, argument_type, transfer, flags,
+                          arg))
         return false;
 
     return true;
 }
 
-bool gjs_struct_foreign_convert_from_gi_argument(JSContext* context,
+bool gjs_struct_foreign_convert_from_gi_argument(JSContext* cx,
                                                  JS::MutableHandleValue value_p,
-                                                 GIStructInfo* info,
+                                                 const GI::StructInfo& info,
                                                  GIArgument* arg) {
-    GjsForeignInfo* foreign = gjs_struct_foreign_lookup(context, info);
+    GjsForeignInfo* foreign = gjs_struct_foreign_lookup(cx, info);
     if (!foreign)
         return false;
 
-    if (!foreign->from_func(context, value_p, arg))
+    if (!foreign->from_func(cx, value_p, arg))
         return false;
 
     return true;
 }
 
-bool gjs_struct_foreign_release_gi_argument(JSContext* context,
-                                            GITransfer transfer,
-                                            GIStructInfo* info,
+bool gjs_struct_foreign_release_gi_argument(JSContext* cx, GITransfer transfer,
+                                            const GI::StructInfo& info,
                                             GIArgument* arg) {
-    GjsForeignInfo* foreign = gjs_struct_foreign_lookup(context, info);
+    GjsForeignInfo* foreign = gjs_struct_foreign_lookup(cx, info);
     if (!foreign)
         return false;
 
     if (!foreign->release_func)
         return true;
 
-    if (!foreign->release_func(context, transfer, arg))
+    if (!foreign->release_func(cx, transfer, arg))
         return false;
 
     return true;

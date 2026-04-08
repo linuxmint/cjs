@@ -2,7 +2,18 @@
 // SPDX-FileCopyrightText: 2011 Giovanni Campagna <gcampagna@src.gnome.org>
 // SPDX-FileCopyrightText: 2019, 2023 Philip Chimento <philip.chimento@gmail.com>
 
-const GLib = imports.gi.GLib;
+import GLib from 'gi://GLib';
+
+let GLibUnix;
+try {
+    GLibUnix = (await import('gi://GLibUnix')).default;
+} catch {}
+
+const PLATFORM_DEPENDENT_NS_SPLIT = GLib.MAJOR_VERSION > 2 ||
+        (GLib.MAJOR_VERSION === 2 &&
+         (GLib.MINOR_VERSION > 87 ||
+            (GLib.MINOR_VERSION === 87 &&
+             GLib.MICRO_VERSION >= 3)));
 
 describe('GVariant constructor', function () {
     it('constructs a string variant', function () {
@@ -140,7 +151,37 @@ describe('GLib spawn processes', function () {
         expect(stdout).toEqual(new Uint8Array());
         expect(stderr).toEqual(new Uint8Array());
         expect(exit_status).toBe(0);
-    }).pend('https://gitlab.gnome.org/GNOME/glib/-/merge_requests/3523');
+    });
+});
+
+describe('GLib source function overrides', function () {
+    let loop, spy;
+
+    beforeEach(function () {
+        loop = new GLib.MainLoop(null, false);
+        spy = jasmine.createSpy('sourceFunc');
+    });
+
+    it('GLib.idle_add_once', function () {
+        GLib.idle_add_once(GLib.PRIORITY_DEFAULT, spy);
+        GLib.idle_add(GLib.PRIORITY_LOW, () => loop.quit());
+        loop.run();
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('GLib.timeout_add_once', function () {
+        GLib.timeout_add_once(GLib.PRIORITY_DEFAULT, 50, spy);
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => loop.quit());
+        loop.run();
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('GLib.timeout_add_seconds_once', function () {
+        GLib.timeout_add_seconds_once(GLib.PRIORITY_DEFAULT, 1, spy);
+        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 3, () => loop.quit());
+        loop.run();
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('GLib string function overrides', function () {
@@ -149,14 +190,14 @@ describe('GLib string function overrides', function () {
     function expectWarnings(count) {
         numExpectedWarnings = count;
         for (let c = 0; c < count; c++) {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 '*not introspectable*');
         }
     }
 
     function assertWarnings(testName) {
         for (let c = 0; c < numExpectedWarnings; c++) {
-            GLib.test_assert_expected_messages_internal('Cjs', 'testGLib.js', 0,
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGLib.js', 0,
                 `test GLib.${testName}`);
         }
         numExpectedWarnings = 0;
@@ -168,7 +209,7 @@ describe('GLib string function overrides', function () {
 
     // TODO: Add Regress.func_not_nullable_untyped_gpointer_in and move to testRegress.js
     it('GLib.str_hash errors when marshalling null to a not-nullable parameter', function () {
-        // This tests that we don't marshal null to a not-nullable untyped gpointer.
+        // This tests that we don't marshal null to a not-nullable untyped pointer.
         expect(() => GLib.str_hash(null)).toThrowError(
             /Argument [a-z]+ may not be null/
         );
@@ -301,7 +342,7 @@ describe('GLib.MatchInfo', function () {
     it('is returned from GLib.Regex.match', function () {
         const [, match] = regex.match('foo', 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     it('stores the string that was matched', function () {
@@ -317,19 +358,19 @@ describe('GLib.MatchInfo', function () {
     it('is returned from GLib.Regex.match_all', function () {
         const [, match] = regex.match_all('foo', 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     it('is returned from GLib.Regex.match_all_full', function () {
         const [, match] = regex.match_all_full('foo', 0, 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     it('is returned from GLib.Regex.match_full', function () {
         const [, match] = regex.match_full('foo', 0, 0);
         expect(match).toBeInstanceOf(GLib.MatchInfo);
-        expect(match.toString()).toContain('CjsPrivate.MatchInfo');
+        expect(match.toString()).toContain('GjsPrivate.MatchInfo');
     });
 
     describe('method', function () {
@@ -392,5 +433,154 @@ describe('GLib.MatchInfo', function () {
             expect(match.next()).toBeTrue();
             expect(shouldBePatchedProtoype.next.call(match)).toBeFalse();
         });
+    });
+});
+
+describe('GLibUnix functionality', function () {
+    beforeEach(function () {
+        if (!GLibUnix)
+            pending('Not supported platform');
+    });
+
+    it('provides structs', function () {
+        new GLibUnix.Pipe();
+    });
+
+    it('provides functions', function () {
+        GLibUnix.fd_source_new(0, GLib.IOCondition.IN);
+    });
+
+    it('provides enums', function () {
+        expect(GLibUnix.PipeEnd.READ).toBe(0);
+        expect(GLibUnix.PipeEnd.WRITE).toBe(1);
+    });
+});
+
+describe('GLibUnix compatibility fallback', function () {
+    beforeEach(function () {
+        if (!GLibUnix)
+            pending('Not supported platform');
+    });
+
+    function expectDeprecationWarning(testFunction, oldName = '*', newName = '*') {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            `*GLib.${oldName} has been moved to a separate platform-specific library. ` +
+            `Please update your code to use GLibUnix.${newName} instead*`);
+        const ret = testFunction();
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGLib.js', 0,
+            `GLib.${oldName} expected warns on GLib platform-specific fallback`);
+        return ret;
+    }
+
+    it('provides structs', function () {
+        expectDeprecationWarning(() => new GLib.UnixPipe());
+    });
+
+    it('provides functions', function () {
+        expectDeprecationWarning(() =>
+            GLib.unix_fd_source_new(0, GLib.IOCondition.IN));
+    });
+
+    it('provides enum value UnixPipeEnd.READ', function () {
+        expectDeprecationWarning(() => {
+            expect(GLib.UnixPipeEnd.READ).toBe(0);
+        });
+    });
+
+    it('provides enum value UnixPipeEnd.WRITE', function () {
+        if (!PLATFORM_DEPENDENT_NS_SPLIT)
+            pending('Platform-dependent namespace has not been split on this GLib version');
+
+        expectDeprecationWarning(() => {
+            expect(GLib.UnixPipeEnd.WRITE).toBe(1);
+        });
+    });
+
+    describe('provides platform-independent symbol', function () {
+        const symbols = {
+            'UnixPipe': {
+                newName: 'Pipe',
+                needsNewerGLibVersion: true,
+            },
+            'UnixPipeEnd': {
+                newName: 'PipeEnd',
+                needsNewerGLibVersion: true,
+            },
+            'closefrom': {
+                needsNewerGLibVersion: true,
+            },
+            'unix_error_quark': {
+                newName: 'error_quark',
+            },
+            'unix_fd_add_full': {
+                newName: 'fd_add_full',
+            },
+            'unix_fd_query_path': {
+                newName: 'fd_query_path',
+                needsNewerGLibVersion: true,
+            },
+            'unix_fd_source_new': {
+                newName: 'fd_source_new',
+                needsNewerGLibVersion: true,
+            },
+            'fdwalk_set_cloexec': {
+                needsNewerGLibVersion: true,
+            },
+            'unix_get_passwd_entry': {
+                newName: 'get_passwd_entry',
+            },
+            'unix_open_pipe': {
+                newName: 'open_pipe',
+            },
+            'unix_set_fd_nonblocking': {
+                newName: 'set_fd_nonblocking',
+            },
+            'unix_signal_add': {
+                newName: 'signal_add',
+                needsNewerGLibVersion: true,
+            },
+            'unix_signal_source_new': {
+                newName: 'signal_source_new',
+            },
+        };
+
+        Object.entries(symbols).forEach(([name, testData]) => {
+            it(`GLib.${name}`, function () {
+                if (testData.needsNewerGLibVersion && !PLATFORM_DEPENDENT_NS_SPLIT)
+                    pending('Platform-dependent namespace has not been split on this GLib version');
+
+                const newName = testData.newName ?? name;
+
+                // We need to use a named function so that the warning system can
+                // consider this a different call site for each symbol tested.
+                const getterName = `${name}_getter`;
+                const valueGetter = {
+                    [getterName]() {
+                        return GLib[name];
+                    },
+                }[getterName];
+
+                const oldValue = expectDeprecationWarning(valueGetter, name, newName);
+                expect(oldValue).toBeDefined();
+                expect(GLibUnix[newName]).toBeDefined();
+
+                if (PLATFORM_DEPENDENT_NS_SPLIT)
+                    expect(oldValue).toBe(GLibUnix[newName]);
+            });
+        });
+    });
+
+    it('provides signal_add_full wrapper for signal_add', function () {
+        if (!PLATFORM_DEPENDENT_NS_SPLIT)
+            pending('Platform-dependent namespace has not been split on this GLib version');
+
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            '*GLibUnix.signal_add_full has been renamed. ' +
+            'Please update your code to use GLibUnix.signal_add instead*');
+        const oldValue = GLibUnix.signal_add_full;
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGLib.js', 0,
+            'GLibUnix signal_add_full rename');
+
+        expect(oldValue).toBe(GLibUnix.signal_add);
     });
 });

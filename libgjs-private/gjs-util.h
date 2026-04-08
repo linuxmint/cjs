@@ -4,23 +4,17 @@
  * SPDX-FileCopyrightText: 2012 Giovanni Campagna <scampa.giovanni@gmail.com>
  */
 
-#ifndef LIBGJS_PRIVATE_GJS_UTIL_H_
-#define LIBGJS_PRIVATE_GJS_UTIL_H_
+#pragma once
 
 #include <locale.h>
 
 #include <gio/gio.h>
-
 #include <glib-object.h>
 #include <glib.h>
 
 #include "cjs/macros.h"
 
 G_BEGIN_DECLS
-
-/* For imports.format */
-GJS_EXPORT
-char * gjs_format_int_alternative_output (int n);
 
 /**
  * GjsCompareDataFunc:
@@ -36,17 +30,17 @@ char * gjs_format_int_alternative_output (int n);
  * Returns: negative value if @a < @b; zero if @a = @b; positive
  *          value if @a > @b
  */
-typedef int (*GjsCompareDataFunc)(const GObject *a, const GObject *b,
-                                  void *user_data);
+typedef int (*GjsCompareDataFunc)(const GObject* a, const GObject* b,
+                                  void* user_data);
 
 GJS_EXPORT
-unsigned gjs_list_store_insert_sorted(GListStore *store, GObject *item,
+unsigned gjs_list_store_insert_sorted(GListStore* store, GObject* item,
                                       GjsCompareDataFunc compare_func,
-                                      void *user_data);
+                                      void* user_data);
 
 GJS_EXPORT
-void gjs_list_store_sort(GListStore *store, GjsCompareDataFunc compare_func,
-                         void *user_data);
+void gjs_list_store_sort(GListStore* store, GjsCompareDataFunc compare_func,
+                         void* user_data);
 
 GJS_EXPORT
 GObject* gjs_gtk_custom_sorter_new(GjsCompareDataFunc sort_func,
@@ -69,42 +63,38 @@ typedef GLogWriterOutput (*GjsGLogWriterFunc)(GLogLevelFlags level,
                                               void* user_data);
 
 GJS_EXPORT
-void gjs_log_set_writer_func(GjsGLogWriterFunc func, gpointer user_data,
+void gjs_log_set_writer_func(GjsGLogWriterFunc func, void* user_data,
                              GDestroyNotify user_data_free);
 
 GJS_EXPORT
-void gjs_log_set_writer_default();
+void gjs_log_set_writer_default(void);
 
 /* For imports.gettext */
-typedef enum
-{
-  GJS_LOCALE_CATEGORY_ALL = LC_ALL,
-  GJS_LOCALE_CATEGORY_COLLATE = LC_COLLATE,
-  GJS_LOCALE_CATEGORY_CTYPE = LC_CTYPE,
-  GJS_LOCALE_CATEGORY_MESSAGES = LC_MESSAGES,
-  GJS_LOCALE_CATEGORY_MONETARY = LC_MONETARY,
-  GJS_LOCALE_CATEGORY_NUMERIC = LC_NUMERIC,
-  GJS_LOCALE_CATEGORY_TIME = LC_TIME
+typedef enum {
+    GJS_LOCALE_CATEGORY_ALL = LC_ALL,
+    GJS_LOCALE_CATEGORY_COLLATE = LC_COLLATE,
+    GJS_LOCALE_CATEGORY_CTYPE = LC_CTYPE,
+    GJS_LOCALE_CATEGORY_MESSAGES = LC_MESSAGES,
+    GJS_LOCALE_CATEGORY_MONETARY = LC_MONETARY,
+    GJS_LOCALE_CATEGORY_NUMERIC = LC_NUMERIC,
+    GJS_LOCALE_CATEGORY_TIME = LC_TIME
 } GjsLocaleCategory;
 
 GJS_EXPORT
-const char *gjs_setlocale                (GjsLocaleCategory category,
-                                          const char       *locale);
+const char* gjs_set_thread_locale(GjsLocaleCategory category,
+                                  const char* locale);
 GJS_EXPORT
-void        gjs_textdomain               (const char *domain);
+void gjs_textdomain(const char* domain);
 GJS_EXPORT
-void        gjs_bindtextdomain           (const char *domain,
-                                          const char *location);
-GJS_EXPORT
-GType       gjs_locale_category_get_type (void) G_GNUC_CONST;
+void gjs_bindtextdomain(const char* domain, const char* location);
 
 /* For imports.overrides.GObject */
 GJS_EXPORT
-GParamFlags gjs_param_spec_get_flags (GParamSpec *pspec);
+GParamFlags gjs_param_spec_get_flags(GParamSpec* pspec);
 GJS_EXPORT
-GType       gjs_param_spec_get_value_type (GParamSpec *pspec);
+GType gjs_param_spec_get_value_type(GParamSpec* pspec);
 GJS_EXPORT
-GType       gjs_param_spec_get_owner_type (GParamSpec *pspec);
+GType gjs_param_spec_get_owner_type(GParamSpec* pspec);
 
 /**
  * GjsBindingTransformFunc:
@@ -141,7 +131,6 @@ GBinding* gjs_g_object_bind_property_full(
     GDestroyNotify to_notify, GjsBindingTransformFunc from_callback,
     void* from_data, GDestroyNotify from_notify);
 
-#if GLIB_CHECK_VERSION(2, 72, 0)
 /**
  * gjs_g_binding_group_bind_full:
  * @source:
@@ -163,7 +152,6 @@ void gjs_g_binding_group_bind_full(
     GjsBindingTransformFunc to_callback, void* to_data,
     GDestroyNotify to_notify, GjsBindingTransformFunc from_callback,
     void* from_data, GDestroyNotify from_notify);
-#endif
 
 /* For imports.overrides.Gtk */
 GJS_EXPORT
@@ -175,5 +163,3 @@ GJS_EXPORT
 void gjs_clear_terminal(void);
 
 G_END_DECLS
-
-#endif /* LIBGJS_PRIVATE_GJS_UTIL_H_ */

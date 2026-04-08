@@ -5,14 +5,22 @@
 // SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 // SPDX-FileCopyrightText: 2019 Canonical, Ltd.
 
-const System = imports.system;
-const {Gio, GObject} = imports.gi;
+import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
+import System from 'system';
 
 describe('System.addressOf()', function () {
     it('gives different results for different objects', function () {
         let a = {some: 'object'};
         let b = {different: 'object'};
         expect(System.addressOf(a)).not.toEqual(System.addressOf(b));
+    });
+});
+
+describe('System.version', function () {
+    it('gives a plausible number', function () {
+        expect(System.version).not.toBeLessThan(1);
+        expect(System.version).toBeLessThan(5000000);
     });
 });
 

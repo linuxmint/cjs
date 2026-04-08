@@ -6,8 +6,8 @@
 
 #include <glib.h>
 
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
-#include "cjs/jsapi-util.h"
 #include "cjs/mainloop.h"
 
 namespace Gjs {
@@ -25,8 +25,8 @@ bool MainLoop::spin(GjsContextPrivate* gjs) {
         return false;
     }
 
-    GjsAutoPointer<GMainContext, GMainContext, g_main_context_unref>
-        main_context(g_main_context_ref_thread_default());
+    Gjs::AutoPointer<GMainContext, GMainContext, g_main_context_unref>
+        main_context{g_main_context_ref_thread_default()};
 
     debug("Spinning loop until released or hook cleared");
     do {

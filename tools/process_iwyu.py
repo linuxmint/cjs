@@ -58,8 +58,8 @@ FWD_DECLS_IN_HEADER = (
 )
 add_fwd_header = False
 
-CSTDINT = '#include <cstdint>'
-STDINTH = '#include <stdint.h>'
+CPP20_VERSION = '#include <version>'
+CSTDDEF = '#include <cstddef>'
 
 FALSE_POSITIVES = (
     # The bodies of these structs already come before their usage,
@@ -68,20 +68,34 @@ FALSE_POSITIVES = (
     ('gjs/atoms.h', 'struct GjsSymbolAtom;', ''),
     ('gjs/mem-private.h', 'namespace Gjs { namespace Memory { struct Counter; } }', ''),
 
+    # https://github.com/include-what-you-use/include-what-you-use/issues/1685
     # False positive when constructing JS::GCHashMap
-    ('gi/boxed.h', '#include <utility>', 'for move'),
     ('gi/object.h', '#include <utility>', 'for move'),
-    ('gjs/jsapi-util-error.cpp', '#include <utility>', 'for move'),
+    ('gjs/jsapi-util-error.cpp', '#include <utility>', 'for forward, move'),
+    # False positive when using JS::WeakCache::put
+    ('gi/fundamental.cpp', '#include <utility>', 'for forward'),
+    ('gi/gtype.cpp', '#include <utility>', 'for forward'),
+    # Same underlying problem, false positive due to inlined methods from
+    # gi/info.h and gi/auto.h
+    ('gi/enumeration.cpp', '#include <girepository/girepository.h>', 'for gi_enum_info_get_value'),
+    ('gi/interface.cpp', '#include <girepository/girepository.h>', 'for gi_base_info_ref'),
+    ('gjs/byteArray.cpp', '#include <girepository/girepository.h>', 'for gi_base_info_get_name, gi_bas...'),
+    ('modules/console.cpp', '#include <glib-object.h>', 'for g_object_unref'),
 
     # For some reason IWYU wants these with angle brackets when they are
     # already present with quotes
     # https://github.com/include-what-you-use/include-what-you-use/issues/1087
-    ('gjs/context.cpp', '#include <cjs/context.h>', ''),
-    ('gjs/coverage.cpp', '#include <cjs/coverage.h>', ''),
-    ('gjs/error-types.cpp', '#include <cjs/error-types.h>', ''),
-    ('gjs/jsapi-util.cpp', '#include <cjs/jsapi-util.h>', ''),
-    ('gjs/mem.cpp', '#include <cjs/mem.h>', ''),
-    ('gjs/profiler.cpp', '#include <cjs/profiler.h>', ''),
+    ('gjs/profiler.cpp', '#include <gjs/profiler.h>', ''),
+
+    # IWYU is not sure whether <utility> or <iterator> is for pair
+    # https://github.com/include-what-you-use/include-what-you-use/issues/1616
+    ('gi/object.cpp', '#include <iterator>', 'for pair'),
+    ('gi/toggle.h', '#include <iterator>', 'for pair'),
+    ('test/gjs-test-utils.h', '#include <iterator>', 'for pair'),
+    ('test/gjs-test-toggle-queue.cpp', '#include <iterator>', 'for pair'),
+
+    # https://github.com/include-what-you-use/include-what-you-use/issues/1808
+    ('gi/value.h', 'class ObjectBox;', ''),
 )
 
 
@@ -94,6 +108,13 @@ def output():
                 remove.pop(FWD_HEADER, None)
             else:
                 add[FWD_HEADER] = ''
+
+    # https://github.com/include-what-you-use/include-what-you-use/issues/1791
+    if add.pop(CPP20_VERSION, None) is not None and CSTDDEF not in all_includes:
+        if CSTDDEF in remove:
+            remove.pop(CSTDDEF, None)
+        else:
+            add[CSTDDEF] = 'for nullptr_t'
 
     if add or remove:
         print(f'\n== {file} ==')

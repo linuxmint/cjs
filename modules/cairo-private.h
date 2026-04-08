@@ -3,8 +3,7 @@
 // SPDX-FileCopyrightText: 2010 litl, LLC.
 // SPDX-FileCopyrightText: 2020 Philip Chimento <philip.chimento@gmail.com>
 
-#ifndef MODULES_CAIRO_PRIVATE_H_
-#define MODULES_CAIRO_PRIVATE_H_
+#pragma once
 
 #include <config.h>
 
@@ -14,7 +13,6 @@
 #include <glib-object.h>
 
 #include <js/Class.h>
-#include <js/PropertySpec.h>
 #include <js/TypeDecls.h>
 #include <jspubtd.h>  // for JSProtoKey
 
@@ -23,22 +21,18 @@
 #include "cjs/macros.h"
 #include "util/log.h"
 
+struct JSFunctionSpec;
+struct JSPropertySpec;
 namespace JS {
 class CallArgs;
 }
 
 GJS_JSAPI_RETURN_CONVENTION
-bool             gjs_cairo_check_status                 (JSContext       *context,
-                                                         cairo_status_t   status,
-                                                         const char      *name);
+bool gjs_cairo_check_status(JSContext*, cairo_status_t, const char* name);
 
 class CairoRegion : public CWrapper<CairoRegion, cairo_region_t> {
     friend CWrapperPointerOps<CairoRegion, cairo_region_t>;
     friend CWrapper<CairoRegion, cairo_region_t>;
-
-    CairoRegion() = delete;
-    CairoRegion(CairoRegion&) = delete;
-    CairoRegion(CairoRegion&&) = delete;
 
     static constexpr GjsGlobalSlot PROTOTYPE_SLOT =
         GjsGlobalSlot::PROTOTYPE_cairo_region;
@@ -52,10 +46,9 @@ class CairoRegion : public CWrapper<CairoRegion, cairo_region_t> {
     }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_region_t* constructor_impl(JSContext* cx,
-                                            const JS::CallArgs& args);
+    static cairo_region_t* constructor_impl(JSContext*, const JS::CallArgs&);
 
-    static void finalize_impl(JS::GCContext*, cairo_region_t* cr);
+    static void finalize_impl(JS::GCContext*, cairo_region_t*);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -71,17 +64,18 @@ class CairoRegion : public CWrapper<CairoRegion, cairo_region_t> {
     static constexpr JSClass klass = {
         "Region", JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_BACKGROUND_FINALIZE,
         &CairoRegion::class_ops, &CairoRegion::class_spec};
+
+ public:
+    CairoRegion() = delete;
+    CairoRegion(CairoRegion&) = delete;
+    CairoRegion(CairoRegion&&) = delete;
 };
 
-void gjs_cairo_region_init(void);
+void gjs_cairo_region_init();
 
 class CairoContext : public CWrapper<CairoContext, cairo_t> {
     friend CWrapperPointerOps<CairoContext, cairo_t>;
     friend CWrapper<CairoContext, cairo_t>;
-
-    CairoContext() = delete;
-    CairoContext(CairoContext&) = delete;
-    CairoContext(CairoContext&&) = delete;
 
     static constexpr GjsGlobalSlot PROTOTYPE_SLOT =
         GjsGlobalSlot::PROTOTYPE_cairo_context;
@@ -93,9 +87,9 @@ class CairoContext : public CWrapper<CairoContext, cairo_t> {
     static cairo_t* copy_ptr(cairo_t* cr) { return cairo_reference(cr); }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_t* constructor_impl(JSContext* cx, const JS::CallArgs& args);
+    static cairo_t* constructor_impl(JSContext*, const JS::CallArgs&);
 
-    static void finalize_impl(JS::GCContext*, cairo_t* cr);
+    static void finalize_impl(JS::GCContext*, cairo_t*);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -113,27 +107,28 @@ class CairoContext : public CWrapper<CairoContext, cairo_t> {
         &CairoContext::class_ops, &CairoContext::class_spec};
 
     GJS_JSAPI_RETURN_CONVENTION
-    static bool dispose(JSContext* cx, unsigned argc, JS::Value* vp);
+    static bool dispose(JSContext*, unsigned, JS::Value*);
+
+ public:
+    CairoContext() = delete;
+    CairoContext(CairoContext&) = delete;
+    CairoContext(CairoContext&&) = delete;
 };
 
-void gjs_cairo_context_init(void);
-void gjs_cairo_surface_init(void);
+void gjs_cairo_context_init();
+void gjs_cairo_surface_init();
 
-/* path */
-
+// path
+void gjs_cairo_path_init();
 class CairoPath : public CWrapper<CairoPath, cairo_path_t> {
     friend CWrapperPointerOps<CairoPath, cairo_path_t>;
     friend CWrapper<CairoPath, cairo_path_t>;
-
-    CairoPath() = delete;
-    CairoPath(CairoPath&) = delete;
-    CairoPath(CairoPath&&) = delete;
 
     static constexpr GjsGlobalSlot PROTOTYPE_SLOT =
         GjsGlobalSlot::PROTOTYPE_cairo_path;
     static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_CAIRO;
 
-    static void finalize_impl(JS::GCContext*, cairo_path_t* path);
+    static void finalize_impl(JS::GCContext*, cairo_path_t*);
 
     static const JSPropertySpec proto_props[];
     static constexpr js::ClassSpec class_spec = {
@@ -150,11 +145,16 @@ class CairoPath : public CWrapper<CairoPath, cairo_path_t> {
         &CairoPath::class_ops, &CairoPath::class_spec};
 
  public:
+    static cairo_path_t* copy_ptr(cairo_path_t*);
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* take_c_ptr(JSContext* cx, cairo_path_t* ptr);
+    static JSObject* take_c_ptr(JSContext*, cairo_path_t*);
+
+    CairoPath() = delete;
+    CairoPath(CairoPath&) = delete;
+    CairoPath(CairoPath&&) = delete;
 };
 
-/* surface */
+// surface
 
 class CairoSurface : public CWrapper<CairoSurface, cairo_surface_t> {
     friend CWrapperPointerOps<CairoSurface, cairo_surface_t>;
@@ -164,17 +164,13 @@ class CairoSurface : public CWrapper<CairoSurface, cairo_surface_t> {
     friend class CairoPDFSurface;
     friend class CairoSVGSurface;
 
-    CairoSurface() = delete;
-    CairoSurface(CairoSurface&) = delete;
-    CairoSurface(CairoSurface&&) = delete;
-
     static constexpr GjsGlobalSlot PROTOTYPE_SLOT =
         GjsGlobalSlot::PROTOTYPE_cairo_surface;
     static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_CAIRO;
 
     static GType gtype() { return CAIRO_GOBJECT_TYPE_SURFACE; }
 
-    static void finalize_impl(JS::GCContext*, cairo_surface_t* surface);
+    static void finalize_impl(JS::GCContext*, cairo_surface_t*);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -196,15 +192,19 @@ class CairoSurface : public CWrapper<CairoSurface, cairo_surface_t> {
     }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static bool getType_func(JSContext* context, unsigned argc, JS::Value* vp);
+    static bool getType_func(JSContext*, unsigned, JS::Value*);
 
  public:
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* from_c_ptr(JSContext* cx, cairo_surface_t* surface);
+    static JSObject* from_c_ptr(JSContext*, cairo_surface_t*);
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_surface_t* for_js(JSContext* cx,
+    static cairo_surface_t* for_js(JSContext*,
                                    JS::HandleObject surface_wrapper);
+
+    CairoSurface() = delete;
+    CairoSurface(CairoSurface&) = delete;
+    CairoSurface(CairoSurface&&) = delete;
 };
 
 class CairoImageSurface : public CWrapper<CairoImageSurface, cairo_surface_t> {
@@ -217,7 +217,7 @@ class CairoImageSurface : public CWrapper<CairoImageSurface, cairo_surface_t> {
     static constexpr unsigned constructor_nargs = 3;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec static_funcs[];
     static const JSFunctionSpec proto_funcs[];
@@ -243,8 +243,7 @@ class CairoImageSurface : public CWrapper<CairoImageSurface, cairo_surface_t> {
     static void finalize_impl(JS::GCContext*, cairo_surface_t*) {}
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_surface_t* constructor_impl(JSContext* cx,
-                                             const JS::CallArgs& args);
+    static cairo_surface_t* constructor_impl(JSContext*, const JS::CallArgs&);
 };
 
 #ifdef CAIRO_HAS_PS_SURFACE
@@ -258,7 +257,7 @@ class CairoPSSurface : public CWrapper<CairoPSSurface, cairo_surface_t> {
     static constexpr unsigned constructor_nargs = 3;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -283,13 +282,12 @@ class CairoPSSurface : public CWrapper<CairoPSSurface, cairo_surface_t> {
     static void finalize_impl(JS::GCContext*, cairo_surface_t*) {}
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_surface_t* constructor_impl(JSContext* cx,
-                                             const JS::CallArgs& args);
+    static cairo_surface_t* constructor_impl(JSContext*, const JS::CallArgs&);
 };
 #else
 class CairoPSSurface {
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* from_c_ptr(JSContext* cx, cairo_surface_t* surface);
+    static JSObject* from_c_ptr(JSContext*, cairo_surface_t*);
 };
 #endif  // CAIRO_HAS_PS_SURFACE
 
@@ -304,7 +302,7 @@ class CairoPDFSurface : public CWrapper<CairoPDFSurface, cairo_surface_t> {
     static constexpr unsigned constructor_nargs = 3;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -329,14 +327,13 @@ class CairoPDFSurface : public CWrapper<CairoPDFSurface, cairo_surface_t> {
     static void finalize_impl(JS::GCContext*, cairo_surface_t*) {}
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_surface_t* constructor_impl(JSContext* cx,
-                                             const JS::CallArgs& args);
+    static cairo_surface_t* constructor_impl(JSContext*, const JS::CallArgs&);
 };
 #else
 class CairoPDFSurface {
  public:
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* from_c_ptr(JSContext* cx, cairo_surface_t* surface);
+    static JSObject* from_c_ptr(JSContext*, cairo_surface_t*);
 };
 #endif  // CAIRO_HAS_PDF_SURFACE
 
@@ -351,7 +348,7 @@ class CairoSVGSurface : public CWrapper<CairoSVGSurface, cairo_surface_t> {
     static constexpr unsigned constructor_nargs = 3;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSPropertySpec proto_props[];
     static constexpr js::ClassSpec class_spec = {
@@ -375,18 +372,18 @@ class CairoSVGSurface : public CWrapper<CairoSVGSurface, cairo_surface_t> {
     static void finalize_impl(JS::GCContext*, cairo_surface_t*) {}
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_surface_t* constructor_impl(JSContext* cx,
-                                             const JS::CallArgs& args);
+    static cairo_surface_t* constructor_impl(JSContext*, const JS::CallArgs&);
 };
 #else
 class CairoSVGSurface {
  public:
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* from_c_ptr(JSContext* cx, cairo_surface_t* surface);
+    static JSObject* from_c_ptr(JSContext*, cairo_surface_t*);
 };
 #endif  // CAIRO_HAS_SVG_SURFACE
 
-/* pattern */
+// pattern
+void gjs_cairo_pattern_init();
 
 class CairoPattern : public CWrapper<CairoPattern, cairo_pattern_t> {
     friend CWrapperPointerOps<CairoPattern, cairo_pattern_t>;
@@ -396,10 +393,6 @@ class CairoPattern : public CWrapper<CairoPattern, cairo_pattern_t> {
     friend class CairoRadialGradient;
     friend class CairoSurfacePattern;
     friend class CairoSolidPattern;
-
-    CairoPattern() = delete;
-    CairoPattern(CairoPattern&) = delete;
-    CairoPattern(CairoPattern&&) = delete;
 
     static constexpr GjsGlobalSlot PROTOTYPE_SLOT =
         GjsGlobalSlot::PROTOTYPE_cairo_pattern;
@@ -427,19 +420,22 @@ class CairoPattern : public CWrapper<CairoPattern, cairo_pattern_t> {
     }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static bool getType_func(JSContext* context, unsigned argc, JS::Value* vp);
+    static bool getType_func(JSContext*, unsigned, JS::Value*);
 
  protected:
-    static void finalize_impl(JS::GCContext*, cairo_pattern_t* pattern);
+    static void finalize_impl(JS::GCContext*, cairo_pattern_t*);
 
  public:
-    static cairo_pattern_t* for_js(JSContext* cx,
+    static cairo_pattern_t* for_js(JSContext*,
                                    JS::HandleObject pattern_wrapper);
+
+    CairoPattern() = delete;
+    CairoPattern(CairoPattern&) = delete;
+    CairoPattern(CairoPattern&&) = delete;
 };
 
 GJS_JSAPI_RETURN_CONVENTION
-JSObject*        gjs_cairo_pattern_from_pattern         (JSContext       *context,
-                                                         cairo_pattern_t *pattern);
+JSObject* gjs_cairo_pattern_from_pattern(JSContext*, cairo_pattern_t*);
 
 class CairoGradient : public CWrapper<CairoGradient, cairo_pattern_t> {
     friend CWrapperPointerOps<CairoGradient, cairo_pattern_t>;
@@ -452,7 +448,7 @@ class CairoGradient : public CWrapper<CairoGradient, cairo_pattern_t> {
     static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_CAIRO;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -483,7 +479,7 @@ class CairoLinearGradient
     static constexpr unsigned constructor_nargs = 4;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -506,8 +502,7 @@ class CairoLinearGradient
     }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_pattern_t* constructor_impl(JSContext* cx,
-                                             const JS::CallArgs& args);
+    static cairo_pattern_t* constructor_impl(JSContext*, const JS::CallArgs&);
 
     static void finalize_impl(JS::GCContext*, cairo_pattern_t*) {}
 };
@@ -523,7 +518,7 @@ class CairoRadialGradient
     static constexpr unsigned constructor_nargs = 6;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -546,8 +541,7 @@ class CairoRadialGradient
     }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_pattern_t* constructor_impl(JSContext* cx,
-                                             const JS::CallArgs& args);
+    static cairo_pattern_t* constructor_impl(JSContext*, const JS::CallArgs&);
 
     static void finalize_impl(JS::GCContext*, cairo_pattern_t*) {}
 };
@@ -563,7 +557,7 @@ class CairoSurfacePattern
     static constexpr unsigned constructor_nargs = 1;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec proto_funcs[];
     static const JSPropertySpec proto_props[];
@@ -586,8 +580,7 @@ class CairoSurfacePattern
     }
 
     GJS_JSAPI_RETURN_CONVENTION
-    static cairo_pattern_t* constructor_impl(JSContext* cx,
-                                             const JS::CallArgs& args);
+    static cairo_pattern_t* constructor_impl(JSContext*, const JS::CallArgs&);
 
     static void finalize_impl(JS::GCContext*, cairo_pattern_t*) {}
 };
@@ -601,7 +594,7 @@ class CairoSolidPattern : public CWrapper<CairoSolidPattern, cairo_pattern_t> {
     static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_CAIRO;
 
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_proto(JSContext* cx, JSProtoKey);
+    static JSObject* new_proto(JSContext*, JSProtoKey);
 
     static const JSFunctionSpec static_funcs[];
     static const JSPropertySpec proto_props[];
@@ -625,5 +618,3 @@ class CairoSolidPattern : public CWrapper<CairoSolidPattern, cairo_pattern_t> {
 
     static void finalize_impl(JS::GCContext*, cairo_pattern_t*) {}
 };
-
-#endif  // MODULES_CAIRO_PRIVATE_H_

@@ -22,7 +22,7 @@
 #include <js/experimental/TypedData.h>
 #include <jsapi.h>  // for JS_NewPlainObject
 
-#include "gi/boxed.h"
+#include "gi/struct.h"
 #include "cjs/atoms.h"
 #include "cjs/byteArray.h"
 #include "cjs/context-private.h"
@@ -43,9 +43,9 @@ static bool to_string_func(JSContext* cx, unsigned argc, JS::Value* vp) {
         return false;
 
     const char* actual_encoding = encoding ? encoding.get() : "utf-8";
-    JS::RootedString str(
-        cx, gjs_decode_from_uint8array(cx, byte_array, actual_encoding,
-                                       GjsStringTermination::ZERO_TERMINATED, true));
+    JS::RootedString str{cx, gjs_decode_from_uint8array(
+                                 cx, byte_array, actual_encoding,
+                                 GjsStringTermination::ZERO_TERMINATED, true)};
     if (!str)
         return false;
 
@@ -53,25 +53,25 @@ static bool to_string_func(JSContext* cx, unsigned argc, JS::Value* vp) {
     return true;
 }
 
-/* Workaround to keep existing code compatible. This function is tacked onto
- * any Uint8Array instances created in situations where previously a ByteArray
- * would have been created. It logs a compatibility warning. */
+/* Workaround to keep existing code compatible. This function is tacked onto any
+ * Uint8Array instances created in situations where previously a ByteArray would
+ * have been created. It logs a compatibility warning. */
 GJS_JSAPI_RETURN_CONVENTION
 static bool instance_to_string_func(JSContext* cx, unsigned argc,
                                     JS::Value* vp) {
     GJS_GET_THIS(cx, argc, vp, args, this_obj);
     JS::UniqueChars encoding;
 
-    _gjs_warn_deprecated_once_per_callsite(
+    gjs_warn_deprecated_once_per_callsite(
         cx, GjsDeprecationMessageId::ByteArrayInstanceToString);
 
     if (!gjs_parse_call_args(cx, "toString", args, "|s", "encoding", &encoding))
         return false;
 
     const char* actual_encoding = encoding ? encoding.get() : "utf-8";
-    JS::RootedString str(
-        cx, gjs_decode_from_uint8array(cx, this_obj, actual_encoding,
-                                       GjsStringTermination::ZERO_TERMINATED, true));
+    JS::RootedString str{cx, gjs_decode_from_uint8array(
+                                 cx, this_obj, actual_encoding,
+                                 GjsStringTermination::ZERO_TERMINATED, true)};
     if (!str)
         return false;
 
@@ -86,7 +86,7 @@ static bool define_legacy_tostring(JSContext* cx, JS::HandleObject array) {
                                  instance_to_string_func, 1, 0);
 }
 
-/* fromString() function implementation */
+// fromString() function implementation
 GJS_JSAPI_RETURN_CONVENTION
 static bool from_string_func(JSContext* cx, unsigned argc, JS::Value* vp) {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
@@ -108,38 +108,32 @@ static bool from_string_func(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 GJS_JSAPI_RETURN_CONVENTION
-static bool
-from_gbytes_func(JSContext *context,
-                 unsigned   argc,
-                 JS::Value *vp)
-{
-    JS::CallArgs argv = JS::CallArgsFromVp (argc, vp);
-    JS::RootedObject bytes_obj(context);
-    GBytes *gbytes;
+static bool from_gbytes_func(JSContext* cx, unsigned argc, JS::Value* vp) {
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+    JS::RootedObject bytes_obj{cx};
 
-    if (!gjs_parse_call_args(context, "fromGBytes", argv, "o",
-                             "bytes", &bytes_obj))
+    if (!gjs_parse_call_args(cx, "fromGBytes", args, "o", "bytes", &bytes_obj))
         return false;
 
-    if (!BoxedBase::typecheck(context, bytes_obj, nullptr, G_TYPE_BYTES))
+    if (!StructBase::typecheck(cx, bytes_obj, G_TYPE_BYTES))
         return false;
 
-    gbytes = BoxedBase::to_c_ptr<GBytes>(context, bytes_obj);
+    GBytes* gbytes = StructBase::to_c_ptr<GBytes>(cx, bytes_obj);
     if (!gbytes)
         return false;
 
     size_t len;
     const void* data = g_bytes_get_data(gbytes, &len);
     if (len == 0) {
-        JS::RootedObject empty_array(context, JS_NewUint8Array(context, 0));
-        if (!empty_array || !define_legacy_tostring(context, empty_array))
+        JS::RootedObject empty_array{cx, JS_NewUint8Array(cx, 0)};
+        if (!empty_array || !define_legacy_tostring(cx, empty_array))
             return false;
 
-        argv.rval().setObject(*empty_array);
+        args.rval().setObject(*empty_array);
         return true;
     }
 
-    JS::RootedObject array_buffer{context, JS::NewArrayBuffer(context, len)};
+    JS::RootedObject array_buffer{cx, JS::NewArrayBuffer(cx, len)};
     if (!array_buffer)
         return false;
 
@@ -152,12 +146,12 @@ from_gbytes_func(JSContext *context,
         std::copy_n(static_cast<const uint8_t*>(data), len, storage);
     }
 
-    JS::RootedObject obj(
-        context, JS_NewUint8ArrayWithBuffer(context, array_buffer, 0, -1));
-    if (!obj || !define_legacy_tostring(context, obj))
+    JS::RootedObject obj{cx,
+                         JS_NewUint8ArrayWithBuffer(cx, array_buffer, 0, -1)};
+    if (!obj || !define_legacy_tostring(cx, obj))
         return false;
 
-    argv.rval().setObject(*obj);
+    args.rval().setObject(*obj);
     return true;
 }
 
@@ -211,10 +205,8 @@ static JSFunctionSpec gjs_byte_array_module_funcs[] = {
     JS_FN("toString", to_string_func, 2, 0),
     JS_FS_END};
 
-bool
-gjs_define_byte_array_stuff(JSContext              *cx,
-                            JS::MutableHandleObject module)
-{
+bool gjs_define_byte_array_stuff(JSContext* cx,
+                                 JS::MutableHandleObject module) {
     module.set(JS_NewPlainObject(cx));
     return JS_DefineFunctions(cx, module, gjs_byte_array_module_funcs);
 }

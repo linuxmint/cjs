@@ -3,18 +3,15 @@
 // SPDX-FileCopyrightText: 2013 Endless Mobile, Inc.
 // SPDX-FileContributor: Authored By: Sam Spilsbury <sam@endlessm.com>
 
-#ifndef TEST_GJS_TEST_UTILS_H_
-#define TEST_GJS_TEST_UTILS_H_
+#pragma once
 
 #include <config.h>
 
 #include <stdint.h>  // for uintptr_t
 
-#include <iterator>  // for pair
 #include <limits>    // for numeric_limits
 #include <string>
 #include <type_traits>  // for is_same
-#include <utility>      // IWYU pragma: keep
 
 #include <glib.h>  // for g_assert_...
 
@@ -22,42 +19,59 @@
 
 #include "cjs/context.h"
 
+#define g_assert_ok(result)                                                  \
+    G_STMT_START {                                                           \
+        auto& res_inner = (result);                                          \
+        if G_UNLIKELY (res_inner.isErr()) {                                  \
+            std::string message{"'" #result "' should be OK but got " +      \
+                                std::string{res_inner.unwrapErr()}};         \
+            g_assertion_message(G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                message.c_str());                            \
+        }                                                                    \
+    }                                                                        \
+    G_STMT_END
+
+#define g_assert_err(result)                                                 \
+    G_STMT_START {                                                           \
+        if G_UNLIKELY ((result).isOk())                                      \
+            g_assertion_message(G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                                "'" #result "' should be Err but got OK");   \
+    }                                                                        \
+    G_STMT_END
+
 struct GjsUnitTestFixture {
-    GjsContext *gjs_context;
-    JSContext *cx;
+    GjsContext* gjs_context;
+    JSContext* cx;
     JS::Realm* realm;
 };
 
-void gjs_unit_test_fixture_setup(GjsUnitTestFixture* fx, const void* unused);
+void gjs_unit_test_fixture_setup(GjsUnitTestFixture*, const void* unused);
 
-void gjs_unit_test_destroy_context(GjsUnitTestFixture *fx);
+void gjs_unit_test_destroy_context(GjsUnitTestFixture*);
 
-void gjs_unit_test_fixture_teardown(GjsUnitTestFixture* fx, const void* unused);
+void gjs_unit_test_fixture_teardown(GjsUnitTestFixture*, const void* unused);
 
-void gjs_test_add_tests_for_coverage ();
+void gjs_test_add_tests_for_coverage();
 
-void gjs_test_add_tests_for_parse_call_args(void);
+void gjs_test_add_tests_for_parse_call_args();
 
-void gjs_test_add_tests_for_rooting(void);
+void gjs_test_add_tests_for_rooting();
 
 void gjs_test_add_tests_for_jsapi_utils();
 
-namespace Gjs {
-namespace Test {
+namespace Gjs::Test {
 
+void add_tests_for_misc_utils();
 void add_tests_for_toggle_queue();
 
 template <typename T1, typename T2>
 constexpr bool comparable_types() {
-    if constexpr (std::is_same<T1, T2>()) {
+    if constexpr (std::is_same_v<T1, T2>)
         return true;
-    } else if constexpr (std::is_arithmetic_v<T1> == std::is_arithmetic_v<T2>) {
+    if constexpr (std::is_arithmetic_v<T1> == std::is_arithmetic_v<T2> ||
+                  std::is_enum_v<T1> == std::is_enum_v<T2>)
         return std::is_signed_v<T1> == std::is_signed_v<T2>;
-    } else if constexpr (std::is_enum_v<T1> == std::is_enum_v<T2>) {
-        return std::is_signed_v<T1> == std::is_signed_v<T2>;
-    } else {
-        return false;
-    }
+    return false;
 }
 
 template <typename T, typename U>
@@ -88,7 +102,4 @@ constexpr void assert_equal(std::pair<T, U> const& pair, T first, U second) {
     assert_equal(pair.second, second);
 }
 
-}  // namespace Test
-}  // namespace Gjs
-
-#endif  // TEST_GJS_TEST_UTILS_H_
+}  // namespace Gjs::Test

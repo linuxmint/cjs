@@ -58,7 +58,7 @@ const MyComplexGtkSubclass = new Lang.Class({
 const MyComplexGtkSubclassFromResource = new Lang.Class({
     Name: 'MyComplexGtkSubclassFromResource',
     Extends: Gtk.Grid,
-    Template: 'resource:///org/cjs/jsunit/complex3.ui',
+    Template: 'resource:///org/gjs/jsunit/complex3.ui',
     Children: ['label-child', 'label-child2'],
     InternalChildren: ['internal-label-child'],
 

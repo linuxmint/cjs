@@ -4,12 +4,10 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
-/*
- * An XML DBus Interface
- */
+// An XML DBus Interface
 const ifaceXml = `
 <node>
-  <interface name="org.cinnamon.cjs.Test">
+  <interface name="org.gnome.gjs.Test">
     <method name="SimpleMethod"/>
     <method name="ComplexMethod">
       <arg type="s" direction="in" name="input"/>
@@ -24,8 +22,6 @@ const ifaceXml = `
   </interface>
 </node>`;
 
-
-
 // Pass the XML string to make a reusable proxy class for an interface proxies.
 const TestProxy = Gio.DBusProxy.makeProxyWrapper(ifaceXml);
 
@@ -33,7 +29,6 @@ const TestProxy = Gio.DBusProxy.makeProxyWrapper(ifaceXml);
 let proxy = null;
 let proxySignalId = 0;
 let proxyPropId = 0;
-
 
 // Watching a name on DBus. Another option is to create a proxy with the
 // `Gio.DBusProxyFlags.DO_NOT_AUTO_START` flag and watch the `g-name-owner`
@@ -45,21 +40,19 @@ function onNameAppeared(connection, name, _owner) {
     try {
         proxy = new TestProxy(
             Gio.DBus.session,
-            'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test'
+            'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test'
         );
     } catch (err) {
         logError(err);
         return;
     }
 
-
     // Proxy wrapper signals use the special functions `connectSignal()` and
     // `disconnectSignal()` to avoid conflicting with regular GObject signals.
     proxySignalId = proxy.connectSignal('TestSignal', (proxy_, name_, args) => {
         print(`TestSignal: ${args[0]}, ${args[1]}`);
     });
-
 
     // To watch property changes, you can connect to the `g-properties-changed`
     // GObject signal with `connect()`
@@ -71,7 +64,6 @@ function onNameAppeared(connection, name, _owner) {
             print(`Property '${prop}' invalidated`);
     });
 
-
     // Reading and writing properties is straight-forward
     print(`ReadOnlyProperty: ${proxy.ReadOnlyProperty}`);
 
@@ -79,7 +71,6 @@ function onNameAppeared(connection, name, _owner) {
 
     proxy.ReadWriteProperty = !proxy.ReadWriteProperty;
     print(`ReadWriteProperty: ${proxy.ReadWriteProperty}`);
-
 
     // Both synchronous and asynchronous functions will be generated
     try {
@@ -119,7 +110,7 @@ function onNameVanished(connection, name) {
 
 let busWatchId = Gio.bus_watch_name(
     Gio.BusType.SESSION,
-    'org.cinnamon.cjs.Test',
+    'org.gnome.gjs.Test',
     Gio.BusNameWatcherFlags.NONE,
     onNameAppeared,
     onNameVanished
@@ -130,21 +121,20 @@ let loop = GLib.MainLoop.new(null, false);
 loop.run();
 
 // Unwatching names works just like disconnecting signal handlers.
-Gio.bus_unown_name(busWatchId);
-
+Gio.bus_unwatch_name(busWatchId);
 
 /* Asynchronous Usage
  *
- * Below is the alternative, asynchronous usage of proxy wrappers. If creating
- * a proxy asynchronously, you should not consider the proxy ready to use until
+ * Below is the alternative, asynchronous usage of proxy wrappers. If creating a
+ * proxy asynchronously, you should not consider the proxy ready to use until
  * the callback is invoked without error.
  */
 proxy = null;
 
 new TestProxy(
     Gio.DBus.session,
-    'org.cinnamon.cjs.Test',
-    '/org/cinnamon/cjs/Test',
+    'org.gnome.gjs.Test',
+    '/org/gnome/gjs/Test',
     (sourceObj, error) => {
         // If @error is not `null` it will be an Error object indicating the
         // failure. @proxy will be `null` in this case.

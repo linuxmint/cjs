@@ -2,11 +2,13 @@
 // SPDX-FileCopyrightText: 2017 Patrick Griffis <tingping@tingping.se>
 // SPDX-FileCopyrightText: 2019 Philip Chimento <philip.chimento@gmail.com>
 
-const {GLib, Gio, GObject} = imports.gi;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 
 let GioUnix;
 try {
-    GioUnix = imports.gi.GioUnix;
+    GioUnix = (await import('gi://GioUnix')).default;
 } catch {}
 
 const Foo = GObject.registerClass({
@@ -237,7 +239,7 @@ describe('Gio.Settings overrides', function () {
 });
 
 describe('Gio.content_type_set_mime_dirs', function () {
-    it('can be called with NULL argument', function () {
+    it('can be called with null argument', function () {
         expect(() => Gio.content_type_set_mime_dirs(null)).not.toThrow();
     });
 });
@@ -253,7 +255,19 @@ describe('Gio.add_action_entries override', function () {
             },
             {
                 name: 'bar',
+                parameter_type: new GLib.VariantType('s'),
+            },
+            {
+                name: 'baz',
                 state: 'false',
+            },
+            {
+                name: 'qux',
+                state: GLib.Variant.new_boolean(true),
+            },
+            {
+                name: 'quux',
+                state: true,
             },
         ];
 
@@ -263,7 +277,16 @@ describe('Gio.add_action_entries override', function () {
         expect(app.lookup_action('foo').parameter_type.dup_string()).toEqual(entries[0].parameter_type);
 
         expect(app.lookup_action('bar').name).toEqual(entries[1].name);
-        expect(app.lookup_action('bar').state.print(true)).toEqual(entries[1].state);
+        expect(app.lookup_action('bar').parameter_type.dup_string()).toEqual(entries[1].parameter_type.dup_string());
+
+        expect(app.lookup_action('baz').name).toEqual(entries[2].name);
+        expect(app.lookup_action('baz').state.print(true)).toEqual(entries[2].state);
+
+        expect(app.lookup_action('qux').name).toEqual(entries[3].name);
+        expect(app.lookup_action('qux').state.print(true)).toEqual(entries[3].state.print(true));
+
+        expect(app.lookup_action('quux').name).toEqual(entries[4].name);
+        expect(app.lookup_action('quux').state.get_boolean()).toEqual(entries[4].state);
     });
 
     it('connects and binds the activate handler', function (done) {
@@ -396,9 +419,6 @@ describe('Gio.FileEnumerator overrides', function () {
 });
 
 describe('Gio.DesktopAppInfo fallback', function () {
-    const requiredVersion =
-        GLib.MAJOR_VERSION > 2 ||
-            (GLib.MAJOR_VERSION === 2 && GLib.MINOR_VERSION >= 86);
     let keyFile;
     const desktopFileContent = `[Desktop Entry]
 Version=1.0
@@ -407,7 +427,6 @@ Name=Some Application
 Exec=${GLib.find_program_in_path('sh')}
 `;
     beforeAll(function () {
-        // Set up log writer for tests to override
         keyFile = new GLib.KeyFile();
         keyFile.load_from_data(desktopFileContent, desktopFileContent.length,
             GLib.KeyFileFlags.NONE);
@@ -416,20 +435,14 @@ Exec=${GLib.find_program_in_path('sh')}
     beforeEach(function () {
         if (!GioUnix)
             pending('Not supported platform');
-
-        if (!requiredVersion)
-            pending('Installed Gio is not new enough for this test');
     });
 
     function expectDeprecationWarning(testFunction) {
-        if (!requiredVersion)
-            pending('Installed Gio is not new enough for this test');
-
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             '*Gio.DesktopAppInfo has been moved to a separate platform-specific library. ' +
             'Please update your code to use GioUnix.DesktopAppInfo instead*');
         testFunction();
-        GLib.test_assert_expected_messages_internal('Cjs', 'testGio.js', 0,
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGio.js', 0,
             'Gio.DesktopAppInfo expectWarnsOnNewerGio');
     }
 
@@ -446,9 +459,6 @@ Exec=${GLib.find_program_in_path('sh')}
 
     describe('provides platform-independent functions', function () {
         [Gio, GioUnix].forEach(ns => it(`when created from ${ns.__name__}`, function () {
-            if (!requiredVersion)
-                pending('Installed Gio is not new enough for this test');
-
             const maybeExpectDeprecationWarning = ns === Gio
                 ? expectDeprecationWarning : tf => tf();
 
@@ -461,9 +471,6 @@ Exec=${GLib.find_program_in_path('sh')}
 
     describe('provides unix-only functions', function () {
         [Gio, GioUnix].forEach(ns => it(`when created from ${ns.__name__}`, function () {
-            if (!requiredVersion)
-                pending('Installed Gio is not new enough for this test');
-
             const maybeExpectDeprecationWarning = ns === Gio
                 ? expectDeprecationWarning : tf => tf();
 
@@ -483,14 +490,14 @@ describe('Non-introspectable file attribute overrides', function () {
     function expectWarnings(count) {
         numExpectedWarnings = count;
         for (let c = 0; c < count; c++) {
-            GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
                 '*not introspectable*');
         }
     }
 
     function assertWarnings(testName) {
         for (let c = 0; c < numExpectedWarnings; c++) {
-            GLib.test_assert_expected_messages_internal('Cjs', 'testGio.js', 0,
+            GLib.test_assert_expected_messages_internal('Gjs', 'testGio.js', 0,
                 `test Gio.${testName}`);
         }
         numExpectedWarnings = 0;
@@ -541,7 +548,7 @@ describe('Non-introspectable file attribute overrides', function () {
 
     it('works for object', function () {
         expectWarnings(2);
-        const icon = Gio.ThemedIcon.new_from_names(['xsi-list-add-symbolic']);
+        const icon = Gio.ThemedIcon.new_from_names(['list-add-symbolic']);
         expect(() =>
             file.set_attribute(Gio.FILE_ATTRIBUTE_STANDARD_ICON, Gio.FileAttributeType.OBJECT, icon, ...flags))
             .toThrowError(/not introspectable/);
@@ -552,5 +559,180 @@ describe('Non-introspectable file attribute overrides', function () {
 
     afterEach(function () {
         file.delete_async(GLib.PRIORITY_DEFAULT, null, (obj, res) => obj.delete_finish(res));
+    });
+});
+
+describe('GioUnix compatibility fallback', function () {
+    beforeEach(function () {
+        if (!GioUnix)
+            pending('Not supported platform');
+    });
+
+    function expectDeprecationWarning(testFunction, oldName, newName) {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            `*Gio.${oldName} has been moved to a separate platform-specific library. ` +
+            `Please update your code to use GioUnix.${newName} instead*`);
+        const ret = testFunction();
+        GLib.test_assert_expected_messages_internal('Gjs', 'testGio.js', 0,
+            `Gio.${oldName} expected warns on Gio platform-specific fallback`);
+        return ret;
+    }
+
+    describe('provides platform-independent symbol', function () {
+        // Sadly we've to be repetitive here and not just do everything in a loop,
+        // because we want each test to run from a different callsite, otherwise
+        // no warning will be emitted after the first one.
+
+        const symbols = {
+            'DESKTOP_APP_INFO_LOOKUP_EXTENSION_POINT_NAME': {},
+            'DesktopAppInfo': {},
+            'DesktopAppInfoLookup': {},
+            'UnixFDMessage': {
+                newName: 'FDMessage',
+            },
+            'UnixFDMessagePrivate': {
+                newName: 'FDMessagePrivate',
+            },
+            'FileDescriptorBased': {
+                newName: 'FileDescriptorBased',
+            },
+            'UnixInputStream': {
+                newName: 'InputStream',
+            },
+            'UnixInputStreamPrivate': {
+                newName: 'InputStreamPrivate',
+            },
+            'UnixMountEntry': {
+                newName: 'MountEntry',
+            },
+            'UnixMountMonitor': {
+                newName: 'MountMonitor',
+            },
+            'UnixMountPoint': {
+                newName: 'MountPoint',
+            },
+            'UnixOutputStream': {
+                newName: 'OutputStream',
+            },
+            'UnixOutputStreamPrivate': {
+                newName: 'OutputStreamPrivate',
+            },
+            'unix_is_mount_path_system_internal': {
+                newName: 'is_mount_path_system_internal',
+            },
+            'unix_is_system_device_path': {
+                newName: 'is_system_device_path',
+            },
+            'unix_is_system_fs_type': {
+                newName: 'is_system_fs_type',
+            },
+            'unix_mount_at': {
+                newName: 'mount_at',
+            },
+            'unix_mount_compare': {
+                newName: 'mount_compare',
+            },
+            'unix_mount_copy': {
+                newName: 'mount_copy',
+            },
+            'unix_mount_entries_changed_since': {
+                newName: 'mount_entries_changed_since',
+            },
+            'unix_mount_entries_get': {
+                newName: 'mount_entries_get',
+            },
+            'unix_mount_entries_get_from_file': {
+                newName: 'mount_entries_get_from_file',
+            },
+            'unix_mount_entry_at': {
+                newName: 'mount_entry_at',
+            },
+            'unix_mount_entry_for': {
+                newName: 'mount_entry_for',
+            },
+            'unix_mount_for': {
+                newName: 'mount_for',
+            },
+            'unix_mount_free': {
+                newName: 'mount_free',
+            },
+            'unix_mount_get_device_path': {
+                newName: 'mount_get_device_path',
+            },
+            'unix_mount_get_fs_type': {
+                newName: 'mount_get_fs_type',
+            },
+            'unix_mount_get_mount_path': {
+                newName: 'mount_get_mount_path',
+            },
+            'unix_mount_get_options': {
+                newName: 'mount_get_options',
+            },
+            'unix_mount_get_root_path': {
+                newName: 'mount_get_root_path',
+            },
+            'unix_mount_guess_can_eject': {
+                newName: 'mount_guess_can_eject',
+            },
+            'unix_mount_guess_icon': {
+                newName: 'mount_guess_icon',
+            },
+            'unix_mount_guess_name': {
+                newName: 'mount_guess_name',
+            },
+            'unix_mount_guess_should_display': {
+                newName: 'mount_guess_should_display',
+            },
+            'unix_mount_guess_symbolic_icon': {
+                newName: 'mount_guess_symbolic_icon',
+            },
+            'unix_mount_is_readonly': {
+                newName: 'mount_is_readonly',
+            },
+            'unix_mount_is_system_internal': {
+                newName: 'mount_is_system_internal',
+            },
+            'unix_mount_point_at': {
+                newName: 'mount_point_at',
+            },
+            'unix_mount_points_changed_since': {
+                newName: 'mount_points_changed_since',
+            },
+            'unix_mount_points_get': {
+                newName: 'mount_points_get',
+            },
+            'unix_mount_points_get_from_file': {
+                newName: 'mount_points_get_from_file',
+            },
+            'unix_mounts_changed_since': {
+                newName: 'mounts_changed_since',
+            },
+            'unix_mounts_get': {
+                newName: 'mounts_get',
+            },
+            'unix_mounts_get_from_file': {
+                newName: 'mounts_get_from_file',
+            },
+        };
+
+        Object.entries(symbols).forEach(([name, testData]) => {
+            it(`Gio.${name}`, function () {
+                const newName = testData.newName ?? name;
+
+                // We need to use a named function so that the warning system can
+                // consider this a different call site for each symbol tested.
+                const getterName = `${name}_getter`;
+                const valueGetter = {
+                    [getterName]() {
+                        return Gio[name];
+                    },
+                }[getterName];
+
+                const oldValue = expectDeprecationWarning(valueGetter, name, newName);
+                expect(oldValue).not.toBeUndefined();
+                expect(GioUnix[newName]).not.toBeUndefined();
+                expect(oldValue).toBe(GioUnix[newName]);
+            });
+        });
     });
 });

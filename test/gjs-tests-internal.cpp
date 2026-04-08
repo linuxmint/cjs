@@ -9,7 +9,7 @@
 #include "test/gjs-test-utils.h"
 
 int main(int argc, char** argv) {
-    /* Avoid interference in the tests from stray environment variable */
+    // Avoid interference in the tests from stray environment variable
     g_unsetenv("GJS_ENABLE_PROFILER");
     g_unsetenv("GJS_TRACE_FD");
 
@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
     gjs_test_add_tests_for_parse_call_args();
     gjs_test_add_tests_for_jsapi_utils();
     Gjs::Test::add_tests_for_toggle_queue();
+    Gjs::Test::add_tests_for_misc_utils();
 
     g_test_run();
 

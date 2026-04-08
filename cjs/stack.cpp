@@ -17,55 +17,48 @@
 #include <js/Utility.h>  // for UniqueChars
 #include <js/friend/DumpFunctions.h>
 
+#include "cjs/auto.h"
 #include "cjs/context-private.h"
 #include "cjs/context.h"
-#include "cjs/jsapi-util.h"
 
-void
-gjs_context_print_stack_stderr(GjsContext *context)
-{
-    JSContext *cx = (JSContext*) gjs_context_get_native_context(context);
+void gjs_context_print_stack_stderr(GjsContext* self) {
+    auto* cx = static_cast<JSContext*>(gjs_context_get_native_context(self));
 
-    g_printerr("== Stack trace for context %p ==\n", context);
+    g_printerr("== Stack trace for context %p ==\n", self);
     js::DumpBacktrace(cx, stderr);
 }
 
-void
-gjs_dumpstack(void)
-{
-    GjsSmartPointer<GList> contexts = gjs_context_get_all();
-    GList *iter;
+void gjs_dumpstack() {
+    Gjs::SmartPointer<GList> contexts{gjs_context_get_all()};
 
-    for (iter = contexts; iter; iter = iter->next) {
-        GjsAutoUnref<GjsContext> context(GJS_CONTEXT(iter->data));
-        gjs_context_print_stack_stderr(context);
+    for (GList* iter = contexts; iter; iter = iter->next) {
+        Gjs::AutoUnref<GjsContext> gjs_context{GJS_CONTEXT(iter->data)};
+        gjs_context_print_stack_stderr(gjs_context);
     }
 }
 
-std::string
-gjs_dumpstack_string() {
-    std::string out;
+std::string gjs_dumpstack_string() {
     std::ostringstream all_traces;
 
-    GjsSmartPointer<GList> contexts = gjs_context_get_all();
+    Gjs::SmartPointer<GList> contexts{gjs_context_get_all()};
     js::Sprinter printer;
-    GList *iter;
 
-    for (iter = contexts; iter; iter = iter->next) {
-        GjsAutoUnref<GjsContext> context(GJS_CONTEXT(iter->data));
+    for (GList* iter = contexts; iter; iter = iter->next) {
+        Gjs::AutoUnref<GjsContext> gjs_context{GJS_CONTEXT(iter->data)};
         if (!printer.init()) {
-            all_traces << "No stack trace for context " << context.get()
+            all_traces << "No stack trace for context " << gjs_context.get()
                        << ": out of memory\n\n";
             break;
         }
-        auto* cx =
-            static_cast<JSContext*>(gjs_context_get_native_context(context));
+        auto* cx = static_cast<JSContext*>(
+            gjs_context_get_native_context(gjs_context));
         js::DumpBacktrace(cx, printer);
         JS::UniqueChars trace = printer.release();
-        all_traces << "== Stack trace for context " << context.get() << " ==\n"
+        all_traces << "== Stack trace for context " << gjs_context.get()
+                   << " ==\n"
                    << trace.get() << "\n";
     }
-    out = all_traces.str();
+    std::string out = all_traces.str();
     out.resize(MAX(out.size() - 2, 0));
 
     return out;

@@ -3,25 +3,20 @@
 
 # === Build Spidermonkey stage ===
 
-FROM registry.fedoraproject.org/fedora:40 AS mozjs-build
-ARG MOZJS_BRANCH=mozjs115
+FROM registry.fedoraproject.org/fedora:43 AS mozjs-build
+ARG MOZJS_BRANCH=mozjs140
 ARG MOZJS_BUILDDEPS=${MOZJS_BRANCH}
 ARG BUILD_OPTS=
 
 ENV SHELL=/bin/bash
 
-# mozjs115 cannot be built with python3.11
-# cbindgen should be included in builddep(mozjs128)
 RUN dnf -y install 'dnf-command(builddep)' \
-    autoconf213 \
-    cbindgen \
     clang \
     git \
     llvm \
     llvm-devel \
     make \
-    python3.10 \
-    python-packaging \
+    python3-packaging \
     rust \
     which \
     xz
@@ -34,7 +29,6 @@ RUN mkdir -p mozjs/_build
 
 WORKDIR /root/mozjs/_build
 
-ENV PYTHON3=/usr/bin/python3.10
 RUN ../js/src/configure --prefix=/usr --libdir=/usr/lib64 --disable-jemalloc \
     --with-system-zlib --with-intl-api ${BUILD_OPTS}
 RUN make -j$(nproc)
@@ -43,9 +37,9 @@ RUN rm -f /root/mozjs-install/usr/lib64/libjs_static.ajs
 
 # === Actual Docker image ===
 
-FROM registry.fedoraproject.org/fedora:40
+FROM registry.fedoraproject.org/fedora:43
 
-ARG LOCALES=tr_TR
+ARG LOCALES=ar_EG en_CA fa_IR tr_TR
 ENV SHELL=/bin/bash
 
 # List is comprised of base dependencies for CI scripts, gjs, and debug packages
@@ -59,6 +53,7 @@ RUN dnf -y install --enablerepo=fedora-debuginfo,updates-debuginfo \
     cairo-debugsource \
     cairo-gobject-devel \
     clang \
+    clang-tools-extra \
     compiler-rt \
     dbus-daemon \
     dbus-x11 \
@@ -83,15 +78,18 @@ RUN dnf -y install --enablerepo=fedora-debuginfo,updates-debuginfo \
     gtk4-debuginfo \
     gtk4-debugsource \
     gtk4-devel \
+    iwyu \
     lcov \
     libasan \
     libubsan \
-    libtsan \
     meson \
     ninja-build \
     pkgconf \
+    python3-pip \
     readline-devel \
+    sysprof-devel \
     systemtap-sdt-devel \
+    systemtap-sdt-dtrace \
     valgrind \
     which \
     Xvfb \
@@ -100,6 +98,9 @@ RUN dnf -y install --enablerepo=fedora-debuginfo,updates-debuginfo \
     dnf clean all && rm -rf /var/cache/dnf
 
 COPY --from=mozjs-build /root/mozjs-install/usr /usr
+
+# Support converting lcov reports to cobertura
+RUN pip3 install lcov-cobertura==2.1.1
 
 # Enable sudo for wheel users
 RUN sed -i -e 's/# %wheel/%wheel/' -e '0,/%wheel/{s/%wheel/# %wheel/}' \

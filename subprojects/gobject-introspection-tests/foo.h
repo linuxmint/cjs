@@ -1,4 +1,5 @@
 /*
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.0-or-later AND MIT
 SPDX-FileCopyrightText: 2007-2010 Johan Dahlin
 SPDX-FileCopyrightText: 2008-2010 Colin Walters <walters@verbum.org>
 SPDX-FileCopyrightText: 2008-2009, 2011-2012 Dan Winship
@@ -50,6 +51,8 @@ SPDX-FileCopyrightText: 2024 Simon McVittie
 #define REGRESS_FOO_TYPE_OBJECT (regress_foo_object_get_type ())
 #define REGRESS_FOO_OBJECT(object) (G_TYPE_CHECK_INSTANCE_CAST ((object), REGRESS_FOO_TYPE_OBJECT, RegressFooObject))
 #define REGRESS_FOO_IS_OBJECT(object) (G_TYPE_CHECK_INSTANCE_TYPE ((object), REGRESS_FOO_TYPE_OBJECT))
+#define REGRESS_FOO_IS_OBJECT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), REGRESS_FOO_TYPE_OBJECT))
+#define REGRESS_FOO_OBJECT_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS ((obj), REGRESS_FOO_TYPE_OBJECT, RegressFooObjectClass))
 
 #define REGRESS_FOO_TYPE_SUBOBJECT (regress_foo_subobject_get_type ())
 #define REGRESS_FOO_SUBOBJECT(subobject) (G_TYPE_CHECK_INSTANCE_CAST ((subobject), REGRESS_FOO_TYPE_SUBOBJECT, RegressFooSubobject))
@@ -142,6 +145,12 @@ GI_TEST_EXTERN
 gint regress_foo_init (void);
 
 GI_TEST_EXTERN
+int regress_foo_init_argv (int argc, char **argv);
+
+GI_TEST_EXTERN
+int regress_foo_init_argv_address (int *argc, char ***argv);
+
+GI_TEST_EXTERN
 GType regress_foo_object_get_type (void) G_GNUC_CONST;
 
 GI_TEST_EXTERN
@@ -205,9 +214,6 @@ GI_TEST_EXTERN
 GType regress_foo_subobject_get_type (void) G_GNUC_CONST;
 
 GI_TEST_EXTERN
-RegressFooSubobject *regress_foo_subobject_new (void);
-
-GI_TEST_EXTERN
 RegressFooObject *regress_foo_object_get_default (void);
 
 GI_TEST_EXTERN
@@ -231,6 +237,9 @@ typedef enum
 
 GI_TEST_EXTERN
 GType regress_foo_enum_type_get_type (void);
+
+GI_TEST_EXTERN
+int regress_foo_enum_method (RegressFooEnumType regress_foo_enum);
 
 GI_TEST_EXTERN
 int regress_foo_enum_type_method (RegressFooEnumType regress_foo_enum);
@@ -436,7 +445,7 @@ GI_TEST_EXTERN
 int regress_foo_bunion_get_contained_type (RegressFooBUnion *bunion);
 
 GI_TEST_EXTERN
-void regress_foo_test_unsigned_qualifier (unsigned int unsigned_param);
+void regress_foo_test_unsigned (unsigned int unsigned_param);
 
 GI_TEST_EXTERN
 void regress_foo_test_unsigned_type (unsigned unsigned_param);

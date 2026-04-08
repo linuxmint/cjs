@@ -1,24 +1,17 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2008 litl, LLC
 
-const {Gio, CjsTestTools, GLib} = imports.gi;
-
-// Adapter for compatibility with pre-GLib-2.80
-let GioUnix;
-if (imports.gi.versions.GioUnix === '2.0') {
-    GioUnix = imports.gi.GioUnix;
-} else {
-    GioUnix = {
-        InputStream: Gio.UnixInputStream,
-    };
-}
+import Gio from 'gi://Gio';
+import GjsTestTools from 'gi://GjsTestTools';
+import GLib from 'gi://GLib';
+import GioUnix from 'gi://GioUnix';
 
 /* The methods list with their signatures.
  *
  * *** NOTE: If you add stuff here, you need to update the Test class below.
  */
 var TestIface = `<node>
-<interface name="org.cinnamon.cjs.Test">
+<interface name="org.gnome.gjs.Test">
 <method name="nonJsonFrobateStuff">
     <arg type="i" direction="in"/>
     <arg type="s" direction="out"/>
@@ -30,6 +23,24 @@ var TestIface = `<node>
 <method name="alwaysThrowException">
     <arg type="a{sv}" direction="in"/>
     <arg type="a{sv}" direction="out"/>
+</method>
+<method name="synchronouslyAlwaysThrowException">
+    <arg type="a{sv}" direction="in"/>
+    <arg type="a{sv}" direction="out"/>
+</method>
+<method name="asynchronouslyAlwaysThrowExceptionSync">
+    <arg type="a{sv}" direction="in"/>
+    <arg type="a{sv}" direction="out"/>
+</method>
+<method name="asynchronouslyAlwaysThrowException">
+    <arg type="a{sv}" direction="in"/>
+    <arg type="a{sv}" direction="out"/>
+</method>
+<method name="returnThenThrowException">
+    <arg type="s" direction="out"/>
+</method>
+<method name="returnThenThrowExceptionSync">
+    <arg type="s" direction="out"/>
 </method>
 <method name="thisDoesNotExist"/>
 <method name="noInParameter">
@@ -81,6 +92,12 @@ var TestIface = `<node>
     <arg type="s" direction="out"/>
     <arg type="i" direction="out"/>
 </method>
+<method name="asynchronouslyEchoSync">
+    <arg type="s" direction="in"/>
+    <arg type="i" direction="in"/>
+    <arg type="s" direction="out"/>
+    <arg type="i" direction="out"/>
+</method>
 <method name="structArray">
     <arg type="a(ii)" direction="out"/>
 </method>
@@ -114,7 +131,7 @@ const PROP_READ_ONLY_INITIAL_VALUE = Math.random();
 const PROP_READ_WRITE_INITIAL_VALUE = 58;
 const PROP_WRITE_ONLY_INITIAL_VALUE = 'Initial value';
 
-/* Test is the actual object exporting the dbus methods */
+// Test is the actual object exporting the dbus methods
 class Test {
     constructor() {
         this._propReadOnly = PROP_READ_ONLY_INITIAL_VALUE;
@@ -122,7 +139,7 @@ class Test {
         this._propReadWrite = PROP_READ_WRITE_INITIAL_VALUE;
 
         this._impl = Gio.DBusExportedObject.wrapJSObject(TestIface, this);
-        this._impl.export(Gio.DBus.session, '/org/cinnamon/cjs/Test');
+        this._impl.export(Gio.DBus.session, '/org/gnome/gjs/Test');
     }
 
     frobateStuff() {
@@ -140,8 +157,41 @@ class Test {
         throw Error('Exception!');
     }
 
+    synchronouslyAlwaysThrowExceptionAsync() {
+        throw Error('Exception!');
+    }
+
+    async asynchronouslyAlwaysThrowExceptionSync() {
+        await this.asynchronouslyAlwaysThrowExceptionAsync();
+    }
+
+    async asynchronouslyAlwaysThrowExceptionAsync() {
+        await (() => new Promise(() => {
+            throw Error('Async Exception!');
+        }))();
+    }
+
+    returnThenThrowExceptionSyncAsync(_parameters, invocation) {
+        invocation.return_value(new GLib.Variant('(s)', ['I\'m going to fail soon!']));
+
+        // These should be a no-op!
+        invocation.return_value(new GLib.Variant('(s)', ['And returning again..!']));
+        invocation.return_error_literal(Gio.DBusError, Gio.DBusError.NOT_SUPPORTED,
+            'Calling multiple times should not be supported');
+
+        // And let's throw on JS side only.
+        throw Error('Oh no!');
+    }
+
+    async returnThenThrowExceptionAsync(_parameters, invocation) {
+        invocation.return_value(new GLib.Variant('(s)', ['I\'m going to fail soon!']));
+        await (() => new Promise(() => {
+            throw Error('Oh no!');
+        }))();
+    }
+
     thisDoesNotExist() {
-        /* We'll remove this later! */
+        // We'll remove this later!
     }
 
     noInParameter() {
@@ -161,12 +211,12 @@ class Test {
     }
 
     noReturnValue() {
-        /* Empty! */
+        // Empty!
     }
 
-    /* The following two functions have identical return values
-     * in JS, but the bus message will be different.
-     * multipleOutValues is "sss", while oneArrayOut is "as"
+    /* The following two functions have identical return values in JS, but the
+     * bus message will be different. multipleOutValues() is "sss", while
+     * oneArrayOut() is "as"
      */
     multipleOutValues() {
         return ['Hello', 'World', '!'];
@@ -176,8 +226,8 @@ class Test {
         return ['Hello', 'World', '!'];
     }
 
-    /* Same thing again. In this case multipleArrayOut is "asas",
-     * while arrayOfArrayOut is "aas".
+    /* Same thing again. In this case multipleArrayOut() is "asas", while
+     * arrayOfArrayOut() is "aas".
      */
     multipleArrayOut() {
         return [['Hello', 'World'], ['World', 'Hello']];
@@ -203,14 +253,23 @@ class Test {
         return dict;
     }
 
-    /* This one is implemented asynchronously. Returns
-     * the input arguments */
+    // This one is implemented asynchronously. Returns the input arguments
     echoAsync(parameters, invocation) {
         var [someString, someInt] = parameters;
         GLib.idle_add(GLib.PRIORITY_DEFAULT, function () {
             invocation.return_value(new GLib.Variant('(si)', [someString, someInt]));
             return false;
         });
+    }
+
+    async asynchronouslyEchoSync(someString, someInt) {
+        const ret = await new Promise(resolve => {
+            GLib.idle_add(GLib.PRIORITY_LOW, () => {
+                resolve([someString, someInt]);
+                return GLib.SOURCE_REMOVE;
+            });
+        });
+        return ret;
     }
 
     // double
@@ -260,14 +319,14 @@ class Test {
     }
 
     fdOut(bytes) {
-        const fd = CjsTestTools.open_bytes(bytes);
+        const fd = GjsTestTools.open_bytes(bytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         return [0, fdList];
     }
 
     fdOut2Async([bytes], invocation) {
         GLib.idle_add(GLib.PRIORITY_DEFAULT, function () {
-            const fd = CjsTestTools.open_bytes(bytes);
+            const fd = GjsTestTools.open_bytes(bytes);
             const fdList = Gio.UnixFDList.new_from_array([fd]);
             invocation.return_value_with_unix_fd_list(new GLib.Variant('(h)', [0]),
                 fdList);
@@ -306,7 +365,7 @@ describe('Exported DBus object', function () {
         loop = new GLib.MainLoop(null, false);
 
         test = new Test();
-        ownNameID = Gio.DBus.session.own_name('org.cinnamon.cjs.Test',
+        ownNameID = Gio.DBus.session.own_name('org.gnome.gjs.Test',
             Gio.BusNameOwnerFlags.NONE,
             name => {
                 log(`Acquired name ${name}`);
@@ -316,8 +375,8 @@ describe('Exported DBus object', function () {
                 log(`Lost name ${name}`);
             });
         loop.run();
-        new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test',
+        new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test',
             (obj, error) => {
                 expect(error).toBeNull();
                 proxy = obj;
@@ -354,7 +413,7 @@ describe('Exported DBus object', function () {
 
     it('can initiate a proxy with promise and call a method with async/await', async function () {
         const asyncProxy = await ProxyClass.newAsync(Gio.DBus.session,
-            'org.cinnamon.cjs.Test', '/org/cinnamon/cjs/Test');
+            'org.gnome.gjs.Test', '/org/gnome/gjs/Test');
         expect(asyncProxy).toBeInstanceOf(Gio.DBusProxy);
         const [{hello}] = await asyncProxy.frobateStuffAsync({});
         expect(hello.deepUnpack()).toEqual('world');
@@ -367,8 +426,8 @@ describe('Exported DBus object', function () {
         Gio.DBusProxy.new_for_bus(Gio.BusType.SESSION,
             Gio.DBusProxyFlags.DO_NOT_AUTO_START,
             iface,
-            'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test',
+            'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test',
             iface.name,
             null,
             (o, res) => {
@@ -385,10 +444,9 @@ describe('Exported DBus object', function () {
         loop.run();
     });
 
-    /* excp must be exactly the exception thrown by the remote method
-       (more or less) */
+    // excp must be the exception thrown by the remote method (more or less)
     it('can handle an exception thrown by a remote method', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         proxy.alwaysThrowExceptionRemote({}, function (result, excp) {
@@ -399,14 +457,120 @@ describe('Exported DBus object', function () {
     });
 
     it('can handle an exception thrown by a method with async/await', async function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         await expectAsync(proxy.alwaysThrowExceptionAsync({})).toBeRejected();
     });
 
+    it('can handle an exception thrown by an async remote method that is implemented synchronously', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: asynchronouslyAlwaysThrowExceptionSync: *Async Exception!*');
+
+        proxy.asynchronouslyAlwaysThrowExceptionSyncRemote({}, function (_, e) {
+            expect(e).not.toBeNull();
+            expect(e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.DBUS_ERROR)).toBeTrue();
+            expect(e.message.includes('asynchronouslyAlwaysThrowExceptionSync'));
+            loop.quit();
+        });
+        loop.run();
+    });
+
+    it('can handle an exception thrown by an async method that is implemented synchronously with async/await', async function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: asynchronouslyAlwaysThrowExceptionSync: *Async Exception!*');
+
+        await expectAsync(proxy.asynchronouslyAlwaysThrowExceptionSyncAsync({})).toBeRejected();
+    });
+
+    it('can handle an exception thrown by a sync remote method that is implemented asynchronously', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: synchronouslyAlwaysThrowException: *');
+
+        proxy.synchronouslyAlwaysThrowExceptionRemote({}, function (result, excp) {
+            expect(excp).not.toBeNull();
+            loop.quit();
+        });
+        loop.run();
+    });
+
+    it('can handle an exception thrown by a sync method that is implemented asynchronously with async/await', async function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: synchronouslyAlwaysThrowException: *');
+
+        await expectAsync(proxy.synchronouslyAlwaysThrowExceptionAsync({})).toBeRejected();
+    });
+
+    it('can handle an exception thrown by an async remote method that is implemented asynchronously', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: asynchronouslyAlwaysThrowException: *Async Exception!*');
+
+        proxy.asynchronouslyAlwaysThrowExceptionRemote({}, function (_, e) {
+            expect(e).not.toBeNull();
+            expect(e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.DBUS_ERROR)).toBeTrue();
+            expect(e.message.includes('asynchronouslyAlwaysThrowException'));
+            loop.quit();
+        });
+        loop.run();
+    });
+
+    it('can handle an exception thrown by an async method that is implemented asynchronously with async/await', async function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: asynchronouslyAlwaysThrowException: *Async Exception!*');
+
+        await expectAsync(proxy.asynchronouslyAlwaysThrowExceptionAsync({})).toBeRejected();
+    });
+
+    it('can handle an exception thrown by a sync remote method that is implemented asynchronously if invocation is already consumed', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: [object *] (returnThenThrowExceptionSync) already returned*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: [object *] (returnThenThrowExceptionSync) already returned*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: returnThenThrowExceptionSync: *Oh no!*');
+
+        proxy.returnThenThrowExceptionSyncRemote(function ([result], e) {
+            expect(e).toBeNull();
+            expect(result).toBe('I\'m going to fail soon!');
+            loop.quit();
+        });
+        loop.run();
+    });
+
+    it('can handle an exception thrown by an sync method that is implemented asynchronously with async/await if invocation is already consumed', async function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: [object *] (returnThenThrowExceptionSync) already returned*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: [object *] (returnThenThrowExceptionSync) already returned*');
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: returnThenThrowExceptionSync: *Oh no!*');
+
+        const [result] = await proxy.returnThenThrowExceptionSyncAsync();
+        expect(result).toBe('I\'m going to fail soon!');
+    });
+
+    it('can handle an exception thrown by an async remote method that is implemented asynchronously if invocation is already consumed', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: returnThenThrowException: *Oh no!*');
+
+        proxy.returnThenThrowExceptionRemote(function ([result], e) {
+            expect(e).toBeNull();
+            expect(result).toBe('I\'m going to fail soon!');
+            loop.quit();
+        });
+        loop.run();
+    });
+
+    it('can handle an exception thrown by an async method that is implemented asynchronously with async/await if invocation is already consumed', async function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: returnThenThrowException: *Oh no!*');
+
+        const [result] = await proxy.returnThenThrowExceptionAsync();
+        expect(result).toBe('I\'m going to fail soon!');
+    });
+
     it('can still destructure the return value when an exception is thrown', function () {
-        GLib.test_expect_message('Cjs', GLib.LogLevelFlags.LEVEL_WARNING,
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
             'JS ERROR: Exception in method call: alwaysThrowException: *');
 
         // This test will not fail, but instead if the functionality is not
@@ -425,8 +589,11 @@ describe('Exported DBus object', function () {
     });
 
     it('throws an exception when trying to call a method that does not exist', function () {
-        /* First remove the method from the object! */
+        // First remove the method from the object!
         delete Test.prototype.thisDoesNotExist;
+
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Missing handler for DBus method thisDoesNotExist: *');
 
         proxy.thisDoesNotExistRemote(function (result, excp) {
             expect(excp).not.toBeNull();
@@ -437,6 +604,10 @@ describe('Exported DBus object', function () {
 
     it('throws an exception when trying to call an async method that does not exist', async function () {
         delete Test.prototype.thisDoesNotExist;
+
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Missing handler for DBus method thisDoesNotExist: *');
+
         await expectAsync(proxy.thisDoesNotExistAsync()).toBeRejected();
     });
 
@@ -585,6 +756,10 @@ describe('Exported DBus object', function () {
     });
 
     it('handles a bad signature by throwing an exception', function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: arrayOutBadSig: ' +
+            'TypeError: can\'t convert symbol to number*');
+
         proxy.arrayOutBadSigRemote(function (result, excp) {
             expect(excp).not.toBeNull();
             loop.quit();
@@ -593,6 +768,10 @@ describe('Exported DBus object', function () {
     });
 
     it('handles a bad signature in async/await by rejecting the promise', async function () {
+        GLib.test_expect_message('Gjs', GLib.LogLevelFlags.LEVEL_WARNING,
+            'JS ERROR: Exception in method call: arrayOutBadSig: ' +
+            'TypeError: can\'t convert symbol to number*');
+
         await expectAsync(proxy.arrayOutBadSigAsync()).toBeRejected();
     });
 
@@ -614,6 +793,27 @@ describe('Exported DBus object', function () {
         const someInt = 42;
 
         const results = await proxy.echoAsync(someString, someInt);
+        expect(results).toEqual([someString, someInt]);
+    });
+
+    it('can call a remote async method that is implemented synchronously', function () {
+        let someString = 'Hello world!';
+        let someInt = 42;
+
+        proxy.asynchronouslyEchoSyncRemote(someString, someInt,
+            function (result, excp) {
+                expect(excp).toBeNull();
+                expect(result).toEqual([someString, someInt]);
+                loop.quit();
+            });
+        loop.run();
+    });
+
+    it('can call an async/await async method that is implemented synchronously', async function () {
+        const someString = 'Hello world!';
+        const someInt = 42;
+
+        const results = await proxy.asynchronouslyEchoSyncAsync(someString, someInt);
         expect(results).toEqual([someString, someInt]);
     });
 
@@ -693,7 +893,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call a remote method with a Unix FD', function (done) {
-        const fd = CjsTestTools.open_bytes(expectedBytes);
+        const fd = GjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         proxy.fdInRemote(0, fdList, ([bytes], exc, outFdList) => {
             expect(exc).toBeNull();
@@ -704,7 +904,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an async/await method with a Unix FD', async function () {
-        const fd = CjsTestTools.open_bytes(expectedBytes);
+        const fd = GjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         const [bytes, outFdList] = await proxy.fdInAsync(0, fdList);
         expect(outFdList).not.toBeDefined();
@@ -712,7 +912,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an asynchronously implemented remote method with a Unix FD', function (done) {
-        const fd = CjsTestTools.open_bytes(expectedBytes);
+        const fd = GjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         proxy.fdIn2Remote(0, fdList, ([bytes], exc, outFdList) => {
             expect(exc).toBeNull();
@@ -723,7 +923,7 @@ describe('Exported DBus object', function () {
     });
 
     it('can call an asynchronously implemented async/await method with a Unix FD', async function () {
-        const fd = CjsTestTools.open_bytes(expectedBytes);
+        const fd = GjsTestTools.open_bytes(expectedBytes);
         const fdList = Gio.UnixFDList.new_from_array([fd]);
         const [bytes, outFdList] = await proxy.fdIn2Async(0, fdList);
         expect(outFdList).not.toBeDefined();
@@ -887,11 +1087,15 @@ describe('DBus Proxy wrapper', function () {
         writerFunc.calls.reset();
     });
 
+    afterAll(function () {
+        GLib.log_set_writer_default();
+    });
+
     it('init failures are reported in sync mode', function () {
         const cancellable = new Gio.Cancellable();
         cancellable.cancel();
-        expect(() => new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test',
+        expect(() => new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test',
             Gio.DBusProxyFlags.NONE,
             cancellable)).toThrow();
     });
@@ -902,8 +1106,8 @@ describe('DBus Proxy wrapper', function () {
         const initDoneSpy = jasmine.createSpy(
             'init finish func', () => loop.quit());
         initDoneSpy.and.callThrough();
-        new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test',
+        new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test',
             initDoneSpy, cancellable, Gio.DBusProxyFlags.NONE);
         loop.run();
 
@@ -915,8 +1119,8 @@ describe('DBus Proxy wrapper', function () {
     });
 
     it('can init a proxy asynchronously when promisified', function () {
-        new ProxyClass(Gio.DBus.session, 'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test',
+        new ProxyClass(Gio.DBus.session, 'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test',
             () => loop.quit(),
             Gio.DBusProxyFlags.NONE);
         loop.run();
@@ -925,16 +1129,16 @@ describe('DBus Proxy wrapper', function () {
     });
 
     it('can create a proxy from a promise', async function () {
-        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test');
+        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test');
         await expectAsync(proxyPromise).toBeResolved();
     });
 
     it('can create fail a proxy from a promise', async function () {
         const cancellable = new Gio.Cancellable();
         cancellable.cancel();
-        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.cinnamon.cjs.Test',
-            '/org/cinnamon/cjs/Test', cancellable);
+        const proxyPromise = ProxyClass.newAsync(Gio.DBus.session, 'org.gnome.gjs.Test',
+            '/org/gnome/gjs/Test', cancellable);
         await expectAsync(proxyPromise).toBeRejected();
     });
 

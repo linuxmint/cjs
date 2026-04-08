@@ -34,15 +34,16 @@
 #include <mozilla/CheckedInt.h>
 #include <mozilla/Span.h>
 
+#include "cjs/auto.h"
+#include "cjs/gerror-result.h"
 #include "cjs/jsapi-util.h"
 #include "cjs/macros.h"
-#include "util/misc.h"  // for _gjs_memdup2
 
 class JSLinearString;
 
-GjsAutoChar gjs_hyphen_to_underscore(const char* str) {
-    char *s = g_strdup(str);
-    char *retval = s;
+Gjs::AutoChar gjs_hyphen_to_underscore(const char* str) {
+    char* s = g_strdup(str);
+    char* retval = s;
     while (*(s++) != '\0') {
         if (*s == '-')
             *s = '_';
@@ -50,8 +51,8 @@ GjsAutoChar gjs_hyphen_to_underscore(const char* str) {
     return retval;
 }
 
-GjsAutoChar gjs_hyphen_to_camel(const char* str) {
-    GjsAutoChar retval = static_cast<char*>(g_malloc(strlen(str) + 1));
+Gjs::AutoChar gjs_hyphen_to_camel(const char* str) {
+    Gjs::AutoChar retval{static_cast<char*>(g_malloc(strlen(str) + 1))};
     const char* input_iter = str;
     char* output_iter = retval.get();
     bool uppercase_next = false;
@@ -96,21 +97,23 @@ JS::UniqueChars gjs_string_to_utf8(JSContext* cx, const JS::Value value) {
 
 /**
  * gjs_string_to_utf8_n:
- * @param cx: the current #JSContext
- * @param str: a handle to a JSString
- * @param output a pointer to a JS::UniqueChars
- * @param output_len a pointer for the length of output
+ * @cx: the current #JSContext
+ * @str: string to encode in UTF-8
+ * @output: (out): return location for the UTF-8-encoded string
+ * @output_len: (out): return location for the length of @output
  *
- * @brief Converts a JSString to UTF-8 and puts the char array in #output and
- * its length in #output_len.
+ * Converts a JSString to UTF-8 and puts the char array in @output and its
+ * length in @output_len.
  *
- * This function handles the boilerblate for unpacking a JSString, determining its
- * length, and returning the appropriate JS::UniqueChars. This function should generally
- * be preferred over using JS::DeflateStringToUTF8Buffer directly as it correctly
- * handles allocation in a JS_Free compatible manner.
+ * This function handles the boilerplate for unpacking @str, determining its
+ * length, and returning the appropriate JS::UniqueChars. This function should
+ * generally be preferred over using JS::DeflateStringToUTF8Buffer() directly as
+ * it correctly handles allocation in a JS_free compatible manner.
+ *
+ * Returns: false if an exception is pending, otherwise true.
  */
-bool gjs_string_to_utf8_n(JSContext* cx, JS::HandleString str, JS::UniqueChars* output,
-                          size_t* output_len) {
+bool gjs_string_to_utf8_n(JSContext* cx, JS::HandleString str,
+                          JS::UniqueChars* output, size_t* output_len) {
     JSLinearString* linear = JS_EnsureLinearString(cx, str);
     if (!linear)
         return false;
@@ -134,17 +137,16 @@ bool gjs_string_to_utf8_n(JSContext* cx, JS::HandleString str, JS::UniqueChars* 
 
 /**
  * gjs_lossy_string_from_utf8:
+ * @cx: the current #JSContext
+ * @utf8_string: a zero-terminated array of UTF-8 characters to decode
  *
- * @brief Converts an array of UTF-8 characters to a JS string.
- * Instead of throwing, any invalid characters will be converted
- * to the UTF-8 invalid character fallback.
+ * Converts @utf8_string to a JS string. Instead of throwing, any invalid
+ * characters will be converted to the UTF-8 invalid character fallback.
  *
- * @param cx the current #JSContext
- * @param utf8_string an array of UTF-8 characters
- * @param value_p a value to store the resulting string in
+ * Returns: The decoded string.
  */
 JSString* gjs_lossy_string_from_utf8(JSContext* cx, const char* utf8_string) {
-    JS::ConstUTF8CharsZ chars(utf8_string, strlen(utf8_string));
+    JS::UTF8Chars chars{utf8_string, strlen(utf8_string)};
     size_t outlen;
     JS::UniqueTwoByteChars twobyte_chars(
         JS::LossyUTF8CharsToNewTwoByteCharsZ(cx, chars, &outlen,
@@ -158,9 +160,14 @@ JSString* gjs_lossy_string_from_utf8(JSContext* cx, const char* utf8_string) {
 
 /**
  * gjs_lossy_string_from_utf8_n:
+ * @cx: the current #JSContext
+ * @utf8_string: an array of UTF-8 characters to decode
+ * @len: length of @utf8_string
  *
- * @brief Provides the same conversion behavior as gjs_lossy_string_from_utf8
- * with a fixed length. See gjs_lossy_string_from_utf8()
+ * Provides the same conversion behavior as gjs_lossy_string_from_utf8
+ * with a fixed length. See gjs_lossy_string_from_utf8().
+ *
+ * Returns: The decoded string.
  */
 JSString* gjs_lossy_string_from_utf8_n(JSContext* cx, const char* utf8_string,
                                        size_t len) {
@@ -176,13 +183,10 @@ JSString* gjs_lossy_string_from_utf8_n(JSContext* cx, const char* utf8_string,
     return JS_NewUCStringCopyN(cx, twobyte_chars.get(), outlen);
 }
 
-bool
-gjs_string_from_utf8(JSContext             *context,
-                     const char            *utf8_string,
-                     JS::MutableHandleValue value_p)
-{
+bool gjs_string_from_utf8(JSContext* cx, const char* utf8_string,
+                          JS::MutableHandleValue value_p) {
     JS::ConstUTF8CharsZ chars(utf8_string, strlen(utf8_string));
-    JS::RootedString str(context, JS_NewStringCopyUTF8Z(context, chars));
+    JS::RootedString str{cx, JS_NewStringCopyUTF8Z(cx, chars)};
     if (!str)
         return false;
 
@@ -190,12 +194,8 @@ gjs_string_from_utf8(JSContext             *context,
     return true;
 }
 
-bool
-gjs_string_from_utf8_n(JSContext             *cx,
-                       const char            *utf8_chars,
-                       size_t                 len,
-                       JS::MutableHandleValue out)
-{
+bool gjs_string_from_utf8_n(JSContext* cx, const char* utf8_chars, size_t len,
+                            JS::MutableHandleValue out) {
     JS::UTF8Chars chars(utf8_chars, len);
     JS::RootedString str(cx, JS_NewStringCopyUTF8N(cx, chars));
     if (str)
@@ -204,79 +204,72 @@ gjs_string_from_utf8_n(JSContext             *cx,
     return !!str;
 }
 
-bool
-gjs_string_to_filename(JSContext      *context,
-                       const JS::Value filename_val,
-                       GjsAutoChar    *filename_string)
-{
-    GjsAutoError error;
-
-    /* gjs_string_to_filename verifies that filename_val is a string */
-
-    JS::UniqueChars tmp = gjs_string_to_utf8(context, filename_val);
+bool gjs_string_to_filename(JSContext* cx, const JS::Value filename_val,
+                            Gjs::AutoChar* filename_string) {
+    // gjs_string_to_utf8() verifies that filename_val is a string
+    JS::UniqueChars tmp{gjs_string_to_utf8(cx, filename_val)};
     if (!tmp)
         return false;
 
-    error = NULL;
+    Gjs::AutoError error;
     *filename_string =
         g_filename_from_utf8(tmp.get(), -1, nullptr, nullptr, &error);
     if (!*filename_string)
-        return gjs_throw_gerror_message(context, error);
+        return gjs_throw_gerror_message(cx, error);
 
     return true;
 }
 
-bool
-gjs_string_from_filename(JSContext             *context,
-                         const char            *filename_string,
-                         ssize_t                n_bytes,
-                         JS::MutableHandleValue value_p)
-{
-    gsize written;
-    GjsAutoError error;
+bool gjs_string_from_filename(JSContext* cx, const char* filename_string,
+                              ssize_t n_bytes, JS::MutableHandleValue value_p) {
+    gsize written;  // Do not use size_t, may be different width
+    Gjs::AutoError error;
 
-    error = NULL;
-    GjsAutoChar utf8_string = g_filename_to_utf8(filename_string, n_bytes,
-                                                 nullptr, &written, &error);
+    Gjs::AutoChar utf8_string{g_filename_to_utf8(filename_string, n_bytes,
+                                                 nullptr, &written, &error)};
     if (error) {
-        gjs_throw(context,
-                  "Could not convert UTF-8 string '%s' to a filename: '%s'",
-                  filename_string, error->message);
+        Gjs::AutoChar escaped_char{g_strescape(filename_string, nullptr)};
+        gjs_throw(
+            cx,
+            "Could not convert filename string to UTF-8 for string: %s. If "
+            "string is invalid UTF-8 and used for display purposes, try GLib "
+            "attribute standard::display-name. The reason is: %s. ",
+            escaped_char.get(), error->message);
         return false;
     }
 
-    return gjs_string_from_utf8_n(context, utf8_string, written, value_p);
+    return gjs_string_from_utf8_n(cx, utf8_string, written, value_p);
 }
 
 /* Converts a JSString's array of Latin-1 chars to an array of a wider integer
  * type, by what the compiler believes is the most efficient method possible */
 template <typename T>
-GJS_JSAPI_RETURN_CONVENTION static bool from_latin1(JSContext* cx,
-                                                    JSString* str, T** data_p,
-                                                    size_t* len_p) {
+GJS_JSAPI_RETURN_CONVENTION
+static bool from_latin1(JSContext* cx, JSString* str, T** data_p,
+                        size_t* len_p) {
     /* No garbage collection should be triggered while we are using the string's
      * chars. Crash if that happens. */
     JS::AutoCheckCannotGC nogc;
 
-    const JS::Latin1Char *js_data =
+    const JS::Latin1Char* js_data =
         JS_GetLatin1StringCharsAndLength(cx, nogc, str, len_p);
-    if (js_data == NULL)
+    if (js_data == nullptr)
         return false;
 
-    /* Unicode codepoints 0x00-0xFF are the same as Latin-1
-     * codepoints, so we can preserve the string length and simply
-     * copy the codepoints to an array of different-sized ints */
+    /* Unicode codepoints 0x00-0xFF are the same as Latin-1 codepoints, so we
+     * can preserve the string length and simply copy the codepoints to an array
+     * of different-sized ints */
 
     *data_p = g_new(T, *len_p);
 
-    /* This will probably use a loop, unfortunately */
+    // This will probably use a loop, unfortunately
     std::copy(js_data, js_data + *len_p, *data_p);
     return true;
 }
 
 /**
  * gjs_string_get_char16_data:
- * @context: js context
+ * @cx: js context
  * @str: a rooted JSString
  * @data_p: address to return allocated data buffer
  * @len_p: address to return length of data (number of 16-bit characters)
@@ -284,34 +277,30 @@ GJS_JSAPI_RETURN_CONVENTION static bool from_latin1(JSContext* cx,
  * Get the binary data (as a sequence of 16-bit characters) in @str.
  *
  * Returns: false if exception thrown
- **/
-bool
-gjs_string_get_char16_data(JSContext       *context,
-                           JS::HandleString str,
-                           char16_t       **data_p,
-                           size_t          *len_p)
-{
+ */
+bool gjs_string_get_char16_data(JSContext* cx, JS::HandleString str,
+                                char16_t** data_p, size_t* len_p) {
     if (JS::StringHasLatin1Chars(str))
-        return from_latin1(context, str, data_p, len_p);
+        return from_latin1(cx, str, data_p, len_p);
 
-    /* From this point on, crash if a GC is triggered while we are using
-     * the string's chars */
+    /* From this point on, crash if a GC is triggered while we are using the
+     * string's chars */
     JS::AutoCheckCannotGC nogc;
 
-    const char16_t *js_data =
-        JS_GetTwoByteStringCharsAndLength(context, nogc, str, len_p);
+    const char16_t* js_data =
+        JS_GetTwoByteStringCharsAndLength(cx, nogc, str, len_p);
 
-    if (js_data == NULL)
+    if (js_data == nullptr)
         return false;
 
     mozilla::CheckedInt<size_t> len_bytes =
         mozilla::CheckedInt<size_t>(*len_p) * sizeof(*js_data);
     if (!len_bytes.isValid()) {
-        JS_ReportOutOfMemory(context);  // cannot call gjs_throw, it may GC
+        JS_ReportOutOfMemory(cx);  // cannot call gjs_throw, it may GC
         return false;
     }
 
-    *data_p = static_cast<char16_t*>(_gjs_memdup2(js_data, len_bytes.value()));
+    *data_p = static_cast<char16_t*>(g_memdup2(js_data, len_bytes.value()));
 
     return true;
 }
@@ -325,44 +314,41 @@ gjs_string_get_char16_data(JSContext       *context,
  *
  * Returns: true on success, false otherwise in which case a JS error is thrown
  */
-bool
-gjs_string_to_ucs4(JSContext       *cx,
-                   JS::HandleString str,
-                   gunichar       **ucs4_string_p,
-                   size_t          *len_p)
-{
-    if (ucs4_string_p == NULL)
+bool gjs_string_to_ucs4(JSContext* cx, JS::HandleString str,
+                        gunichar** ucs4_string_p, size_t* len_p) {
+    if (ucs4_string_p == nullptr)
         return true;
 
     size_t len;
-    GjsAutoError error;
+    Gjs::AutoError error;
 
     if (JS::StringHasLatin1Chars(str))
         return from_latin1(cx, str, ucs4_string_p, len_p);
 
-    /* From this point on, crash if a GC is triggered while we are using
-     * the string's chars */
+    /* From this point on, crash if a GC is triggered while we are using the
+     * string's chars */
     JS::AutoCheckCannotGC nogc;
 
-    const char16_t *utf16 =
+    const char16_t* utf16 =
         JS_GetTwoByteStringCharsAndLength(cx, nogc, str, &len);
 
-    if (utf16 == NULL) {
+    if (utf16 == nullptr) {
         gjs_throw(cx, "Failed to get UTF-16 string data");
         return false;
     }
 
-    if (ucs4_string_p != NULL) {
+    if (ucs4_string_p != nullptr) {
         long length;
-        *ucs4_string_p = g_utf16_to_ucs4(reinterpret_cast<const gunichar2 *>(utf16),
-                                         len, NULL, &length, &error);
-        if (*ucs4_string_p == NULL) {
+        *ucs4_string_p =
+            g_utf16_to_ucs4(reinterpret_cast<const gunichar2*>(utf16), len,
+                            nullptr, &length, &error);
+        if (*ucs4_string_p == nullptr) {
             gjs_throw(cx, "Failed to convert UTF-16 string to UCS-4: %s",
                       error->message);
             return false;
         }
-        if (len_p != NULL)
-            *len_p = (size_t) length;
+        if (len_p != nullptr)
+            *len_p = static_cast<size_t>(length);
     }
 
     return true;
@@ -377,12 +363,8 @@ gjs_string_to_ucs4(JSContext       *cx,
  *
  * Returns: true on success, false otherwise in which case a JS error is thrown
  */
-bool
-gjs_string_from_ucs4(JSContext             *cx,
-                     const gunichar        *ucs4_string,
-                     ssize_t                n_chars,
-                     JS::MutableHandleValue value_p)
-{
+bool gjs_string_from_ucs4(JSContext* cx, const gunichar* ucs4_string,
+                          ssize_t n_chars, JS::MutableHandleValue value_p) {
     // a null array pointer takes precedence over whatever `n_chars` says
     if (!ucs4_string) {
         value_p.setString(JS_GetEmptyString(cx));
@@ -390,7 +372,7 @@ gjs_string_from_ucs4(JSContext             *cx,
     }
 
     long u16_string_length;
-    GjsAutoError error;
+    Gjs::AutoError error;
 
     gunichar2* u16_string = g_ucs4_to_utf16(ucs4_string, n_chars, nullptr,
                                             &u16_string_length, &error);
@@ -427,7 +409,7 @@ gjs_string_from_ucs4(JSContext             *cx,
  * Otherwise, return true and fill in *name_p with ASCII name of id.
  *
  * Returns: false on error, otherwise true
- **/
+ */
 bool gjs_get_string_id(JSContext* cx, jsid id, JS::UniqueChars* name_p) {
     if (!id.isString()) {
         name_p->reset();
@@ -452,12 +434,8 @@ bool gjs_get_string_id(JSContext* cx, jsid id, JS::UniqueChars* name_p) {
  * If @string is empty, @result will be 0.  An exception will
  * be thrown if @string can not be represented as UTF-8.
  */
-bool
-gjs_unichar_from_string (JSContext *context,
-                         JS::Value  value,
-                         gunichar  *result)
-{
-    JS::UniqueChars utf8_str = gjs_string_to_utf8(context, value);
+bool gjs_unichar_from_string(JSContext* cx, JS::Value value, gunichar* result) {
+    JS::UniqueChars utf8_str{gjs_string_to_utf8(cx, value)};
     if (utf8_str) {
         *result = g_utf8_get_char(utf8_str.get());
         return true;
@@ -465,10 +443,7 @@ gjs_unichar_from_string (JSContext *context,
     return false;
 }
 
-jsid
-gjs_intern_string_to_id(JSContext  *cx,
-                        const char *string)
-{
+jsid gjs_intern_string_to_id(JSContext* cx, const char* string) {
     JS::RootedString str(cx, JS_AtomizeAndPinString(cx, string));
     if (!str)
         return JS::PropertyKey::Void();
@@ -487,13 +462,13 @@ std::string gjs_debug_bigint(JS::BigInt* bi) {
     return out.str();
 }
 
-enum Quotes {
+enum Quotes : uint8_t {
     DoubleQuotes,
     NoQuotes,
 };
 
-[[nodiscard]] static std::string gjs_debug_linear_string(JSLinearString* str,
-                                                         Quotes quotes) {
+[[nodiscard]]
+static std::string gjs_debug_linear_string(JSLinearString* str, Quotes quotes) {
     size_t len = JS::GetLinearStringLength(str);
 
     std::ostringstream out;
@@ -528,9 +503,7 @@ enum Quotes {
     return out.str();
 }
 
-std::string
-gjs_debug_string(JSString *str)
-{
+std::string gjs_debug_string(JSString* str) {
     if (!str)
         return "<null string>";
     if (!JS_StringIsLinear(str)) {
@@ -543,9 +516,7 @@ gjs_debug_string(JSString *str)
                                    DoubleQuotes);
 }
 
-std::string
-gjs_debug_symbol(JS::Symbol * const sym)
-{
+std::string gjs_debug_symbol(JS::Symbol* const sym) {
     if (!sym)
         return "<null symbol>";
 
@@ -553,7 +524,7 @@ gjs_debug_symbol(JS::Symbol * const sym)
      * can't cause a garbage collection */
     JS::HandleSymbol handle = JS::HandleSymbol::fromMarkedLocation(&sym);
     JS::SymbolCode code = JS::GetSymbolCode(handle);
-    JSString *descr = JS::GetSymbolDescription(handle);
+    JSString* descr = JS::GetSymbolDescription(handle);
 
     if (size_t(code) < JS::WellKnownSymbolLimit)
         return gjs_debug_string(descr);
@@ -580,9 +551,7 @@ gjs_debug_symbol(JS::Symbol * const sym)
     return out.str();
 }
 
-std::string
-gjs_debug_object(JSObject * const obj)
-{
+std::string gjs_debug_object(JSObject* const obj) {
     if (!obj)
         return "<null object>";
 
@@ -631,9 +600,7 @@ std::string gjs_debug_callable(JSObject* callable) {
     return {"callable object " + gjs_debug_object(callable)};
 }
 
-std::string
-gjs_debug_value(JS::Value v)
-{
+std::string gjs_debug_value(JS::Value v) {
     if (v.isNull())
         return "null";
     if (v.isUndefined())
@@ -663,9 +630,7 @@ gjs_debug_value(JS::Value v)
     return "unexpected value";
 }
 
-std::string
-gjs_debug_id(jsid id)
-{
+std::string gjs_debug_id(jsid id) {
     if (id.isString())
         return gjs_debug_linear_string(id.toLinearString(), NoQuotes);
     return gjs_debug_value(js::IdToValue(id));

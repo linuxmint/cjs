@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: 2011 Giovanni Campagna
 
 var GLib = imports.gi.GLib;
-var CjsPrivate = imports.gi.CjsPrivate;
+var GjsPrivate = imports.gi.GjsPrivate;
 var Signals = imports.signals;
-const { warnDeprecatedOncePerCallsite, PLATFORM_SPECIFIC_TYPELIB } = imports._print;
+const {_createWrappersForPlatformSpecificNamespace} = imports._common;
 var Gio;
 
 // Ensures that a Gio.UnixFDList being passed into or out of a DBus method with
@@ -62,10 +62,10 @@ function _proxyInvoker(methodName, sync, inSignature, argArray) {
     var cancellable = null;
     let fdList = null;
 
-    /* Convert argArray to a *real* array */
+    // Convert argArray to a *real* array
     argArray = Array.prototype.slice.call(argArray);
 
-    /* The default replyFunc only logs the responses */
+    // The default replyFunc only logs the responses
     replyFunc = _logReply;
 
     var signatureLength = inSignature.length;
@@ -321,59 +321,98 @@ function _makeOutSignature(args) {
     return `${ret})`;
 }
 
-function _handleMethodCall(info, impl, methodName, parameters, invocation) {
+function _handleDBusReply(invocation, ret) {
+    if (ret === undefined) {
+        // undefined (no return value) is the empty tuple
+        ret = new GLib.Variant('()', []);
+    }
+
+    try {
+        let outFdList = null;
+        if (!(ret instanceof GLib.Variant)) {
+            // attempt packing according to out signature
+            const outArgs = invocation.get_method_info().out_args;
+            const outSignature = _makeOutSignature(outArgs);
+            if (outSignature.includes('h') &&
+                ret[ret.length - 1] instanceof Gio.UnixFDList) {
+                outFdList = ret.pop();
+            } else if (outArgs.length === 1) {
+                // if one arg, we don't require the handler wrapping it
+                // into an Array
+                ret = [ret];
+            }
+            ret = new GLib.Variant(outSignature, ret);
+        }
+        invocation.return_value_with_unix_fd_list(ret, outFdList);
+    } catch (e) {
+        logError(e, `Exception in method call: ${invocation.get_method_name()}`);
+
+        // if we don't do this, the other side will never see a reply
+        invocation.return_dbus_error('org.gnome.gjs.JSError.ValueError',
+            'Service implementation returned an incorrect value type');
+    }
+}
+
+function _handleDBusError(invocation, e) {
+    if (e instanceof GLib.Error) {
+        invocation.return_gerror(e);
+        return;
+    }
+
+    let {name} = e;
+    if (!name.includes('.')) {
+        // likely to be a normal JS error
+        name = `org.gnome.gjs.JSError.${name}`;
+    }
+    logError(e, `Exception in method call: ${invocation.get_method_name()}`);
+    invocation.return_dbus_error(name, e.message);
+}
+
+function _handleMethodCall(methodName, invocation, parameters) {
     // prefer a sync version if available
-    if (this[methodName]) {
+    const method = this[methodName];
+    if (method) {
         let retval;
         try {
-            const fdList = invocation.get_message().get_unix_fd_list();
-            retval = this[methodName](...parameters.deepUnpack(), fdList);
+            const args = parameters.deepUnpack();
+            args.push(invocation.get_message().get_unix_fd_list());
+            retval = method.apply(this, args);
         } catch (e) {
-            if (e instanceof GLib.Error) {
-                invocation.return_gerror(e);
-            } else {
-                let name = e.name;
-                if (!name.includes('.')) {
-                    // likely to be a normal JS error
-                    name = `org.gnome.gjs.JSError.${name}`;
-                }
-                logError(e, `Exception in method call: ${methodName}`);
-                invocation.return_dbus_error(name, e.message);
-            }
+            _handleDBusError(invocation, e);
             return;
         }
-        if (retval === undefined) {
-            // undefined (no return value) is the empty tuple
-            retval = new GLib.Variant('()', []);
-        }
-        try {
-            let outFdList = null;
-            if (!(retval instanceof GLib.Variant)) {
-                // attempt packing according to out signature
-                let methodInfo = info.lookup_method(methodName);
-                let outArgs = methodInfo.out_args;
-                let outSignature = _makeOutSignature(outArgs);
-                if (outSignature.includes('h') &&
-                    retval[retval.length - 1] instanceof Gio.UnixFDList) {
-                    outFdList = retval.pop();
-                } else if (outArgs.length === 1) {
-                    // if one arg, we don't require the handler wrapping it
-                    // into an Array
-                    retval = [retval];
-                }
-                retval = new GLib.Variant(outSignature, retval);
+
+        // eslint-disable-next-line no-unused-expressions
+        retval?.then?.(r => _handleDBusReply(invocation, r))?.catch?.(
+            e => _handleDBusError(invocation, e)) ??
+            _handleDBusReply(invocation, retval);
+
+        return;
+    }
+
+    const asyncMethod = this[`${methodName}Async`];
+    if (asyncMethod) {
+        function maybeHandleError(e) {
+            if (_methodInvocations.has(invocation)) {
+                logError(e, `Exception in method call: ${invocation.get_method_name()}`);
+                return;
             }
-            invocation.return_value_with_unix_fd_list(retval, outFdList);
-        } catch (e) {
-            // if we don't do this, the other side will never see a reply
-            invocation.return_dbus_error('org.gnome.gjs.JSError.ValueError',
-                'Service implementation returned an incorrect value type');
-        }
-    } else if (this[`${methodName}Async`]) {
+
+            _handleDBusError(invocation, e);
+        };
+
         const fdList = invocation.get_message().get_unix_fd_list();
-        this[`${methodName}Async`](parameters.deepUnpack(), invocation, fdList);
+        let ret;
+        try {
+            ret = asyncMethod.call(this, parameters.deepUnpack(), invocation, fdList);
+        } catch (e) {
+            maybeHandleError(e);
+            return;
+        }
+
+        ret?.catch?.(maybeHandleError);
     } else {
-        log(`Missing handler for DBus method ${methodName}`);
+        logError(new Error(), `Missing handler for DBus method ${methodName}`);
         invocation.return_gerror(new Gio.DBusError({
             code: Gio.DBusError.UNKNOWN_METHOD,
             message: `Method ${methodName} is not implemented`,
@@ -404,9 +443,9 @@ function _wrapJSObject(interfaceInfo, jsObj) {
         info = Gio.DBusInterfaceInfo.new_for_xml(interfaceInfo);
     info.cache_build();
 
-    var impl = new CjsPrivate.DBusImplementation({g_interface_info: info});
-    impl.connect('handle-method-call', function (self, methodName, parameters, invocation) {
-        return _handleMethodCall.call(jsObj, info, self, methodName, parameters, invocation);
+    var impl = new GjsPrivate.DBusImplementation({g_interface_info: info});
+    impl.connect('handle-method-call', function (_, ...args) {
+        return _handleMethodCall.apply(jsObj, args);
     });
     impl.connect('handle-property-get', function (self, propertyName) {
         return _handlePropertyGet.call(jsObj, info, self, propertyName);
@@ -478,56 +517,14 @@ function _warnNotIntrospectable(funcName, replacement) {
     logError(_notIntrospectableError(funcName, replacement));
 }
 
+const _methodInvocations = new WeakMap();
+
 function _init() {
     Gio = this;
-    let GioPlatform = {};
 
     Gio.Application.prototype.runAsync = GLib.MainLoop.prototype.runAsync;
 
-    if (GLib.MAJOR_VERSION > 2 ||
-        (GLib.MAJOR_VERSION === 2 && GLib.MINOR_VERSION >= 86)) {
-        // Redefine Gio functions with platform-specific implementations to be
-        // backward compatible with gi-repository 1.0, however when possible we
-        // notify a deprecation warning, to ensure that the surrounding code is
-        // updated.
-        try {
-            GioPlatform = imports.gi.GioUnix;
-        } catch {
-            try {
-                GioPlatform = imports.gi.GioWin32;
-            } catch {}
-        }
-    }
-
-    const platformName = `${GioPlatform?.__name__?.slice(3 /* 'Gio'.length */)}`;
-    const platformNameLower = platformName.toLowerCase();
-    Object.entries(Object.getOwnPropertyDescriptors(GioPlatform)).forEach(([prop, desc]) => {
-        let genericProp = prop;
-
-        const originalValue = GioPlatform[prop];
-        const gtypeName = originalValue.$gtype?.name;
-        if (gtypeName?.startsWith(`G${platformName}`))
-            genericProp = `${platformName}${prop}`;
-        else if (originalValue instanceof Function &&
-            originalValue.name.startsWith(`g_${platformNameLower}_`))
-            genericProp = `${platformNameLower}_${prop}`;
-
-        if (Object.hasOwn(Gio, genericProp)) {
-            console.debug(`Gio already contains property ${genericProp}`);
-            Gio[genericProp] = originalValue;
-            return;
-        }
-
-        Object.defineProperty(Gio, genericProp, {
-            enumerable: true,
-            configurable: false,
-            get() {
-                warnDeprecatedOncePerCallsite(PLATFORM_SPECIFIC_TYPELIB,
-                    `Gio.${genericProp}`, `${GioPlatform.__name__}.${prop}`);
-                return desc.get?.() ?? desc.value;
-            },
-        });
-    });
+    _createWrappersForPlatformSpecificNamespace(Gio);
 
     Gio.DBus = {
         // Namespace some functions
@@ -584,20 +581,54 @@ function _init() {
 
     Gio.DBusProxy.makeProxyWrapper = _makeProxyWrapper;
 
+    // Wrap the invocation return methods to catch if the method has already
+    // returned, in fact in such case we should not try to return anything
+    // especially because the Gio.DBusMethodInvocation.return_* methods take
+    // the ownership of the invocation itself and, calling it more than once
+    // may lead to memory issues.
+    // The invocated methods are saved in a weak map so that we do not
+    // artificially create a toggle reference that may keep the method
+    // invocation alive forever.
+    Object.entries(Object.getOwnPropertyDescriptors(Gio.DBusMethodInvocation.prototype)).forEach(([symbol, desc]) => {
+        if (!symbol.startsWith('return_'))
+            return;
+
+        const originalMethod = desc.value;
+        desc.value = function (...args) {
+            const oldInvocation = _methodInvocations.get(this);
+            if (oldInvocation) {
+                // We do not throw here, not to break compatibility, but
+                // we make this a no-op, to prevent potential memory issues.
+                logError(new Error(), `${this} (${oldInvocation.methodName}) ` +
+                    `already returned @\n${oldInvocation.previousCallStack.split(
+                        '\n').slice(1).join('\n')}`);
+                return;
+            }
+
+            _methodInvocations.set(this, {
+                methodName: this.get_method_name(),
+                previousCallStack: new Error().stack,
+            });
+            return originalMethod.apply(this, args);
+        };
+
+        Object.defineProperty(Gio.DBusMethodInvocation.prototype, symbol, desc);
+    });
+
     // Some helpers
     _wrapFunction(Gio.DBusNodeInfo, 'new_for_xml', _newNodeInfo);
     Gio.DBusInterfaceInfo.new_for_xml = _newInterfaceInfo;
 
-    Gio.DBusExportedObject = CjsPrivate.DBusImplementation;
+    Gio.DBusExportedObject = GjsPrivate.DBusImplementation;
     Gio.DBusExportedObject.wrapJSObject = _wrapJSObject;
 
     // ListStore
     Gio.ListStore.prototype[Symbol.iterator] = _listModelIterator;
     Gio.ListStore.prototype.insert_sorted = function (item, compareFunc) {
-        return CjsPrivate.list_store_insert_sorted(this, item, compareFunc);
+        return GjsPrivate.list_store_insert_sorted(this, item, compareFunc);
     };
     Gio.ListStore.prototype.sort = function (compareFunc) {
-        return CjsPrivate.list_store_sort(this, compareFunc);
+        return GjsPrivate.list_store_sort(this, compareFunc);
     };
 
     // Promisify
@@ -872,14 +903,24 @@ function _init() {
     // add_action_entries is not introspectable
     // https://gitlab.gnome.org/GNOME/gjs/-/issues/407
     Gio.ActionMap.prototype.add_action_entries = function add_action_entries(entries) {
-        for (const {name, activate, parameter_type, state, change_state} of entries) {
-            if (typeof parameter_type === 'string' && !GLib.variant_type_string_is_valid(parameter_type))
-                throw new Error(`parameter_type "${parameter_type}" is not a valid VariantType`);
+        for (let {name, activate, parameter_type, state, change_state} of entries) {
+            if (typeof parameter_type === 'string') {
+                if (!GLib.variant_type_string_is_valid(parameter_type))
+                    throw new Error(`parameter_type "${parameter_type}" is not a valid VariantType`);
+
+                parameter_type = new GLib.VariantType(parameter_type);
+            }
+
+            if (typeof state === 'boolean')
+                state = GLib.Variant.new_boolean(state);
+
+            if (typeof state === 'string')
+                state = GLib.Variant.parse(null, state, null, null);
 
             const action = new Gio.SimpleAction({
                 name,
-                parameter_type: typeof parameter_type === 'string' ? new GLib.VariantType(parameter_type) : null,
-                state: typeof state === 'string' ? GLib.Variant.parse(null, state, null, null) : null,
+                parameter_type: parameter_type instanceof GLib.VariantType ? parameter_type : null,
+                state: state instanceof GLib.Variant ? state : null,
             });
 
             if (typeof activate === 'function')

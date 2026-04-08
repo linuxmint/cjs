@@ -8,15 +8,16 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <deque>
 #include <functional>
-#include <iosfwd>
 #include <iterator>
 #include <limits>
 #include <memory>
 #include <new>
+#include <ratio>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -33,8 +34,8 @@
 #include <errno.h>
 #include <ffi.h>
 #include <gio/gio.h>
-#include <girepository.h>
-#include <girffi.h>
+#include <girepository/girepository.h>
+#include <girepository/girffi.h>
 #include <cjs/context.h>
 #include <cjs/coverage.h>
 #include <cjs/error-types.h>
@@ -66,6 +67,7 @@
 #include <js/ContextOptions.h>
 #include <js/Conversions.h>
 #include <js/Debug.h>
+#include <js/EnvironmentChain.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
 #include <js/GCAPI.h>
@@ -81,6 +83,7 @@
 #include <js/MemoryFunctions.h>
 #include <js/Modules.h>
 #include <js/Object.h>
+#include <js/ObjectWithStashedPointer.h>
 #include <js/Principals.h>
 #include <js/Printer.h>
 #include <js/ProfilingCategory.h>
@@ -126,6 +129,7 @@
 #include <mozilla/ResultVariant.h>
 #include <mozilla/ScopeExit.h>
 #include <mozilla/Span.h>
+#include <mozilla/Try.h>
 #include <mozilla/UniquePtr.h>
 #include <mozilla/Unused.h>
 #ifdef HAVE_READLINE_READLINE_H

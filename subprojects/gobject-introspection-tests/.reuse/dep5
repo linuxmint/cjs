@@ -1,0 +1,5 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+
+Files: docs/* README.md
+Copyright: No rights reserved
+License: CC0-1.0

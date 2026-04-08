@@ -3,8 +3,7 @@
 // SPDX-FileCopyrightText: 2008 litl, LLC
 // SPDX-FileCopyrightText: 2021 Canonical, Ltd
 
-#ifndef GJS_MEM_PRIVATE_H_
-#define GJS_MEM_PRIVATE_H_
+#pragma once
 
 #include <config.h>
 
@@ -32,8 +31,7 @@
     macro(union_prototype, 15)
 // clang-format on
 
-namespace Gjs {
-namespace Memory {
+namespace Gjs::Memory {
 
 struct Counter {
     explicit Counter(const char* n) : name(n) {}
@@ -60,10 +58,9 @@ constexpr void dec() {
 }
 
 }  // namespace Counters
-}  // namespace Memory
-}  // namespace Gjs
+}  // namespace Gjs::Memory
 
-#define COUNT(name, ix) +1
+#define COUNT(name, ix) +1  // NOLINT(bugprone-macro-parentheses)
 static constexpr size_t GJS_N_COUNTERS = 0 GJS_FOR_EACH_COUNTER(COUNT);
 #undef COUNT
 
@@ -94,5 +91,3 @@ static constexpr const char GJS_COUNTER_DESCRIPTIONS[GJS_N_COUNTERS][52] = {
     (Gjs::Memory::Counters::dec<&Gjs::Memory::Counters::name>());
 
 #define GJS_GET_COUNTER(name) (Gjs::Memory::Counters::name.value.load())
-
-#endif  // GJS_MEM_PRIVATE_H_

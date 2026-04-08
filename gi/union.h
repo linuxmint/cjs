@@ -2,96 +2,67 @@
 // SPDX-License-Identifier: MIT OR LGPL-2.0-or-later
 // SPDX-FileCopyrightText: 2008 litl, LLC
 
-#ifndef GI_UNION_H_
-#define GI_UNION_H_
+#pragma once
 
 #include <config.h>
 
-#include <girepository.h>
 #include <glib-object.h>
 
 #include <js/TypeDecls.h>
 
+#include "gi/boxed.h"
 #include "gi/cwrapper.h"
+#include "gi/info.h"
 #include "gi/wrapperutils.h"
 #include "cjs/macros.h"
-#include "util/log.h"
 
-namespace JS {
-class CallArgs;
-}
 struct JSClass;
 struct JSClassOps;
 class UnionPrototype;
 class UnionInstance;
 
-class UnionBase
-    : public GIWrapperBase<UnionBase, UnionPrototype, UnionInstance> {
+class UnionBase : public BoxedBase<UnionBase, UnionPrototype, UnionInstance> {
     friend class CWrapperPointerOps<UnionBase>;
     friend class GIWrapperBase<UnionBase, UnionPrototype, UnionInstance>;
+    friend class BoxedBase<UnionBase, UnionPrototype, UnionInstance>;
+    friend class BoxedPrototype<UnionBase, UnionPrototype, UnionInstance>;
+    friend class BoxedInstance<UnionBase, UnionPrototype, UnionInstance>;
 
  protected:
-    explicit UnionBase(UnionPrototype* proto = nullptr)
-        : GIWrapperBase(proto) {}
+    using BoxedBase::BoxedBase;
 
-    static constexpr GjsDebugTopic DEBUG_TOPIC = GJS_DEBUG_GBOXED;
     static constexpr const char* DEBUG_TAG = "union";
 
     static const JSClassOps class_ops;
     static const JSClass klass;
+
+ public:
+    static constexpr const GI::InfoTag TAG = GI::InfoTag::UNION;
 };
 
-class UnionPrototype : public GIWrapperPrototype<UnionBase, UnionPrototype,
-                                                 UnionInstance, GIUnionInfo> {
+class UnionPrototype
+    : public BoxedPrototype<UnionBase, UnionPrototype, UnionInstance> {
     friend class GIWrapperPrototype<UnionBase, UnionPrototype, UnionInstance,
-                                    GIUnionInfo>;
-    friend class GIWrapperBase<UnionBase, UnionPrototype, UnionInstance>;
+                                    GI::AutoUnionInfo, GI::UnionInfo>;
 
-    static constexpr InfoType::Tag info_type_tag = InfoType::Union;
-
-    explicit UnionPrototype(GIUnionInfo* info, GType gtype);
-    ~UnionPrototype(void);
-
-    GJS_JSAPI_RETURN_CONVENTION
-    bool resolve_impl(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
-                      bool* resolved);
-
-    // Overrides GIWrapperPrototype::constructor_nargs().
-    [[nodiscard]] unsigned constructor_nargs(void) const { return 0; }
+    explicit UnionPrototype(const GI::UnionInfo&, GType);
+    ~UnionPrototype();
 
  public:
     GJS_JSAPI_RETURN_CONVENTION
-    static bool define_class(JSContext* cx, JS::HandleObject in_object,
-                             GIUnionInfo* info);
+    static bool define_class(JSContext*, JS::HandleObject in_object,
+                             const GI::UnionInfo&);
 };
 
 class UnionInstance
-    : public GIWrapperInstance<UnionBase, UnionPrototype, UnionInstance> {
+    : public BoxedInstance<UnionBase, UnionPrototype, UnionInstance> {
     friend class GIWrapperInstance<UnionBase, UnionPrototype, UnionInstance>;
-    friend class GIWrapperBase<UnionBase, UnionPrototype, UnionInstance>;
 
-    explicit UnionInstance(UnionPrototype* prototype, JS::HandleObject obj);
-    ~UnionInstance(void);
-
-    GJS_JSAPI_RETURN_CONVENTION
-    bool constructor_impl(JSContext* cx, JS::HandleObject obj,
-                          const JS::CallArgs& args);
+    explicit UnionInstance(UnionPrototype*, JS::HandleObject);
+    ~UnionInstance();
 
  public:
     GJS_JSAPI_RETURN_CONVENTION
-    static JSObject* new_for_c_union(JSContext* cx, GIUnionInfo* info,
+    static JSObject* new_for_c_union(JSContext*, const GI::UnionInfo&,
                                      void* gboxed);
-
-    /*
-     * UnionInstance::copy_union:
-     *
-     * Allocate a new union pointer using g_boxed_copy(), from a raw union
-     * pointer.
-     */
-    void copy_union(void* ptr) { m_ptr = g_boxed_copy(gtype(), ptr); }
-
-    GJS_JSAPI_RETURN_CONVENTION
-    static void* copy_ptr(JSContext* cx, GType gtype, void* ptr);
 };
-
-#endif  // GI_UNION_H_
