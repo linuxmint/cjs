@@ -216,6 +216,50 @@ static bool seal_import(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
     return true;
 }
 
+/* Clear a cached module so it can be re-imported.
+ * This allows extension/applet reloading without restarting.
+ */
+GJS_JSAPI_RETURN_CONVENTION
+static bool
+importer_clear_cache(JSContext *cx,
+                     unsigned   argc,
+                     JS::Value *vp)
+{
+    GJS_GET_THIS(cx, argc, vp, args, importer);
+
+    if (args.length() < 1 || !args[0].isString()) {
+        gjs_throw(cx, "clearCache requires a string argument");
+        return false;
+    }
+
+    JS::RootedString name_str(cx, args[0].toString());
+    JS::UniqueChars name(JS_EncodeStringToUTF8(cx, name_str));
+    if (!name)
+        return false;
+
+    // Check if the property exists
+    bool has_prop;
+    if (!JS_HasOwnProperty(cx, importer, name.get(), &has_prop))
+        return false;
+
+    if (!has_prop) {
+        args.rval().setBoolean(false);
+        return true;
+    }
+
+    gjs_debug(GJS_DEBUG_IMPORTER,
+              "Clearing cached import '%s'",
+              name.get());
+
+    // Delete the cached module property
+    JS::ObjectOpResult result;
+    if (!JS_DeleteProperty(cx, importer, name.get(), result))
+        return false;
+
+    args.rval().setBoolean(result.succeed());
+    return true;
+}
+
 /* An import failed. Delete the property pointing to the import from the parent
  * namespace. In complicated situations this might not be sufficient to get us
  * fully back to a sane state. If:
@@ -412,9 +456,23 @@ static bool attempt_import(JSContext* cx, JS::HandleObject obj,
 
     Gjs::AutoChar full_path{g_file_get_parse_name(file)};
 
-    return define_meta_properties(cx, module_obj, full_path, module_name,
-                                  obj) &&
-           seal_import(cx, obj, module_id, module_name);
+    if (!define_meta_properties(cx, module_obj, full_path, module_name, obj))
+        return false;
+
+    // Only seal imports on the root importer (where parent is null).
+    // Sub-importers (like xlet importers) remain unsealed so their modules
+    // can be cleared from cache and re-imported for xlet reloading.
+    const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
+    JS::RootedValue parent(cx);
+    if (!JS_GetPropertyById(cx, obj, atoms.parent_module(), &parent))
+        return false;
+
+    if (parent.isNull()) {
+        if (!seal_import(cx, obj, module_id, module_name))
+            return false;
+    }
+
+    return true;
 }
 
 GJS_JSAPI_RETURN_CONVENTION
@@ -696,7 +754,7 @@ static bool importer_resolve(JSContext* cx, JS::HandleObject obj,
 
     const GjsAtoms& atoms = GjsContextPrivate::atoms(cx);
     if (id == atoms.module_init() || id == atoms.to_string() ||
-        id == atoms.value_of()) {
+        id == atoms.value_of() || id == atoms.clear_cache()) {
         *resolved = false;
         return true;
     }
@@ -736,6 +794,7 @@ static const JSPropertySpec gjs_importer_proto_props[] = {
 
 JSFunctionSpec gjs_importer_proto_funcs[] = {
     JS_FN("toString", importer_to_string, 0, 0),
+    JS_FN("clearCache", importer_clear_cache, 1, 0),
     JS_FS_END};
 
 [[nodiscard]]
