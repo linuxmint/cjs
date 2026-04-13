@@ -1,8 +1,10 @@
-cjs (139.9) unstable; urgency=medium
+cjs (140.0) zena; urgency=medium
 
+  [ Michael Webster ]
+  * importer: Add 'clear_cache' function to allow reloading of modules.
   * mozjs 140, gjs 1.86.0
 
- -- Michael Webster <miketwebster@gmail.com>  Thu, 22 Jan 2026 12:00:00 +0000
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 13 Apr 2026 08:16:17 +0100
 
 cjs (128.1) zena; urgency=medium
 
