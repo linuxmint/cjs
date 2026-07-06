@@ -1337,7 +1337,17 @@ static JSNative get_getter_for_property(
     if (property_info) {
         Maybe<GI::AutoFunctionInfo> prop_getter{property_info->getter()};
 
-        if (prop_getter && prop_getter->is_method() &&
+        // See note in get_setter_for_property(): confirm the resolved getter
+        // is actually flagged as a getter and belongs to this property before
+        // using the fast path.
+        bool getter_valid = false;
+        if (prop_getter && prop_getter->is_getter()) {
+            Maybe<GI::AutoPropertyInfo> getter_prop = prop_getter->property();
+            getter_valid = getter_prop &&
+                g_strcmp0(getter_prop->name(), property_info->name()) == 0;
+        }
+
+        if (getter_valid && prop_getter->is_method() &&
             prop_getter->n_args() == 0 && !prop_getter->skip_return()) {
             GI::StackTypeInfo return_type;
             prop_getter->load_return_type(&return_type);
@@ -1443,7 +1453,21 @@ static JSNative get_setter_for_property(
     if (property_info) {
         Maybe<GI::AutoFunctionInfo> prop_setter{property_info->setter()};
 
-        if (prop_setter && prop_setter->is_method() &&
+        // A glib gir-compiler bug (get_index_of_member_type) can resolve
+        // setter() to an unrelated method when the real accessor was left out
+        // of the typelib (e.g. gdbus-codegen annotates it "(skip)"). Confirm
+        // the resolved function is actually flagged as a setter and belongs to
+        // this property before using the fast path; otherwise fall through to
+        // the GValue path below. (gi_function_info_get_property() only returns
+        // a meaningful property when the setter flag is set.)
+        bool setter_valid = false;
+        if (prop_setter && prop_setter->is_setter()) {
+            Maybe<GI::AutoPropertyInfo> setter_prop = prop_setter->property();
+            setter_valid = setter_prop &&
+                g_strcmp0(setter_prop->name(), property_info->name()) == 0;
+        }
+
+        if (setter_valid && prop_setter->is_method() &&
             prop_setter->n_args() == 1) {
             GI::StackArgInfo value_arg;
             prop_setter->load_arg(0, &value_arg);

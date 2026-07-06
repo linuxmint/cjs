@@ -1125,6 +1125,14 @@ class InfoOperations<Wrapper, InfoTag::FUNCTION>
     bool is_constructor() const {
         return flags() & GI_FUNCTION_IS_CONSTRUCTOR;
     }
+    [[nodiscard]]
+    bool is_getter() const {
+        return flags() & GI_FUNCTION_IS_GETTER;
+    }
+    [[nodiscard]]
+    bool is_setter() const {
+        return flags() & GI_FUNCTION_IS_SETTER;
+    }
 
     operator CallableInfo() const {
         return detail::Pointer::to_unowned<InfoTag::CALLABLE>(
