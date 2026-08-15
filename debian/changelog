@@ -1,3 +1,10 @@
+cjs (140.1) alfa; urgency=medium
+
+  [ Michael Webster ]
+  * object: Only use property accessor fast path for real getters/setters.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Sat, 15 Aug 2026 12:38:27 +0200
+
 cjs (140.0) zena; urgency=medium
 
   [ Michael Webster ]
