@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <unordered_set>
+#include <utility>  // for pair
 #include <vector>
 
 #include <girepository/girepository.h>
@@ -28,6 +29,7 @@
 #include <mozilla/Maybe.h>
 
 #include "gi/info.h"
+#include "gi/toggle.h"
 #include "gi/value.h"
 #include "gi/wrapperutils.h"
 #include "cjs/auto.h"
@@ -331,6 +333,9 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
      * ref on the underlying GObject, and may be finalized at will. */
     bool m_uses_toggle_ref : 1;
 
+    /* Notify data of the toggle reference, see ToggleQueue::register_object() */
+    ToggleQueue::ObjectId m_toggle_id = 0;
+
     static bool s_weak_pointer_callback;
 
     // Constructors
@@ -369,6 +374,7 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     void release_native_object();
     void associate_js_gobject(JSContext*, JS::HandleObject, GObject*);
     void disassociate_js_gobject();
+    void release_disassociated_js_gobject();
     void handle_context_dispose();
     [[nodiscard]] bool weak_pointer_was_finalized(JSTracer*);
     static void ensure_weak_pointer_callback(JSContext*);
@@ -513,8 +519,12 @@ class ObjectInstance : public GIWrapperInstance<ObjectBase, ObjectPrototype,
     // Notification callbacks
     void gobj_dispose_notify();
     static void wrapped_gobj_dispose_notify(void* data, GObject*);
-    static void wrapped_gobj_toggle_notify(void* instance, GObject*,
+    static void wrapped_gobj_toggle_notify(void* data, GObject*,
                                            gboolean is_last_ref);
+    void handle_toggle_notify(bool is_last_ref);
+    void* register_toggle_notify_data();
+    void* toggle_notify_data() const;
+    std::pair<bool, bool> retire_toggle_notify_data();
 
  public:
     static void context_dispose_notify(void* data,

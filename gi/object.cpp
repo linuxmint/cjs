@@ -2173,9 +2173,10 @@ void ObjectInstance::gobj_dispose_notify() {
 
     if (m_uses_toggle_ref) {
         g_object_ref(m_ptr.get());
-        g_object_remove_toggle_ref(m_ptr, wrapped_gobj_toggle_notify, this);
-        ToggleQueue::get_default()->cancel(this);
-        wrapped_gobj_toggle_notify(this, m_ptr, TRUE);
+        retire_toggle_notify_data();
+        g_object_remove_toggle_ref(m_ptr, wrapped_gobj_toggle_notify,
+                                   toggle_notify_data());
+        handle_toggle_notify(true);
         m_uses_toggle_ref = false;
     }
 
@@ -2295,10 +2296,39 @@ static void toggle_handler(ObjectInstance* self,
     }
 }
 
-void ObjectInstance::wrapped_gobj_toggle_notify(void* instance, GObject*,
+void* ObjectInstance::register_toggle_notify_data() {
+    m_toggle_id = ToggleQueue::get_default()->register_object(this);
+    return toggle_notify_data();
+}
+
+void* ObjectInstance::toggle_notify_data() const {
+    return reinterpret_cast<void*>(m_toggle_id);
+}
+
+std::pair<bool, bool> ObjectInstance::retire_toggle_notify_data() {
+    return ToggleQueue::get_default()->retire_object(m_toggle_id, this);
+}
+
+void ObjectInstance::wrapped_gobj_toggle_notify(void* data, GObject*,
                                                 gboolean is_last_ref) {
+    // GObject calls the notify after releasing its own locks, so another
+    // thread can deliver it after the toggle reference was removed and the
+    // instance freed, with a GObject that may be freed as well (see
+    // g_object_add_toggle_ref()). The notify data is therefore an identity that
+    // is never reused, and only the queue lock, held until the notification is
+    // handled, tells whether it still belongs to a live instance.
+    auto toggle_queue = ToggleQueue::get_default();
+    ObjectInstance* self = toggle_queue->lookup_object(
+        reinterpret_cast<ToggleQueue::ObjectId>(data));
+    if (!self)
+        return;
+
+    self->handle_toggle_notify(is_last_ref);
+}
+
+void ObjectInstance::handle_toggle_notify(bool is_last_ref) {
     bool toggle_up_queued, toggle_down_queued;
-    auto* self = static_cast<ObjectInstance*>(instance);
+    auto* self = this;
 
     GjsContextPrivate* gjs = GjsContextPrivate::from_current_context();
     if (gjs->destroying()) {
@@ -2380,8 +2410,9 @@ void ObjectInstance::release_native_object() {
         ignore_gobject_finalization();
 
     if (m_uses_toggle_ref && !m_gobj_disposed) {
+        retire_toggle_notify_data();
         g_object_remove_toggle_ref(m_ptr.release(), wrapped_gobj_toggle_notify,
-                                   this);
+                                   toggle_notify_data());
         return;
     }
 
@@ -2483,15 +2514,28 @@ void ObjectInstance::update_heap_wrapper_weak_pointers(JSTracer* trc,
                         "%zu wrapped GObject(s) to examine",
                         ObjectInstance::num_wrapped_gobjects());
 
-    // Take a lock on the queue till we're done with it, so that we don't
-    // risk that another thread will queue something else while sweeping
-    auto locked_queue = ToggleQueue::get_default();
+    std::vector<ObjectInstance*> disassociated;
+    {
+        // Take a lock on the queue till we're done with it, so that we don't
+        // risk that another thread will queue something else while sweeping
+        auto locked_queue = ToggleQueue::get_default();
 
-    ObjectInstance::remove_wrapped_gobjects_if(
-        [&trc](ObjectInstance* instance) -> bool {
-            return instance->weak_pointer_was_finalized(trc);
-        },
-        std::mem_fn(&ObjectInstance::disassociate_js_gobject));
+        ObjectInstance::remove_wrapped_gobjects_if(
+            [&trc](ObjectInstance* instance) -> bool {
+                return instance->weak_pointer_was_finalized(trc);
+            },
+            [&disassociated](ObjectInstance* instance) {
+                instance->disassociate_js_gobject();
+                disassociated.push_back(instance);
+            });
+    }
+
+    // Releasing a GObject can run dispose and finalize code that waits for a
+    // lock held by another thread, while that thread waits for the queue lock
+    // to deliver a toggle notification. So release them only after unlocking;
+    // the notifications for the disassociated instances are discarded anyway.
+    for (ObjectInstance* instance : disassociated)
+        instance->release_disassociated_js_gobject();
 }
 
 bool ObjectInstance::weak_pointer_was_finalized(JSTracer* trc) {
@@ -2575,7 +2619,8 @@ void ObjectInstance::ensure_uses_toggle_ref(JSContext* cx) {
      */
     m_uses_toggle_ref = true;
     switch_to_rooted(cx);
-    g_object_add_toggle_ref(m_ptr, wrapped_gobj_toggle_notify, this);
+    g_object_add_toggle_ref(m_ptr, wrapped_gobj_toggle_notify,
+                            register_toggle_notify_data());
 
     /* We now have both a ref and a toggle ref, we only want the toggle ref.
      * This may immediately remove the GC root we just added, since refcount may
@@ -2610,8 +2655,7 @@ static void invalidate_closure_collection(T* closures, void* data,
 void ObjectInstance::disassociate_js_gobject() {
     bool had_toggle_down, had_toggle_up;
 
-    std::tie(had_toggle_down, had_toggle_up) =
-        ToggleQueue::get_default()->cancel(this);
+    std::tie(had_toggle_down, had_toggle_up) = retire_toggle_notify_data();
     if (had_toggle_up && !had_toggle_down) {
         g_error(
             "JS object wrapper for GObject %p (%s) is being released while "
@@ -2626,7 +2670,9 @@ void ObjectInstance::disassociate_js_gobject() {
         // First, remove the wrapper pointer from the wrapped GObject
         unset_object_qdata();
     }
+}
 
+void ObjectInstance::release_disassociated_js_gobject() {
     // Now release all the resources the current wrapper has
     invalidate_closures();
     release_native_object();
@@ -2799,14 +2845,12 @@ ObjectInstance::~ObjectInstance() {
 
     invalidate_closures();
 
-    // Do not keep the queue locked here, as we may want to leave the other
-    // threads to queue toggle events till we're owning the GObject so that
-    // eventually (once the toggle reference is finally removed) we can be sure
-    // that no other toggle event will target this (soon dead) wrapper.
+    // Do not keep the queue locked here, as releasing the GObject may need
+    // other threads to make progress. Retiring the toggle notify data first
+    // ensures that no toggle event will target this (soon dead) wrapper.
     bool had_toggle_up;
     bool had_toggle_down;
-    std::tie(had_toggle_down, had_toggle_up) =
-        ToggleQueue::get_default()->cancel(this);
+    std::tie(had_toggle_down, had_toggle_up) = retire_toggle_notify_data();
 
     // GObject is not already freed
     if (m_ptr) {

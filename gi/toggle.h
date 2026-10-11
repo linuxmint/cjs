@@ -15,6 +15,7 @@
 #include <atomic>
 #include <deque>
 #include <thread>
+#include <unordered_map>
 #include <utility>  // for pair
 
 #include <glib.h>  // for gboolean
@@ -32,6 +33,7 @@ class ToggleQueue {
     enum Direction : uint8_t { DOWN, UP };
 
     using Handler = void (*)(ObjectInstance*, Direction);
+    using ObjectId = uintptr_t;
 
  private:
     friend Gjs::Test::ToggleQueue;
@@ -49,6 +51,8 @@ class ToggleQueue {
     };
 
     std::deque<Item> q;
+    std::unordered_map<ObjectId, ObjectInstance*> m_objects;
+    ObjectId m_last_object_id = 0;
     std::atomic_bool m_shutdown = ATOMIC_VAR_INIT(false);
 
     unsigned m_idle_id = 0;
@@ -90,6 +94,16 @@ class ToggleQueue {
     [[nodiscard]] std::pair<bool, bool> is_queued(ObjectInstance*) const;
     // Cancels pending toggles and returns whether any were queued.
     std::pair<bool, bool> cancel(ObjectInstance*);
+
+    /* A toggle notification can arrive after its toggle reference was removed
+     * and its instance freed, so the notify data is an identity of the toggle
+     * reference rather than the instance. Identities are never reused.
+     * register_object() returns a new identity for @obj, lookup_object()
+     * returns its instance or nullptr once retired, and retire_object() retires
+     * it and cancels its pending toggles like cancel(). */
+    [[nodiscard]] ObjectId register_object(ObjectInstance* obj);
+    [[nodiscard]] ObjectInstance* lookup_object(ObjectId id) const;
+    std::pair<bool, bool> retire_object(ObjectId id, ObjectInstance* obj);
 
     /* Pops a toggle from the queue and processes it. Call this if you don't
      * want to wait for it to be processed in idle time. Returns false if queue

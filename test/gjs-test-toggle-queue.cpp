@@ -39,6 +39,10 @@ static std::deque<std::pair<::ObjectInstance*, ::ToggleQueue::Direction>>
 struct ObjectInstance : ::ObjectInstance {
     using ::ObjectInstance::ensure_uses_toggle_ref;
     using ::ObjectInstance::new_for_gobject;
+    using ::ObjectInstance::disassociate_js_gobject;
+    using ::ObjectInstance::release_disassociated_js_gobject;
+    using ::ObjectInstance::toggle_notify_data;
+    using ::ObjectInstance::wrapped_gobj_toggle_notify;
     using ::ObjectInstance::wrapper_is_rooted;
 };
 
@@ -633,6 +637,108 @@ static void test_toggle_queue_object_handle_many_up_and_down(
     g_assert_true(ToggleQueue::queue().empty());
 }
 
+static void* toggle_notify_data(::ObjectInstance* instance) {
+    return static_cast<ObjectInstance*>(instance)->toggle_notify_data();
+}
+
+static ::ToggleQueue::ObjectId toggle_id(::ObjectInstance* instance) {
+    return reinterpret_cast<::ToggleQueue::ObjectId>(
+        toggle_notify_data(instance));
+}
+
+// GObject reads the toggle notify data under its own lock and calls the notify
+// only after releasing it, so the call can arrive late from another thread
+static void late_toggle_notify(void* data, GObject* gobj, bool is_last_ref) {
+    std::thread([data, gobj, is_last_ref] {
+        ObjectInstance::wrapped_gobj_toggle_notify(data, gobj, is_last_ref);
+    }).join();
+}
+
+static void test_toggle_queue_object_notify_other_thread(GjsUnitTestFixture* fx,
+                                                         const void*) {
+    auto* instance = new_test_gobject(fx);
+
+    late_toggle_notify(toggle_notify_data(instance), instance->ptr(), false);
+    assert_equal(ToggleQueue::queue().size(), 1LU);
+    assert_equal(ToggleQueue::queue().at(0).object, instance);
+    assert_equal(ToggleQueue::queue().at(0).direction,
+                 ::ToggleQueue::Direction::UP);
+
+    ToggleQueue::get_default()->cancel(instance);
+}
+
+static void test_toggle_queue_object_late_notify_retired(GjsUnitTestFixture* fx,
+                                                         const void*) {
+    auto* instance = new_test_gobject(fx);
+    ToggleQueue::get_default()->retire_object(toggle_id(instance), instance);
+
+    late_toggle_notify(toggle_notify_data(instance), instance->ptr(), false);
+    g_assert_true(ToggleQueue::queue().empty());
+
+    // A late DOWN may come with a GObject that was finalized meanwhile
+    late_toggle_notify(toggle_notify_data(instance), nullptr, true);
+    g_assert_true(ToggleQueue::queue().empty());
+}
+
+static void test_toggle_queue_object_late_notify_disassociated(
+    GjsUnitTestFixture* fx, const void*) {
+    auto* instance = new_test_gobject(fx);
+    auto* instance_test = static_cast<ObjectInstance*>(instance);
+    void* data = toggle_notify_data(instance);
+    AutoUnref<GObject> reffed{instance->ptr(), TakeOwnership{}};
+
+    // As the GC sweep does: disassociate under the queue lock, release later
+    instance_test->disassociate_js_gobject();
+    late_toggle_notify(data, reffed, false);
+    g_assert_true(ToggleQueue::queue().empty());
+
+    instance_test->release_disassociated_js_gobject();
+    late_toggle_notify(data, reffed, false);
+    g_assert_true(ToggleQueue::queue().empty());
+    late_toggle_notify(data, reffed, true);
+    g_assert_true(ToggleQueue::queue().empty());
+}
+
+static void test_toggle_queue_object_late_notify_finalized(
+    GjsUnitTestFixture* fx, const void*) {
+    auto* instance = new_test_gobject(fx);
+    void* data = toggle_notify_data(instance);
+    GObject* gobj = instance->ptr();
+
+    GWeakRef weak_ref;
+    g_weak_ref_init(&weak_ref, gobj);
+    TQ::wait_for_gc(fx);
+    g_assert_null(g_weak_ref_get(&weak_ref));
+    g_weak_ref_clear(&weak_ref);
+
+    // Both the instance and the GObject are freed; neither may be touched
+    late_toggle_notify(data, gobj, false);
+    g_assert_true(ToggleQueue::queue().empty());
+    late_toggle_notify(data, gobj, true);
+    g_assert_true(ToggleQueue::queue().empty());
+}
+
+static void test_toggle_queue_object_late_notify_reused_address(
+    GjsUnitTestFixture* fx, const void*) {
+    auto* instance = new_test_gobject(fx);
+    void* old_data = toggle_notify_data(instance);
+    ToggleQueue::get_default()->retire_object(toggle_id(instance), instance);
+
+    // A new instance allocated at the address of the retired one
+    auto new_id = ToggleQueue::get_default()->register_object(instance);
+
+    late_toggle_notify(old_data, instance->ptr(), false);
+    g_assert_true(ToggleQueue::queue().empty());
+
+    late_toggle_notify(reinterpret_cast<void*>(new_id), instance->ptr(),
+                       false);
+    assert_equal(ToggleQueue::queue().size(), 1LU);
+    assert_equal(ToggleQueue::queue().at(0).object, instance);
+
+    ToggleQueue::get_default()->retire_object(new_id, instance);
+    g_assert_true(ToggleQueue::queue().empty());
+}
+
 void add_tests_for_toggle_queue() {
 #define ADD_TOGGLE_QUEUE_TEST(path, f)                                        \
     g_test_add("/toggle-queue/" path, GjsUnitTestFixture, nullptr, TQ::setup, \
@@ -683,6 +789,16 @@ void add_tests_for_toggle_queue() {
                           test_toggle_queue_object_handle_many_up);
     ADD_TOGGLE_QUEUE_TEST("object/handle_many_up_and_down",
                           test_toggle_queue_object_handle_many_up_and_down);
+    ADD_TOGGLE_QUEUE_TEST("object/notify_other_thread",
+                          test_toggle_queue_object_notify_other_thread);
+    ADD_TOGGLE_QUEUE_TEST("object/late_notify_retired",
+                          test_toggle_queue_object_late_notify_retired);
+    ADD_TOGGLE_QUEUE_TEST("object/late_notify_disassociated",
+                          test_toggle_queue_object_late_notify_disassociated);
+    ADD_TOGGLE_QUEUE_TEST("object/late_notify_finalized",
+                          test_toggle_queue_object_late_notify_finalized);
+    ADD_TOGGLE_QUEUE_TEST("object/late_notify_reused_address",
+                          test_toggle_queue_object_late_notify_reused_address);
 
 #undef ADD_TOGGLE_QUEUE_TEST
 }

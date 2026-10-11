@@ -117,6 +117,26 @@ std::pair<bool, bool> ToggleQueue::cancel(ObjectInstance* obj) {
     return {had_toggle_down, had_toggle_up};
 }
 
+ToggleQueue::ObjectId ToggleQueue::register_object(ObjectInstance* obj) {
+    g_assert(owns_lock() && "Unsafe access to queue");
+    ObjectId id = ++m_last_object_id;
+    m_objects.emplace(id, obj);
+    return id;
+}
+
+ObjectInstance* ToggleQueue::lookup_object(ObjectId id) const {
+    g_assert(owns_lock() && "Unsafe access to queue");
+    auto it = m_objects.find(id);
+    return it == m_objects.end() ? nullptr : it->second;
+}
+
+std::pair<bool, bool> ToggleQueue::retire_object(ObjectId id,
+                                                 ObjectInstance* obj) {
+    g_assert(owns_lock() && "Unsafe access to queue");
+    m_objects.erase(id);
+    return cancel(obj);
+}
+
 bool ToggleQueue::handle_toggle(Handler handler) {
     g_assert(owns_lock() && "Unsafe access to queue");
 
