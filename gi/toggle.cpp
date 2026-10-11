@@ -11,6 +11,7 @@
 #include <algorithm>  // for find_if
 #include <atomic>
 #include <deque>
+#include <limits>
 #include <utility>  // for pair
 
 #include "gi/object.h"
@@ -119,6 +120,8 @@ std::pair<bool, bool> ToggleQueue::cancel(ObjectInstance* obj) {
 
 ToggleQueue::ObjectId ToggleQueue::register_object(ObjectInstance* obj) {
     g_assert(owns_lock() && "Unsafe access to queue");
+    if (G_UNLIKELY(m_last_object_id == std::numeric_limits<ObjectId>::max()))
+        g_error("Toggle reference identities exhausted, refusing to reuse one");
     ObjectId id = ++m_last_object_id;
     m_objects.emplace(id, obj);
     return id;

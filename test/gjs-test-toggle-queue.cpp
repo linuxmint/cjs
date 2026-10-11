@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <limits>
 #include <memory>
 #include <thread>
 #include <tuple>    // for tie
@@ -59,6 +60,9 @@ struct ToggleQueue {
     static decltype(::ToggleQueue::q) queue() { return get_default()->q; }
     static ::ToggleQueue::Handler handler() {
         return get_default()->m_toggle_handler;
+    }
+    static void set_last_object_id(::ToggleQueue::ObjectId id) {
+        get_default()->m_last_object_id = id;
     }
 };
 
@@ -711,7 +715,8 @@ static void test_toggle_queue_object_late_notify_finalized(
     g_assert_null(g_weak_ref_get(&weak_ref));
     g_weak_ref_clear(&weak_ref);
 
-    // Both the instance and the GObject are freed; neither may be touched
+    // The weak ref proves the GObject was freed and the GC retired the toggle
+    // identity; the late notifications must touch neither
     late_toggle_notify(data, gobj, false);
     g_assert_true(ToggleQueue::queue().empty());
     late_toggle_notify(data, gobj, true);
@@ -724,7 +729,8 @@ static void test_toggle_queue_object_late_notify_reused_address(
     void* old_data = toggle_notify_data(instance);
     ToggleQueue::get_default()->retire_object(toggle_id(instance), instance);
 
-    // A new instance allocated at the address of the retired one
+    // Simulates a new instance allocated at the address of the retired one by
+    // registering the same pointer again
     auto new_id = ToggleQueue::get_default()->register_object(instance);
 
     late_toggle_notify(old_data, instance->ptr(), false);
@@ -737,6 +743,27 @@ static void test_toggle_queue_object_late_notify_reused_address(
 
     ToggleQueue::get_default()->retire_object(new_id, instance);
     g_assert_true(ToggleQueue::queue().empty());
+}
+
+static void test_toggle_queue_object_ids_exhausted(GjsUnitTestFixture* fx,
+                                                   const void*) {
+    if (!g_test_subprocess()) {
+        g_test_trap_subprocess(nullptr, 0, G_TEST_SUBPROCESS_DEFAULT);
+        g_test_trap_assert_failed();
+        g_test_trap_assert_stderr("*identities exhausted*");
+        return;
+    }
+
+    auto* instance = new_test_gobject(fx);
+    auto max = std::numeric_limits<::ToggleQueue::ObjectId>::max();
+    ToggleQueue::set_last_object_id(max - 1);
+
+    auto last_id = ToggleQueue::get_default()->register_object(instance);
+    assert_equal(last_id, max);
+    ToggleQueue::get_default()->retire_object(last_id, instance);
+
+    // Wrapping around would hand out identities of retired toggle references
+    std::ignore = ToggleQueue::get_default()->register_object(instance);
 }
 
 void add_tests_for_toggle_queue() {
@@ -799,6 +826,8 @@ void add_tests_for_toggle_queue() {
                           test_toggle_queue_object_late_notify_finalized);
     ADD_TOGGLE_QUEUE_TEST("object/late_notify_reused_address",
                           test_toggle_queue_object_late_notify_reused_address);
+    ADD_TOGGLE_QUEUE_TEST("object/ids_exhausted",
+                          test_toggle_queue_object_ids_exhausted);
 
 #undef ADD_TOGGLE_QUEUE_TEST
 }
