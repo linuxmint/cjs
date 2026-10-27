@@ -1,3 +1,10 @@
+cjs (140.2) adrien; urgency=medium
+
+  [ Michael Webster ]
+  * build.yml: Use git master for builds again.
+
+ -- Clement Lefebvre <root@linuxmint.com>  Tue, 27 Oct 2026 11:23:53 +0000
+
 cjs (140.1) alfa; urgency=medium
 
   [ Michael Webster ]

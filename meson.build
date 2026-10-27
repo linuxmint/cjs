@@ -6,7 +6,7 @@ project(
   'cjs',
   'cpp',
   'c',
-version : '140.1',
+version : '140.2',
   license : ['MIT', 'LGPL2+'],
   meson_version : '>= 1.4',
   default_options : [
