@@ -198,7 +198,17 @@ function _createGTypeName(klass) {
     if (gtypeClassName === '')
         gtypeClassName = `anonymous_${GLib.uuid_string_random()}`;
 
-    return sanitizeGType(`Gjs_${gtypeClassName}`);
+    let gtypeName = sanitizeGType(`Gjs_${gtypeClassName}`);
+
+    // Path based names repeat when a module is evaluated again (such as when
+    // a Cinnamon xlet is reloaded), so pick an unused name instead of failing.
+    if (GObject.gtypeNameBasedOnJSPath) {
+        const baseName = gtypeName;
+        for (let i = 2; GObject.type_from_name(gtypeName); i++)
+            gtypeName = `${baseName}_${i}`;
+    }
+
+    return gtypeName;
 }
 
 function _propertiesAsArray(klass) {

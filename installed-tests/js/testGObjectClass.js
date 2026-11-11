@@ -1083,6 +1083,27 @@ describe('Register GType name', function () {
             'Gjs_js_testGObjectClass_GTypeTestAutoCla__Name');
     });
 
+    it('picks an unused name when the path based name is taken', function () {
+        GObject.gtypeNameBasedOnJSPath = true;
+        const register = () => GObject.registerClass(
+            class GTypeTestReloaded extends GObject.Object {});
+        const first = register();
+        const second = register();
+        const third = register();
+
+        expect(first.$gtype.name).toEqual('Gjs_js_testGObjectClass_GTypeTestReloaded');
+        expect(second.$gtype.name).toEqual('Gjs_js_testGObjectClass_GTypeTestReloaded_2');
+        expect(third.$gtype.name).toEqual('Gjs_js_testGObjectClass_GTypeTestReloaded_3');
+    });
+
+    it('still fails on a duplicate name without path based names', function () {
+        const register = () => GObject.registerClass(
+            class GTypeTestDuplicate extends GObject.Object {});
+        register();
+
+        expect(register).toThrowError(/already registered/);
+    });
+
     it('use provided class name', function () {
         const GtypeClass = GObject.registerClass({
             GTypeName: 'GTypeTestManualName',

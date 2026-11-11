@@ -212,8 +212,8 @@ describe('Importer', function () {
                 "Some code accessed the property 'c' on the module " +
                 "'lexicalScope'.*");
 
-            void LexicalScope.b;
-            void LexicalScope.c;
+            expect(LexicalScope.b).toEqual(2);
+            expect(LexicalScope.c).toEqual(3);
 
             // g_test_assert_expected_messages() is a macro, not introspectable
             GLib.test_assert_expected_messages_internal('Gjs',
@@ -271,5 +271,33 @@ describe('Importer', function () {
         const response = await imports.dynamic.test();
 
         expect(response).toBe('<( I did it! )');
+    });
+
+    describe('clearCache', function () {
+        let reloadable;
+        beforeAll(function () {
+            reloadable = imports.reloadable;
+        });
+
+        it('does not import a module that was never imported', function () {
+            expect(reloadable.clearCache('counted')).toBeFalse();
+            expect(globalThis.reloadableCount).not.toBeDefined();
+        });
+
+        it('re-imports a cleared module', function () {
+            const first = reloadable.counted.count;
+
+            expect(reloadable.clearCache('counted')).toBeTrue();
+            expect(reloadable.counted.count).toEqual(first + 1);
+        });
+
+        it('re-imports modules in a cleared sub-directory', function () {
+            const sub = reloadable.sub;
+            const first = sub.counted.count;
+
+            expect(reloadable.clearCache('sub')).toBeTrue();
+            expect(reloadable.sub).not.toBe(sub);
+            expect(reloadable.sub.counted.count).toEqual(first + 1);
+        });
     });
 });
