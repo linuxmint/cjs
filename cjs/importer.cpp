@@ -249,9 +249,9 @@ importer_clear_cache(JSContext *cx,
     if (!name)
         return false;
 
-    // Check if the property exists
+    // Check if the property exists, without the resolve hook importing it
     bool has_prop;
-    if (!JS_HasOwnProperty(cx, importer, name.get(), &has_prop))
+    if (!JS_AlreadyHasOwnProperty(cx, importer, name.get(), &has_prop))
         return false;
 
     if (!has_prop) {
@@ -972,8 +972,18 @@ static JSObject* gjs_define_importer(
         gjs_create_importer(context, importer_name, initial_search_path,
                             add_standard_search_path, in_object));
 
-    if (!JS_DefineProperty(context, in_object, importer_name, importer,
-                           GJS_MODULE_PROP_FLAGS))
+    // As with modules, only directories on the root importer are permanent,
+    // so sub-directories of xlet importers can be cleared from cache too.
+    const GjsAtoms& atoms = GjsContextPrivate::atoms(context);
+    JS::RootedValue parent(context);
+    if (!JS_GetPropertyById(context, in_object, atoms.parent_module(), &parent))
+        return nullptr;
+
+    unsigned attrs = GJS_MODULE_PROP_FLAGS;
+    if (!parent.isNull())
+        attrs &= ~JSPROP_PERMANENT;
+
+    if (!JS_DefineProperty(context, in_object, importer_name, importer, attrs))
         return nullptr;
 
     gjs_debug(GJS_DEBUG_IMPORTER,

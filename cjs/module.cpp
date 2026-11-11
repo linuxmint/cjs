@@ -200,7 +200,11 @@ class GjsScriptModule {
             {gjs_debug_id(id).c_str(), m_name});
 
         JS::Rooted<JS::PropertyDescriptor> desc(cx, maybe_desc.value());
-        return JS_DefinePropertyById(cx, module, id, desc);
+        if (!JS_DefinePropertyById(cx, module, id, desc))
+            return false;
+
+        *resolved = true;
+        return true;
     }
 
     GJS_JSAPI_RETURN_CONVENTION

@@ -29,6 +29,8 @@
     <file>modules/mutualImport/a.js</file>
     <file>modules/mutualImport/b.js</file>
     <file>modules/overrides/GIMarshallingTests.js</file>
+    <file>modules/reloadable/counted.js</file>
+    <file>modules/reloadable/sub/counted.js</file>
     <file>modules/say.js</file>
     <file>modules/sideEffect.js</file>
     <file>modules/sideEffect2.js</file>
