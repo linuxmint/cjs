@@ -1,3 +1,10 @@
+cjs (140.3) adrien; urgency=medium
+
+  [ Michael Webster ]
+  * importer: Fix lexical module properties and xlet reloading
+
+ -- Clement Lefebvre <root@linuxmint.com>  Mon, 16 Nov 2026 15:21:19 +0000
+
 cjs (140.2) adrien; urgency=medium
 
   [ Michael Webster ]
